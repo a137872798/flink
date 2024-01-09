@@ -115,6 +115,9 @@ public class PipelineOptions {
                                     + " the streaming system to keep track of the progress of time. They are used, for example,"
                                     + " for time based windowing.");
 
+    /**
+     * 管道模式的配置 描述清理级别的
+     */
     public static final ConfigOption<ClosureCleanerLevel> CLOSURE_CLEANER_LEVEL =
             key("pipeline.closure-cleaner-level")
                     .enumType(ClosureCleanerLevel.class)

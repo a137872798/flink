@@ -36,6 +36,13 @@ final class WatermarksWithWatermarkAlignment<T> implements WatermarkStrategy<T> 
 
     private final Duration updateInterval;
 
+    /**
+     * 覆盖某些属性
+     * @param strategy
+     * @param watermarkGroup
+     * @param maxAllowedWatermarkDrift
+     * @param updateInterval
+     */
     public WatermarksWithWatermarkAlignment(
             WatermarkStrategy<T> strategy,
             String watermarkGroup,

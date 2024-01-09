@@ -28,7 +28,9 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 
-/** Serializer for serializing/deserializing BigDecimal values including null values. */
+/** Serializer for serializing/deserializing BigDecimal values including null values.
+ * 包含BigDecimal 序列化/反序列化相关的逻辑
+ * */
 @Internal
 public final class BigDecSerializer extends TypeSerializerSingleton<BigDecimal> {
 
@@ -61,15 +63,23 @@ public final class BigDecSerializer extends TypeSerializerSingleton<BigDecimal> 
         return -1;
     }
 
+    /**
+     * 这些类型 DataOutputView就没有现成的api可以直接使用了
+     * @param record The record to serialize.
+     * @param target The output view to write the serialized data to.
+     * @throws IOException
+     */
     @Override
     public void serialize(BigDecimal record, DataOutputView target) throws IOException {
         // null value support
+        // 可以看到都是转而委托给 BigInteger的序列化对象
         if (record == null) {
             BigIntSerializer.writeBigInteger(null, target);
             return;
         }
         // fast paths for 0, 1, 10
         // only reference equality is checked because equals would be too expensive
+        // 这里多写入一个0  代表小数部分为0
         else if (record == BigDecimal.ZERO) {
             BigIntSerializer.writeBigInteger(BigInteger.ZERO, target);
             target.writeInt(0);
@@ -84,6 +94,7 @@ public final class BigDecSerializer extends TypeSerializerSingleton<BigDecimal> 
             return;
         }
         // default
+        // 应该是分别写入 整数 和 小数的部分
         BigIntSerializer.writeBigInteger(record.unscaledValue(), target);
         target.writeInt(record.scale());
     }
@@ -101,6 +112,8 @@ public final class BigDecSerializer extends TypeSerializerSingleton<BigDecimal> 
     @Override
     public void copy(DataInputView source, DataOutputView target) throws IOException {
         final boolean isNull = BigIntSerializer.copyBigInteger(source, target);
+
+        // 读取一个小数部分
         if (!isNull) {
             final int scale = source.readInt();
             target.writeInt(scale);
@@ -111,6 +124,12 @@ public final class BigDecSerializer extends TypeSerializerSingleton<BigDecimal> 
     //                           Static Helpers for BigInteger Serialization
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 还原 BigDecimal
+     * @param source
+     * @return
+     * @throws IOException
+     */
     public static BigDecimal readBigDecimal(DataInputView source) throws IOException {
         final BigInteger unscaledValue = BigIntSerializer.readBigInteger(source);
         if (unscaledValue == null) {
@@ -118,6 +137,7 @@ public final class BigDecSerializer extends TypeSerializerSingleton<BigDecimal> 
         }
         final int scale = source.readInt();
         // fast-path for 0, 1, 10
+        // 小数为0
         if (scale == 0) {
             if (unscaledValue == BigInteger.ZERO) {
                 return BigDecimal.ZERO;
@@ -128,6 +148,7 @@ public final class BigDecSerializer extends TypeSerializerSingleton<BigDecimal> 
             }
         }
         // default
+        // 把整数和小数 + 在一起
         return new BigDecimal(unscaledValue, scale);
     }
 

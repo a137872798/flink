@@ -23,6 +23,7 @@ import java.util.Iterator;
 /**
  * PluginManager is responsible for managing cluster plugins which are loaded using separate class
  * loaders so that their dependencies don't interfere with Flink's dependencies.
+ * 插件管理器  可以读取实现某个接口的所有插件
  */
 public interface PluginManager {
 

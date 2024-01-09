@@ -62,12 +62,16 @@ import java.io.IOException;
  * @see org.apache.flink.api.common.operators.base.FlatMapOperatorBase
  * @see org.apache.flink.api.common.operators.base.FilterOperatorBase
  * @see org.apache.flink.api.common.operators.base.MapPartitionOperatorBase
+ * 全部以委托的方式
  */
 @PublicEvolving
 public final class ReplicatingInputFormat<OT, S extends InputSplit> extends RichInputFormat<OT, S> {
 
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 内部含有一个副本
+     */
     private InputFormat<OT, S> replicatedIF;
 
     public ReplicatingInputFormat(InputFormat<OT, S> wrappedIF) {

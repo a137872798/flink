@@ -27,12 +27,17 @@ import java.util.HashSet;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
 
-/** Type information for numeric fractional primitive types (double, float). */
+/** Type information for numeric fractional primitive types (double, float).
+ * 分数类型信息
+ * */
 @Public
 public class FractionalTypeInfo<T> extends NumericTypeInfo<T> {
 
     private static final long serialVersionUID = 554334260950199994L;
 
+    /**
+     * 将类型进一步限制到 double和float
+     */
     private static final HashSet<Class<?>> fractionalTypes =
             new HashSet<>(Arrays.asList(Double.class, Float.class));
 

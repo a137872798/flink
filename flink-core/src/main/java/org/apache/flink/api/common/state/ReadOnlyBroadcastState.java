@@ -32,6 +32,8 @@ import java.util.Map;
  *
  * @param <K> The key type of the elements in the {@link ReadOnlyBroadcastState}.
  * @param <V> The value type of the elements in the {@link ReadOnlyBroadcastState}.
+ *
+ *           代表一个只读的广播状态   从api观察像是一个 map 对象
  */
 @PublicEvolving
 public interface ReadOnlyBroadcastState<K, V> extends State {
@@ -61,6 +63,7 @@ public interface ReadOnlyBroadcastState<K, V> extends State {
      *
      * <p>The user code must not modify the entries of the returned immutable iterator, as this can
      * lead to inconsistent states.
+     * 获取内部对象的副本
      */
     Iterable<Map.Entry<K, V>> immutableEntries() throws Exception;
 }

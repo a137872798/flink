@@ -38,7 +38,10 @@ import java.nio.file.StandardOpenOption;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** A {@link RecoverableFsDataOutputStream} for the {@link LocalFileSystem}. */
+/** A {@link RecoverableFsDataOutputStream} for the {@link LocalFileSystem}.
+ * 由LocalRecoverableWriter创建 代表一个可恢复的输出流
+ * 借助临时文件 是的文件的数据写入变成原子操作
+ * */
 @Internal
 public class LocalRecoverableFsDataOutputStream extends RecoverableFsDataOutputStream {
 
@@ -46,10 +49,18 @@ public class LocalRecoverableFsDataOutputStream extends RecoverableFsDataOutputS
 
     private final File tempFile;
 
+    // 临时文件相关的
     private final FileChannel fileChannel;
-
     private final OutputStream fos;
 
+    // 注意该对象的写入和恢复都是先针对一个临时文件
+
+    /**
+     * 核心就是使用了临时文件
+     * @param targetFile  最终存储数据的目标文件
+     * @param tempFile    临时写入的文件
+     * @throws IOException
+     */
     public LocalRecoverableFsDataOutputStream(File targetFile, File tempFile) throws IOException {
         this.targetFile = checkNotNull(targetFile);
         this.tempFile = checkNotNull(tempFile);
@@ -60,6 +71,11 @@ public class LocalRecoverableFsDataOutputStream extends RecoverableFsDataOutputS
         this.fos = Channels.newOutputStream(fileChannel);
     }
 
+    /**
+     * 借助一个恢复对象 重新恢复输出流的数据
+     * @param resumable  该对象内部提供一些辅助信息  但是没有什么处理逻辑
+     * @throws IOException
+     */
     LocalRecoverableFsDataOutputStream(LocalRecoverable resumable) throws IOException {
         this.targetFile = checkNotNull(resumable.targetFile());
         this.tempFile = checkNotNull(resumable.tempFile());
@@ -74,9 +90,12 @@ public class LocalRecoverableFsDataOutputStream extends RecoverableFsDataOutputS
         if (this.fileChannel.position() < resumable.offset()) {
             throw new IOException("Missing data in tmp file: " + tempFile.getAbsolutePath());
         }
+        // 为保持一致  将该偏移量后的数据截断
         this.fileChannel.truncate(resumable.offset());
         this.fos = Channels.newOutputStream(fileChannel);
     }
+
+    // 注意读写操作的都是临时文件
 
     @Override
     public void write(int b) throws IOException {
@@ -103,6 +122,11 @@ public class LocalRecoverableFsDataOutputStream extends RecoverableFsDataOutputS
         return fileChannel.position();
     }
 
+    /**
+     * 将本对象持久化后 会产生一个可以帮助恢复数据的对象 本对象可以借助该对象还原
+     * @return
+     * @throws IOException
+     */
     @Override
     public ResumeRecoverable persist() throws IOException {
         // we call both flush and sync in order to ensure persistence on mounted
@@ -110,9 +134,15 @@ public class LocalRecoverableFsDataOutputStream extends RecoverableFsDataOutputS
         flush();
         sync();
 
+        // 将相关信息生成LocalRecoverable对象  该对象可辅助还原本对象
         return new LocalRecoverable(targetFile, tempFile, getPos());
     }
 
+    /**
+     * 关闭本对象的同时 生成一个提交对象 当调用提交方法时  临时文件的数据变成了目标文件
+     * @return
+     * @throws IOException
+     */
     @Override
     public Committer closeForCommit() throws IOException {
         final long pos = getPos();
@@ -129,12 +159,19 @@ public class LocalRecoverableFsDataOutputStream extends RecoverableFsDataOutputS
 
     static class LocalCommitter implements Committer {
 
+        /**
+         * 这个就是可以恢复 output对象的东西
+         */
         private final LocalRecoverable recoverable;
 
         LocalCommitter(LocalRecoverable recoverable) {
             this.recoverable = checkNotNull(recoverable);
         }
 
+        /**
+         * 将临时文件变成目标文件
+         * @throws IOException
+         */
         @Override
         public void commit() throws IOException {
             final File src = recoverable.tempFile();
@@ -162,6 +199,10 @@ public class LocalRecoverableFsDataOutputStream extends RecoverableFsDataOutputS
             }
         }
 
+        /**
+         * 反正就是还做一些修正
+         * @throws IOException
+         */
         @Override
         public void commitAfterRecovery() throws IOException {
             final File src = recoverable.tempFile();

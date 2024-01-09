@@ -35,6 +35,7 @@ import java.io.IOException;
  * together.
  *
  * @param <T> Type of the value in the state.
+ *           一种简单的状态 仅包含一个值   暴露获取值和更新值的api
  */
 @PublicEvolving
 public interface ValueState<T> extends State {

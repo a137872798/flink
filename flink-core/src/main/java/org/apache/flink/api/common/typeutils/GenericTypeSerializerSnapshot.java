@@ -32,12 +32,18 @@ import static org.apache.flink.util.Preconditions.checkState;
  * Base {@link TypeSerializerSnapshot} for serializers for generic types.
  *
  * @param <T> The type to be instantiated.
+ *
+ *           表示一般类是怎么生成快照 和从快照中恢复的
  */
 @Internal
 public abstract class GenericTypeSerializerSnapshot<T, S extends TypeSerializer>
         implements TypeSerializerSnapshot<T> {
 
     private static final int VERSION = 2;
+
+    /**
+     * 需要生成快照的目标类
+     */
     private Class<T> typeClass;
 
     protected GenericTypeSerializerSnapshot() {}
@@ -63,6 +69,7 @@ public abstract class GenericTypeSerializerSnapshot<T, S extends TypeSerializer>
     @Override
     public final void writeSnapshot(DataOutputView out) throws IOException {
         checkState(typeClass != null, "type class can not be NULL");
+        // 写入 ClassName
         out.writeUTF(typeClass.getName());
     }
 
@@ -76,6 +83,7 @@ public abstract class GenericTypeSerializerSnapshot<T, S extends TypeSerializer>
     @SuppressWarnings("unchecked")
     public final TypeSerializer<T> restoreSerializer() {
         checkState(typeClass != null, "type class can not be NULL");
+        // 根据class类型生成不同的序列化对象
         return createSerializer(typeClass);
     }
 

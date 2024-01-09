@@ -34,6 +34,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * Base type information class for Tuple and Pojo types
  *
  * <p>The class is taking care of serialization and comparators for Tuples as well.
+ * 代表一个组合类型 打散开会有很多field
  */
 @Public
 public abstract class CompositeType<T> extends TypeInformation<T> {
@@ -64,6 +65,7 @@ public abstract class CompositeType<T> extends TypeInformation<T> {
      *     computed.
      * @return The list of descriptors for the flat fields which are specified by the field
      *     expression.
+     *     根据表达式信息 读取相关的field
      */
     @PublicEvolving
     public List<FlatFieldDescriptor> getFlatFields(String fieldExpression) {
@@ -90,6 +92,7 @@ public abstract class CompositeType<T> extends TypeInformation<T> {
      * @param fieldExpression The field expression for which the field of which the type is
      *     returned.
      * @return The type of the field at the given field expression.
+     * 获取对应字段的类型
      */
     @PublicEvolving
     public abstract <X> TypeInformation<X> getTypeAt(String fieldExpression);
@@ -111,61 +114,76 @@ public abstract class CompositeType<T> extends TypeInformation<T> {
      * infrastructure to create the actual comparators
      *
      * @return The comparator
+     *
+     * 生成比较器对象   因为最终的比较结果受多个字段影响  需要将他们组合在一起
      */
     @PublicEvolving
     public TypeComparator<T> createComparator(
-            int[] logicalKeyFields,
-            boolean[] orders,
+            int[] logicalKeyFields,  // 只有key字段才会参与到compare的计算中
+            boolean[] orders,    // 这些列的顺序
             int logicalFieldOffset,
             ExecutionConfig config) {
 
         TypeComparatorBuilder<T> builder = createTypeComparatorBuilder();
 
+        // 根据参与的字段数量 初始化
         builder.initializeTypeComparatorBuilder(logicalKeyFields.length);
 
         for (int logicalKeyFieldIndex = 0;
                 logicalKeyFieldIndex < logicalKeyFields.length;
                 logicalKeyFieldIndex++) {
+
+            // key字段的下标
             int logicalKeyField = logicalKeyFields[logicalKeyFieldIndex];
             int logicalField = logicalFieldOffset; // this is the global/logical field number
             boolean comparatorAdded = false;
 
+
+            // 每次遍历从0到logicalKeyField
+            // logicalKeyField 代表每个排序相关的key的位置
             for (int localFieldId = 0;
                     localFieldId < this.getArity()
                             && logicalField <= logicalKeyField
-                            && !comparatorAdded;
+                            && !comparatorAdded;  // 一旦添加了比较器 就可以进入下次循环了
                     localFieldId++) {
+
+                // 获取该字段的类型信息
                 TypeInformation<?> localFieldType = this.getTypeAt(localFieldId);
 
+                // 代表找到了一个比较用的key  创建比较器  并且注意是到logicalKeyField了 也就是本次期望的那个会影响到排序的key 这是正常情况
                 if (localFieldType instanceof AtomicType && logicalField == logicalKeyField) {
                     // we found an atomic key --> create comparator
                     builder.addComparatorField(
                             localFieldId,
                             ((AtomicType<?>) localFieldType)
+                                    // orders[logicalKeyFieldIndex] 获取该字段的排序方式
                                     .createComparator(orders[logicalKeyFieldIndex], config));
 
+                    // 代表成功添加了比较器  提前退出内循环
                     comparatorAdded = true;
                 }
                 // must be composite type and check that the logicalKeyField is within the bounds
                 // of the composite type's logical fields
+                // 在发现参与排序的字段前 可能会发现一些普通字段  并且是复合类型
                 else if (localFieldType instanceof CompositeType
-                        && logicalField <= logicalKeyField
-                        && logicalKeyField
+                        && logicalField <= logicalKeyField   // 代表不会超过本次期望的key
+                        && logicalKeyField   // 代表此时该type 包含了logicalKeyField 也就是参与排序的字段在type内部 要把它单独拎出来
                                 <= logicalField + (localFieldType.getTotalFields() - 1)) {
                     // we found a compositeType that is containing the logicalKeyField we are
                     // looking for --> create comparator
                     builder.addComparatorField(
                             localFieldId,
-                            ((CompositeType<?>) localFieldType)
+                            ((CompositeType<?>) localFieldType)  // 开始嵌套创建了
                                     .createComparator(
-                                            new int[] {logicalKeyField},
+                                            new int[] {logicalKeyField},  // 扫描到目标位置
                                             new boolean[] {orders[logicalKeyFieldIndex]},
-                                            logicalField,
+                                            logicalField, // 这个是偏移量 代表从这里开始扫描
                                             config));
 
                     comparatorAdded = true;
                 }
 
+                // 当发现复合类型时 跳跃到最后一个字段的位置
                 if (localFieldType instanceof CompositeType) {
                     // we need to subtract 1 because we are not accounting for the local field (not
                     // accessible for the user)
@@ -175,6 +193,7 @@ public abstract class CompositeType<T> extends TypeInformation<T> {
                 logicalField++;
             }
 
+            // 一轮下来没有任何比较器加入  是错误情况
             if (!comparatorAdded) {
                 throw new IllegalArgumentException(
                         "Could not add a comparator for the logical"
@@ -198,8 +217,14 @@ public abstract class CompositeType<T> extends TypeInformation<T> {
         TypeComparator<T> createTypeComparator(ExecutionConfig config);
     }
 
+    /**
+     * 简单来说就是非组合类型
+     */
     @PublicEvolving
     public static class FlatFieldDescriptor {
+        /**
+         * 该字段的位置
+         */
         private int keyPosition;
         private TypeInformation<?> type;
 
@@ -231,6 +256,10 @@ public abstract class CompositeType<T> extends TypeInformation<T> {
         return getFieldIndex(fieldName) >= 0;
     }
 
+    /**
+     * 只要有一个字段 不是key类型 就返回false
+     * @return
+     */
     @Override
     @PublicEvolving
     public boolean isKeyType() {
@@ -256,6 +285,7 @@ public abstract class CompositeType<T> extends TypeInformation<T> {
     /**
      * Returns the names of the composite fields of this type. The order of the returned array must
      * be consistent with the internal field index ordering.
+     * 获取这些type对应的fieldName
      */
     @PublicEvolving
     public abstract String[] getFieldNames();

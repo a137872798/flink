@@ -26,6 +26,8 @@ import java.util.Iterator;
  * An {@link Iterator} that is also {@link Iterable} (often by returning itself).
  *
  * @param <E> The iterated elements' type.
+ *
+ *           既可以作为迭代器  也可以产生迭代器
  */
 @Internal
 public interface IterableIterator<E> extends Iterator<E>, Iterable<E> {}

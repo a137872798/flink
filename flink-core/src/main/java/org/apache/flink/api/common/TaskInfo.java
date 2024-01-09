@@ -25,15 +25,29 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
  * Encapsulates task-specific information: name, index of subtask, parallelism and attempt number.
+ * 表示某个任务
  */
 @Internal
 public class TaskInfo {
 
+    /**
+     * 当前任务名
+     */
     private final String taskName;
+    /**
+     * 名字上追加一些subtask相关的信息
+     */
     private final String taskNameWithSubtasks;
     private final String allocationIDAsString;
+    /**
+     * 最大子任务并行度
+     */
     private final int maxNumberOfParallelSubtasks;
+
     private final int indexOfSubtask;
+    /**
+     * 当前并行度
+     */
     private final int numberOfParallelSubtasks;
     private final int attemptNumber;
 

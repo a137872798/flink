@@ -24,6 +24,9 @@ import org.apache.flink.core.memory.MemorySegment;
 
 import java.io.IOException;
 
+/**
+ * 各种基础类型的比较 区别就是读取序列化数据时的api不同
+ */
 @Internal
 public final class DoubleComparator extends BasicTypeComparator<Double> {
 

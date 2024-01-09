@@ -22,12 +22,15 @@ import org.apache.flink.annotation.Public;
 
 /**
  * Enumeration representing order. May represent no order, an ascending order or a descending order.
+ * 表示一个顺序对象
  */
 @Public
 public enum Order {
 
     /** Indicates no order. */
     NONE,
+
+    // 正序 / 倒序
 
     /** Indicates an ascending order. */
     ASCENDING,
@@ -38,6 +41,7 @@ public enum Order {
     /**
      * Indicates an order without a direction. This constant is not used to indicate any existing
      * order, but for example to indicate that an order of any direction is desirable.
+     * 无序
      */
     ANY;
 

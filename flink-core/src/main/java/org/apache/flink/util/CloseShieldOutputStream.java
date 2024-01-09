@@ -21,7 +21,9 @@ package org.apache.flink.util;
 import java.io.IOException;
 import java.io.OutputStream;
 
-/** A proxy output stream that prevents the underlying output stream from being closed. */
+/** A proxy output stream that prevents the underlying output stream from being closed.
+ * 包装后 就无法关闭原始流
+ * */
 public class CloseShieldOutputStream extends OutputStream {
     private final OutputStream out;
 

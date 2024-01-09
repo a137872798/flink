@@ -27,6 +27,7 @@ import org.apache.flink.annotation.PublicEvolving;
  * @see <a
  *     href="https://cwiki.apache.org/confluence/display/FLINK/FLIP-134%3A+Batch+execution+for+the+DataStream+API">
  *     https://cwiki.apache.org/confluence/display/FLINK/FLIP-134%3A+Batch+execution+for+the+DataStream+API</a>
+ *     运行时采用执行模式  流模式/批模式
  */
 @PublicEvolving
 public enum RuntimeExecutionMode {

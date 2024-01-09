@@ -28,6 +28,7 @@ import java.util.Iterator;
  * union of these iterators returns the original iterator values.
  *
  * @param <T> The type of elements returned by the iterator.
+ *           代表该迭代器本身还可以拆分
  */
 @Public
 public abstract class SplittableIterator<T> implements Iterator<T>, Serializable {
@@ -40,6 +41,8 @@ public abstract class SplittableIterator<T> implements Iterator<T>, Serializable
      *
      * @param numPartitions The number of iterators to split into.
      * @return An array with the split iterators.
+     *
+     * 根据分区数 拆分成多个迭代器
      */
     public abstract Iterator<T>[] split(int numPartitions);
 
@@ -50,6 +53,7 @@ public abstract class SplittableIterator<T> implements Iterator<T>, Serializable
      * @param num The partition to return (<i>i</i>).
      * @param numPartitions The number of partitions to split into (<i>n</i>).
      * @return The iterator for the partition.
+     * 将split拆分成多份后 获取其中一份
      */
     public Iterator<T> getSplit(int num, int numPartitions) {
         if (numPartitions < 1 || num < 0 || num >= numPartitions) {
@@ -63,6 +67,8 @@ public abstract class SplittableIterator<T> implements Iterator<T>, Serializable
      * The maximum number of splits into which this iterator can be split up.
      *
      * @return The maximum number of splits into which this iterator can be split up.
+     *
+     * 表示该split最多可以拆分成几份
      */
     public abstract int getMaximumNumberOfSplits();
 }

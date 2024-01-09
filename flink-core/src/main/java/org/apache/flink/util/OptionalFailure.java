@@ -32,6 +32,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
  * Wrapper around an object representing either a success (with a given value) or a failure cause.
+ * 表示一个值 或者一个异常
  */
 public class OptionalFailure<T> implements Serializable {
     private static final long serialVersionUID = 1L;

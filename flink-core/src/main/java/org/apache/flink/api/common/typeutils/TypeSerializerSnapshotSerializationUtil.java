@@ -28,7 +28,9 @@ import org.apache.flink.util.Preconditions;
 import java.io.IOException;
 import java.util.Optional;
 
-/** Utility methods for serialization of {@link TypeSerializerSnapshot}. */
+/** Utility methods for serialization of {@link TypeSerializerSnapshot}.
+ * 有关快照序列化的工具类
+ * */
 public class TypeSerializerSnapshotSerializationUtil {
 
     /**
@@ -39,6 +41,7 @@ public class TypeSerializerSnapshotSerializationUtil {
      *
      * @param out the data output view
      * @param serializerSnapshot the serializer configuration snapshot to write
+     *                           对快照对象进行包装 并生成快照
      */
     public static <T> void writeSerializerSnapshot(
             DataOutputView out, TypeSerializerSnapshot<T> serializerSnapshot) throws IOException {
@@ -119,6 +122,7 @@ public class TypeSerializerSnapshotSerializationUtil {
             final int version = getReadVersion();
 
             switch (version) {
+                // 默认版本就是2
                 case 2:
                     serializerSnapshot = deserializeV2(in, userCodeClassLoader);
                     break;

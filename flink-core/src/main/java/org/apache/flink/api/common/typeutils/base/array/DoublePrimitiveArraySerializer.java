@@ -99,6 +99,7 @@ public final class DoublePrimitiveArraySerializer extends TypeSerializerSingleto
     public void copy(DataInputView source, DataOutputView target) throws IOException {
         final int len = source.readInt();
         target.writeInt(len);
+        // 一个double 使用8字节 所以 * 8
         target.write(source, len * 8);
     }
 

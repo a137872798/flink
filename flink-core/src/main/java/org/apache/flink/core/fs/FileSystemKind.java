@@ -20,7 +20,9 @@ package org.apache.flink.core.fs;
 
 import org.apache.flink.annotation.PublicEvolving;
 
-/** An enumeration defining the kind and characteristics of a {@link FileSystem}. */
+/** An enumeration defining the kind and characteristics of a {@link FileSystem}.
+ * 描述文件系统的类型 对象存储  or 文件系统
+ * */
 @PublicEvolving
 public enum FileSystemKind {
 

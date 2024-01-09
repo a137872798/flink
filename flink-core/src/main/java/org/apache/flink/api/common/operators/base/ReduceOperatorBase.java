@@ -50,6 +50,8 @@ import java.util.Map;
  * @see org.apache.flink.api.common.functions.ReduceFunction
  * @param <T> The type (parameters and return type) of the reduce function.
  * @param <FT> The type of the reduce function.
+ *            将2个相同类型的值 reduce 后作为输出
+ *            GroupReduce 是将一组数据中每个元素reduce
  */
 @Internal
 public class ReduceOperatorBase<T, FT extends ReduceFunction<T>>
@@ -59,6 +61,7 @@ public class ReduceOperatorBase<T, FT extends ReduceFunction<T>>
      * An enumeration of hints, optionally usable to tell the system exactly how to execute the
      * combiner phase of a reduce. (Note: The final reduce phase (after combining) is currently
      * always executed by a sort-based strategy.)
+     * 提示如何进行 reduce的combine阶段
      */
     public enum CombineHint {
 
@@ -177,6 +180,10 @@ public class ReduceOperatorBase<T, FT extends ReduceFunction<T>>
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 同样 每次在设置自定义分区器的时候 好像都要检查key的长度是否为1
+     * @param customPartitioner
+     */
     public void setCustomPartitioner(Partitioner<?> customPartitioner) {
         if (customPartitioner != null) {
             int[] keys = getKeyColumns(0);
@@ -198,11 +205,19 @@ public class ReduceOperatorBase<T, FT extends ReduceFunction<T>>
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 执行reduce函数
+     * @param inputData
+     * @param ctx
+     * @param executionConfig
+     * @return
+     * @throws Exception
+     */
     @Override
     protected List<T> executeOnCollections(
             List<T> inputData, RuntimeContext ctx, ExecutionConfig executionConfig)
             throws Exception {
-        // make sure we can handle empty inputs
+        // make sure we can handle empty inputs  输入为空 返回也是空
         if (inputData.isEmpty()) {
             return Collections.emptyList();
         }
@@ -225,6 +240,8 @@ public class ReduceOperatorBase<T, FT extends ReduceFunction<T>>
                 getOperatorInfo().getInputType().createSerializer(executionConfig);
 
         if (inputColumns.length > 0) {
+
+            // 创建排序对象
             boolean[] inputOrderings = new boolean[inputColumns.length];
             TypeComparator<T> inputComparator =
                     inputType instanceof AtomicType
@@ -239,6 +256,7 @@ public class ReduceOperatorBase<T, FT extends ReduceFunction<T>>
             for (T next : inputData) {
                 TypeComparable<T> wrapper = new TypeComparable<T>(next, inputComparator);
 
+                // 如果2个元素相同 则可以进入reduce
                 T existing = aggregateMap.get(wrapper);
                 T result;
 
@@ -248,6 +266,7 @@ public class ReduceOperatorBase<T, FT extends ReduceFunction<T>>
                     result = next;
                 }
 
+                // 将结果存入map
                 result = serializer.copy(result);
 
                 aggregateMap.put(wrapper, result);
@@ -260,6 +279,7 @@ public class ReduceOperatorBase<T, FT extends ReduceFunction<T>>
 
             aggregate = serializer.copy(aggregate);
 
+            // 这里简单很多 就是将input的所有元素挨个reduce
             for (int i = 1; i < inputData.size(); i++) {
                 T next = function.reduce(aggregate, serializer.copy(inputData.get(i)));
                 aggregate = serializer.copy(next);

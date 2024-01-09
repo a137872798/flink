@@ -37,6 +37,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * @param <T> The type (class) of the array itself.
  * @param <C> The type (class) of the array component.
+ *
+ *           代表使用基础类型作为元素的数组类型  这些class的特性都是一样的
  */
 @Public
 public final class BasicArrayTypeInfo<T, C> extends TypeInformation<T> {
@@ -65,7 +67,15 @@ public final class BasicArrayTypeInfo<T, C> extends TypeInformation<T> {
 
     // --------------------------------------------------------------------------------------------
 
+
+    /**
+     * 表示数组类型
+     */
     private final Class<T> arrayClass;
+
+    /**
+     * 数组元素类型的 information
+     */
     private final TypeInformation<C> componentInfo;
 
     private BasicArrayTypeInfo(Class<T> arrayClass, BasicTypeInfo<C> componentInfo) {
@@ -105,6 +115,10 @@ public final class BasicArrayTypeInfo<T, C> extends TypeInformation<T> {
         return this.arrayClass;
     }
 
+    /**
+     * 这里返回元素的类型
+     * @return
+     */
     @PublicEvolving
     public Class<C> getComponentTypeClass() {
         return this.componentInfo.getTypeClass();
@@ -115,6 +129,11 @@ public final class BasicArrayTypeInfo<T, C> extends TypeInformation<T> {
         return componentInfo;
     }
 
+
+    /**
+     * 数组类型无法作为 key
+     * @return
+     */
     @Override
     @PublicEvolving
     public boolean isKeyType() {
@@ -132,6 +151,7 @@ public final class BasicArrayTypeInfo<T, C> extends TypeInformation<T> {
             return (TypeSerializer<T>)
                     new GenericArraySerializer<>(
                             this.componentInfo.getTypeClass(),
+                            // 创建原始类型的序列化对象
                             this.componentInfo.createSerializer(executionConfig));
         }
     }
@@ -177,6 +197,9 @@ public final class BasicArrayTypeInfo<T, C> extends TypeInformation<T> {
         return (BasicArrayTypeInfo<X, C>) TYPES.get(type);
     }
 
+    /**
+     * 一个常量容器
+     */
     private static final Map<Class<?>, BasicArrayTypeInfo<?, ?>> TYPES = new HashMap<>();
 
     static {

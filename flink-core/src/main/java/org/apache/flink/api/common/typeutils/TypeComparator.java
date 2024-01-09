@@ -48,6 +48,8 @@ import java.io.Serializable;
  * @see java.lang.Object#equals(Object)
  * @see java.util.Comparator#compare(Object, Object)
  * @param <T> The data type that the comparator works on.
+ *
+ *           针对T类型的类型比较器
  */
 @PublicEvolving
 public abstract class TypeComparator<T> implements Serializable {
@@ -68,6 +70,8 @@ public abstract class TypeComparator<T> implements Serializable {
      * @param record The record to be hashed.
      * @return A hash value for the record.
      * @see java.lang.Object#hashCode()
+     *
+     * 计算记录的hash值
      */
     public abstract int hash(T record);
 
@@ -96,6 +100,8 @@ public abstract class TypeComparator<T> implements Serializable {
      * finding equal elements in the process of grouping the elements.
      *
      * @param toCompare The element to set as the comparison reference.
+     *
+     *                  先设置比较器当前引用的值
      */
     public abstract void setReference(T toCompare);
 
@@ -106,6 +112,7 @@ public abstract class TypeComparator<T> implements Serializable {
      * @param candidate The candidate to check.
      * @return True, if the element is equal to the comparison reference, false otherwise.
      * @see #setReference(Object)
+     * 判断之前 setReference的值与本次传入的是否一致
      */
     public abstract boolean equalToReference(T candidate);
 
@@ -140,6 +147,8 @@ public abstract class TypeComparator<T> implements Serializable {
      *     smaller than the reference value of this type accessor; a value greater than zero, if it
      *     is larger; zero, if both are equal.
      * @see #setReference(Object)
+     *
+     * 比较设置的引用值 与本次入参的大小
      */
     public abstract int compareToReference(TypeComparator<T> referencedComparator);
 
@@ -157,6 +166,8 @@ public abstract class TypeComparator<T> implements Serializable {
      * @return An integer defining the oder among the objects in the same way as {@link
      *     java.util.Comparator#compare(Object, Object)}.
      * @see java.util.Comparator#compare(Object, Object)
+     *
+     * 比较2个值
      */
     public abstract int compare(T first, T second);
 
@@ -174,6 +185,8 @@ public abstract class TypeComparator<T> implements Serializable {
      * @throws IOException Thrown, if any of the input views raised an exception when reading the
      *     records.
      * @see java.util.Comparator#compare(Object, Object)
+     *
+     * 2个值 已经序列化  进行比较
      */
     public abstract int compareSerialized(DataInputView firstSource, DataInputView secondSource)
             throws IOException;
@@ -185,6 +198,8 @@ public abstract class TypeComparator<T> implements Serializable {
      *
      * @return True, if the data type supports the creation of a normalized key for comparison,
      *     false otherwise.
+     *
+     *     是否支持比较 规范化的key
      */
     public abstract boolean supportsNormalizedKey();
 
@@ -193,6 +208,8 @@ public abstract class TypeComparator<T> implements Serializable {
      * keys by a normalized key.
      *
      * @return True, if the comparator supports that specific form of serialization, false if not.
+     *
+     * 是否支持将序列化的数据变成规范化的
      */
     public abstract boolean supportsSerializationWithKeyNormalization();
 
@@ -201,6 +218,7 @@ public abstract class TypeComparator<T> implements Serializable {
      * java.lang.Integer}.MAX_VALUE is interpreted as infinite.
      *
      * @return The number of bytes that the normalized key would maximally take.
+     * 获取规范化key的长度
      */
     public abstract int getNormalizeKeyLen();
 
@@ -211,6 +229,8 @@ public abstract class TypeComparator<T> implements Serializable {
      * this method would return true, if the number of key bytes is smaller than four.
      *
      * @return True, if the given number of bytes is only a prefix, false otherwise.
+     *
+     * 根据的规范化key是否只是前缀
      */
     public abstract boolean isNormalizedKeyPrefixOnly(int keyBytes);
 
@@ -235,6 +255,8 @@ public abstract class TypeComparator<T> implements Serializable {
      * @param offset The offset in the byte array, where to start writing the normalized key bytes.
      * @param numBytes The number of bytes to be written exactly.
      * @see org.apache.flink.types.NormalizableKey#copyNormalizedKey(MemorySegment, int, int)
+     *
+     * 添加一个规范化key
      */
     public abstract void putNormalizedKey(T record, MemorySegment target, int offset, int numBytes);
 
@@ -249,6 +271,7 @@ public abstract class TypeComparator<T> implements Serializable {
      * @see #supportsSerializationWithKeyNormalization()
      * @see #readWithKeyDenormalization(Object, DataInputView)
      * @see org.apache.flink.types.NormalizableKey#copyNormalizedKey(MemorySegment, int, int)
+     * 写入规范化key
      */
     public abstract void writeWithKeyNormalization(T record, DataOutputView target)
             throws IOException;
@@ -263,6 +286,7 @@ public abstract class TypeComparator<T> implements Serializable {
      * @see #supportsSerializationWithKeyNormalization()
      * @see #writeWithKeyNormalization(Object, DataOutputView)
      * @see org.apache.flink.types.NormalizableKey#copyNormalizedKey(MemorySegment, int, int)
+     * 读取非规范化key
      */
     public abstract T readWithKeyDenormalization(T reuse, DataInputView source) throws IOException;
 
@@ -272,6 +296,7 @@ public abstract class TypeComparator<T> implements Serializable {
      *
      * @return True, if all normalized key comparisons should invert the sign of the comparison
      *     result, false if the normalized key should be used as is.
+     *     规范化的key 是否应当被解释为倒排键
      */
     public abstract boolean invertNormalizedKey();
 
@@ -296,6 +321,7 @@ public abstract class TypeComparator<T> implements Serializable {
      * @param target The array to write the key(s) into.
      * @param index The offset of the target array to start writing into.
      * @return the number of keys added to target.
+     * 从记录中提取关键字
      */
     public abstract int extractKeys(Object record, Object[] target, int index);
 
@@ -306,6 +332,7 @@ public abstract class TypeComparator<T> implements Serializable {
      * extracted keys.
      *
      * @return An Array of Comparators for the extracted keys.
+     * 获取内部的一组field比较器
      */
     @SuppressWarnings("rawtypes")
     public abstract TypeComparator[] getFlatComparators();

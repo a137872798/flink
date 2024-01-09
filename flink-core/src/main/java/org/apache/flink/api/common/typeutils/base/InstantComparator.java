@@ -26,7 +26,9 @@ import org.apache.flink.core.memory.MemorySegment;
 import java.io.IOException;
 import java.time.Instant;
 
-/** Comparator for comparing Java Instant. */
+/** Comparator for comparing Java Instant.
+ * 跟 java.Instant 相关的
+ * */
 @Internal
 public final class InstantComparator extends BasicTypeComparator<Instant> {
 
@@ -40,6 +42,8 @@ public final class InstantComparator extends BasicTypeComparator<Instant> {
     @Override
     public int compareSerialized(DataInputView firstSource, DataInputView secondSource)
             throws IOException {
+
+        // 被拆成了2部分 一个是long 表示秒  一个是int 表示纳秒
         final long lSeconds = firstSource.readLong();
         final long rSeconds = secondSource.readLong();
         final int comp;

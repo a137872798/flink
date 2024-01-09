@@ -38,6 +38,7 @@ import java.util.List;
  * org.apache.flink.api.common.functions.RuntimeContext#getListState(ListStateDescriptor)}.
  *
  * @param <T> The type of the values that can be added to the list state.
+ *           表示一个列表状态的描述符
  */
 @PublicEvolving
 public class ListStateDescriptor<T> extends StateDescriptor<ListState<T>, List<T>> {
@@ -80,6 +81,7 @@ public class ListStateDescriptor<T> extends StateDescriptor<ListState<T>, List<T
      * Gets the serializer for the elements contained in the list.
      *
      * @return The serializer for the elements in the list.
+     * 获取列表元素序列化对象 而不是整个列表
      */
     public TypeSerializer<T> getElementSerializer() {
         // call getSerializer() here to get the initialization check and proper error message

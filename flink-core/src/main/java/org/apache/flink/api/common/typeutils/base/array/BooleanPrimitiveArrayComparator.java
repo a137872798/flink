@@ -23,8 +23,12 @@ import org.apache.flink.api.common.typeutils.base.BooleanComparator;
 
 import static java.lang.Math.min;
 
+/**
+ * 表示使用 boolean这个原始类型作为数组元素的对象
+ */
 @Internal
 public class BooleanPrimitiveArrayComparator
+    // 范型标注了 待比较的引用数据类型为布尔类型  使用的比较器为BooleanComparator
         extends PrimitiveArrayComparator<boolean[], BooleanComparator> {
     public BooleanPrimitiveArrayComparator(boolean ascending) {
         super(ascending, new BooleanComparator(ascending));
@@ -39,6 +43,12 @@ public class BooleanPrimitiveArrayComparator
         return result;
     }
 
+    /**
+     * 比较原始数组
+     * @param first The first record.
+     * @param second The second record.
+     * @return
+     */
     @Override
     public int compare(boolean[] first, boolean[] second) {
         for (int x = 0; x < min(first.length, second.length); x++) {
@@ -54,6 +64,7 @@ public class BooleanPrimitiveArrayComparator
     @Override
     public TypeComparator<boolean[]> duplicate() {
         BooleanPrimitiveArrayComparator dupe = new BooleanPrimitiveArrayComparator(this.ascending);
+        // 产生副本对象
         dupe.setReference(this.reference);
         return dupe;
     }

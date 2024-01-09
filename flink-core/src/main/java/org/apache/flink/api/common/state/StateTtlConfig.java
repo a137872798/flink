@@ -46,6 +46,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * values, it can be wrapped with {@link
  * org.apache.flink.api.java.typeutils.runtime.NullableSerializer} at the cost of an extra byte in
  * the serialized form.
+ *
+ * 描述状态过期相关的配置
  */
 @PublicEvolving
 public class StateTtlConfig implements Serializable {
@@ -61,30 +63,41 @@ public class StateTtlConfig implements Serializable {
      * This option value configures when to update last access timestamp which prolongs state TTL.
      */
     public enum UpdateType {
-        /** TTL is disabled. State does not expire. */
+        /** TTL is disabled. State does not expire.
+         * 状态不会过期
+         * */
         Disabled,
         /**
          * Last access timestamp is initialised when state is created and updated on every write
          * operation.
+         * 每次写入更新 都会修改 lastAccessTimestamp
          */
         OnCreateAndWrite,
-        /** The same as <code>OnCreateAndWrite</code> but also updated on read. */
+        /** The same as <code>OnCreateAndWrite</code> but also updated on read.
+         * 读也会更新
+         * */
         OnReadAndWrite
     }
 
-    /** This option configures whether expired user value can be returned or not. */
+    /** This option configures whether expired user value can be returned or not.
+     * 当状态过期后 还能否被返回
+     * */
     public enum StateVisibility {
-        /** Return expired user value if it is not cleaned up yet. */
+        /** Return expired user value if it is not cleaned up yet.  返回过期值 */
         ReturnExpiredIfNotCleanedUp,
-        /** Never return expired user value. */
+        /** Never return expired user value.  不返回 */
         NeverReturnExpired
     }
 
-    /** This option configures time scale to use for ttl. */
+    /** This option configures time scale to use for ttl.
+     * 配置ttl的时间刻度
+     * */
     public enum TtlTimeCharacteristic {
         /**
          * Processing time, see also <code>
          * org.apache.flink.streaming.api.TimeCharacteristic.ProcessingTime</code>.
+         *
+         * 代表基于处理时间    分为一个处理时间和事件时间
          */
         ProcessingTime
     }
@@ -93,6 +106,10 @@ public class StateTtlConfig implements Serializable {
     private final StateVisibility stateVisibility;
     private final TtlTimeCharacteristic ttlTimeCharacteristic;
     private final Time ttl;
+
+    /**
+     * 清理策略
+     */
     private final CleanupStrategies cleanupStrategies;
 
     private StateTtlConfig(
@@ -339,17 +356,24 @@ public class StateTtlConfig implements Serializable {
      * <p>This class configures when to cleanup expired state with TTL. By default, state is always
      * cleaned up on explicit read access if found expired. Currently cleanup of state full snapshot
      * can be additionally activated.
+     *
+     * 清理策略
      */
     public static class CleanupStrategies implements Serializable {
         private static final long serialVersionUID = -1617740467277313524L;
 
         static final CleanupStrategy EMPTY_STRATEGY = new EmptyCleanupStrategy();
 
+        /**
+         * 代表是否启用后台清理
+         */
         private final boolean isCleanupInBackground;
 
         private final EnumMap<Strategies, CleanupStrategy> strategies;
 
-        /** Fixed strategies ordinals in {@code strategies} config field. */
+        /** Fixed strategies ordinals in {@code strategies} config field.
+         * 一共3种策略 每个对应一种CleanupStrategy
+         * */
         enum Strategies {
             FULL_STATE_SCAN_SNAPSHOT,
             INCREMENTAL_CLEANUP,
@@ -369,6 +393,10 @@ public class StateTtlConfig implements Serializable {
             this.isCleanupInBackground = isCleanupInBackground;
         }
 
+        /**
+         * 包含全扫描模式
+         * @return
+         */
         public boolean inFullSnapshot() {
             return strategies.containsKey(Strategies.FULL_STATE_SCAN_SNAPSHOT);
         }
@@ -379,6 +407,8 @@ public class StateTtlConfig implements Serializable {
 
         @Nullable
         public IncrementalCleanupStrategy getIncrementalCleanupStrategy() {
+
+            // 默认的增量清理策略时在后台执行的
             IncrementalCleanupStrategy defaultStrategy =
                     isCleanupInBackground ? DEFAULT_INCREMENTAL_CLEANUP_STRATEGY : null;
             return (IncrementalCleanupStrategy)
@@ -391,6 +421,7 @@ public class StateTtlConfig implements Serializable {
 
         @Nullable
         public RocksdbCompactFilterCleanupStrategy getRocksdbCompactFilterCleanupStrategy() {
+            // rocksdb 压缩清理策略是什么 ?
             RocksdbCompactFilterCleanupStrategy defaultStrategy =
                     isCleanupInBackground ? DEFAULT_ROCKSDB_COMPACT_FILTER_CLEANUP_STRATEGY : null;
             return (RocksdbCompactFilterCleanupStrategy)
@@ -398,7 +429,9 @@ public class StateTtlConfig implements Serializable {
         }
     }
 
-    /** Configuration of cleanup strategy while taking the full snapshot. */
+    /** Configuration of cleanup strategy while taking the full snapshot.
+     * 增量清理策略？  flink的这些类 都只是包含了一些相关属性 并没有什么核心逻辑
+     * */
     public static class IncrementalCleanupStrategy implements CleanupStrategies.CleanupStrategy {
         private static final long serialVersionUID = 3109278696501988780L;
 

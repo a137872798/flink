@@ -41,10 +41,14 @@ import java.util.stream.Collectors;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
+/**
+ * 表示 pojo序列化对象
+ * @param <T>
+ */
 @Internal
 public final class PojoSerializer<T> extends TypeSerializer<T> {
 
-    // Flags for the header
+    // Flags for the header    表示pojo对象的
     private static byte IS_NULL = 1;
     private static byte NO_SUBCLASS = 2;
     private static byte IS_SUBCLASS = 4;
@@ -56,7 +60,9 @@ public final class PojoSerializer<T> extends TypeSerializer<T> {
     // PojoSerializer parameters
     // --------------------------------------------------------------------------------------------
 
-    /** The POJO type class. */
+    /** The POJO type class.
+     * pojo类
+     * */
     private final Class<T> clazz;
 
     /**
@@ -65,18 +71,26 @@ public final class PojoSerializer<T> extends TypeSerializer<T> {
      * <p>The fields are kept as a separate transient member, with their serialization handled with
      * the {@link #readObject(ObjectInputStream)} and {@link #writeObject(ObjectOutputStream)}
      * methods.
+     * 该列需要被序列化的字段
      */
     private transient Field[] fields;
 
+    /**
+     * 每个字段有自己的序列化对象
+     */
     private final TypeSerializer<Object>[] fieldSerializers;
     private final int numFields;
 
     /**
      * Registered subclasses and their serializers. Each subclass to their registered class tag is
      * maintained as a separate map ordered by the class tag.
+     * 包含了 subclass
      */
     private final LinkedHashMap<Class<?>, Integer> registeredClasses;
 
+    /**
+     * 与registeredClasses对应 存放的是子类的序列化对象
+     */
     private final TypeSerializer<?>[] registeredSerializers;
 
     /** Cache of non-registered subclasses to their serializers, created on-the-fly. */
@@ -110,6 +124,7 @@ public final class PojoSerializer<T> extends TypeSerializer<T> {
         this.cl = Thread.currentThread().getContextClassLoader();
 
         // We only want those classes that are not our own class and are actually sub-classes.
+        // 从config中找到所有子类
         LinkedHashSet<Class<?>> registeredSubclasses =
                 getRegisteredSubclassesFromExecutionConfig(clazz, executionConfig);
 
@@ -158,7 +173,7 @@ public final class PojoSerializer<T> extends TypeSerializer<T> {
         return new PojoSerializer<>(
                 clazz,
                 fields,
-                duplicateFieldSerializers,
+                duplicateFieldSerializers,  // 只有序列化对象是需要拷贝的
                 new LinkedHashMap<>(registeredClasses),
                 duplicateRegisteredSerializers,
                 subclassSerializerCache.entrySet().stream()
@@ -307,7 +322,7 @@ public final class PojoSerializer<T> extends TypeSerializer<T> {
     @SuppressWarnings({"unchecked", "rawtypes"})
     public void serialize(T value, DataOutputView target) throws IOException {
         int flags = 0;
-        // handle null values
+        // handle null values  当读取到特殊标记就知道是null
         if (value == null) {
             flags |= IS_NULL;
             target.writeByte(flags);
@@ -323,6 +338,7 @@ public final class PojoSerializer<T> extends TypeSerializer<T> {
                 flags |= IS_TAGGED_SUBCLASS;
                 subclassSerializer = registeredSerializers[subclassTag];
             } else {
+                // 代表这个子类 没有提前设置到config中 借助TypeExtractor 生成序列化对象
                 flags |= IS_SUBCLASS;
                 subclassSerializer = getSubclassSerializer(actualClass);
             }
@@ -358,7 +374,7 @@ public final class PojoSerializer<T> extends TypeSerializer<T> {
                         e);
             }
         } else {
-            // subclass
+            // subclass  子类则使用相关的序列化对象
             if (subclassSerializer != null) {
                 subclassSerializer.serialize(value, target);
             }
@@ -655,6 +671,10 @@ public final class PojoSerializer<T> extends TypeSerializer<T> {
         return registeredSerializers;
     }
 
+    /**
+     * 只返回 已经提前设置到config中的对象
+     * @return
+     */
     LinkedHashMap<Class<?>, TypeSerializer<?>> getBundledSubclassSerializerRegistry() {
         final LinkedHashMap<Class<?>, TypeSerializer<?>> result =
                 CollectionUtil.newLinkedHashMapWithExpectedSize(registeredClasses.size());
@@ -671,13 +691,17 @@ public final class PojoSerializer<T> extends TypeSerializer<T> {
     // Utilities
     // --------------------------------------------------------------------------------------------
 
-    /** Extracts the subclasses of the base POJO class registered in the execution config. */
+    /** Extracts the subclasses of the base POJO class registered in the execution config.
+     * 找到所有子类
+     * */
     private static LinkedHashSet<Class<?>> getRegisteredSubclassesFromExecutionConfig(
             Class<?> basePojoClass, ExecutionConfig executionConfig) {
 
         LinkedHashSet<Class<?>> subclassesInRegistrationOrder =
                 CollectionUtil.newLinkedHashSetWithExpectedSize(
                         executionConfig.getRegisteredPojoTypes().size());
+
+        // 从config中找到所有注册的pojo类
         for (Class<?> registeredClass : executionConfig.getRegisteredPojoTypes()) {
             if (registeredClass.equals(basePojoClass)) {
                 continue;
@@ -685,6 +709,7 @@ public final class PojoSerializer<T> extends TypeSerializer<T> {
             if (!basePojoClass.isAssignableFrom(registeredClass)) {
                 continue;
             }
+            // 发现是子类 加入容器
             subclassesInRegistrationOrder.add(registeredClass);
         }
 
@@ -694,6 +719,7 @@ public final class PojoSerializer<T> extends TypeSerializer<T> {
     /**
      * Builds map of registered subclasses to their class tags. Class tags will be integers starting
      * from 0, assigned incrementally with the order of provided subclasses.
+     * 为每个子类打上标签
      */
     private static LinkedHashMap<Class<?>, Integer> createRegisteredSubclassTags(
             LinkedHashSet<Class<?>> registeredSubclasses) {
@@ -720,6 +746,7 @@ public final class PojoSerializer<T> extends TypeSerializer<T> {
 
         int i = 0;
         for (Class<?> registeredClass : registeredSubclasses) {
+            // 基于每个class 生成序列化对象
             subclassSerializers[i] =
                     TypeExtractor.createTypeInfo(registeredClass).createSerializer(executionConfig);
             i++;
@@ -744,6 +771,7 @@ public final class PojoSerializer<T> extends TypeSerializer<T> {
     }
 
     private TypeSerializer<?> createSubclassSerializer(Class<?> subclass) {
+        // 借助TypeExtractor 抽取出序列化对象
         TypeSerializer<?> serializer =
                 TypeExtractor.createTypeInfo(subclass).createSerializer(executionConfig);
 

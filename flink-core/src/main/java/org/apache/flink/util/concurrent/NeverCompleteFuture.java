@@ -27,7 +27,9 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-/** A future that never completes. */
+/** A future that never completes.
+ * 表示一个不会完成的future
+ * */
 @Internal
 public final class NeverCompleteFuture implements ScheduledFuture<Object> {
 
@@ -71,6 +73,11 @@ public final class NeverCompleteFuture implements ScheduledFuture<Object> {
         return false;
     }
 
+    /**
+     * 调用就阻塞 必须通过cancel解除
+     * @return
+     * @throws InterruptedException
+     */
     @Override
     public Object get() throws InterruptedException {
         synchronized (lock) {

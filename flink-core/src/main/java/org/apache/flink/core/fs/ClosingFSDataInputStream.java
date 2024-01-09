@@ -28,6 +28,8 @@ import java.io.IOException;
  * used to implement a safety net against unclosed streams.
  *
  * <p>See {@link SafetyNetCloseableRegistry} for more details on how this is utilized.
+ *
+ * 作为包装对象  会将自身注册到一个会自动关闭的注册器中
  */
 @Internal
 public class ClosingFSDataInputStream extends FSDataInputStreamWrapper
@@ -55,6 +57,7 @@ public class ClosingFSDataInputStream extends FSDataInputStreamWrapper
     public void close() throws IOException {
         if (!closed) {
             closed = true;
+            // 手动调用close 就不需要后台关闭了
             registry.unregisterCloseable(this);
             inputStream.close();
         }
@@ -95,6 +98,7 @@ public class ClosingFSDataInputStream extends FSDataInputStreamWrapper
 
         ClosingFSDataInputStream inputStream =
                 new ClosingFSDataInputStream(delegate, registry, debugInfo);
+        // 生成该对象时 就自动进行注册
         registry.registerCloseable(inputStream);
         return inputStream;
     }

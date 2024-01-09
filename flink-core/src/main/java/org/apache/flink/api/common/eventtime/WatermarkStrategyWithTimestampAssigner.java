@@ -21,6 +21,7 @@ package org.apache.flink.api.common.eventtime;
 /**
  * A {@link WatermarkStrategy} that overrides the {@link TimestampAssigner} of the given base {@link
  * WatermarkStrategy}.
+ * 在原来的策略上 替换timestampAssigner
  */
 final class WatermarkStrategyWithTimestampAssigner<T> implements WatermarkStrategy<T> {
 

@@ -33,7 +33,9 @@ import org.apache.flink.api.common.operators.util.UserCodeWrapper;
 import java.util.ArrayList;
 import java.util.List;
 
-/** @see org.apache.flink.api.common.functions.FlatMapFunction */
+/** @see org.apache.flink.api.common.functions.FlatMapFunction
+ * 作为一个单输入对象 通过FlatMapFunction处理后 得到一个输出
+ * */
 @Internal
 public class FilterOperatorBase<T, FT extends FlatMapFunction<T, T>>
         extends SingleInputOperator<T, T, FT> {
@@ -52,6 +54,14 @@ public class FilterOperatorBase<T, FT extends FlatMapFunction<T, T>>
         super(new UserCodeClassWrapper<FT>(udf), operatorInfo, name);
     }
 
+    /**
+     * 使用 用户定义函数处理输入  并产出结果
+     * @param inputData
+     * @param ctx
+     * @param executionConfig
+     * @return
+     * @throws Exception
+     */
     @Override
     protected List<T> executeOnCollections(
             List<T> inputData, RuntimeContext ctx, ExecutionConfig executionConfig)
@@ -65,6 +75,7 @@ public class FilterOperatorBase<T, FT extends FlatMapFunction<T, T>>
         ListCollector<T> collector = new ListCollector<T>(result);
 
         for (T element : inputData) {
+            // 通过函数处理入参
             function.flatMap(element, collector);
         }
 

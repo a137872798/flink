@@ -26,6 +26,8 @@ import java.util.NoSuchElementException;
  * The {@code NumberSequenceIterator} is an iterator that returns a sequence of numbers (as {@code
  * Long})s. The iterator is splittable (as defined by {@link SplittableIterator}, i.e., it can be
  * divided into multiple iterators that each return a subsequence of the number sequence.
+ *
+ * 该迭代器内部存储的是数字序列 是 Long类型  然后可以进一步拆分成多个迭代器
  */
 @Public
 public class NumberSequenceIterator extends SplittableIterator<Long> {
@@ -80,6 +82,10 @@ public class NumberSequenceIterator extends SplittableIterator<Long> {
         return current <= to;
     }
 
+    /**
+     * 每次都是返回当前序列 并增加current
+     * @return
+     */
     @Override
     public Long next() {
         if (current <= to) {
@@ -94,6 +100,11 @@ public class NumberSequenceIterator extends SplittableIterator<Long> {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * 将序列拆分成多分 并组成多个NumberSequenceIterator
+     * @param numPartitions The number of iterators to split into.
+     * @return
+     */
     @Override
     public NumberSequenceIterator[] split(int numPartitions) {
         if (numPartitions < 1) {
@@ -174,6 +185,10 @@ public class NumberSequenceIterator extends SplittableIterator<Long> {
         }
     }
 
+    /**
+     * 最多每个split 仅包含一个序列值
+     * @return
+     */
     @Override
     public int getMaximumNumberOfSplits() {
         if (to >= Integer.MAX_VALUE

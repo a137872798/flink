@@ -24,7 +24,9 @@ import org.apache.flink.core.fs.FileSystemFactory;
 
 import java.net.URI;
 
-/** A factory for the {@link LocalFileSystem}. */
+/** A factory for the {@link LocalFileSystem}.
+ * 默认文件工厂 总是存在
+ * */
 @PublicEvolving
 public class LocalFileSystemFactory implements FileSystemFactory {
 

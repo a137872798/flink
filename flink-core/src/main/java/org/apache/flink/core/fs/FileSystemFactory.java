@@ -30,11 +30,14 @@ import java.net.URI;
  *
  * <p>The factory is typically configured via {@link #configure(Configuration)} before creating file
  * systems via {@link #create(URI)}.
+ * 以插件形式(SPI) 引入不同的文件系统
  */
 @PublicEvolving
 public interface FileSystemFactory extends Plugin {
 
-    /** Gets the scheme of the file system created by this factory. */
+    /** Gets the scheme of the file system created by this factory.
+     * 不同文件系统 使用不同的schema
+     * */
     String getScheme();
 
     /**
@@ -45,6 +48,8 @@ public interface FileSystemFactory extends Plugin {
      * @param fsUri The URI that describes the file system.
      * @return A new instance of the specified file system.
      * @throws IOException Thrown if the file system could not be instantiated.
+     *
+     * uri中包含了文件系统的描述信息
      */
     FileSystem create(URI fsUri) throws IOException;
 }

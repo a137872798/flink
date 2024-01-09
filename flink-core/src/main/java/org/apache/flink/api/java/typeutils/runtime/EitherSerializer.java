@@ -34,12 +34,15 @@ import static org.apache.flink.types.Either.Right;
  *
  * @param <L> the Left value type
  * @param <R> the Right value type
+ *
+ *           either 代表左或者右
  */
 @Internal
 public class EitherSerializer<L, R> extends TypeSerializer<Either<L, R>> {
 
     private static final long serialVersionUID = 1L;
 
+    // 左右的类型可能是不一样的
     private final TypeSerializer<L> leftSerializer;
 
     private final TypeSerializer<R> rightSerializer;
@@ -86,6 +89,7 @@ public class EitherSerializer<L, R> extends TypeSerializer<Either<L, R>> {
     @Override
     public Either<L, R> createInstance() {
         // We arbitrarily always create a Right value instance.
+        // 总是生成右的实例
         return Right(rightSerializer.createInstance());
     }
 
@@ -135,6 +139,7 @@ public class EitherSerializer<L, R> extends TypeSerializer<Either<L, R>> {
 
     @Override
     public Either<L, R> deserialize(DataInputView source) throws IOException {
+        // 序列化时 通过一个boolean 表示 左/右
         boolean isLeft = source.readBoolean();
         if (isLeft) {
             return Left(leftSerializer.deserialize(source));

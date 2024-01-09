@@ -33,6 +33,7 @@ import java.net.URISyntaxException;
 /**
  * This class offers utilities for entropy injection for FileSystems that implement {@link
  * EntropyInjectingFileSystem}.
+ * 该对象为EntropyInjectingFileSystem 提供一些使用的方法
  */
 @PublicEvolving
 public class EntropyInjector {
@@ -51,6 +52,8 @@ public class EntropyInjector {
     public static Path addEntropy(FileSystem fs, Path path) throws IOException {
         // check and possibly inject entropy into the path
         final EntropyInjectingFileSystem efs = getEntropyFs(fs);
+        // 如果不是EntropyInjectingFileSystem  就是直接返回path
+        // 否则对path进行处理
         return efs == null ? path : resolveEntropy(path, efs, true);
     }
 
@@ -69,11 +72,13 @@ public class EntropyInjector {
     public static OutputStreamAndPath createEntropyAware(
             FileSystem fs, Path path, WriteMode writeMode) throws IOException {
 
+        // 如果是熵相关的  该写path 添加熵的部分
         final Path processedPath = addEntropy(fs, path);
 
         // create the stream on the original file system to let the safety net
         // take its effect
         final FSDataOutputStream out = fs.create(processedPath, writeMode);
+        // 根据这个路径信息 使用同一文件系统 产生新的输出流对象
         return new OutputStreamAndPath(out, processedPath);
     }
 
@@ -91,6 +96,7 @@ public class EntropyInjector {
             return path;
         } else {
             try {
+                // 去掉 熵的部分
                 return resolveEntropy(path, efs, false);
             } catch (IOException e) {
                 // this should never happen, because the path was valid before and we only remove
@@ -116,6 +122,7 @@ public class EntropyInjector {
             return (EntropyInjectingFileSystem) fs;
         }
 
+        // 解包装 但是最终还是需要文件系统是EntropyInjectingFileSystem类型
         if (fs instanceof WrappingProxy) {
             FileSystem delegate = ((WrappingProxy<FileSystem>) fs).getWrappedDelegate();
             return getEntropyFs(delegate);
@@ -124,9 +131,19 @@ public class EntropyInjector {
         return null;
     }
 
+    /**
+     * 产生一个特殊的路径
+     * @param path
+     * @param efs
+     * @param injectEntropy
+     * @return
+     * @throws IOException
+     */
     @VisibleForTesting
     static Path resolveEntropy(Path path, EntropyInjectingFileSystem efs, boolean injectEntropy)
             throws IOException {
+
+        // 产生key
         final String entropyInjectionKey = efs.getEntropyInjectionKey();
 
         if (entropyInjectionKey == null) {
@@ -135,17 +152,22 @@ public class EntropyInjector {
             final URI originalUri = path.toUri();
             final String checkpointPath = originalUri.getPath();
 
+            // 从路径上找到这个key
             final int indexOfKey = checkpointPath.indexOf(entropyInjectionKey);
             if (indexOfKey == -1) {
                 return path;
             } else {
                 final StringBuilder buffer = new StringBuilder(checkpointPath.length());
+
+                // 先加上前面的部分
                 buffer.append(checkpointPath, 0, indexOfKey);
 
+                // 产生熵
                 if (injectEntropy) {
                     buffer.append(efs.generateEntropy());
                 }
 
+                // 追加后面的部分
                 buffer.append(
                         checkpointPath,
                         indexOfKey + entropyInjectionKey.length(),

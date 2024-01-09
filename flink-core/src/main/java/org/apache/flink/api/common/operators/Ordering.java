@@ -27,15 +27,22 @@ import java.util.ArrayList;
 /**
  * This class represents an ordering on a set of fields. It specifies the fields and order direction
  * (ascending, descending).
+ * 代表一个顺序对象
  */
 @Internal
 public class Ordering implements Cloneable {
 
+    /**
+     * FieldList的api都是顺序敏感的 内部存储了一组fieldId
+     */
     protected FieldList indexes = new FieldList();
 
     protected final ArrayList<Class<? extends Comparable<?>>> types =
             new ArrayList<Class<? extends Comparable<?>>>();
 
+    /**
+     * 一组顺序对象
+     */
     protected final ArrayList<Order> orders = new ArrayList<Order>();
 
     // --------------------------------------------------------------------------------------------
@@ -56,10 +63,12 @@ public class Ordering implements Cloneable {
      * Extends this ordering by appending an additional order requirement. If the index has been
      * previously appended then the unmodified Ordering is returned.
      *
-     * @param index Field index of the appended order requirement.
+     * @param index Field index of the appended order requirement.     表示某个字段的编号
      * @param type Type of the appended order requirement.
      * @param order Order of the appended order requirement.
      * @return This ordering with an additional appended order requirement.
+     *
+     * 该对象 应该是多个顺序的组合
      */
     public Ordering appendOrdering(
             Integer index, Class<? extends Comparable<?>> type, Order order) {
@@ -75,6 +84,7 @@ public class Ordering implements Cloneable {
         }
 
         if (!this.indexes.contains(index)) {
+            // 表示该field使用的comparable对象 以及 顺序对象
             this.indexes = this.indexes.addField(index);
             this.types.add(type);
             this.orders.add(order);
@@ -85,13 +95,23 @@ public class Ordering implements Cloneable {
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 此时参与排序的所有字段
+     * @return
+     */
     public int getNumberOfFields() {
         return this.indexes.size();
     }
 
+    /**
+     * 返回涉及到的字段
+     * @return
+     */
     public FieldList getInvolvedIndexes() {
         return this.indexes;
     }
+
+    // 下面3个方法 根据index去匹配
 
     public Integer getFieldNumber(int index) {
         if (index < 0 || index >= this.indexes.size()) {
@@ -121,6 +141,10 @@ public class Ordering implements Cloneable {
         return this.types.toArray(new Class[this.types.size()]);
     }
 
+    /**
+     * 获取每个field的  position
+     * @return
+     */
     public int[] getFieldPositions() {
         final int[] ia = new int[this.indexes.size()];
         for (int i = 0; i < ia.length; i++) {
@@ -144,11 +168,14 @@ public class Ordering implements Cloneable {
     // --------------------------------------------------------------------------------------------
 
     public boolean isMetBy(Ordering otherOrdering) {
+        // 另一个是否涵盖这个
         if (otherOrdering == null || this.indexes.size() > otherOrdering.indexes.size()) {
             return false;
         }
 
         for (int i = 0; i < this.indexes.size(); i++) {
+
+            // 另一个要比这个大
             if (!this.indexes.get(i).equals(otherOrdering.indexes.get(i))) {
                 return false;
             }
@@ -157,9 +184,11 @@ public class Ordering implements Cloneable {
             if (this.orders.get(i) != Order.NONE) {
                 if (this.orders.get(i) == Order.ANY) {
                     // if any order is requested, any not NONE order is good
+                    // any时 other一定要有个有效值
                     if (otherOrdering.orders.get(i) == Order.NONE) {
                         return false;
                     }
+                    // 否则就要相同
                 } else if (otherOrdering.orders.get(i) != this.orders.get(i)) {
                     // the orders must be equal
                     return false;
@@ -169,6 +198,12 @@ public class Ordering implements Cloneable {
         return true;
     }
 
+    /**
+     * 前几个是否一致
+     * @param other
+     * @param n
+     * @return
+     */
     public boolean isOrderEqualOnFirstNFields(Ordering other, int n) {
         if (n > getNumberOfFields() || n > other.getNumberOfFields()) {
             throw new IndexOutOfBoundsException();
@@ -176,6 +211,7 @@ public class Ordering implements Cloneable {
 
         for (int i = 0; i < n; i++) {
             final Order o = this.orders.get(i);
+            // 不包含 NONE/ANY
             if (o == Order.NONE || o == Order.ANY || o != other.orders.get(i)) {
                 return false;
             }
@@ -192,6 +228,7 @@ public class Ordering implements Cloneable {
      * @param exclusiveIndex The index (exclusive) up to which to create the ordering.
      * @return The new ordering on the prefix of the fields, or <code>null</code>, if the prefix is
      *     empty.
+     *     取前面几个顺序
      */
     public Ordering createNewOrderingUpToIndex(int exclusiveIndex) {
         if (exclusiveIndex == 0) {
@@ -205,6 +242,7 @@ public class Ordering implements Cloneable {
     }
 
     public boolean groupsFields(FieldSet fields) {
+        // TODO 上下2个逻辑感觉是相悖的
         if (fields.size() > this.indexes.size()) {
             return false;
         }

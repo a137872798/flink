@@ -28,11 +28,23 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * 确保在调用相关api前后 线程不会发生变化 否则抛出异常
+ * 算是一个包装对象
+ * @param <T>
+ */
 @Internal
 public class SingleThreadAccessCheckingTypeSerializer<T> extends TypeSerializer<T> {
     private static final long serialVersionUID = 131020282727167064L;
 
+    /**
+     * 该对象在关闭时 会检查是否使用的当前线程
+     */
     private final SingleThreadAccessChecker singleThreadAccessChecker;
+
+    /**
+     * 真正起作用的序列化对象
+     */
     private final TypeSerializer<T> originalSerializer;
 
     public SingleThreadAccessCheckingTypeSerializer(TypeSerializer<T> originalSerializer) {
@@ -191,11 +203,18 @@ public class SingleThreadAccessCheckingTypeSerializer<T> extends TypeSerializer<
         }
     }
 
+    /**
+     * 作为单线程访问的检查对象
+     */
     private static class SingleThreadAccessChecker implements Serializable {
         private static final long serialVersionUID = 131020282727167064L;
 
         private transient AtomicReference<Thread> currentThreadRef = new AtomicReference<>();
 
+        /**
+         * 记录当前线程
+         * @return
+         */
         SingleThreadAccessCheck startSingleThreadAccessCheck() {
             assert (currentThreadRef.compareAndSet(null, Thread.currentThread()))
                     : "The checker has concurrent access from " + currentThreadRef.get();
@@ -209,6 +228,9 @@ public class SingleThreadAccessCheckingTypeSerializer<T> extends TypeSerializer<
         }
     }
 
+    /**
+     * 确保只有当前线程在访问对象
+     */
     private static class SingleThreadAccessCheck implements AutoCloseable {
         private final AtomicReference<Thread> currentThreadRef;
 

@@ -29,6 +29,7 @@ import javax.annotation.Nullable;
  *
  * <p>It is highly recommended NOT to perform any blocking operation inside the callbacks. If you
  * block the thread the invoker of environment execute methods is possibly blocked.
+ * 在job的生命周期中增加钩子
  */
 @PublicEvolving
 public interface JobListener {
@@ -41,6 +42,7 @@ public interface JobListener {
      *
      * @param jobClient a {@link JobClient} for the submitted Flink job
      * @param throwable the cause if submission failed
+     *                  表示job通过client提交到分发对象
      */
     void onJobSubmitted(@Nullable JobClient jobClient, @Nullable Throwable throwable);
 
@@ -50,6 +52,7 @@ public interface JobListener {
      * environments.
      *
      * <p>Exactly one of the passed parameters is null, respectively for failure or success.
+     * 当job产生结果时触发
      */
     void onJobExecuted(
             @Nullable JobExecutionResult jobExecutionResult, @Nullable Throwable throwable);

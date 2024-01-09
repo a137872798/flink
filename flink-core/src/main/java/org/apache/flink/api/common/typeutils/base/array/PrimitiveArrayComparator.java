@@ -36,7 +36,15 @@ public abstract class PrimitiveArrayComparator<T, C extends BasicTypeComparator>
     private final TypeComparator[] comparators = new TypeComparator[] {this};
 
     protected final boolean ascending;
+
+    /**
+     * 在比较前 需要设置的变量
+     */
     protected transient T reference;
+
+    /**
+     * 数组元素使用的比较器
+     */
     protected final C comparator;
 
     public PrimitiveArrayComparator(boolean ascending, C comparator) {
@@ -57,15 +65,24 @@ public abstract class PrimitiveArrayComparator<T, C extends BasicTypeComparator>
     @Override
     public int compareToReference(TypeComparator<T> referencedComparator) {
         return compare(
+                // 代表2个的类型相同
                 ((PrimitiveArrayComparator<T, C>) referencedComparator).reference, this.reference);
     }
 
+    /**
+     * 比较他们的序列化数据
+     * @param firstSource The input view containing the first record.
+     * @param secondSource The input view containing the second record.
+     * @return
+     * @throws IOException
+     */
     @Override
     public int compareSerialized(DataInputView firstSource, DataInputView secondSource)
             throws IOException {
         int firstCount = firstSource.readInt();
         int secondCount = secondSource.readInt();
         for (int x = 0; x < min(firstCount, secondCount); x++) {
+            // 这里每个元素挨个比较
             int cmp = comparator.compareSerialized(firstSource, secondSource);
             if (cmp != 0) {
                 return cmp;
@@ -75,6 +92,13 @@ public abstract class PrimitiveArrayComparator<T, C extends BasicTypeComparator>
         return ascending ? cmp : -cmp;
     }
 
+    /**
+     * 这个方法的实现方式 好像都是一样的?
+     * @param record The record that contains the key(s)
+     * @param target The array to write the key(s) into.
+     * @param index The offset of the target array to start writing into.
+     * @return
+     */
     @Override
     public int extractKeys(Object record, Object[] target, int index) {
         target[index] = record;

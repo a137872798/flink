@@ -48,6 +48,7 @@ import java.util.List;
  * also matches an exclude pattern it is excluded.
  *
  * <p>If no patterns are provided all files are included
+ * 全局文件过滤器
  */
 @Internal
 public class GlobFilePathFilter extends FilePathFilter {

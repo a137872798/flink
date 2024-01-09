@@ -40,6 +40,7 @@ public interface SupportsHandleExecutionAttemptSourceEvent {
      * @param subtaskId the subtask id of the source reader who sent the source event.
      * @param attemptNumber the attempt number of the source reader who sent the source event.
      * @param sourceEvent the source event from the source reader.
+     *                    代表支持重试处理SourceEvent
      */
     void handleSourceEvent(int subtaskId, int attemptNumber, SourceEvent sourceEvent);
 }

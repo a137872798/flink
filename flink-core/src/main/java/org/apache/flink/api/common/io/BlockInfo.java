@@ -29,6 +29,7 @@ import java.io.IOException;
  * A block of 24 bytes written at the <i>end</i> of a block in a binary file, and containing i) the
  * number of records in the block, ii) the accumulated number of records, and iii) the offset of the
  * first record in the block.
+ * 代表一个数据块的基本描述信息
  */
 @Public
 public class BlockInfo implements IOReadableWritable {

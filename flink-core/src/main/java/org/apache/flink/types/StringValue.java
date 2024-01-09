@@ -748,6 +748,12 @@ public class StringValue
     //                           Static Helpers for String Serialization
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 读取是write的逆向操作 因为写入时都是写变长值  读取的时候也要进行一些操作
+     * @param in
+     * @return
+     * @throws IOException
+     */
     public static String readString(DataInput in) throws IOException {
         // the length we read is offset by one, because a length of zero indicates a null value
         int len = in.readUnsignedByte();
@@ -756,10 +762,12 @@ public class StringValue
             return null;
         }
 
+        // 根据值判断是否要继续读取 拼接成最终长度
         if (len >= HIGH_BIT) {
             int shift = 7;
             int curr;
             len = len & 0x7f;
+            // 单个byte超过HIGH_BIT 代表还要继续读取字节
             while ((curr = in.readUnsignedByte()) >= HIGH_BIT) {
                 len |= (curr & 0x7f) << shift;
                 shift += 7;
@@ -767,16 +775,18 @@ public class StringValue
             len |= curr << shift;
         }
 
-        // subtract one for the null length
+        // subtract one for the null length  -1 得到真实长度
         len -= 1;
 
         final char[] data;
         if (len > SHORT_STRING_MAX_LENGTH) {
             data = new char[len];
         } else {
+            // 大数组使用缓存好的对象  避免频繁分配
             data = charBuffer.get();
         }
 
+        // 每个char也是变长 读取逻辑跟length一样
         for (int i = 0; i < len; i++) {
             int c = in.readUnsignedByte();
             if (c >= HIGH_BIT) {
@@ -795,8 +805,15 @@ public class StringValue
         return new String(data, 0, len);
     }
 
+    /**
+     * 在将数值序列化写入流之前 基本类型都是固定长度  而String长度可变 所以需要特殊的逻辑
+     * @param cs
+     * @param out
+     * @throws IOException
+     */
     public static final void writeString(CharSequence cs, DataOutput out) throws IOException {
         if (cs != null) {
+            // 得到字节长度
             int strlen = cs.length();
 
             // the length we write is offset by one, because a length of zero indicates a null value
@@ -806,11 +823,14 @@ public class StringValue
             }
 
             // string is prefixed by it's variable length encoded size, which can take 1-5 bytes.
+            // 根据长度 写入特殊的标记    < 128 就直接写长度
             if (lenToWrite < HIGH_BIT) {
                 out.write((byte) lenToWrite);
+                // 128 ～ 16384  就将长度拆成2部分  这些字节操作在lucene或者各种持久层中已经见的很多了
             } else if (lenToWrite < HIGH_BIT14) {
                 out.write((lenToWrite | HIGH_BIT));
                 out.write((lenToWrite >>> 7));
+                // 16384 ～ 2097152 之间 拆成3部分
             } else if (lenToWrite < HIGH_BIT21) {
                 out.write(lenToWrite | HIGH_BIT);
                 out.write((lenToWrite >>> 7) | HIGH_BIT);
@@ -829,10 +849,12 @@ public class StringValue
             }
 
             // write the char data, variable length encoded
+            // 当变长长度写入后  开始写入数据
             for (int i = 0; i < strlen; i++) {
                 int c = cs.charAt(i);
 
                 // manual loop unroll, as it performs much better on jdk8
+                // char也以变长的形式 写入   int肯定是能覆盖char的 然后根据char的长度以变长形式写入
                 if (c < HIGH_BIT) {
                     out.write(c);
                 } else if (c < HIGH_BIT14) {
@@ -849,6 +871,11 @@ public class StringValue
         }
     }
 
+    /**
+     * @param in
+     * @param out
+     * @throws IOException
+     */
     public static final void copyString(DataInput in, DataOutput out) throws IOException {
         int len = in.readUnsignedByte();
         out.writeByte(len);

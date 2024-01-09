@@ -24,7 +24,8 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 
-/** Utility class that turns an {@link OutputStream} into a {@link DataOutputView}. */
+/** Utility class that turns an {@link OutputStream} into a {@link DataOutputView}.
+ * */
 @PublicEvolving
 public class DataOutputViewStreamWrapper extends DataOutputStream implements DataOutputView {
 
@@ -42,6 +43,7 @@ public class DataOutputViewStreamWrapper extends DataOutputStream implements Dat
 
         while (numBytes > 0) {
             int toWrite = Math.min(numBytes, tempBuffer.length);
+            // 将buffer的数据写入到 output对象
             write(tempBuffer, 0, toWrite);
             numBytes -= toWrite;
         }
@@ -55,6 +57,7 @@ public class DataOutputViewStreamWrapper extends DataOutputStream implements Dat
 
         while (numBytes > 0) {
             int toCopy = Math.min(numBytes, tempBuffer.length);
+            // 先从source读取数据到buffer  然后从buffer写入到output
             source.readFully(tempBuffer, 0, toCopy);
             write(tempBuffer, 0, toCopy);
             numBytes -= toCopy;

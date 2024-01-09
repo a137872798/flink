@@ -39,6 +39,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * A LinkedOptionalMap is an order preserving map (like {@link LinkedHashMap}) where keys have a
  * unique string name, but are optionally present, and the values are optional.
+ *
+ * 作为一个map 内部元素可存在 也可不存在
  */
 @Internal
 public final class LinkedOptionalMap<K, V> {
@@ -68,7 +70,9 @@ public final class LinkedOptionalMap<K, V> {
 
         sourceMap.forEach(
                 (k, v) -> {
+                    // 每个key 经过函数处理 产生一个name
                     String keyName = keyNameGetter.apply(k);
+                    // 通过string 来检索key/value
                     underlyingMap.put(keyName, new KeyValue<>(k, v));
                 });
 
@@ -88,6 +92,9 @@ public final class LinkedOptionalMap<K, V> {
     // Constructor
     // --------------------------------------------------------------------------------------------------------
 
+    /**
+     * 通过String 来检索key/value
+     */
     private final LinkedHashMap<String, KeyValue<K, V>> underlyingMap;
 
     public LinkedOptionalMap() {
@@ -130,7 +137,9 @@ public final class LinkedOptionalMap<K, V> {
         }
     }
 
-    /** Returns the key names of any keys or values that are absent. */
+    /** Returns the key names of any keys or values that are absent.
+     * 返回缺少key或者value的键值对对应的key
+     * */
     public Set<String> absentKeysOrValues() {
         return underlyingMap.entrySet().stream()
                 .filter(LinkedOptionalMap::keyOrValueIsAbsent)
@@ -173,6 +182,7 @@ public final class LinkedOptionalMap<K, V> {
      * map with these key and values, stripped from their Optional wrappers. NOTE: please note that
      * if any of the key or values are absent this method would throw an {@link
      * IllegalStateException}.
+     * 还原成 key value形式  丢弃外层的string
      */
     public LinkedHashMap<K, V> unwrapOptionals() {
         final LinkedHashMap<K, V> unwrapped =
@@ -206,6 +216,14 @@ public final class LinkedOptionalMap<K, V> {
         return kv.key == null || kv.value == null;
     }
 
+    /**
+     * 检查左右2个map的key是否一致
+     * @param left
+     * @param right
+     * @param <K>
+     * @param <V>
+     * @return
+     */
     @VisibleForTesting
     static <K, V> boolean isLeftPrefixOfRight(
             LinkedOptionalMap<K, V> left, LinkedOptionalMap<K, V> right) {
@@ -251,6 +269,7 @@ public final class LinkedOptionalMap<K, V> {
         }
 
         KeyValue<K, V> merge(K key, V value) {
+            // 取非null值
             this.key = firstNonNull(key, this.key);
             this.value = firstNonNull(value, this.value);
             return this;

@@ -30,11 +30,16 @@ import java.lang.reflect.Modifier;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** This holds an actual object containing user defined code. */
+/** This holds an actual object containing user defined code.
+ * 用户定义的某个具体对象
+ * */
 @Internal
 public class UserCodeObjectWrapper<T> implements UserCodeWrapper<T> {
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 用户定义的某个对象
+     */
     private final T userCodeObject;
 
     public UserCodeObjectWrapper(T userCodeObject) {
@@ -79,6 +84,7 @@ public class UserCodeObjectWrapper<T> implements UserCodeWrapper<T> {
                 for (Field f : current.getClass().getDeclaredFields()) {
                     f.setAccessible(true);
 
+                    // 调用该方法 将对象变成 outer
                     if (f.getName().contains("$outer")) {
                         newCurrent = f.get(current);
                     }
@@ -117,6 +123,7 @@ public class UserCodeObjectWrapper<T> implements UserCodeWrapper<T> {
         }
     }
 
+    // 直接返回对象
     @Override
     public T getUserCodeObject(Class<? super T> superClass, ClassLoader cl) {
         return userCodeObject;
@@ -127,6 +134,7 @@ public class UserCodeObjectWrapper<T> implements UserCodeWrapper<T> {
         return userCodeObject;
     }
 
+    // 返回对象所属class上的注解
     @Override
     public <A extends Annotation> A getUserCodeAnnotation(Class<A> annotationClass) {
         return userCodeObject.getClass().getAnnotation(annotationClass);

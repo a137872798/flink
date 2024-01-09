@@ -37,6 +37,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * The default implementation of the {@link PipelineExecutorServiceLoader}. This implementation uses
  * Java service discovery to find the available {@link PipelineExecutorFactory executor factories}.
+ *
+ * 默认实现
  */
 @Internal
 public class DefaultExecutorServiceLoader implements PipelineExecutorServiceLoader {
@@ -50,6 +52,11 @@ public class DefaultExecutorServiceLoader implements PipelineExecutorServiceLoad
 
     private static final Logger LOG = LoggerFactory.getLogger(DefaultExecutorServiceLoader.class);
 
+    /**
+     * 根据配置产生工厂
+     * @param configuration
+     * @return
+     */
     @Override
     public PipelineExecutorFactory getExecutorFactory(final Configuration configuration) {
         checkNotNull(configuration);
@@ -61,7 +68,9 @@ public class DefaultExecutorServiceLoader implements PipelineExecutorServiceLoad
         final Iterator<PipelineExecutorFactory> factories = loader.iterator();
         while (factories.hasNext()) {
             try {
+                // 遍历通过spi加载的所有工厂
                 final PipelineExecutorFactory factory = factories.next();
+                // 找到兼容的
                 if (factory != null && factory.isCompatibleWith(configuration)) {
                     compatibleFactories.add(factory);
                 }
@@ -74,6 +83,7 @@ public class DefaultExecutorServiceLoader implements PipelineExecutorServiceLoad
             }
         }
 
+        // 期望应当只有一个符合条件  猜测config中应该有执行器的名字
         if (compatibleFactories.size() > 1) {
             final String configStr =
                     configuration.toMap().entrySet().stream()
@@ -91,11 +101,18 @@ public class DefaultExecutorServiceLoader implements PipelineExecutorServiceLoad
         return compatibleFactories.get(0);
     }
 
+    /**
+     * 返回所有可用的执行器名字
+     * @return
+     */
     @Override
     public Stream<String> getExecutorNames() {
+
+        // 通过spi机制加载
         final ServiceLoader<PipelineExecutorFactory> loader =
                 ServiceLoader.load(PipelineExecutorFactory.class);
 
+        // 调用工厂api 获取执行器名字
         return StreamSupport.stream(loader.spliterator(), false)
                 .map(PipelineExecutorFactory::getName);
     }

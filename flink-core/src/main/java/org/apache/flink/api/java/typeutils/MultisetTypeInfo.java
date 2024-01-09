@@ -28,6 +28,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * A {@link TypeInformation} for the Multiset types of the Java API.
  *
  * @param <T> The type of the elements in the Multiset.
+ *
+ *           Map 但是 value 固定是 Integer
  */
 @PublicEvolving
 public final class MultisetTypeInfo<T> extends MapTypeInfo<T, Integer> {

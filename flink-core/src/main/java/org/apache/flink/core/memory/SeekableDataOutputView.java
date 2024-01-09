@@ -23,6 +23,7 @@ import org.apache.flink.annotation.PublicEvolving;
 /**
  * Interface marking a {@link DataOutputView} as seekable. Seekable views can set the position where
  * they write to.
+ * 可以手动设定位置
  */
 @PublicEvolving
 public interface SeekableDataOutputView extends DataOutputView {

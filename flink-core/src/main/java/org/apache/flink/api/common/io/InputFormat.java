@@ -62,6 +62,7 @@ import java.io.Serializable;
  * @see BaseStatistics
  * @param <OT> The type of the produced records.
  * @param <T> The type of input split.
+ *           代表一种输入的格式 可能是二进制数据/文件数据
  */
 @Public
 public interface InputFormat<OT, T extends InputSplit> extends InputSplitSource<T>, Serializable {
@@ -75,6 +76,7 @@ public interface InputFormat<OT, T extends InputSplit> extends InputSplitSource<
      *
      * @param parameters The configuration with all parameters (note: not the Flink config but the
      *     TaskConfig).
+     *                   对输入格式进行配置
      */
     void configure(Configuration parameters);
 
@@ -108,6 +110,7 @@ public interface InputFormat<OT, T extends InputSplit> extends InputSplitSource<
      *
      * @param split The split to be opened.
      * @throws IOException Thrown, if the spit could not be opened due to an I/O problem.
+     * 根据split信息 生成一个并行实例
      */
     void open(T split) throws IOException;
 
@@ -118,6 +121,7 @@ public interface InputFormat<OT, T extends InputSplit> extends InputSplitSource<
      *
      * @return True if the end is reached, otherwise false.
      * @throws IOException Thrown, if an I/O error occurred.
+     * 检查是否读取完所有输入
      */
     boolean reachedEnd() throws IOException;
 
@@ -129,6 +133,7 @@ public interface InputFormat<OT, T extends InputSplit> extends InputSplitSource<
      * @param reuse Object that may be reused.
      * @return Read record.
      * @throws IOException Thrown, if an I/O error occurred.
+     * 获取下一条记录
      */
     OT nextRecord(OT reuse) throws IOException;
 

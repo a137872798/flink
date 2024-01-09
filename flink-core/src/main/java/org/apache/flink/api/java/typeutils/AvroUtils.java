@@ -79,7 +79,9 @@ public abstract class AvroUtils {
 
     // ------------------------------------------------------------------------
 
-    /** A default implementation of the AvroUtils used in the absence of Avro. */
+    /** A default implementation of the AvroUtils used in the absence of Avro.
+     * 当没有avro时 自动引入的类
+     * */
     private static class DefaultAvroUtils extends AvroUtils {
 
         private static final String AVRO_SPECIFIC_RECORD_BASE =
@@ -93,6 +95,7 @@ public abstract class AvroUtils {
 
         @Override
         public void addAvroSerializersIfRequired(ExecutionConfig reg, Class<?> type) {
+            // 如果该type 以这2个为父类 抛异常
             if (hasSuperclass(type, AVRO_SPECIFIC_RECORD_BASE)
                     || hasSuperclass(type, AVRO_GENERIC_RECORD)) {
 
@@ -104,6 +107,10 @@ public abstract class AvroUtils {
             }
         }
 
+        /**
+         * 默认情况下 各种不支持
+         * @param kryoRegistrations
+         */
         @SuppressWarnings({"rawtypes", "unchecked"})
         @Override
         public void addAvroGenericDataArrayRegistration(

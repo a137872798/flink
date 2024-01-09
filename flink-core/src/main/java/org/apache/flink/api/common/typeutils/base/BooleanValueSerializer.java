@@ -27,6 +27,9 @@ import org.apache.flink.types.BooleanValue;
 
 import java.io.IOException;
 
+/**
+ * 包含 boolean包装类的序列化方式
+ */
 @Internal
 public final class BooleanValueSerializer extends TypeSerializerSingleton<BooleanValue> {
 
@@ -64,6 +67,7 @@ public final class BooleanValueSerializer extends TypeSerializerSingleton<Boolea
 
     @Override
     public void serialize(BooleanValue record, DataOutputView target) throws IOException {
+        // BooleanValue 提供了写入的api 间接触发 output.writeBoolean()
         record.write(target);
     }
 
@@ -74,6 +78,7 @@ public final class BooleanValueSerializer extends TypeSerializerSingleton<Boolea
 
     @Override
     public BooleanValue deserialize(BooleanValue reuse, DataInputView source) throws IOException {
+        // 间接触发 in.readBoolean()
         reuse.read(source);
         return reuse;
     }

@@ -53,6 +53,7 @@ import java.util.Set;
  *
  * <p>A function can, during runtime, obtain the RuntimeContext via a call to {@link
  * AbstractRichFunction#getRuntimeContext()}.
+ * 运行时上下文
  */
 @Public
 public interface RuntimeContext {
@@ -60,6 +61,8 @@ public interface RuntimeContext {
     /**
      * The ID of the current job. Note that Job ID can change in particular upon manual restart. The
      * returned ID should NOT be used for any job management tasks.
+     * 获取当前正在运行的job id   job是个长期运行的任务      返回的id不应该适用于任何task
+     * 在手动重启时 jobId会发生变化
      */
     JobID getJobId();
 
@@ -67,6 +70,7 @@ public interface RuntimeContext {
      * Returns the name of the task in which the UDF runs, as assigned during plan construction.
      *
      * @return The name of the task in which the UDF runs.
+     * 返回当前运行的task名字
      */
     String getTaskName();
 
@@ -82,6 +86,7 @@ public interface RuntimeContext {
      * Gets the parallelism with which the parallel task runs.
      *
      * @return The parallelism with which the parallel task runs.
+     * 获取任务并行度  也就是多少子任务
      */
     int getNumberOfParallelSubtasks();
 
@@ -89,6 +94,7 @@ public interface RuntimeContext {
      * Gets the number of max-parallelism with which the parallel task runs.
      *
      * @return The max-parallelism with which the parallel task runs.
+     * 获取最大并行度
      */
     @PublicEvolving
     int getMaxNumberOfParallelSubtasks();
@@ -98,6 +104,7 @@ public interface RuntimeContext {
      * parallelism-1 (parallelism as returned by {@link #getNumberOfParallelSubtasks()}).
      *
      * @return The index of the parallel subtask.
+     * 获取并行任务的编号
      */
     int getIndexOfThisSubtask();
 
@@ -105,6 +112,7 @@ public interface RuntimeContext {
      * Gets the attempt number of this parallel subtask. First attempt is numbered 0.
      *
      * @return Attempt number of the subtask.
+     * 获取尝试编号  首次尝试为0
      */
     int getAttemptNumber();
 
@@ -114,12 +122,14 @@ public interface RuntimeContext {
      * #getNumberOfParallelSubtasks()}, and 1 would be {@link #getAttemptNumber()}.
      *
      * @return The name of the task, with subtask indicator.
+     * 获取task名
      */
     String getTaskNameWithSubtasks();
 
     /**
      * Returns the {@link org.apache.flink.api.common.ExecutionConfig} for the currently executing
      * job.
+     * 获取执行任务相关的配置
      */
     ExecutionConfig getExecutionConfig();
 
@@ -140,6 +150,7 @@ public interface RuntimeContext {
      * @param releaseHookName name of the release hook.
      * @param releaseHook release hook which is executed just before the user code class loader is
      *     being released
+     *                    允许当用户指定的classLoader释放时 执行钩子
      */
     @PublicEvolving
     void registerUserCodeClassLoaderReleaseHookIfAbsent(
@@ -152,6 +163,7 @@ public interface RuntimeContext {
      * Note that the Accumulator name must have an unique name across the Flink job. Otherwise you
      * will get an error when incompatible accumulators from different Tasks are combined at the
      * JobManager upon job completion.
+     * 往上下文中添加一个累加器
      */
     <V, A extends Serializable> void addAccumulator(String name, Accumulator<V, A> accumulator);
 
@@ -185,6 +197,7 @@ public interface RuntimeContext {
      *
      * @param resourceName of the required external resource
      * @return information set of the external resource identified by the resourceName
+     * 获取额外资源信息
      */
     @PublicEvolving
     Set<ExternalResourceInfo> getExternalResourceInfos(String resourceName);
@@ -196,6 +209,7 @@ public interface RuntimeContext {
      *
      * @param name The name under which the broadcast variable is registered;
      * @return Whether a broadcast variable exists for the given name.
+     * 测试广播变量是否存在     广播变量就是会传递给下游所有算子  一般情况只会路由到一个算子
      */
     @PublicEvolving
     boolean hasBroadcastVariable(String name);
@@ -209,6 +223,7 @@ public interface RuntimeContext {
      *
      * @param name The name under which the broadcast variable is registered;
      * @return The broadcast variable, materialized as a list of elements.
+     * 获取广播变量
      */
     <RT> List<RT> getBroadcastVariable(String name);
 
@@ -225,6 +240,8 @@ public interface RuntimeContext {
      * @param initializer The initializer that creates the shared data structure of the broadcast
      *     variable from the sequence of elements.
      * @return The broadcast variable, materialized as a list of elements.
+     *
+     * 获取广播变量 不存在则使用 initializer初始化
      */
     <T, C> C getBroadcastVariableWithInitializer(
             String name, BroadcastVariableInitializer<T, C> initializer);
@@ -234,6 +251,7 @@ public interface RuntimeContext {
      * otherwise not locally accessible.
      *
      * @return The distributed cache of the worker executing this instance.
+     * 获取分布式缓存  底层是一组文件
      */
     DistributedCache getDistributedCache();
 
@@ -281,6 +299,7 @@ public interface RuntimeContext {
      * @return The partitioned state object.
      * @throws UnsupportedOperationException Thrown, if no partitioned state is available for the
      *     function (function is not part of a KeyedStream).
+     *     通过描述信息找到 value状态
      */
     @PublicEvolving
     <T> ValueState<T> getState(ValueStateDescriptor<T> stateProperties);
@@ -322,6 +341,7 @@ public interface RuntimeContext {
      * @return The partitioned state object.
      * @throws UnsupportedOperationException Thrown, if no partitioned state is available for the
      *     function (function is not part os a KeyedStream).
+     *     根据list描述符 获取list类型状态
      */
     @PublicEvolving
     <T> ListState<T> getListState(ListStateDescriptor<T> stateProperties);
@@ -359,6 +379,7 @@ public interface RuntimeContext {
      * @return The partitioned state object.
      * @throws UnsupportedOperationException Thrown, if no partitioned state is available for the
      *     function (function is not part of a KeyedStream).
+     *     获取一个使用reduce函数进行元素累加的状态
      */
     @PublicEvolving
     <T> ReducingState<T> getReducingState(ReducingStateDescriptor<T> stateProperties);
@@ -399,6 +420,7 @@ public interface RuntimeContext {
      * @return The partitioned state object.
      * @throws UnsupportedOperationException Thrown, if no partitioned state is available for the
      *     function (function is not part of a KeyedStream).
+     *     获取一个聚合状态
      */
     @PublicEvolving
     <IN, ACC, OUT> AggregatingState<IN, OUT> getAggregatingState(
@@ -437,6 +459,7 @@ public interface RuntimeContext {
      * @return The partitioned state object.
      * @throws UnsupportedOperationException Thrown, if no partitioned state is available for the
      *     function (function is not part of a KeyedStream).
+     *     map状态
      */
     @PublicEvolving
     <UK, UV> MapState<UK, UV> getMapState(MapStateDescriptor<UK, UV> stateProperties);

@@ -55,6 +55,7 @@ import java.io.Serializable;
  * </ul>
  *
  * @param <T> The data type that the serializer serializes.
+ *           该对象用于将数据序列化   在flink中 数据在不同算子间传递时 需要进行序列化和反序列化
  */
 @PublicEvolving
 public abstract class TypeSerializer<T> implements Serializable {
@@ -69,6 +70,7 @@ public abstract class TypeSerializer<T> implements Serializable {
      * Gets whether the type is an immutable type.
      *
      * @return True, if the type is immutable.
+     * 表示一个不可变类型
      */
     public abstract boolean isImmutableType();
 
@@ -78,6 +80,8 @@ public abstract class TypeSerializer<T> implements Serializable {
      *
      * <p>We need this because Serializers might be used in several threads. Stateless serializers
      * are inherently thread-safe while stateful serializers might not be thread-safe.
+     * 产生副本对象
+     * 有状态的话 会通过深拷贝产生对象 否则返回自身
      */
     public abstract TypeSerializer<T> duplicate();
 
@@ -89,6 +93,7 @@ public abstract class TypeSerializer<T> implements Serializable {
      * Creates a new instance of the data type.
      *
      * @return A new instance of the data type.
+     * 产生一个type的实例对象
      */
     public abstract T createInstance();
 
@@ -97,6 +102,7 @@ public abstract class TypeSerializer<T> implements Serializable {
      *
      * @param from The element reuse be copied.
      * @return A deep copy of the element.
+     * 对给予的元素深拷贝
      */
     public abstract T copy(T from);
 
@@ -116,6 +122,7 @@ public abstract class TypeSerializer<T> implements Serializable {
      * Gets the length of the data type, if it is a fix length data type.
      *
      * @return The length of the data type, or <code>-1</code> for variable length data types.
+     * 获取类型的长度  占用字节数?
      */
     public abstract int getLength();
 
@@ -129,6 +136,8 @@ public abstract class TypeSerializer<T> implements Serializable {
      * @throws IOException Thrown, if the serialization encountered an I/O related error. Typically
      *     raised by the output view, which may have an underlying I/O channel to which it
      *     delegates.
+     *
+     *     将对象序列化后写入 target
      */
     public abstract void serialize(T record, DataOutputView target) throws IOException;
 
@@ -140,6 +149,8 @@ public abstract class TypeSerializer<T> implements Serializable {
      * @throws IOException Thrown, if the de-serialization encountered an I/O related error.
      *     Typically raised by the input view, which may have an underlying I/O channel from which
      *     it reads.
+     *
+     *     从source读取数据 并反序列化
      */
     public abstract T deserialize(DataInputView source) throws IOException;
 
@@ -166,6 +177,8 @@ public abstract class TypeSerializer<T> implements Serializable {
      * @param source The input view from which to read the record.
      * @param target The target output view to which to write the record.
      * @throws IOException Thrown if any of the two views raises an exception.
+     *
+     * 从input 拷贝数据到 output
      */
     public abstract void copy(DataInputView source, DataOutputView target) throws IOException;
 

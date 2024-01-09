@@ -69,6 +69,8 @@ public final class LocalTimeComparator extends BasicTypeComparator<LocalTime> {
     //                           Static Helpers for Date Comparison
     // --------------------------------------------------------------------------------------------
 
+    // 这次是4个部分   LocalDate 是年月日  这个应该是时分秒纳秒
+
     public static int compareSerializedLocalTime(
             DataInputView firstSource, DataInputView secondSource, boolean ascendingComparison)
             throws IOException {

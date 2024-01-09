@@ -29,6 +29,10 @@ import java.util.regex.Pattern;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
+/**
+ * 元组类型的 typeInfo 因为元组是一个组合类型 所以继承自CompositeType
+ * @param <T>
+ */
 public abstract class TupleTypeInfoBase<T> extends CompositeType<T> {
 
     private static final long serialVersionUID = 1L;
@@ -49,6 +53,9 @@ public abstract class TupleTypeInfoBase<T> extends CompositeType<T> {
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 元组类型 内部会有多个类型
+     */
     protected final TypeInformation<?>[] types;
 
     private final int totalFields;
@@ -72,6 +79,10 @@ public abstract class TupleTypeInfoBase<T> extends CompositeType<T> {
         return false;
     }
 
+    /**
+     * 元组类型 该方法自然返回true
+     * @return
+     */
     @Override
     public boolean isTupleType() {
         return true;
@@ -81,6 +92,10 @@ public abstract class TupleTypeInfoBase<T> extends CompositeType<T> {
         return false;
     }
 
+    /**
+     * 非嵌套数量 就是外层数量
+     * @return
+     */
     @Override
     public int getArity() {
         return types.length;
@@ -96,6 +111,12 @@ public abstract class TupleTypeInfoBase<T> extends CompositeType<T> {
         return totalFields;
     }
 
+    /**
+     * 父类可以传入一个表达式  得到一组字段
+     * @param fieldExpression The field expression for which the FlatFieldDescriptors are computed.
+     * @param offset The offset to use when computing the positions of the flat fields.
+     * @param result The list into which all flat field descriptors are inserted.  用于存储结果
+     */
     @Override
     public void getFlatFields(
             String fieldExpression, int offset, List<FlatFieldDescriptor> result) {
@@ -107,19 +128,24 @@ public abstract class TupleTypeInfoBase<T> extends CompositeType<T> {
         }
 
         String field = matcher.group(0);
+
+        // 代表查询所有字段
         if (field.equals(ExpressionKeys.SELECT_ALL_CHAR)
                 || field.equals(ExpressionKeys.SELECT_ALL_CHAR_SCALA)) {
             // handle select all
             int keyPosition = 0;
             for (TypeInformation<?> type : types) {
                 if (type instanceof CompositeType) {
+                    // 嵌套了
                     CompositeType<?> cType = (CompositeType<?>) type;
                     cType.getFlatFields(
                             String.valueOf(ExpressionKeys.SELECT_ALL_CHAR),
-                            offset + keyPosition,
+                            offset + keyPosition,  // 记住偏移量 这样都是从该偏移量之后开始   嵌套的结构就好像被平铺开
                             result);
+                    // 每次查询会推进下标
                     keyPosition += cType.getTotalFields() - 1;
                 } else {
+                    // 把非复合字段正常填充进去
                     result.add(new FlatFieldDescriptor(offset + keyPosition, type));
                 }
                 keyPosition++;
@@ -143,8 +169,13 @@ public abstract class TupleTypeInfoBase<T> extends CompositeType<T> {
                                 + this.toString()
                                 + ".");
             }
+            // 代表查询某个字段
             TypeInformation<?> fieldType = this.getTypeAt(fieldPos);
+
+            // 有tail 代表内部一定是一个复合类型 tail作为内部类型的查询条件
             String tail = matcher.group(5);
+
+            // 没有tail 就是查询复合字段内所有字段
             if (tail == null) {
                 if (fieldType instanceof CompositeType) {
                     // forward offsets
@@ -152,6 +183,7 @@ public abstract class TupleTypeInfoBase<T> extends CompositeType<T> {
                         offset += this.getTypeAt(i).getTotalFields();
                     }
                     // add all fields of composite type
+                    // 表达式自动变成 "*"
                     ((CompositeType<?>) fieldType).getFlatFields("*", offset, result);
                 } else {
                     // we found the field to add
@@ -163,11 +195,13 @@ public abstract class TupleTypeInfoBase<T> extends CompositeType<T> {
                     result.add(new FlatFieldDescriptor(flatFieldPos, fieldType));
                 }
             } else {
+                // 又遇到复合类型
                 if (fieldType instanceof CompositeType<?>) {
-                    // forward offset
+                    // forward offset  先计算之前的偏移量
                     for (int i = 0; i < fieldPos; i++) {
                         offset += this.getTypeAt(i).getTotalFields();
                     }
+                    // 从这个位置开始读取字段 并填充到result中
                     ((CompositeType<?>) fieldType).getFlatFields(tail, offset, result);
                 } else {
                     throw new InvalidFieldReferenceException(
@@ -202,6 +236,8 @@ public abstract class TupleTypeInfoBase<T> extends CompositeType<T> {
             throw new RuntimeException("Invalid matcher pattern");
         }
         String field = fieldMatcher.group(2);
+
+        // 从表达式中取出下标
         int fieldPos = Integer.valueOf(field);
 
         if (fieldPos >= this.getArity()) {
@@ -213,6 +249,8 @@ public abstract class TupleTypeInfoBase<T> extends CompositeType<T> {
                             + ".");
         }
         TypeInformation<X> fieldType = this.getTypeAt(fieldPos);
+
+        // 还有子表达式 继续查询
         String tail = matcher.group(5);
         if (tail == null) {
             // we found the type

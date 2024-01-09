@@ -28,6 +28,7 @@ import org.apache.flink.core.io.SimpleVersionedSerializer;
  * @param <T> The type of records produced by the source.
  * @param <SplitT> The type of splits handled by the source.
  * @param <EnumChkT> The type of the enumerator checkpoints.
+ *                  表示一个数据源
  */
 @Public
 public interface Source<T, SplitT extends SourceSplit, EnumChkT>
@@ -37,6 +38,7 @@ public interface Source<T, SplitT extends SourceSplit, EnumChkT>
      * Get the boundedness of this source.
      *
      * @return the boundedness of this source.
+     * Boundedness 表示流是有限的 还是无限的
      */
     Boundedness getBoundedness();
 
@@ -47,6 +49,7 @@ public interface Source<T, SplitT extends SourceSplit, EnumChkT>
      * @return A new SplitEnumerator.
      * @throws Exception The implementor is free to forward all exceptions directly. Exceptions
      *     thrown from this method cause JobManager failure/recovery.
+     *     创建相关的枚举器 用于拆分数据
      */
     SplitEnumerator<SplitT, EnumChkT> createEnumerator(SplitEnumeratorContext<SplitT> enumContext)
             throws Exception;
@@ -60,6 +63,7 @@ public interface Source<T, SplitT extends SourceSplit, EnumChkT>
      * @return A SplitEnumerator restored from the given checkpoint.
      * @throws Exception The implementor is free to forward all exceptions directly. Exceptions
      *     thrown from this method cause JobManager failure/recovery.
+     *     通过检查点维护的状态 还原SplitEnumerator
      */
     SplitEnumerator<SplitT, EnumChkT> restoreEnumerator(
             SplitEnumeratorContext<SplitT> enumContext, EnumChkT checkpoint) throws Exception;
@@ -73,6 +77,7 @@ public interface Source<T, SplitT extends SourceSplit, EnumChkT>
      * enumerator to reader, and when checkpointing the reader's current state.
      *
      * @return The serializer for the split type.
+     * 每个source产生的数据有一个类型  该对象负责对应类型的序列化/反序列化工作
      */
     SimpleVersionedSerializer<SplitT> getSplitSerializer();
 

@@ -24,6 +24,10 @@ import org.apache.flink.core.memory.MemorySegment;
 
 import java.io.IOException;
 
+/**
+ * 用于比较布尔类型
+ * compare方法 就会自动变成调用 Boolean.compare
+ */
 @Internal
 public final class BooleanComparator extends BasicTypeComparator<Boolean> {
 

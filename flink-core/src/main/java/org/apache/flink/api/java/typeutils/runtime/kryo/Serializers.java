@@ -52,6 +52,7 @@ import java.util.Set;
  * <p>Note that users can also implement the {@link com.esotericsoftware.kryo.KryoSerializable}
  * interface to provide custom serialization for their classes. Also, there is a Java Annotation for
  * adding a default serializer (@DefaultSerializer) to classes.
+ * 提供一些辅助函数
  */
 @Internal
 public class Serializers {

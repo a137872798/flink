@@ -65,6 +65,8 @@ import static org.apache.flink.core.memory.MemoryUtils.getByteBufferAddress;
  * <p><i>Note on efficiency</i>: For best efficiency, we do not separate implementations of
  * different memory types with inheritance, to avoid the overhead from looking for concrete
  * implementations on invocations of abstract methods.
+ *
+ * 内存块
  */
 @Internal
 public final class MemorySegment {
@@ -100,31 +102,39 @@ public final class MemorySegment {
      * off the heap. If we have this buffer, we must never void this reference, or the memory
      * segment will point to undefined addresses outside the heap and may in out-of-order execution
      * cases cause segmentation faults.
+     * 表示使用堆内存
      */
     @Nullable private final byte[] heapMemory;
 
     /**
      * The direct byte buffer that wraps the off-heap memory. This memory segment holds a reference
      * to that buffer, so as long as this memory segment lives, the memory will not be released.
+     * 表示使用堆外内存  这2个应该只能出现一个
      */
     @Nullable private ByteBuffer offHeapBuffer;
 
     /**
      * The address to the data, relative to the heap memory byte array. If the heap memory byte
      * array is <tt>null</tt>, this becomes an absolute memory address outside the heap.
+     * 内存块的起始位置
      */
     private long address;
 
     /**
      * The address one byte after the last addressable byte, i.e. <tt>address + size</tt> while the
      * segment is not disposed.
+     * 表示内存块最后一个位置的地址
      */
     private final long addressLimit;
 
-    /** The size in bytes of the memory segment. */
+    /** The size in bytes of the memory segment.
+     * 内存块大小  字节为单位
+     * */
     private final int size;
 
-    /** Optional owner of the memory segment. */
+    /** Optional owner of the memory segment.
+     * 内存块的所有者  应法就是内存池 可以为空 就无法被回收
+     * */
     @Nullable private final Object owner;
 
     @Nullable private Runnable cleaner;
@@ -133,9 +143,14 @@ public final class MemorySegment {
      * Wrapping is not allowed when the underlying memory is unsafe. Unsafe memory can be actively
      * released, without reference counting. Therefore, access from wrapped buffers, which may not
      * be aware of the releasing of memory, could be risky.
+     *
+     * 是否允许包装内存块
      */
     private final boolean allowWrap;
 
+    /**
+     * 为了原子free借助的变量
+     */
     private final AtomicBoolean isFreedAtomic;
 
     /**
@@ -148,6 +163,7 @@ public final class MemorySegment {
      *
      * @param buffer The byte array whose memory is represented by this memory segment.
      * @param owner The owner references by this memory segment.
+     *              使用堆内存 初始化
      */
     MemorySegment(@Nonnull byte[] buffer, @Nullable Object owner) {
         this.heapMemory = buffer;
@@ -199,6 +215,7 @@ public final class MemorySegment {
         this.heapMemory = null;
         this.offHeapBuffer = buffer;
         this.size = buffer.capacity();
+        // 获取堆外内存的起始位置
         this.address = getByteBufferAddress(buffer);
         this.addressLimit = this.address + this.size;
         this.owner = owner;
@@ -224,6 +241,7 @@ public final class MemorySegment {
      * Checks whether the memory segment was freed.
      *
      * @return <tt>true</tt>, if the memory segment has been freed, <tt>false</tt> otherwise.
+     * 当address 超过addressLimit时 就认为已经free过了
      */
     @VisibleForTesting
     public boolean isFreed() {
@@ -317,6 +335,8 @@ public final class MemorySegment {
      * @return A <tt>ByteBuffer</tt> backed by the specified portion of the memory segment.
      * @throws IndexOutOfBoundsException Thrown, if offset is negative or larger than the memory
      *     segment size, or if the offset plus the length is larger than the segment size.
+     *
+     *     抽出部分数据 包装出一个新的 ByteBuffer
      */
     public ByteBuffer wrap(int offset, int length) {
         if (!allowWrap) {
@@ -377,6 +397,8 @@ public final class MemorySegment {
      * @return The byte at the given position.
      * @throws IndexOutOfBoundsException Thrown, if the index is negative, or larger or equal to the
      *     size of the memory segment.
+     *
+     *     获取某个偏移量对应的字节
      */
     public byte get(int index) {
         final long pos = address + index;
@@ -1256,6 +1278,7 @@ public final class MemorySegment {
     public void get(DataOutput out, int offset, int length) throws IOException {
         if (address <= addressLimit) {
             if (heapMemory != null) {
+                // 将堆内存的数据写入到output中
                 out.write(heapMemory, offset, length);
             } else {
                 while (length >= 8) {
@@ -1284,6 +1307,7 @@ public final class MemorySegment {
      * @param length The number of bytes to get.
      * @throws IOException Thrown, if the DataInput encountered a problem upon reading, such as an
      *     End-Of-File.
+     *     从input读取数据到 内存块
      */
     public void put(DataInput in, int offset, int length) throws IOException {
         if (address <= addressLimit) {

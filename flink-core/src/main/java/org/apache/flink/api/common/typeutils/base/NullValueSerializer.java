@@ -59,9 +59,21 @@ public final class NullValueSerializer extends TypeSerializerSingleton<NullValue
         return 0;
     }
 
+    /**
+     * 该对象序列化是 noop
+     * @param record The record to serialize.
+     * @param target The output view to write the serialized data to.
+     * @throws IOException
+     */
     @Override
     public void serialize(NullValue record, DataOutputView target) throws IOException {}
 
+    /**
+     * 反序列化也是凭空产生对象
+     * @param source The input view from which to read the data.
+     * @return
+     * @throws IOException
+     */
     @Override
     public NullValue deserialize(DataInputView source) throws IOException {
         return NullValue.getInstance();

@@ -34,6 +34,8 @@ import java.util.List;
  *
  * @param <InputT> The type of the sink's input
  * @param <WriterStateT> The type of the sink writer's state
+ *
+ *                      表示有状态的下沉对象
  */
 @PublicEvolving
 public interface StatefulSink<InputT, WriterStateT> extends Sink<InputT> {
@@ -44,6 +46,8 @@ public interface StatefulSink<InputT, WriterStateT> extends Sink<InputT> {
      * @param context the runtime context.
      * @return A sink writer.
      * @throws IOException for any failure during creation.
+     *
+     * 产生的writer 多了一个api 用于获取状态(快照)
      */
     StatefulSinkWriter<InputT, WriterStateT> createWriter(InitContext context) throws IOException;
 
@@ -53,6 +57,8 @@ public interface StatefulSink<InputT, WriterStateT> extends Sink<InputT> {
      * @param context the runtime context.
      * @return A sink writer.
      * @throws IOException for any failure during creation.
+     *
+     * 基于之前的快照状态 恢复SinkWriter对象
      */
     StatefulSinkWriter<InputT, WriterStateT> restoreWriter(
             InitContext context, Collection<WriterStateT> recoveredState) throws IOException;
@@ -63,12 +69,14 @@ public interface StatefulSink<InputT, WriterStateT> extends Sink<InputT> {
      * #restoreWriter(InitContext, Collection)} on recovery.
      *
      * @return the serializer of the writer's state type.
+     * 获取对state进行序列化/反序列化的对象
      */
     SimpleVersionedSerializer<WriterStateT> getWriterStateSerializer();
 
     /**
      * A mix-in for {@link StatefulSink} that allows users to migrate from a sink with a compatible
      * state to this sink.
+     * 返回兼容的状态名
      */
     @PublicEvolving
     interface WithCompatibleState {
@@ -91,6 +99,8 @@ public interface StatefulSink<InputT, WriterStateT> extends Sink<InputT> {
         /**
          * @return The writer's state.
          * @throws IOException if fail to snapshot writer's state.
+         *
+         * 快照就是看到保存一组状态
          */
         List<WriterStateT> snapshotState(long checkpointId) throws IOException;
     }

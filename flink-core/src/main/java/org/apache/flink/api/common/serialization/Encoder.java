@@ -38,6 +38,7 @@ public interface Encoder<IN> extends Serializable {
      *
      * @param element the element to be written.
      * @param stream the stream to write the element to.
+     *               将元素编码后 写入输出流
      */
     void encode(IN element, OutputStream stream) throws IOException;
 }

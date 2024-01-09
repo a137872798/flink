@@ -41,6 +41,7 @@ import java.util.Date;
  *
  * <p>Note: A stream's time starts with a watermark of {@code Long.MIN_VALUE}. That means that all
  * records in the stream with a timestamp of {@code Long.MIN_VALUE} are immediately late.
+ * 水位 也是一个时间戳
  */
 @Public
 public final class Watermark implements Serializable {

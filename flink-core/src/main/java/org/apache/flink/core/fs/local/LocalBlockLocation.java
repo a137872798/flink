@@ -28,6 +28,7 @@ import org.apache.flink.util.StringUtils;
  * <p>Local files have only one block that represents the entire file. The block has no location
  * information, because it is not accessible where the files (or their block) actually reside,
  * especially in cases where the files are on a mounted file system.
+ * 表示数据块存储在本地
  */
 @Internal
 public class LocalBlockLocation implements BlockLocation {
@@ -38,6 +39,10 @@ public class LocalBlockLocation implements BlockLocation {
         this.length = length;
     }
 
+    /**
+     * 因为存储在本地  就不需要返回远端主机的地址了
+     * @return
+     */
     @Override
     public String[] getHosts() {
         return StringUtils.EMPTY_STRING_ARRAY;
@@ -48,6 +53,10 @@ public class LocalBlockLocation implements BlockLocation {
         return this.length;
     }
 
+    /**
+     * 从文件开始都是该数据块
+     * @return
+     */
     @Override
     public long getOffset() {
         return 0;

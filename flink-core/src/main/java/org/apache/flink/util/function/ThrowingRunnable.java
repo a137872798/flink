@@ -24,6 +24,7 @@ import org.apache.flink.util.ExceptionUtils;
 /**
  * Similar to a {@link Runnable}, this interface is used to capture a block of code to be executed.
  * In contrast to {@code Runnable}, this interface allows throwing checked exceptions.
+ * 代表一个在运行过程中可能会出现异常的对象
  */
 @PublicEvolving
 @FunctionalInterface
@@ -33,6 +34,7 @@ public interface ThrowingRunnable<E extends Throwable> {
      * The work method.
      *
      * @throws E Exceptions may be thrown.
+     * 在运行过程中出现异常
      */
     void run() throws E;
 
@@ -48,6 +50,7 @@ public interface ThrowingRunnable<E extends Throwable> {
             try {
                 throwingRunnable.run();
             } catch (Throwable t) {
+                // 对异常包装后重新抛出
                 ExceptionUtils.rethrow(t);
             }
         };

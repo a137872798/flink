@@ -26,7 +26,9 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-/** A file lock used for avoiding race condition among multiple threads/processes. */
+/** A file lock used for avoiding race condition among multiple threads/processes.
+ * 文件锁 确保单线程修改文件
+ * */
 @Internal
 public class FileLock {
     private static final String TEMP_DIR = System.getProperty("java.io.tmpdir");
@@ -99,6 +101,7 @@ public class FileLock {
             init();
         }
         try {
+            // 锁定临时文件 产生文件锁
             lock = outputStream.getChannel().tryLock();
         } catch (Exception e) {
             return false;
@@ -138,6 +141,7 @@ public class FileLock {
             }
 
         } finally {
+            // 销毁锁 就是删除文件
             this.file.delete();
         }
     }

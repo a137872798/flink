@@ -36,11 +36,21 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * <p>This should not be used as a general {@link TypeSerializer}. It's meant to be used by internal
  * operators that need to work with both {@link SimpleVersionedSerializer} and {@link
  * TypeSerializer}.
+ *
+ * TypeSerializer 提供了T类型的序列化/反序列化方法
+ * 这就是一个包装对象 使得SimpleVersionedSerializer 实现TypeSerializer接口
  */
 @Internal
 public class SimpleVersionedSerializerTypeSerializerProxy<T> extends TypeSerializer<T> {
 
+    /**
+     * 该对象可产生 SimpleVersionedSerializer
+     */
     private final SerializableSupplier<SimpleVersionedSerializer<T>> serializerSupplier;
+
+    /**
+     *
+     */
     private transient SimpleVersionedSerializer<T> cachedSerializer;
 
     public SimpleVersionedSerializerTypeSerializerProxy(
@@ -57,6 +67,7 @@ public class SimpleVersionedSerializerTypeSerializerProxy<T> extends TypeSeriali
     public TypeSerializer<T> duplicate() {
         try {
             return new SimpleVersionedSerializerTypeSerializerProxy<>(
+                    // 通过JDK自带的序列化方式
                     InstantiationUtil.clone(
                             serializerSupplier, serializerSupplier.getClass().getClassLoader()));
         } catch (ClassNotFoundException | IOException e) {

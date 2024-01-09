@@ -22,20 +22,27 @@ import org.apache.flink.annotation.Internal;
 
 import java.io.Serializable;
 
+/**
+ * 用于比较2个不同的对象
+ * @param <T1>
+ * @param <T2>
+ */
 @Internal
 public class GenericPairComparator<T1, T2> extends TypePairComparator<T1, T2>
         implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    // 不同类型 关联的比较器也不同
     private final TypeComparator<T1> comparator1;
     private final TypeComparator<T2> comparator2;
 
+    // 每个比较器展开
     private final TypeComparator<Object>[] comparators1;
     private final TypeComparator<Object>[] comparators2;
 
+    // 分别维护2种类型抽取出来的字段
     private final Object[] referenceKeyFields;
-
     private final Object[] candidateKeyFields;
 
     @SuppressWarnings("unchecked")
@@ -60,6 +67,10 @@ public class GenericPairComparator<T1, T2> extends TypePairComparator<T1, T2>
         this.candidateKeyFields = new Object[numKeys];
     }
 
+    /**
+     * 抽取第一个类型的第一个字段
+     * @param reference The reference instance.
+     */
     @Override
     public void setReference(T1 reference) {
         comparator1.extractKeys(reference, referenceKeyFields, 0);
@@ -67,6 +78,7 @@ public class GenericPairComparator<T1, T2> extends TypePairComparator<T1, T2>
 
     @Override
     public boolean equalToReference(T2 candidate) {
+        // 抽取第二个类型的第一个字段  并使用比较器1 进行比较
         comparator2.extractKeys(candidate, candidateKeyFields, 0);
         for (int i = 0; i < this.comparators1.length; i++) {
             if (this.comparators1[i].compare(referenceKeyFields[i], candidateKeyFields[i]) != 0) {

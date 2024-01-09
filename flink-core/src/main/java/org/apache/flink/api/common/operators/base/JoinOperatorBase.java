@@ -34,6 +34,7 @@ public abstract class JoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunctio
 
     /**
      * An enumeration of hints, optionally usable to tell the system how exactly execute the join.
+     * 枚举对象 用于提示系统如何进行join
      */
     @Public
     public static enum JoinHint {

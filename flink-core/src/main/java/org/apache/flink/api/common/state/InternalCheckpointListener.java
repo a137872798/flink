@@ -41,6 +41,8 @@ public interface InternalCheckpointListener extends CheckpointListener {
      * @param checkpointId The ID of the checkpoint that has been subsumed.
      * @throws Exception This method can propagate exceptions, which leads to a failure/recovery for
      *     the task or job.
+     *
+     *     一旦包含分布式检查点时 就会触发该方法
      */
     void notifyCheckpointSubsumed(long checkpointId) throws Exception;
 }

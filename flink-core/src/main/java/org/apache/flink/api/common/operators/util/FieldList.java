@@ -26,7 +26,10 @@ import java.util.List;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Immutable ordered list of fields IDs. */
+/** Immutable ordered list of fields IDs.
+ * 该对象继承与 FieldSet(内部有一个存储fieldId的容器)
+ * 该对象比父对象更严格 field的顺序必须一致
+ * */
 @Internal
 public class FieldList extends FieldSet {
 
@@ -69,6 +72,8 @@ public class FieldList extends FieldSet {
             return new FieldList(Collections.unmodifiableList(list));
         }
     }
+
+    // 和 父类好像没有什么本质区别
 
     @Override
     public FieldList addFields(int... fieldIDs) {
@@ -119,6 +124,7 @@ public class FieldList extends FieldSet {
 
     @Override
     public boolean isValidSubset(FieldSet set) {
+        // 要求必须相同类型
         if (set instanceof FieldList) {
             return (isValidSubset((FieldList) set));
         } else {
@@ -132,6 +138,8 @@ public class FieldList extends FieldSet {
         }
         final List<Integer> myList = get();
         final List<Integer> theirList = list.get();
+
+        // 2个list的相同下标的值必须完全一致
         for (int i = 0; i < theirList.size(); i++) {
             Integer myInt = myList.get(i);
             Integer theirInt = theirList.get(i);
@@ -142,6 +150,11 @@ public class FieldList extends FieldSet {
         return true;
     }
 
+    /**
+     * 查看2个容器的交集 也是判断包含关系
+     * @param set
+     * @return
+     */
     public boolean isValidUnorderedPrefix(FieldSet set) {
         if (set.size() > size()) {
             return false;
@@ -156,6 +169,11 @@ public class FieldList extends FieldSet {
         return true;
     }
 
+    /**
+     * 长度和顺序必须一致
+     * @param list
+     * @return
+     */
     public boolean isExactMatch(FieldList list) {
         if (this.size() != list.size()) {
             return false;
@@ -185,6 +203,11 @@ public class FieldList extends FieldSet {
         return (List<Integer>) this.collection;
     }
 
+    /**
+     * 将ints 变成  Integer列表
+     * @param ints
+     * @return
+     */
     private static final List<Integer> fromInts(int... ints) {
         if (ints == null || ints.length == 0) {
             return Collections.emptyList();

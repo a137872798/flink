@@ -36,10 +36,16 @@ public final class PluginUtils {
         return createPluginManagerFromRootFolder(PluginConfig.fromConfiguration(configuration));
     }
 
+    /**
+     * 根据PluginConfig信息 生成插件管理器
+     * @param pluginConfig
+     * @return
+     */
     private static PluginManager createPluginManagerFromRootFolder(PluginConfig pluginConfig) {
         if (pluginConfig.getPluginsPath().isPresent()) {
             try {
                 Collection<PluginDescriptor> pluginDescriptors =
+                        // 作为加载插件的根目录
                         new DirectoryBasedPluginFinder(pluginConfig.getPluginsPath().get())
                                 .findPlugins();
                 return new DefaultPluginManager(

@@ -20,13 +20,17 @@ package org.apache.flink.core.io;
 
 import org.apache.flink.annotation.Public;
 
-/** A generic input split that has only a partition number. */
+/** A generic input split that has only a partition number.
+ * 通用的 inputSplit对象
+ * */
 @Public
 public class GenericInputSplit implements InputSplit, java.io.Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /** The number of this split. */
+    /** The number of this split.
+     * 属于当前split的编号
+     * */
     private final int partitionNumber;
 
     /** The total number of partitions */

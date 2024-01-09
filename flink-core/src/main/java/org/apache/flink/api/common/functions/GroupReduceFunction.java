@@ -59,6 +59,7 @@ public interface GroupReduceFunction<T, O> extends Function, Serializable {
      * @param out The collector to hand results to.
      * @throws Exception This method may throw exceptions. Throwing an exception will cause the
      *     operation to fail and may trigger recovery.
+     *     将迭代器中的元素按照一定规则reduce后 进入out
      */
     void reduce(Iterable<T> values, Collector<O> out) throws Exception;
 }

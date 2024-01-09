@@ -67,6 +67,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * Type information for primitive types (int, long, double, byte, ...), String, Date, Void,
  * BigInteger, and BigDecimal.
+ *
+ * 这个是基础类型的 typeInformation
  */
 @Public
 public class BasicTypeInfo<T> extends TypeInformation<T> implements AtomicType<T> {
@@ -166,12 +168,18 @@ public class BasicTypeInfo<T> extends TypeInformation<T> implements AtomicType<T
 
     private final TypeSerializer<T> serializer;
 
+    /**
+     * 表示可能转换的类型
+     */
     private final Class<?>[] possibleCastTargetTypes;
 
+    /**
+     * 对应类型 比较器的类型
+     */
     private final Class<? extends TypeComparator<T>> comparatorClass;
 
     protected BasicTypeInfo(
-            Class<T> clazz,
+            Class<T> clazz,  // 基本类型的class对象
             Class<?>[] possibleCastTargetTypes,
             TypeSerializer<T> serializer,
             Class<? extends TypeComparator<T>> comparatorClass) {
@@ -187,6 +195,7 @@ public class BasicTypeInfo<T> extends TypeInformation<T> implements AtomicType<T
     /**
      * Returns whether this type should be automatically casted to the target type in an arithmetic
      * operation.
+     * 基本类型可以转换成目标类型
      */
     @PublicEvolving
     public boolean shouldAutocastTo(BasicTypeInfo<?> to) {
@@ -209,6 +218,8 @@ public class BasicTypeInfo<T> extends TypeInformation<T> implements AtomicType<T
     public boolean isTupleType() {
         return false;
     }
+
+    // 基础类型的字段数量和非嵌套数量 也是1
 
     @Override
     @PublicEvolving
@@ -287,6 +298,13 @@ public class BasicTypeInfo<T> extends TypeInformation<T> implements AtomicType<T
 
     // --------------------------------------------------------------------------------------------
 
+
+    /**
+     * 从缓存中获取目标类型的 类型信息
+     * @param type
+     * @param <X>
+     * @return
+     */
     @PublicEvolving
     public static <X> BasicTypeInfo<X> getInfoFor(Class<X> type) {
         if (type == null) {
@@ -298,6 +316,13 @@ public class BasicTypeInfo<T> extends TypeInformation<T> implements AtomicType<T
         return info;
     }
 
+    /**
+     * 获取有 ascendingOrder 参数的构造函数
+     * @param comparatorClass
+     * @param ascendingOrder
+     * @param <X>
+     * @return
+     */
     private static <X> TypeComparator<X> instantiateComparator(
             Class<? extends TypeComparator<X>> comparatorClass, boolean ascendingOrder) {
         try {

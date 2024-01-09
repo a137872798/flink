@@ -34,6 +34,7 @@ import org.apache.flink.annotation.PublicEvolving;
  *
  * <p>When the input returns {@link InputStatus#END_OF_INPUT}, then no data will be available again
  * from this input. It has reached the end of its bounded data.
+ *
  */
 @PublicEvolving
 public enum InputStatus {

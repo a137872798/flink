@@ -37,6 +37,7 @@ import java.util.Map;
  *
  * @param <UK> Type of the keys in the state.
  * @param <UV> Type of the values in the state.
+ *            表示一个键值对的状态
  */
 @PublicEvolving
 public interface MapState<UK, UV> extends State {

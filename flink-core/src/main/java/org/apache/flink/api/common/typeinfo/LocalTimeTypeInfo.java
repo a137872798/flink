@@ -38,12 +38,17 @@ import java.util.Objects;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Type information for Java LocalDate/LocalTime/LocalDateTime. */
+/** Type information for Java LocalDate/LocalTime/LocalDateTime.
+ * 不同于基础类型 或者基础数组类型
+ * 表示一个本地时间类型
+ * */
 @PublicEvolving
 public class LocalTimeTypeInfo<T extends Temporal> extends TypeInformation<T>
         implements AtomicType<T> {
 
     private static final long serialVersionUID = 1L;
+
+    // 使用的序列化对象和比较对象都跟着改变  还有类型本身的class
 
     public static final LocalTimeTypeInfo<LocalDate> LOCAL_DATE =
             new LocalTimeTypeInfo<>(
@@ -76,6 +81,7 @@ public class LocalTimeTypeInfo<T extends Temporal> extends TypeInformation<T>
         this.comparatorClass = checkNotNull(comparatorClass);
     }
 
+    // localTime 既不是基础类型 也不是元组类型  且非嵌套字段数为1
     @Override
     public boolean isBasicType() {
         return false;
@@ -151,6 +157,13 @@ public class LocalTimeTypeInfo<T extends Temporal> extends TypeInformation<T>
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 同样是获取布尔类型的构造函数
+     * @param comparatorClass
+     * @param ascendingOrder
+     * @param <X>
+     * @return
+     */
     private static <X> TypeComparator<X> instantiateComparator(
             Class<? extends TypeComparator<X>> comparatorClass, boolean ascendingOrder) {
         try {
@@ -163,6 +176,11 @@ public class LocalTimeTypeInfo<T extends Temporal> extends TypeInformation<T>
         }
     }
 
+    /**
+     * 满足这3中类型 就可以获得对应的typeInfo对象了
+     * @param type
+     * @return
+     */
     public static LocalTimeTypeInfo getInfoFor(Class type) {
         checkNotNull(type);
 

@@ -28,11 +28,13 @@ import java.util.List;
  * A {@link Collector} that collects deep copies of its elements in a list.
  *
  * @param <T> The type of the collected elements.
+ *           实现Collector接口  代表一个收集数据的容器
  */
 @Internal
 public class CopyingListCollector<T> implements Collector<T> {
 
     private final List<T> list;
+    // 使用该对象生成副本 避免影响到入参
     private final TypeSerializer<T> serializer;
 
     public CopyingListCollector(List<T> list, TypeSerializer<T> serializer) {

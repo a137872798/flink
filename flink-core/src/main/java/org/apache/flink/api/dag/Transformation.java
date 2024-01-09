@@ -102,6 +102,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * connect the sources to the map operation.
  *
  * @param <T> The type of the elements that result from this {@code Transformation}
+ *
+ *           转换器   表示接收一组输入  通过该对象后变成output类型
  */
 @Internal
 public abstract class Transformation<T> {
@@ -110,12 +112,18 @@ public abstract class Transformation<T> {
     public static final int UPPER_BOUND_MAX_PARALLELISM = 1 << 15;
 
     // This is used to assign a unique ID to every Transformation
+    // 每个转换器有自己的唯一id
     private static final AtomicInteger ID_COUNTER = new AtomicInteger(0);
 
     // If true, the parallelism of the transformation is explicitly set and should be respected.
     // Otherwise the parallelism can be changed at runtime.
+    // 代表开启了有关并行的配置
     private boolean parallelismConfigured;
 
+    /**
+     * 为转换器分配一个新的id
+     * @return
+     */
     public static int getNewNodeId() {
         return ID_COUNTER.incrementAndGet();
     }
@@ -126,6 +134,9 @@ public abstract class Transformation<T> {
 
     protected String description;
 
+    /**
+     * 转换后的类型
+     */
     protected TypeInformation<T> outputType;
     // This is used to handle MissingTypeInfo. As long as the outputType has not been queried
     // it can still be changed using setOutputType(). Afterwards an exception is thrown when
@@ -157,6 +168,8 @@ public abstract class Transformation<T> {
      * managed memory for. The keys indicate the use cases, while the values are the
      * use-case-specific weights for this transformation. Managed memory reserved for a use case
      * will be shared by all the declaring transformations within a slot according to this weight.
+     *
+     * 好像是描述每种 case占用的比例
      */
     private final Map<ManagedMemoryUseCase, Integer> managedMemoryOperatorScopeUseCaseWeights =
             new HashMap<>();
@@ -175,6 +188,9 @@ public abstract class Transformation<T> {
 
     protected long bufferTimeout = -1;
 
+    /**
+     * 代表一组被共享的资源
+     */
     private Optional<SlotSharingGroup> slotSharingGroup;
 
     @Nullable private String coLocationGroupKey;

@@ -30,7 +30,9 @@ import javax.annotation.Nullable;
 
 import java.io.Serializable;
 
-/** A {@code KryoRegistration} resembles a registered class and its serializer in Kryo. */
+/** A {@code KryoRegistration} resembles a registered class and its serializer in Kryo.
+ * 表示一个注册的凭证
+ * */
 @Internal
 public class KryoRegistration implements Serializable {
 
@@ -39,6 +41,7 @@ public class KryoRegistration implements Serializable {
     /**
      * IMPORTANT: the order of the enumerations must not change, since their ordinals are used for
      * serialization.
+     * 该信息本身参与序列化 所以不能修改顺序
      */
     public enum SerializerDefinitionType {
         UNSPECIFIED,
@@ -52,18 +55,22 @@ public class KryoRegistration implements Serializable {
     /**
      * Class of the serializer to use for the registered class. Exists only if the serializer
      * definition type is {@link SerializerDefinitionType#CLASS}.
+     * 注册类相关的序列化类
      */
     @Nullable private final Class<? extends Serializer<?>> serializerClass;
 
     /**
      * A serializable instance of the serializer to use for the registered class. Exists only if the
      * serializer definition type is {@link SerializerDefinitionType#INSTANCE}.
+     * 一个实例对象
      */
     @Nullable
     private final ExecutionConfig.SerializableSerializer<? extends Serializer<?>>
             serializableSerializerInstance;
 
     private final SerializerDefinitionType serializerDefinitionType;
+
+    // 注册类初始化时 有3种情况 一种基于class 一种基于实例 一种就是直接初始化
 
     public KryoRegistration(Class<?> registeredClass) {
         this.registeredClass = Preconditions.checkNotNull(registeredClass);

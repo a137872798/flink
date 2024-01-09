@@ -38,6 +38,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * and has a maximum number of concurrent requests.
  *
  * @param <OUT> Type of the elements to write.
+ *
+ *             作为输出格式的骨架对象
  */
 @Experimental
 public abstract class OutputFormatBase<OUT, V> extends RichOutputFormat<OUT> {
@@ -67,6 +69,7 @@ public abstract class OutputFormatBase<OUT, V> extends RichOutputFormat<OUT> {
     public final void open(int taskNumber, int numTasks) {
         throwable = new AtomicReference<>();
         this.semaphore = new Semaphore(maxConcurrentRequests);
+
         this.callback =
                 new FutureCallback<V>() {
                     @Override
@@ -81,6 +84,7 @@ public abstract class OutputFormatBase<OUT, V> extends RichOutputFormat<OUT> {
                         semaphore.release();
                     }
                 };
+
         postOpen();
     }
 
@@ -111,15 +115,20 @@ public abstract class OutputFormatBase<OUT, V> extends RichOutputFormat<OUT> {
      */
     @Override
     public final void writeRecord(OUT record) throws IOException {
+
+        // 先检查是否出现了异常
         checkAsyncErrors();
+        // 获取信号量
         tryAcquire(1);
         final CompletionStage<V> completionStage;
         try {
+            // 发送数据到下游
             completionStage = send(record);
         } catch (Throwable e) {
             semaphore.release();
             throw e;
         }
+        // 结束后 归还信号量
         completionStage.whenComplete(
                 (result, throwable) -> {
                     if (throwable == null) {
@@ -148,6 +157,7 @@ public abstract class OutputFormatBase<OUT, V> extends RichOutputFormat<OUT> {
     @Override
     public final void close() throws IOException {
         checkAsyncErrors();
+        // 调用flush时 会获取所有信号量 确保此时没有其他写入线程
         flush();
         checkAsyncErrors();
         postClose();

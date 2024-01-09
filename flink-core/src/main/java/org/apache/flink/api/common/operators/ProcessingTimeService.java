@@ -26,10 +26,14 @@ import java.util.concurrent.ScheduledFuture;
 /**
  * A service that allows to get the current processing time and register timers that will execute
  * the given {@link ProcessingTimeCallback} when firing.
+ *
+ * 允许获取当前处理时间 并且可以在指定时间声明触发 ProcessingTimeCallback
  */
 @PublicEvolving
 public interface ProcessingTimeService {
-    /** Returns the current processing time. */
+    /** Returns the current processing time.
+     * 获取当前处理时间
+     * */
     long getCurrentProcessingTime();
 
     /**
@@ -44,6 +48,7 @@ public interface ProcessingTimeService {
 
     /**
      * A callback that can be registered via {@link #registerTimer(long, ProcessingTimeCallback)}.
+     * 定时服务通过注册定时器 指定的回调对象
      */
     @PublicEvolving
     interface ProcessingTimeCallback {
@@ -51,6 +56,7 @@ public interface ProcessingTimeService {
          * This method is invoked with the time which the callback register for.
          *
          * @param time The time this callback was registered for.
+         *             当到时时触发的函数
          */
         void onProcessingTime(long time) throws IOException, InterruptedException, Exception;
     }

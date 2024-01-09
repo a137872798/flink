@@ -42,6 +42,8 @@ import static org.apache.flink.shaded.guava31.com.google.common.collect.Lists.re
  * <p>Unlike {@link CloseableRegistry} this class can throw an exception during the close.
  *
  * <p>This class closes all registered {@link Closeable}s in the reverse registration order.
+ *
+ * 简单的容器  然后支持批量关闭
  */
 @ThreadSafe
 @Internal

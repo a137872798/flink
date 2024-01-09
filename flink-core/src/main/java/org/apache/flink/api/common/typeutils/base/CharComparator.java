@@ -24,6 +24,10 @@ import org.apache.flink.core.memory.MemorySegment;
 
 import java.io.IOException;
 
+/**
+ * 用于比较char的对象
+ * 同时 因为Character 本身继承自 Comparable 所以自带比较方法
+ */
 @Internal
 public final class CharComparator extends BasicTypeComparator<Character> {
 
@@ -36,6 +40,7 @@ public final class CharComparator extends BasicTypeComparator<Character> {
     @Override
     public int compareSerialized(DataInputView firstSource, DataInputView secondSource)
             throws IOException {
+        // 区别在于读取的是char
         char c1 = firstSource.readChar();
         char c2 = secondSource.readChar();
         int comp = (c1 < c2 ? -1 : (c1 == c2 ? 0 : 1));

@@ -27,7 +27,9 @@ import java.io.File;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** An implementation of the resume and commit descriptor objects for local recoverable streams. */
+/** An implementation of the resume and commit descriptor objects for local recoverable streams.
+ * 该对象只是实现了2个标记接口  代表数据可提交 并且可以恢复数据
+ * */
 @Internal
 class LocalRecoverable implements CommitRecoverable, ResumeRecoverable {
 
@@ -37,7 +39,9 @@ class LocalRecoverable implements CommitRecoverable, ResumeRecoverable {
     /** The file path of the staging file. */
     private final File tempFile;
 
-    /** The position to resume from. */
+    /** The position to resume from.
+     * 表示此时已经恢复到的偏移量
+     * */
     private final long offset;
 
     /**

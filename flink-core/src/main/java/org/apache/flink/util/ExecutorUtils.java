@@ -25,7 +25,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
-/** Utilities for {@link java.util.concurrent.Executor Executors}. */
+/** Utilities for {@link java.util.concurrent.Executor Executors}.
+ * 执行器的工具类
+ * */
 public class ExecutorUtils {
 
     private static final Logger LOG = LoggerFactory.getLogger(ExecutorUtils.class);
@@ -38,6 +40,7 @@ public class ExecutorUtils {
      * @param timeout to wait for the termination of all ExecutorServices
      * @param unit of the timeout
      * @param executorServices to shut down
+     *                         优雅关闭一组执行器
      */
     public static void gracefulShutdown(
             long timeout, TimeUnit unit, ExecutorService... executorServices) {
@@ -46,11 +49,13 @@ public class ExecutorUtils {
         }
 
         boolean wasInterrupted = false;
+        // 期望结束的时间
         final long endTime = unit.toMillis(timeout) + System.currentTimeMillis();
         long timeLeft = unit.toMillis(timeout);
         boolean hasTimeLeft = timeLeft > 0L;
 
         for (ExecutorService executorService : executorServices) {
+            // 时间已到 强制关闭
             if (wasInterrupted || !hasTimeLeft) {
                 executorService.shutdownNow();
             } else {

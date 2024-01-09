@@ -39,6 +39,7 @@ import java.io.Serializable;
  *
  * @param <T> Type of the input elements.
  * @param <O> Type of the returned elements.
+ *           表示一个映射函数
  */
 @Public
 @FunctionalInterface

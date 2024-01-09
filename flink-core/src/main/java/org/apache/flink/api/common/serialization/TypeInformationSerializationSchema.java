@@ -34,6 +34,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * typed from and to byte arrays.
  *
  * @param <T> The type to be serialized.
+ *
+ *           该对象需要同时实现序列化/反序列化api
  */
 @Public
 public class TypeInformationSerializationSchema<T>
@@ -41,11 +43,17 @@ public class TypeInformationSerializationSchema<T>
 
     private static final long serialVersionUID = -5359448468131559102L;
 
-    /** The type information, to be returned by {@link #getProducedType()}. */
+    /** The type information, to be returned by {@link #getProducedType()}.
+     * 包含本对象的类型信息
+     * */
     private final TypeInformation<T> typeInfo;
 
-    /** The serializer for the actual de-/serialization. */
+    /** The serializer for the actual de-/serialization.
+     * 该对象提供了 序列化/反序列化的API
+     * */
     private final TypeSerializer<T> serializer;
+
+    // 2个容器对象  配合serializer使用
 
     /** The reusable output serialization buffer. */
     private transient DataOutputSerializer dos;
@@ -89,6 +97,7 @@ public class TypeInformationSerializationSchema<T>
         }
 
         try {
+            // 2个对象要配合使用 一个存储数据 一个进行反序列化
             return serializer.deserialize(dis);
         } catch (IOException e) {
             throw new RuntimeException("Unable to deserialize message", e);
@@ -114,6 +123,7 @@ public class TypeInformationSerializationSchema<T>
         }
 
         try {
+            // 将元素序列化后写入容器
             serializer.serialize(element, dos);
         } catch (IOException e) {
             throw new RuntimeException("Unable to serialize record", e);

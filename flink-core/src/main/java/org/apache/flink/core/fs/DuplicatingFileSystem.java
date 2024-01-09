@@ -25,6 +25,7 @@ import java.util.List;
  * An extension interface for {@link FileSystem FileSystems} that can perform cheap DFS side
  * duplicate operation. Such an operation can improve the time required for creating cheaply
  * independent snapshots from incremental snapshots.
+ * 表示支持复制功能的文件系统
  */
 public interface DuplicatingFileSystem {
     /**
@@ -36,6 +37,7 @@ public interface DuplicatingFileSystem {
      * @param source The path of the source file to duplicate
      * @param destination The path where to duplicate the source file
      * @return true, if we can perform the duplication
+     * 判断能否快速复制
      */
     boolean canFastDuplicate(Path source, Path destination) throws IOException;
 
@@ -45,6 +47,7 @@ public interface DuplicatingFileSystem {
      * <p>You should first check if you can duplicate with {@link #canFastDuplicate(Path, Path)}.
      *
      * @param requests Pairs of src/dst to copy.
+     *                 执行复制操作
      */
     void duplicate(List<CopyRequest> requests) throws IOException;
 

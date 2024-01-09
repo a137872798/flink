@@ -29,6 +29,7 @@ public interface WatermarkOutput {
      *
      * <p>Emitting a watermark also implicitly marks the stream as <i>active</i>, ending previously
      * marked idleness.
+     * 通过output发射水位
      */
     void emitWatermark(Watermark watermark);
 
@@ -38,12 +39,14 @@ public interface WatermarkOutput {
      *
      * <p>An output becomes active again as soon as the next watermark is emitted or {@link
      * #markActive()} is explicitly called.
+     * 标记output处于空闲状态
      */
     void markIdle();
 
     /**
      * Marks this output as active, meaning that downstream operations should wait for watermarks
      * from this output.
+     * 标记output处于活跃状态
      */
     void markActive();
 }

@@ -25,6 +25,7 @@ import java.util.Optional;
 /**
  * Read access to a configuration object. Allows reading values described with meta information
  * included in {@link ConfigOption}.
+ * 表示一个可读取的配置对象
  */
 @PublicEvolving
 public interface ReadableConfig {

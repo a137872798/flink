@@ -51,16 +51,31 @@ import java.util.concurrent.Future;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** A standalone implementation of the {@link RuntimeContext}, created by runtime UDF operators. */
+/** A standalone implementation of the {@link RuntimeContext}, created by runtime UDF operators.
+ * 当进行用户定义的操作时 创建的运行时上下文
+ * 有关job相关的实现 由子类完成
+ * */
 @Internal
 public abstract class AbstractRuntimeUDFContext implements RuntimeContext {
 
+    /**
+     * 当前正在执行的任务 支持并行
+     */
     private final TaskInfo taskInfo;
 
+    /**
+     * 在用户定义的上下文中 就可能会使用一个用户定义的类加载器   并且支持设置一些释放钩子
+     */
     private final UserCodeClassLoader userCodeClassLoader;
 
+    /**
+     * 执行时可能用上的各种配置
+     */
     private final ExecutionConfig executionConfig;
 
+    /**
+     * 可能用上的各种累加器
+     */
     private final Map<String, Accumulator<?, ?>> accumulators;
 
     private final DistributedCache distributedCache;
@@ -186,7 +201,7 @@ public abstract class AbstractRuntimeUDFContext implements RuntimeContext {
             AccumulatorHelper.compareAccumulatorTypes(
                     name, accumulator.getClass(), accumulatorClass);
         } else {
-            // Create new accumulator
+            // Create new accumulator  不存在则创建并设置
             try {
                 accumulator = accumulatorClass.newInstance();
             } catch (Exception e) {

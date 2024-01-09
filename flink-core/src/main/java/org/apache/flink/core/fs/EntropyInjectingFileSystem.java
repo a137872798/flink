@@ -34,6 +34,7 @@ import javax.annotation.Nullable;
  *
  * <p>This interface is used in conjunction with the {@link EntropyInjector} (as a poor man's way to
  * build a mix-in in Java).
+ * 熵注入文件系统   表示在分布式系统中的扩散
  */
 @PublicEvolving
 public interface EntropyInjectingFileSystem {
@@ -43,10 +44,13 @@ public interface EntropyInjectingFileSystem {
      * characters.
      *
      * <p>You can disable entropy injection if you return null here.
+     * 获取key
      */
     @Nullable
     String getEntropyInjectionKey();
 
-    /** Creates a string with random entropy to be injected into a path. */
+    /** Creates a string with random entropy to be injected into a path.
+     * 产生熵
+     * */
     String generateEntropy();
 }

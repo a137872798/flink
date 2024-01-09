@@ -27,6 +27,7 @@ import org.apache.flink.api.common.ExecutionConfig;
  *
  * <p><b>Note:</b> This WatermarkGenerator subsumes the previous distinction between the {@code
  * AssignerWithPunctuatedWatermarks} and the {@code AssignerWithPeriodicWatermarks}.
+ * 水位生成器
  */
 @Public
 public interface WatermarkGenerator<T> {
@@ -34,6 +35,7 @@ public interface WatermarkGenerator<T> {
     /**
      * Called for every event, allows the watermark generator to examine and remember the event
      * timestamps, or to emit a watermark based on the event itself.
+     * 每个新事件的产生 可能会影响到水位
      */
     void onEvent(T event, long eventTimestamp, WatermarkOutput output);
 
@@ -42,6 +44,7 @@ public interface WatermarkGenerator<T> {
      *
      * <p>The interval in which this method is called and Watermarks are generated depends on {@link
      * ExecutionConfig#getAutoWatermarkInterval()}.
+     * 该方法 应当被周期性调用  并尝试往output发射水位   而水位则是通过onEvent产生的
      */
     void onPeriodicEmit(WatermarkOutput output);
 }

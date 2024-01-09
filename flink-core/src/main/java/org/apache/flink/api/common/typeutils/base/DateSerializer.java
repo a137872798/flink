@@ -66,6 +66,8 @@ public final class DateSerializer extends TypeSerializerSingleton<Date> {
         return 8;
     }
 
+    // Date的序列化/反序列化 就是写入/读取时间戳
+
     @Override
     public void serialize(Date record, DataOutputView target) throws IOException {
         if (record == null) {

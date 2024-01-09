@@ -21,6 +21,10 @@ package org.apache.flink.api.common.typeutils.base;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 
+/**
+ * 表示一个单例对象 调用拷贝api时 返回自身
+ * @param <T>
+ */
 @Internal
 public abstract class TypeSerializerSingleton<T> extends TypeSerializer<T> {
 

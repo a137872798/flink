@@ -25,12 +25,19 @@ import org.apache.flink.core.memory.DataOutputView;
 
 import java.io.IOException;
 
+/**
+ * 类型比较器 比较的对象是实现了Comparable接口的
+ * @param <T>
+ */
 @Internal
 public abstract class BasicTypeComparator<T extends Comparable<T>> extends TypeComparator<T>
         implements java.io.Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 比较器 先设置一个对象 然后跟另一个对象比较
+     */
     private transient T reference;
 
     protected final boolean ascendingComparison;
@@ -43,6 +50,11 @@ public abstract class BasicTypeComparator<T extends Comparable<T>> extends TypeC
         this.ascendingComparison = ascending;
     }
 
+    /**
+     * 默认就是直接计算对象的 hashCode
+     * @param value
+     * @return
+     */
     @Override
     public int hash(T value) {
         return value.hashCode();
@@ -53,11 +65,22 @@ public abstract class BasicTypeComparator<T extends Comparable<T>> extends TypeC
         this.reference = toCompare;
     }
 
+    /**
+     * 将设置的对象与参数进行比较
+     * @param candidate The candidate to check.
+     * @return
+     */
     @Override
     public boolean equalToReference(T candidate) {
         return candidate.equals(reference);
     }
 
+    /**
+     * 也是拿另一个比较器内的  引用对象
+     * @param referencedComparator The type accessors where the element for comparison has been set
+     *     as reference.
+     * @return
+     */
     @Override
     public int compareToReference(TypeComparator<T> referencedComparator) {
         int comp = ((BasicTypeComparator<T>) referencedComparator).reference.compareTo(reference);
@@ -91,6 +114,10 @@ public abstract class BasicTypeComparator<T extends Comparable<T>> extends TypeC
         return 1;
     }
 
+    /**
+     * 将自身内部的比较器平铺开返回  也就是本身
+     * @return
+     */
     @SuppressWarnings("rawtypes")
     @Override
     public TypeComparator[] getFlatComparators() {

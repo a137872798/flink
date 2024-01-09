@@ -23,6 +23,7 @@ import org.apache.flink.annotation.Public;
 /**
  * {@link OutputFormat}s may implement this interface to run a cleanup hook when the execution is
  * not successful.
+ * 当执行失败时 进行一些清理工作
  */
 @Public
 public interface CleanupWhenUnsuccessful {

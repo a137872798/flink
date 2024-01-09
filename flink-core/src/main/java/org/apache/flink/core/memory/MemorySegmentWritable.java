@@ -22,7 +22,9 @@ import org.apache.flink.annotation.Internal;
 
 import java.io.IOException;
 
-/** Provides the interface for write(Segment). */
+/** Provides the interface for write(Segment).
+ * 从MemorySegment中读取数据并写入到其他地方
+ * */
 @Internal
 public interface MemorySegmentWritable {
 

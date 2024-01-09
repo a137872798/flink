@@ -28,6 +28,7 @@ import java.io.IOException;
 /**
  * An abstract stub implementation for Rich input formats. Rich formats have access to their runtime
  * execution context via {@link #getRuntimeContext()}.
+ * 带Rich的 代表给对象额外多了 RuntimeContext属性
  */
 @Public
 public abstract class RichInputFormat<OT, T extends InputSplit> implements InputFormat<OT, T> {

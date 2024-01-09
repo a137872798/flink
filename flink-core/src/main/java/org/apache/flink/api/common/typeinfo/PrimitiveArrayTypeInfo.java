@@ -53,6 +53,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * creation of dedicated efficient serializers for these types.
  *
  * @param <T> The type represented by this type information, e.g., int[], double[], long[]
+ *           原始类型数组 基础类型数组 使用的是包装类 这里是使用原始类型
  */
 @Public
 public class PrimitiveArrayTypeInfo<T> extends TypeInformation<T> implements AtomicType<T> {
@@ -102,8 +103,12 @@ public class PrimitiveArrayTypeInfo<T> extends TypeInformation<T> implements Ato
 
     // --------------------------------------------------------------------------------------------
 
-    /** The class of the array (such as int[].class). */
+    /** The class of the array (such as int[].class).
+     * 原始数组类型
+     * */
     private final Class<T> arrayClass;
+
+    // 对应的序列化对象和比较器class
 
     /** The serializer for the array. */
     private final TypeSerializer<T> serializer;
@@ -145,6 +150,8 @@ public class PrimitiveArrayTypeInfo<T> extends TypeInformation<T> implements Ato
         return false;
     }
 
+    // 非嵌套字段 和 总字段数 还是1
+
     @Override
     @PublicEvolving
     public int getArity() {
@@ -179,6 +186,7 @@ public class PrimitiveArrayTypeInfo<T> extends TypeInformation<T> implements Ato
      * Gets the class that represents the component type.
      *
      * @return The class of the component type.
+     * 通过调用class的api 可以拿到原始类型
      */
     @PublicEvolving
     public Class<?> getComponentClass() {
@@ -189,6 +197,7 @@ public class PrimitiveArrayTypeInfo<T> extends TypeInformation<T> implements Ato
      * Gets the type information of the component type.
      *
      * @return The type information of the component type.
+     * 原始类型 会返回包装类型的 typeInfo
      */
     @PublicEvolving
     public TypeInformation<?> getComponentType() {
@@ -235,6 +244,8 @@ public class PrimitiveArrayTypeInfo<T> extends TypeInformation<T> implements Ato
      * @return The corresponding PrimitiveArrayTypeInfo, or null, if the array is not an array of
      *     primitives.
      * @throws InvalidTypesException Thrown, if the given class does not represent an array.
+     *
+     * 获取某原始数组类型的 typeInfo
      */
     @SuppressWarnings("unchecked")
     @PublicEvolving

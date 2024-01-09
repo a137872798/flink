@@ -27,7 +27,9 @@ import org.apache.flink.core.memory.DataOutputView;
 import java.io.IOException;
 import java.math.BigInteger;
 
-/** Serializer for serializing/deserializing BigInteger values including null values. */
+/** Serializer for serializing/deserializing BigInteger values including null values.
+ * 基于 BigInteger的序列化对象
+ * */
 @Internal
 public final class BigIntSerializer extends TypeSerializerSingleton<BigInteger> {
 
@@ -45,6 +47,7 @@ public final class BigIntSerializer extends TypeSerializerSingleton<BigInteger> 
         return BigInteger.ZERO;
     }
 
+    // 看来是不可变对象
     @Override
     public BigInteger copy(BigInteger from) {
         return from;
@@ -84,15 +87,22 @@ public final class BigIntSerializer extends TypeSerializerSingleton<BigInteger> 
     //                           Static Helpers for BigInteger Serialization
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 表示如何写入 BigInteger
+     * @param record
+     * @param target
+     * @throws IOException
+     */
     public static void writeBigInteger(BigInteger record, DataOutputView target)
             throws IOException {
-        // null value support
+        // null value support  null就是写入0
         if (record == null) {
             target.writeInt(0);
             return;
         }
         // fast paths for 0, 1, 10
         // only reference equality is checked because equals would be too expensive
+        // 这3种情况 写入特殊值
         else if (record == BigInteger.ZERO) {
             target.writeInt(1);
             return;
@@ -104,6 +114,7 @@ public final class BigIntSerializer extends TypeSerializerSingleton<BigInteger> 
             return;
         }
         // default
+        // 正常情况 就是写入byte数组  当然要先写入长度信息
         final byte[] bytes = record.toByteArray();
         // the length we write is offset by four, because null and short-paths for ZERO, ONE, and
         // TEN
@@ -115,6 +126,7 @@ public final class BigIntSerializer extends TypeSerializerSingleton<BigInteger> 
         final int len = source.readInt();
         if (len < 4) {
             switch (len) {
+                // 这3种就是特殊情况
                 case 0:
                     return null;
                 case 1:
@@ -125,6 +137,7 @@ public final class BigIntSerializer extends TypeSerializerSingleton<BigInteger> 
                     return BigInteger.TEN;
             }
         }
+        // 之后就是读取byte数组
         final byte[] bytes = new byte[len - 4];
         source.readFully(bytes);
         return new BigInteger(bytes);

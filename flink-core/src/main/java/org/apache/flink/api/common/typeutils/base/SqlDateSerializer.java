@@ -27,6 +27,9 @@ import org.apache.flink.core.memory.DataOutputView;
 import java.io.IOException;
 import java.sql.Date;
 
+/**
+ * 针对 sql.Date
+ */
 @Internal
 public final class SqlDateSerializer extends TypeSerializerSingleton<Date> {
 

@@ -37,12 +37,17 @@ public class RefCountedBufferingFileStream extends RefCountedFSOutputStream {
 
     public static final int BUFFER_SIZE = 4096;
 
+    /**
+     * 该流关联的文件 有一个引用计数
+     */
     private final RefCountedFileWithStream currentTmpFile;
 
     /** The write buffer. */
     private final byte[] buffer;
 
-    /** Current position in the buffer, must be in [0, buffer.length]. */
+    /** Current position in the buffer, must be in [0, buffer.length].
+     * 要通过这个偏移量来修正  得到真正偏移量
+     * */
     private int positionInBuffer;
 
     private boolean closed;
@@ -85,6 +90,7 @@ public class RefCountedBufferingFileStream extends RefCountedFSOutputStream {
         if (len >= buffer.length) {
             // circumvent the internal buffer for large writes
             flush();
+            // 大块直接写入 不用缓冲
             currentTmpFile.write(b, off, len);
             return;
         }
@@ -95,6 +101,7 @@ public class RefCountedBufferingFileStream extends RefCountedFSOutputStream {
             flush();
         }
 
+        // 写入缓冲区
         System.arraycopy(b, off, buffer, positionInBuffer, len);
         positionInBuffer += len;
     }

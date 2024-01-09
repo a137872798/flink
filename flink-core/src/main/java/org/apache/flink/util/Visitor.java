@@ -23,6 +23,7 @@ import org.apache.flink.annotation.Internal;
 /**
  * A visitor encapsulates functionality that is applied to each node in the process of a traversal
  * of a tree or DAG.
+ * 访问者对象 开放2个钩子 分别对应访问前/访问后
  */
 @Internal
 public interface Visitor<T extends Visitable<T>> {

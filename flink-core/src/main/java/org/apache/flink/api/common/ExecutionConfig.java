@@ -74,6 +74,8 @@ import static org.apache.flink.util.Preconditions.checkArgument;
  *       <i>generic types</i> and <i>POJOs</i>. This is usually only needed when the functions
  *       return not only the types declared in their signature, but also subclasses of those types.
  * </ul>
+ *
+ * 代表该执行配置 在留档时会产生 ArchivedExecutionConfig
  */
 @Public
 public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecutionConfig> {
@@ -98,6 +100,7 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
     /**
      * The flag value indicating use of the default parallelism. This value can be used to reset the
      * parallelism back to the default state.
+     * 主要用于重置并行度
      */
     public static final int PARALLELISM_DEFAULT = -1;
 
@@ -116,6 +119,8 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
      *
      * <p>If you decide to expose any of those {@link ConfigOption}s, please double-check if the
      * key, type and descriptions are sensible, as the initial values are arbitrary.
+     *
+     * 这个选项代表执行模式  默认管道模式
      */
     // --------------------------------------------------------------------------------------------
 
@@ -141,6 +146,7 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
     /**
      * In the long run, this field should be somehow merged with the {@link Configuration} from
      * StreamExecutionEnvironment.
+     * 这是一个泛用的配置对象 通过key可以检索配置值  (内部是个map)
      */
     private final Configuration configuration = new Configuration();
 
@@ -149,17 +155,24 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
      */
     @Deprecated private long executionRetryDelay = DEFAULT_RESTART_DELAY;
 
+    /**
+     * 实际上这个bean对象内 并没有什么有用信息
+     */
     private RestartStrategies.RestartStrategyConfiguration restartStrategyConfiguration =
             new RestartStrategies.FallbackRestartStrategyConfiguration();
 
     // ------------------------------- User code values --------------------------------------------
 
+    /**
+     * Job的全局参数 简单看就是map
+     */
     private GlobalJobParameters globalJobParameters = new GlobalJobParameters();
 
     // Serializers and types registered with Kryo and the PojoSerializer
     // we store them in linked maps/sets to ensure they are registered in order in all kryo
     // instances.
 
+    // 描述一些可以用于序列化的对象
     private LinkedHashMap<Class<?>, SerializableSerializer<?>> registeredTypesWithKryoSerializers =
             new LinkedHashMap<>();
 
@@ -603,6 +616,8 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
         return InputDependencyConstraint.ANY;
     }
 
+    // 表示是否使用 kryo进行序列化/反序列化
+
     /**
      * Force TypeExtractor to use Kryo serializer for POJOS even though we could analyze as POJO. In
      * some cases this might be preferable. For example, when using interfaces with subclasses that
@@ -788,6 +803,8 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
      *
      * @param type The class of the types serialized with the given serializer.
      * @param serializer The serializer to use.
+     *
+     *                   SerializableSerializer 是 kryo的序列化包装对象
      */
     public <T extends Serializer<?> & Serializable> void addDefaultKryoSerializer(
             Class<?> type, T serializer) {
@@ -803,6 +820,8 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
      *
      * @param type The class of the types serialized with the given serializer.
      * @param serializerClass The class of the serializer to use.
+     *
+     *                        看来每个class 对应一个kryo的序列化Class对象
      */
     public void addDefaultKryoSerializer(
             Class<?> type, Class<? extends Serializer<?>> serializerClass) {
@@ -1053,6 +1072,10 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
 
     // ------------------------------ Utilities  ----------------------------------
 
+    /**
+     * Serializer 是 kryo包中的序列化类
+     * @param <T>
+     */
     public static class SerializableSerializer<T extends Serializer<?> & Serializable>
             implements Serializable {
         private static final long serialVersionUID = 4687893502781067189L;
@@ -1073,6 +1096,7 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
      *
      * <p>This user config is accessible at runtime through
      * getRuntimeContext().getExecutionConfig().GlobalJobParameters()
+     * 表示Job的全局参数
      */
     public static class GlobalJobParameters implements Serializable {
         private static final long serialVersionUID = 1L;
@@ -1102,9 +1126,15 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
         }
     }
 
-    /** Configuration settings for the closure cleaner. */
+    /** Configuration settings for the closure cleaner.
+     * 关闭级别
+     * */
     public enum ClosureCleanerLevel implements DescribedEnum {
+
+        // 表示不能清理
         NONE(text("Disables the closure cleaner completely.")),
+
+        // 最上层或者全部
 
         TOP_LEVEL(text("Cleans only the top-level class without recursing into fields.")),
 
@@ -1131,6 +1161,7 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
      *
      * @param configuration a configuration to read the values from
      * @param classLoader a class loader to use when loading classes
+     *                    使用ReadableConfig 配置本对象
      */
     public void configure(ReadableConfig configuration, ClassLoader classLoader) {
         configuration
@@ -1264,6 +1295,9 @@ public class ExecutionConfig implements Serializable, Archiveable<ArchivedExecut
         }
     }
 
+    /**
+     * 表示使用map保存全局参数
+     */
     private static class MapBasedJobParameters extends GlobalJobParameters {
         private final Map<String, String> properties;
 

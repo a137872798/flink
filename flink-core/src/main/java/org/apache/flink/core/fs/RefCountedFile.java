@@ -32,6 +32,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * A reference counted file which is deleted as soon as no caller holds a reference to the wrapped
  * {@link File}.
+ * 该文件关联一个引用计数
  */
 @Internal
 public class RefCountedFile implements RefCounted {
@@ -67,6 +68,7 @@ public class RefCountedFile implements RefCounted {
 
     private boolean tryClose() {
         try {
+            // 归0时删除文件
             Files.deleteIfExists(file.toPath());
             return true;
         } catch (Throwable t) {

@@ -29,6 +29,7 @@ import java.io.Serializable;
  * <p>The ratelimiter is configured via {@link #setRate(long)} and created via {@link
  * #open(RuntimeContext)}. An example implementation can be found {@link
  * GuavaFlinkConnectorRateLimiter}.
+ * 为flink连接器 赋予限流能力
  */
 @PublicEvolving
 public interface FlinkConnectorRateLimiter extends Serializable {

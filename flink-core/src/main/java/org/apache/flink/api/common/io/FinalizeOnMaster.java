@@ -25,6 +25,7 @@ import java.io.IOException;
 /**
  * This interface may be implemented by {@link OutputFormat}s to have the master finalize them
  * globally.
+ * 在操作结束后 由master进行统一的收尾工作
  */
 @Public
 public interface FinalizeOnMaster {
@@ -68,6 +69,7 @@ public interface FinalizeOnMaster {
          * @param subtaskIndex the subtask index.
          * @return the finished attempt.
          * @throws IllegalArgumentException Thrown, if subtaskIndex is invalid.
+         * 代表查看当前是第几次 尝试结束该子任务
          */
         int getFinishedAttempt(int subtaskIndex);
     }

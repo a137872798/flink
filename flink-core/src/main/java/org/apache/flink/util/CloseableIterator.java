@@ -39,6 +39,7 @@ import static java.util.Arrays.asList;
  * network, or database connections. Clients must call {@link #close()} after using the iterator.
  *
  * @param <T> the type of iterated elements.
+ *           可关闭的迭代器对象
  */
 @PublicEvolving
 public interface CloseableIterator<T> extends Iterator<T>, AutoCloseable {
@@ -70,6 +71,10 @@ public interface CloseableIterator<T> extends Iterator<T>, AutoCloseable {
                 return stack.poll();
             }
 
+            /**
+             * 关闭时就是用函数处理所有元素
+             * @throws Exception
+             */
             @Override
             public void close() throws Exception {
                 Exception exception = null;
@@ -155,6 +160,7 @@ public interface CloseableIterator<T> extends Iterator<T>, AutoCloseable {
      * Adapter from {@link Iterator} to {@link CloseableIterator}. Does nothing on {@link #close()}.
      *
      * @param <E> the type of iterated elements.
+     *           额外维护一个可关闭对象 将2个对象组合在一起
      */
     final class IteratorAdapter<E> implements CloseableIterator<E> {
 

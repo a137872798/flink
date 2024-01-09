@@ -42,6 +42,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * its versioning to the versioning of the TypeSerializerSnapshot that builds on top of this class.
  * That way, the NestedSerializersSnapshotDelegate and enclosing TypeSerializerSnapshot the can
  * evolve their formats independently.
+ * 将一组 快照对象包装成单个对象
  */
 @Internal
 public class NestedSerializersSnapshotDelegate {
@@ -52,11 +53,14 @@ public class NestedSerializersSnapshotDelegate {
     /** Current version of the new serialization format. */
     private static final int VERSION = 1;
 
-    /** The snapshots from the serializer that make up this composition. */
+    /** The snapshots from the serializer that make up this composition.
+     * 内部嵌套的一组快照对象
+     * */
     private final TypeSerializerSnapshot<?>[] nestedSnapshots;
 
     /** Constructor to create a snapshot for writing. */
     public NestedSerializersSnapshotDelegate(TypeSerializer<?>... serializers) {
+        // 序列化对象可以调用api 得到一个快照对象
         this.nestedSnapshots = TypeSerializerUtils.snapshot(serializers);
     }
 
@@ -73,12 +77,15 @@ public class NestedSerializersSnapshotDelegate {
     /**
      * Produces a restore serializer from each contained serializer configuration snapshot. The
      * serializers are returned in the same order as the snapshots are stored.
+     *         由快照对象 还原会序列化对象
      */
     public TypeSerializer<?>[] getRestoredNestedSerializers() {
         return snapshotsToRestoreSerializers(nestedSnapshots);
     }
 
-    /** Creates the restore serializer from the pos-th config snapshot. */
+    /** Creates the restore serializer from the pos-th config snapshot.
+     * 指定某个快照对象 产生序列化对象
+     * */
     public <T> TypeSerializer<T> getRestoredNestedSerializer(int pos) {
         checkArgument(pos < nestedSnapshots.length);
 
@@ -146,6 +153,7 @@ public class NestedSerializersSnapshotDelegate {
         out.writeInt(MAGIC_NUMBER);
         out.writeInt(VERSION);
 
+        // 挨个写入快照数据 之后可以还原
         out.writeInt(nestedSnapshots.length);
         for (TypeSerializerSnapshot<?> snap : nestedSnapshots) {
             TypeSerializerSnapshot.writeVersionedSnapshot(out, snap);
@@ -173,6 +181,7 @@ public class NestedSerializersSnapshotDelegate {
                 new TypeSerializerSnapshot<?>[numSnapshots];
 
         for (int i = 0; i < numSnapshots; i++) {
+            // 还原快照数据 重新包装成 delegate
             nestedSnapshots[i] = TypeSerializerSnapshot.readVersionedSnapshot(in, cl);
         }
 

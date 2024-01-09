@@ -31,6 +31,8 @@ import java.util.Optional;
  * between serialization versions. Concrete subclasses should typically override the {@link
  * #write(DataOutputView)} and {@link #read(DataInputView)}, thereby calling super to ensure version
  * checking.
+ * 这个对象只是读写版本号
+ * 期望的子类应该是要有自己的版本号
  */
 @Internal
 public abstract class VersionedIOReadableWritable implements IOReadableWritable, Versioned {
@@ -45,6 +47,7 @@ public abstract class VersionedIOReadableWritable implements IOReadableWritable,
     @Override
     public void read(DataInputView in) throws IOException {
         this.readVersion = in.readInt();
+        // 检查2个版本是否兼容
         resolveVersionRead(readVersion);
     }
 
@@ -54,6 +57,7 @@ public abstract class VersionedIOReadableWritable implements IOReadableWritable,
      *
      * @return the read serialization version, or the current version if the instance was not read
      *     from bytes.
+     *     代表惰性查看版本号
      */
     public int getReadVersion() {
         return (readVersion == Integer.MIN_VALUE) ? getVersion() : readVersion;
@@ -76,6 +80,12 @@ public abstract class VersionedIOReadableWritable implements IOReadableWritable,
         return Optional.empty();
     }
 
+
+    /**
+     * 检查版本兼容性
+     * @param readVersion
+     * @throws VersionMismatchException
+     */
     private void resolveVersionRead(int readVersion) throws VersionMismatchException {
 
         int[] compatibleVersions = getCompatibleVersions();

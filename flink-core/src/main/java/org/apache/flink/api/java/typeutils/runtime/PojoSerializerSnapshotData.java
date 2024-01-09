@@ -63,6 +63,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * | non-registered subclasses  |                                pairs                                   |
  * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  * }</pre>
+ *
+ * 描述快照数据格式
  */
 @Internal
 final class PojoSerializerSnapshotData<T> {
@@ -81,6 +83,7 @@ final class PojoSerializerSnapshotData<T> {
      * subclass classes are all present. Some POJO fields may be absent, if the originating {@link
      * PojoSerializer} was a restored one with already missing fields, and was never replaced by a
      * new {@link PojoSerializer} (i.e. because the serialized old data was never accessed).
+     * 根据这些信息 产生快照对象
      */
     static <T> PojoSerializerSnapshotData<T> createFrom(
             Class<T> pojoClass,
@@ -124,6 +127,7 @@ final class PojoSerializerSnapshotData<T> {
      * <p>This factory method is meant to be used in regular read paths, i.e. when reading back a
      * snapshot of the {@link PojoSerializer}. POJO fields, registered subclass classes, and
      * non-registered subclass classes may no longer be present anymore.
+     * 通过字节流数据 还原快照
      */
     static <T> PojoSerializerSnapshotData<T> createFrom(
             DataInputView in, ClassLoader userCodeClassLoader) throws IOException {
@@ -187,6 +191,7 @@ final class PojoSerializerSnapshotData<T> {
 
     void writeSnapshotData(DataOutputView out) throws IOException {
         out.writeUTF(pojoClass.getName());
+        // 挨个写入 field的快照数据 和  子类的快照数据
         writeOptionalMap(
                 out,
                 fieldSerializerSnapshots,

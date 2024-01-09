@@ -33,6 +33,7 @@ import org.apache.flink.annotation.PublicEvolving;
  * together.
  *
  * @param <T> Type of the value in the operator state
+ *           表示元素累加时 触发reduce函数
  */
 @PublicEvolving
 public interface ReducingState<T> extends MergingState<T, T> {}

@@ -34,12 +34,17 @@ import org.apache.flink.api.common.typeutils.TypeSerializer;
 import java.util.ArrayList;
 import java.util.List;
 
-/** @see org.apache.flink.api.common.functions.CrossFunction */
+/** @see org.apache.flink.api.common.functions.CrossFunction
+ * 交叉操作
+ * */
 @Internal
 public class CrossOperatorBase<IN1, IN2, OUT, FT extends CrossFunction<IN1, IN2, OUT>>
         extends DualInputOperator<IN1, IN2, OUT, FT> {
 
-    /** The cross hint tells the system which sizes to expect from the data sets */
+    /** The cross hint tells the system which sizes to expect from the data sets
+     * 提示系统预计的数据集大小
+     * 应该是期望将小的数据集保存在内存中吧
+     * */
     @Public
     public static enum CrossHint {
         OPTIMIZER_CHOOSES,
@@ -51,6 +56,9 @@ public class CrossOperatorBase<IN1, IN2, OUT, FT extends CrossFunction<IN1, IN2,
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 默认的是智能优化的
+     */
     private CrossHint hint = CrossHint.OPTIMIZER_CHOOSES;
 
     public CrossOperatorBase(
@@ -59,6 +67,7 @@ public class CrossOperatorBase<IN1, IN2, OUT, FT extends CrossFunction<IN1, IN2,
             String name) {
         super(udf, operatorInfo, name);
 
+        // 如果对象实现了指示接口  设置hint对象
         if (this instanceof CrossWithSmall) {
             setCrossHint(CrossHint.SECOND_IS_SMALL);
         } else if (this instanceof CrossWithLarge) {
@@ -88,6 +97,15 @@ public class CrossOperatorBase<IN1, IN2, OUT, FT extends CrossFunction<IN1, IN2,
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 使用交叉函数处理2个输入数据
+     * @param inputData1
+     * @param inputData2
+     * @param ctx
+     * @param executionConfig
+     * @return
+     * @throws Exception
+     */
     @Override
     protected List<OUT> executeOnCollections(
             List<IN1> inputData1,
@@ -97,6 +115,7 @@ public class CrossOperatorBase<IN1, IN2, OUT, FT extends CrossFunction<IN1, IN2,
             throws Exception {
         CrossFunction<IN1, IN2, OUT> function = this.userFunction.getUserCodeObject();
 
+        // 进行一些初始化操作/设置上下文
         FunctionUtils.setFunctionRuntimeContext(function, ctx);
         FunctionUtils.openFunction(function, this.parameters);
 
@@ -109,6 +128,7 @@ public class CrossOperatorBase<IN1, IN2, OUT, FT extends CrossFunction<IN1, IN2,
         TypeSerializer<OUT> outSerializer =
                 getOperatorInfo().getOutputType().createSerializer(executionConfig);
 
+        // 这里没有体现出hint的作用啊
         for (IN1 element1 : inputData1) {
             for (IN2 element2 : inputData2) {
                 IN1 copy1 = inSerializer1.copy(element1);

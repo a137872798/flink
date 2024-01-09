@@ -71,6 +71,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * allows types to define their custom serialization and deserialization routines.
  *
  * @param <T> The type of the class represented by this type information.
+ *           表示值 typeInfo 应该是最简单的
  */
 @Public
 public class ValueTypeInfo<T extends Value> extends TypeInformation<T> implements AtomicType<T> {

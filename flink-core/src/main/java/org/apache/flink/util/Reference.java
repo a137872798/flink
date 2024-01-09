@@ -28,6 +28,9 @@ import java.util.Optional;
 public final class Reference<T> {
     private final T value;
 
+    /**
+     * 是否是该值的所有者
+     */
     private final boolean isOwned;
 
     private Reference(T value, boolean isOwned) {

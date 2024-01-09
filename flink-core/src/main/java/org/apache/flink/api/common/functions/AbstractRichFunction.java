@@ -37,6 +37,9 @@ public abstract class AbstractRichFunction implements RichFunction, Serializable
     //  Runtime context access
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 该函数可以关联一个 上下文
+     */
     private transient RuntimeContext runtimeContext;
 
     @Override

@@ -20,7 +20,9 @@ package org.apache.flink.api.common.accumulators;
 
 import org.apache.flink.annotation.PublicEvolving;
 
-/** An accumulator that finds the maximum {@code double} value. */
+/** An accumulator that finds the maximum {@code double} value.
+ * 保留最大值
+ * */
 @PublicEvolving
 public class DoubleMaximum implements SimpleAccumulator<Double> {
 

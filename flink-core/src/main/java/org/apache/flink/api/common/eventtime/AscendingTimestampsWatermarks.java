@@ -33,6 +33,8 @@ import java.time.Duration;
  * The delay introduced by this strategy is mainly the periodic interval in which the watermarks are
  * generated, which can be configured via {@link
  * org.apache.flink.api.common.ExecutionConfig#setAutoWatermarkInterval(long)}.
+ *
+ * 覆盖BoundedOutOfOrdernessWatermarks 确保每次发射的都是最大水位
  */
 @Public
 public class AscendingTimestampsWatermarks<T> extends BoundedOutOfOrdernessWatermarks<T> {

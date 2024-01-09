@@ -25,10 +25,13 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
  * A class for holding information about an operator, such as input/output TypeInformation.
  *
  * @param <OUT> Output type of the records output by the operator described by this information
+ *             表示操作者信息
  */
 @Internal
 public class OperatorInformation<OUT> {
-    /** Output type of the operator */
+    /** Output type of the operator
+     * 表示输出的类型信息
+     * */
     protected final TypeInformation<OUT> outputType;
 
     /** @param outputType The output type of the operator */

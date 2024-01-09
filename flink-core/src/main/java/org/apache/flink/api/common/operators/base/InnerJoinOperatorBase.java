@@ -43,9 +43,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** @see org.apache.flink.api.common.functions.FlatJoinFunction */
+/** @see org.apache.flink.api.common.functions.FlatJoinFunction
+ * 内连接操作对象
+ * 将左右匹配的元素取出来 触发join
+ * */
 @Internal
 public class InnerJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN1, IN2, OUT>>
+    // JoinOperatorBase 是join的一个骨架类 包含一个提示如何join的hint对象
         extends JoinOperatorBase<IN1, IN2, OUT, FT> {
 
     public InnerJoinOperatorBase(
@@ -77,6 +81,15 @@ public class InnerJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 采用内连接
+     * @param inputData1
+     * @param inputData2
+     * @param runtimeContext
+     * @param executionConfig
+     * @return
+     * @throws Exception
+     */
     @SuppressWarnings("unchecked")
     @Override
     protected List<OUT> executeOnCollections(
@@ -90,16 +103,20 @@ public class InnerJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN
         FunctionUtils.setFunctionRuntimeContext(function, runtimeContext);
         FunctionUtils.openFunction(function, this.parameters);
 
+        // 获取输入和输出的数据类型
         TypeInformation<IN1> leftInformation = getOperatorInfo().getFirstInputType();
         TypeInformation<IN2> rightInformation = getOperatorInfo().getSecondInputType();
         TypeInformation<OUT> outInformation = getOperatorInfo().getOutputType();
 
+        // 创建序列化对象
         TypeSerializer<IN1> leftSerializer = leftInformation.createSerializer(executionConfig);
         TypeSerializer<IN2> rightSerializer = rightInformation.createSerializer(executionConfig);
 
         TypeComparator<IN1> leftComparator;
         TypeComparator<IN2> rightComparator;
 
+
+        // 创建 左右2个比较对象
         if (leftInformation instanceof AtomicType) {
             leftComparator =
                     ((AtomicType<IN1>) leftInformation).createComparator(true, executionConfig);
@@ -136,6 +153,7 @@ public class InnerJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN
                             + " is not supported. Could not generate a comparator.");
         }
 
+        // 合成 pairComparator对象
         TypePairComparator<IN1, IN2> pairComparator =
                 new GenericPairComparator<IN1, IN2>(leftComparator, rightComparator);
 
@@ -147,6 +165,7 @@ public class InnerJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN
         Map<Integer, List<IN2>> probeTable = new HashMap<Integer, List<IN2>>();
 
         // Build hash table
+        // 将右侧的数据都加入到map中
         for (IN2 element : inputData2) {
             List<IN2> list = probeTable.get(rightComparator.hash(element));
             if (list == null) {
@@ -161,9 +180,11 @@ public class InnerJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN
         for (IN1 left : inputData1) {
             List<IN2> matchingHashes = probeTable.get(leftComparator.hash(left));
 
+            // 这个list 是与左侧元素hash匹配的所有右侧元素
             if (matchingHashes != null) {
                 pairComparator.setReference(left);
                 for (IN2 right : matchingHashes) {
+                    // 挨个比较 直到遇到一样的 触发join
                     if (pairComparator.equalToReference(right)) {
                         function.join(
                                 leftSerializer.copy(left), rightSerializer.copy(right), collector);

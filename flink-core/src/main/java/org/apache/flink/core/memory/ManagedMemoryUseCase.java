@@ -21,7 +21,9 @@ package org.apache.flink.core.memory;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.util.Preconditions;
 
-/** Use cases of managed memory. */
+/** Use cases of managed memory.
+ * 描述被管理的内存
+ * */
 @Internal
 public enum ManagedMemoryUseCase {
 

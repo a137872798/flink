@@ -51,6 +51,7 @@ public final class StringArraySerializer extends TypeSerializerSingleton<String[
     @Override
     public String[] copy(String[] from) {
         String[] target = new String[from.length];
+        // 底层api 支持直接拷贝string数组
         System.arraycopy(from, 0, target, 0, from.length);
         return target;
     }
@@ -74,6 +75,7 @@ public final class StringArraySerializer extends TypeSerializerSingleton<String[
         final int len = record.length;
         target.writeInt(len);
         for (int i = 0; i < len; i++) {
+            // 这里调用api直接写入 string类型 读取则是相反操作
             StringValue.writeString(record[i], target);
         }
     }

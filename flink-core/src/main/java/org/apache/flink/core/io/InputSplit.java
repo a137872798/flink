@@ -28,12 +28,13 @@ import java.io.Serializable;
  *
  * <p>Input splits are transferred in serialized form via the messages, so they need to be
  * serializable as defined by {@link java.io.Serializable}.
+ * 代表一个已经被split的输入源
  */
 @Public
 public interface InputSplit extends Serializable {
 
     /**
-     * Returns the number of this input split.
+     * Returns the number of this input split.   该split的编号
      *
      * @return the number of this input split
      */

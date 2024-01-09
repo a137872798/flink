@@ -20,7 +20,10 @@ package org.apache.flink.configuration.description;
 
 import org.apache.flink.annotation.PublicEvolving;
 
-/** Part of a {@link Description} that can be converted into String representation. */
+/** Part of a {@link Description} that can be converted into String representation.
+ * 表示实现该接口的对象 都可以在formatter生成描述信息
+ * 这是最上层接口
+ * */
 @PublicEvolving
 interface DescriptionElement {
     /**

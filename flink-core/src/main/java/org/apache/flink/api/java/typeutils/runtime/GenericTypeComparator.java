@@ -29,7 +29,9 @@ import org.apache.flink.util.InstantiationUtil;
 
 import java.io.IOException;
 
-/** TypeComparator for all types that extend Comparable. */
+/** TypeComparator for all types that extend Comparable.
+ * 一个泛用类型的比较器
+ * */
 @Internal
 public class GenericTypeComparator<T extends Comparable<T>> extends TypeComparator<T> {
 

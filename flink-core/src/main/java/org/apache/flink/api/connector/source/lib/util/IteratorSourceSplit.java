@@ -28,15 +28,20 @@ import java.util.Iterator;
  * produces the iterator and converts the iterator back to a new split during checkpointing.
  *
  * @param <E> The type of the elements returned by the iterator.
+ *
+ *           input对象在通过协调者处理后 会分成一个个split 然后根据集群负载分配到各节点上 每个split都包含一定数量的数据 可以通过迭代器遍历
  */
 @Public
 public interface IteratorSourceSplit<E, IterT extends Iterator<E>> extends SourceSplit {
 
-    /** Gets the iterator over the elements of this split. */
+    /** Gets the iterator over the elements of this split.
+     * split内部的元素 通过迭代器访问
+     * */
     IterT getIterator();
 
     /**
      * Converts an iterator (that may have returned some elements already) back into a source split.
+     * 将迭代器转换成本对象
      */
     IteratorSourceSplit<E, IterT> getUpdatedSplitForIterator(IterT iterator);
 }

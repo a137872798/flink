@@ -23,7 +23,9 @@ import org.apache.flink.annotation.Public;
 import java.io.Serializable;
 import java.util.Objects;
 
-/** A container class hosting the information of a {@link SourceReader}. */
+/** A container class hosting the information of a {@link SourceReader}.
+ * 描述该reader部署的位置
+ * */
 @Public
 public final class ReaderInfo implements Serializable {
 

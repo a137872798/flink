@@ -94,6 +94,8 @@ public class MapStateDescriptor<UK, UV> extends StateDescriptor<MapState<UK, UV>
         return Type.MAP;
     }
 
+    // key/value 使用不同的序列化对象
+
     /**
      * Gets the serializer for the keys in the state.
      *

@@ -32,6 +32,7 @@ import org.apache.flink.annotation.Internal;
  * traversal code only once.
  *
  * @see Visitor
+ * 代表支持使用访问者模式
  */
 @Internal
 public interface Visitable<T extends Visitable<T>> {
@@ -58,6 +59,7 @@ public interface Visitable<T extends Visitable<T>> {
      * @param visitor The visitor to be called with this object as the parameter.
      * @see Visitor#preVisit(Visitable)
      * @see Visitor#postVisit(Visitable)
+     * 支持传入一个访问者对象
      */
     void accept(Visitor<T> visitor);
 }

@@ -29,11 +29,16 @@ import java.util.concurrent.CompletableFuture;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Wraps the actual {@link SourceReader} and rate limits its data emission. */
+/** Wraps the actual {@link SourceReader} and rate limits its data emission.
+ * 为SourceReader 追加限流功能
+ * */
 @Experimental
 public class RateLimitedSourceReader<E, SplitT extends SourceSplit>
         implements SourceReader<E, SplitT> {
 
+    /**
+     * 被包装的源对象
+     */
     private final SourceReader<E, SplitT> sourceReader;
     private final RateLimiter rateLimiter;
     private CompletableFuture<Void> availabilityFuture = null;
@@ -58,23 +63,38 @@ public class RateLimitedSourceReader<E, SplitT extends SourceSplit>
         sourceReader.start();
     }
 
+
+    /**
+     *
+     * @param output
+     * @return
+     * @throws Exception
+     */
     @Override
     public InputStatus pollNext(ReaderOutput<E> output) throws Exception {
+
+        // 必须先调用 isAvailable 确保拿到凭证
         if (availabilityFuture == null) {
             // force isAvailable() to be called first to evaluate rate-limiting
             return InputStatus.NOTHING_AVAILABLE;
         }
         // reset future because the next record may hit the rate limit
         availabilityFuture = null;
+        // 此时output 已经通过被包装对象将元素发往下游了
         final InputStatus inputStatus = sourceReader.pollNext(output);
         if (inputStatus == InputStatus.MORE_AVAILABLE) {
             // force another go through isAvailable() to evaluate rate-limiting
+            // 每次调用pollNext前 必须先通过 isAvailable
             return InputStatus.NOTHING_AVAILABLE;
         } else {
             return inputStatus;
         }
     }
 
+    /**
+     * 在检查是否可用前 先通过限流器获取凭证
+     * @return
+     */
     @Override
     public CompletableFuture<Void> isAvailable() {
         if (availabilityFuture == null) {

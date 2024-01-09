@@ -37,6 +37,7 @@ import java.util.List;
  * @param <IN> The input type.
  * @param <OUT> The result type.
  * @param <FT> The type of the user-defined function.
+ *            映射操作 将a元素变成b
  */
 @Internal
 public class MapOperatorBase<IN, OUT, FT extends MapFunction<IN, OUT>>

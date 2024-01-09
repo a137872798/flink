@@ -32,6 +32,11 @@ public class CompressedSerializedValue<T> extends SerializedValue<T> {
         super(compressedSerializedData);
     }
 
+    /**
+     * 在序列化后 还进行了一次压缩
+     * @param value
+     * @throws IOException
+     */
     private CompressedSerializedValue(T value) throws IOException {
         super(InstantiationUtil.serializeObjectAndCompress(value));
     }

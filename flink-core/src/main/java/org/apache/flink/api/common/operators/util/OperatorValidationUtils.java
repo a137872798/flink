@@ -22,11 +22,17 @@ import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.operators.ResourceSpec;
 import org.apache.flink.util.Preconditions;
 
-/** Utils for checking operators' resource and parallelism settings. */
+/** Utils for checking operators' resource and parallelism settings.
+ * 检查运算符的资源和并行性设置
+ * */
 public class OperatorValidationUtils {
 
     private OperatorValidationUtils() {}
 
+    /**
+     * 校验并行度
+     * @param parallelism
+     */
     public static void validateParallelism(int parallelism) {
         validateParallelism(parallelism, true);
     }
@@ -44,6 +50,10 @@ public class OperatorValidationUtils {
         validateMaxParallelism(maxParallelism, Integer.MAX_VALUE, true);
     }
 
+    /**
+     * @param maxParallelism  最大并行度
+     * @param upperBound   上线 maxParallelism不能超过该值
+     */
     public static void validateMaxParallelism(int maxParallelism, int upperBound) {
         validateMaxParallelism(maxParallelism, upperBound, true);
     }

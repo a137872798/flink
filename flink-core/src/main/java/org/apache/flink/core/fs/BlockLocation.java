@@ -22,7 +22,9 @@ import org.apache.flink.annotation.Public;
 
 import java.io.IOException;
 
-/** A BlockLocation lists hosts, offset and length of block. */
+/** A BlockLocation lists hosts, offset and length of block.
+ * 表示数据块的位置所在
+ * */
 @Public
 public interface BlockLocation extends Comparable<BlockLocation> {
 
@@ -31,6 +33,8 @@ public interface BlockLocation extends Comparable<BlockLocation> {
      *
      * @return A list of hosts (hostname) hosting this block.
      * @throws IOException thrown if the list of hosts could not be retrieved
+     *
+     * 表示在这些主机上可以找到数据块
      */
     String[] getHosts() throws IOException;
 
@@ -38,6 +42,8 @@ public interface BlockLocation extends Comparable<BlockLocation> {
      * Get the start offset of the file associated with this block.
      *
      * @return The start offset of the file associated with this block.
+     *
+     * 数据应该是以某种格式存储起来的  通过offset和length 可以从文件中锁定数据块
      */
     long getOffset();
 

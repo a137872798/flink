@@ -43,6 +43,8 @@ import static org.apache.flink.shaded.guava31.com.google.common.collect.Lists.re
  * <p>All methods in this class are thread-safe.
  *
  * <p>This class closes all registered {@link Closeable}s in the reverse registration order.
+ *
+ * api不同 参数支持的类型为Closeable
  */
 @Internal
 public class CloseableRegistry
@@ -82,6 +84,7 @@ public class CloseableRegistry
      *
      * @param toUnregisterAndClose closables to unregister and close.
      * @throws IOException collects all exceptions encountered during closing of the given objects.
+     * 表示要手动关闭一些对象
      */
     public void unregisterAndCloseAll(Closeable... toUnregisterAndClose) throws IOException {
         IOException suppressed = null;

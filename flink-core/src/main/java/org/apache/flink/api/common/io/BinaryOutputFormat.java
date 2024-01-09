@@ -27,6 +27,10 @@ import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 
+/**
+ * 按照固定大小的block进行输出
+ * @param <T>
+ */
 @Public
 public abstract class BinaryOutputFormat<T> extends FileOutputFormat<T> {
 
@@ -80,6 +84,7 @@ public abstract class BinaryOutputFormat<T> extends FileOutputFormat<T> {
 
     @Override
     public void open(int taskNumber, int numTasks) throws IOException {
+        // 在上层会生成一个文件
         super.open(taskNumber, numTasks);
 
         final long blockSize =
@@ -102,6 +107,7 @@ public abstract class BinaryOutputFormat<T> extends FileOutputFormat<T> {
     /**
      * Writes a block info at the end of the blocks.<br>
      * Current implementation uses only int and not long.
+     * 表示数据输出的时候 也按照固定大小的block
      */
     protected class BlockBasedOutput extends FilterOutputStream {
 
@@ -122,6 +128,7 @@ public abstract class BinaryOutputFormat<T> extends FileOutputFormat<T> {
         public BlockBasedOutput(OutputStream out, int blockSize) {
             super(out);
             this.headerStream = new DataOutputViewStreamWrapper(out);
+            // 每个数据块中有效数据大小
             this.maxPayloadSize = blockSize - this.blockInfo.getInfoSize();
         }
 
@@ -155,6 +162,7 @@ public abstract class BinaryOutputFormat<T> extends FileOutputFormat<T> {
                 this.out.write(b, offset, blockLen);
 
                 this.blockPos += blockLen;
+                // 写完一个块后 要写入 blockInfo
                 if (this.blockPos >= this.maxPayloadSize) {
                     this.writeInfo();
                 }

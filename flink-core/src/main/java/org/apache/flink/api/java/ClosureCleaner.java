@@ -46,6 +46,8 @@ import java.util.Set;
  * non-static inner classes (created for inline transformation functions). That makes non-static
  * inner classes in many cases serializable, where Java's default behavior renders them
  * non-serializable without good reason.
+ *
+ * 该对象代表在关闭时  会进行一些清理工作
  */
 @Internal
 public class ClosureCleaner {
@@ -63,6 +65,8 @@ public class ClosureCleaner {
      *     not serializable after the closure cleaning.
      * @throws RuntimeException A RuntimeException may be thrown, if the code of the class could not
      *     be loaded, in order to process during the closure cleaning.
+     *
+     *     obj 是需要调用clean方法的对象
      */
     public static void clean(
             Object func, ExecutionConfig.ClosureCleanerLevel level, boolean checkSerializable) {
@@ -78,20 +82,24 @@ public class ClosureCleaner {
             return;
         }
 
+        // 避免重复执行
         if (!visited.add(func)) {
             return;
         }
 
         final Class<?> cls = func.getClass();
 
+        // 原始类型 或者包装类型 忽略
         if (ClassUtils.isPrimitiveOrWrapper(cls)) {
             return;
         }
 
+        // 如果有某几个特殊的方法 就不需要处理了
         if (usesCustomSerialization(cls)) {
             return;
         }
 
+        // 如果可以序列化 就不需要clean？
         if (canBeSerialized(func)) {
             return;
         }
@@ -105,6 +113,7 @@ public class ClosureCleaner {
         for (Field f : cls.getDeclaredFields()) {
             if (f.getName().startsWith("this$")) {
                 // found a closure referencing field - now try to clean
+                // 这个是隐式字段  引用自身  此时调用clean
                 closureAccessed |= cleanThis0(func, cls, f.getName());
             } else {
                 Object fieldObject;
@@ -118,6 +127,8 @@ public class ClosureCleaner {
                                     f.getName(), func.getClass()));
                 }
 
+                // 此时已经找到了待clean的字段了
+
                 /*
                  * we should do a deep clean when we encounter an anonymous class, inner class and local class, but should
                  * skip the class with custom serialize method.
@@ -128,6 +139,8 @@ public class ClosureCleaner {
                  * c) Inner classes (non-static member classes)
                  * d) Local classes (named classes declared within a method)
                  * e) Anonymous classes
+                 *
+                 * 如果需要递归的话 每个field 继续递归调用clean
                  */
                 if (level == ExecutionConfig.ClosureCleanerLevel.RECURSIVE
                         && needsRecursion(f, fieldObject)) {
@@ -212,11 +225,21 @@ public class ClosureCleaner {
         }
     }
 
+
+    /**
+     * 这里是真正调用clean
+     * @param func
+     * @param cls
+     * @param this0Name
+     * @return
+     */
     private static boolean cleanThis0(Object func, Class<?> cls, String this0Name) {
 
         This0AccessFinder this0Finder = new This0AccessFinder(this0Name);
+        // 读取字节码文件
         getClassReader(cls).accept(this0Finder, 0);
 
+        // 访问到相关字段时 会设置为true
         final boolean accessesClosure = this0Finder.isThis0Accessed();
 
         if (LOG.isDebugEnabled()) {
@@ -232,6 +255,7 @@ public class ClosureCleaner {
                 throw new RuntimeException("Could not set " + this0Name + ": " + e);
             }
 
+            // clean 就是设置为null啊
             try {
                 this0.setAccessible(true);
                 this0.set(func, null);
@@ -275,6 +299,7 @@ public class ClosureCleaner {
 /**
  * This visitor walks methods and finds accesses to the field with the reference to the enclosing
  * class.
+ * 使用asm框架  以访问者模式访问各字段
  */
 class This0AccessFinder extends ClassVisitor {
 
@@ -290,6 +315,15 @@ class This0AccessFinder extends ClassVisitor {
         return isThis0Accessed;
     }
 
+    /**
+     * 当跟着树往下走 接触到目标字段时 将isThis0Accessed 设置为true
+     * @param access
+     * @param name
+     * @param desc
+     * @param sig
+     * @param exceptions
+     * @return
+     */
     @Override
     public MethodVisitor visitMethod(
             int access, String name, String desc, String sig, String[] exceptions) {

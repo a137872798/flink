@@ -24,7 +24,9 @@ import org.apache.flink.util.WrappingProxy;
 
 import java.io.IOException;
 
-/** Simple forwarding wrapper around {@link FSDataInputStream}. */
+/** Simple forwarding wrapper around {@link FSDataInputStream}.
+ * 一个简单的包装器对象
+ * */
 @Internal
 public class FSDataOutputStreamWrapper extends FSDataOutputStream
         implements WrappingProxy<FSDataOutputStream> {

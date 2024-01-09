@@ -45,6 +45,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>The dataflow is referenced by the data sinks, from which all connected operators of the data
  * flow can be reached via backwards traversal.
+ * 执行计划  交给Executor执行
  */
 @Internal
 public class Plan implements Visitable<Operator<?>>, Pipeline {
@@ -52,22 +53,34 @@ public class Plan implements Visitable<Operator<?>>, Pipeline {
     /**
      * A collection of all sinks in the plan. Since the plan is traversed from the sinks to the
      * sources, this collection must contain all the sinks.
+     * GenericDataSinkBase 简单来讲 就是可以将input按照一定顺序排序后 通过OutputFormat写出
+     * 可能plan的数据最终会有多个下落点吧
      */
     protected final List<GenericDataSinkBase<?>> sinks = new ArrayList<>(4);
 
-    /** The name of the job. */
+    /** The name of the job.
+     * 本次plan 相关的job
+     * */
     protected String jobName;
 
-    /** The default parallelism to use for nodes that have no explicitly specified parallelism. */
+    /** The default parallelism to use for nodes that have no explicitly specified parallelism.
+     * 当没有明确声明并行度时 使用的默认并行度
+     * */
     protected int defaultParallelism = ExecutionConfig.PARALLELISM_DEFAULT;
 
-    /** Hash map for files in the distributed cache: registered name to cache entry. */
+    /** Hash map for files in the distributed cache: registered name to cache entry.
+     * 每个分布式缓存对象 对应一个目录
+     * */
     protected HashMap<String, DistributedCacheEntry> cacheFile = new HashMap<>();
 
-    /** Config object for runtime execution parameters. */
+    /** Config object for runtime execution parameters.
+     * 执行计划时使用的配置对象
+     * */
     protected ExecutionConfig executionConfig;
 
-    /** The ID of the Job that this dataflow plan belongs to. */
+    /** The ID of the Job that this dataflow plan belongs to.
+     * 该plan相关的job
+     * */
     private JobID jobId;
 
     // ------------------------------------------------------------------------
@@ -81,6 +94,7 @@ public class Plan implements Visitable<Operator<?>>, Pipeline {
      *
      * @param sinks The collection will the sinks of the job's data flow.
      * @param jobName The name to display for the job.
+     *                该计划 将会产生一组input  并下沉到这些sink中
      */
     public Plan(Collection<? extends GenericDataSinkBase<?>> sinks, String jobName) {
         this(sinks, jobName, ExecutionConfig.PARALLELISM_DEFAULT);
@@ -317,6 +331,8 @@ public class Plan implements Visitable<Operator<?>>, Pipeline {
      * Traverses the job depth first from all data sinks on towards the sources.
      *
      * @see Visitable#accept(Visitor)
+     *
+     * 访问者模式 会传递到每个sink上
      */
     @Override
     public void accept(Visitor<Operator<?>> visitor) {
@@ -331,6 +347,7 @@ public class Plan implements Visitable<Operator<?>>, Pipeline {
      * @param entry contains all relevant information
      * @param name user defined name of that file
      * @throws java.io.IOException
+     * 将某个缓存对象 设置到 cacheFile
      */
     public void registerCachedFile(String name, DistributedCacheEntry entry) throws IOException {
         if (!this.cacheFile.containsKey(name)) {
@@ -349,6 +366,10 @@ public class Plan implements Visitable<Operator<?>>, Pipeline {
         return this.cacheFile.entrySet();
     }
 
+    /**
+     * 访问内部的 operator 得到最大的并行度
+     * @return
+     */
     public int getMaximumParallelism() {
         MaxDopVisitor visitor = new MaxDopVisitor();
         accept(visitor);
@@ -357,9 +378,19 @@ public class Plan implements Visitable<Operator<?>>, Pipeline {
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 该对象也支持访问者模式
+     */
     private static final class MaxDopVisitor implements Visitor<Operator<?>> {
 
+        /**
+         * 避免重复添加
+         */
         private final Set<Operator> visitedOperators = new HashSet<>();
+
+        /**
+         * 计算最大的并行度
+         */
         private int maxDop = -1;
 
         @Override

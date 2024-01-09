@@ -27,7 +27,9 @@ import org.apache.flink.api.common.operators.util.UserCodeClassWrapper;
 import java.util.ArrayList;
 import java.util.List;
 
-/** This operator represents a Union between two inputs. */
+/** This operator represents a Union between two inputs.
+ * 代表一个union操作 将2个同类型输入变成同类型输出
+ * */
 @Internal
 public class Union<T> extends DualInputOperator<T, T, T, AbstractRichFunction> {
 
@@ -51,6 +53,14 @@ public class Union<T> extends DualInputOperator<T, T, T, AbstractRichFunction> {
         setSecondInput(input2);
     }
 
+    /**
+     * union对象执行操作时 就是简单的将2个输入相加
+     * @param inputData1
+     * @param inputData2
+     * @param runtimeContext
+     * @param executionConfig
+     * @return
+     */
     @Override
     protected List<T> executeOnCollections(
             List<T> inputData1,

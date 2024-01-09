@@ -22,7 +22,9 @@ import org.apache.flink.api.common.typeutils.CompositeTypeSerializerSnapshot;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.types.Either;
 
-/** Snapshot class for the {@link EitherSerializer}. */
+/** Snapshot class for the {@link EitherSerializer}.
+ * 针对 Either对象
+ * */
 public class JavaEitherSerializerSnapshot<L, R>
         extends CompositeTypeSerializerSnapshot<Either<L, R>, EitherSerializer<L, R>> {
 

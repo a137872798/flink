@@ -70,6 +70,7 @@ public final class CharPrimitiveArraySerializer extends TypeSerializerSingleton<
             throw new IllegalArgumentException("The record must not be null.");
         }
 
+        // 写入长度 + 写入char
         final int len = record.length;
         target.writeInt(len);
         for (int i = 0; i < len; i++) {
@@ -98,6 +99,7 @@ public final class CharPrimitiveArraySerializer extends TypeSerializerSingleton<
     public void copy(DataInputView source, DataOutputView target) throws IOException {
         final int len = source.readInt();
         target.writeInt(len);
+        // 这里好像默认认为 char使用的字符集 是的 1char = 2byte
         target.write(source, len * 2);
     }
 

@@ -54,6 +54,8 @@ import static org.apache.flink.util.Preconditions.checkState;
  *
  * @param <S> The type of the State objects created from this {@code StateDescriptor}.
  * @param <T> The type of the value of the state object described by this state descriptor.
+ *
+ *           状态描述符   在没有指定任何类型时 这是一个抽象类
  */
 @PublicEvolving
 public abstract class StateDescriptor<S extends State, T> implements Serializable {
@@ -62,6 +64,7 @@ public abstract class StateDescriptor<S extends State, T> implements Serializabl
     /**
      * An enumeration of the types of supported states. Used to identify the state type when writing
      * and restoring checkpoints and savepoints.
+     * 描述状态的类型
      */
     // IMPORTANT: Do not change the order of the elements in this enum, ordinal is used in
     // serialization
@@ -69,7 +72,7 @@ public abstract class StateDescriptor<S extends State, T> implements Serializabl
         /** @deprecated Enum for migrating from old checkpoints/savepoint versions. */
         @Deprecated
         UNKNOWN,
-        VALUE,
+        VALUE,  // 代表值类型的状态
         LIST,
         REDUCING,
         FOLDING,
@@ -81,12 +84,15 @@ public abstract class StateDescriptor<S extends State, T> implements Serializabl
 
     // ------------------------------------------------------------------------
 
-    /** Name that uniquely identifies state created from this StateDescriptor. */
+    /** Name that uniquely identifies state created from this StateDescriptor.
+     * 描述符有一个名称
+     * */
     protected final String name;
 
     /**
      * The serializer for the type. May be eagerly initialized in the constructor, or lazily once
      * the {@link #initializeSerializerUnlessSet(ExecutionConfig)} method is called.
+     * 状态相关的类型序列化对象
      */
     private final AtomicReference<TypeSerializer<T>> serializerAtomicReference =
             new AtomicReference<>();
@@ -94,13 +100,18 @@ public abstract class StateDescriptor<S extends State, T> implements Serializabl
     /**
      * The type information describing the value type. Only used to if the serializer is created
      * lazily.
+     * 描述状态的类型信息
      */
     @Nullable private TypeInformation<T> typeInfo;
 
-    /** Name for queries against state created from this StateDescriptor. */
+    /** Name for queries against state created from this StateDescriptor.
+     * 查询用名称
+     * */
     @Nullable private String queryableStateName;
 
-    /** The configuration of state time-to-live(TTL), it is disabled by default. */
+    /** The configuration of state time-to-live(TTL), it is disabled by default.
+     * 状态的存活时间  某些状态可能支持自动过期  默认情况下不会过期
+     * */
     @Nonnull private StateTtlConfig ttlConfig = StateTtlConfig.DISABLED;
 
     /**
@@ -108,6 +119,7 @@ public abstract class StateDescriptor<S extends State, T> implements Serializabl
      *
      * @deprecated To make the semantics more clear, user should manually manage the default value
      *     if the contents of the state is {@code null}
+     *     状态的默认值
      */
     @Nullable @Deprecated protected transient T defaultValue;
 
@@ -157,6 +169,7 @@ public abstract class StateDescriptor<S extends State, T> implements Serializabl
         checkNotNull(type, "type class must not be null");
 
         try {
+            // 解析类型信息
             this.typeInfo = TypeExtractor.createTypeInfo(type);
         } catch (Exception e) {
             throw new RuntimeException(
@@ -180,7 +193,9 @@ public abstract class StateDescriptor<S extends State, T> implements Serializabl
         return name;
     }
 
-    /** Returns the default value. */
+    /** Returns the default value.
+     * 返回一个副本对象
+     * */
     public T getDefaultValue() {
         if (defaultValue != null) {
             TypeSerializer<T> serializer = serializerAtomicReference.get();
@@ -198,6 +213,7 @@ public abstract class StateDescriptor<S extends State, T> implements Serializabl
      * Returns the {@link TypeSerializer} that can be used to serialize the value in the state. Note
      * that the serializer may initialized lazily and is only guaranteed to exist after calling
      * {@link #initializeSerializerUnlessSet(ExecutionConfig)}.
+     * 产生一个 serializer副本
      */
     public TypeSerializer<T> getSerializer() {
         TypeSerializer<T> serializer = serializerAtomicReference.get();
@@ -229,9 +245,11 @@ public abstract class StateDescriptor<S extends State, T> implements Serializabl
      * @throws IllegalStateException If queryable state name already set
      * @deprecated The Queryable State feature is deprecated since Flink 1.18, and will be removed
      *     in a future Flink major version.
+     *     设置查询名
      */
     @Deprecated
     public void setQueryable(String queryableStateName) {
+        // 必须关闭 TTL
         Preconditions.checkArgument(
                 ttlConfig.getUpdateType() == StateTtlConfig.UpdateType.Disabled,
                 "Queryable state is currently not supported with TTL");
@@ -278,6 +296,7 @@ public abstract class StateDescriptor<S extends State, T> implements Serializabl
      * invalid.
      *
      * @param ttlConfig configuration of state TTL
+     *                  ttl 和 queryableStateName不能同时存在
      */
     public void enableTimeToLive(StateTtlConfig ttlConfig) {
         Preconditions.checkNotNull(ttlConfig);
@@ -311,12 +330,13 @@ public abstract class StateDescriptor<S extends State, T> implements Serializabl
     /**
      * Initializes the serializer, unless it has been initialized before.
      *
-     * @param executionConfig The execution config to use when creating the serializer.
+     * @param executionConfig The execution config to use when creating the serializer.   包含执行时的各种配置
      */
     public void initializeSerializerUnlessSet(ExecutionConfig executionConfig) {
         if (serializerAtomicReference.get() == null) {
             checkState(typeInfo != null, "no serializer and no type info");
             // try to instantiate and set the serializer
+            // 根据类型信息 生成序列化对象 并设置
             TypeSerializer<T> serializer = typeInfo.createSerializer(executionConfig);
             // use cas to assure the singleton
             if (!serializerAtomicReference.compareAndSet(null, serializer)) {

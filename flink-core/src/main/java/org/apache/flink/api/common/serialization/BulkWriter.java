@@ -33,6 +33,8 @@ import java.io.Serializable;
  * <p>The bulk encoder may be stateful and is bound to a single stream during its lifetime.
  *
  * @param <T> The type of the elements encoded through this encoder.
+ *
+ *           表示一个批量写入对象
  */
 @PublicEvolving
 public interface BulkWriter<T> {
@@ -47,6 +49,7 @@ public interface BulkWriter<T> {
      * @param element The element to add.
      * @throws IOException Thrown, if the element cannot be added to the encoder, or if the output
      *     stream throws an exception.
+     *     将数据先写入到编码器中 之后批量处理
      */
     void addElement(T element) throws IOException;
 
@@ -56,6 +59,7 @@ public interface BulkWriter<T> {
      *
      * @throws IOException Thrown if the encoder cannot be flushed, or if the output stream throws
      *     an exception.
+     *     批量处理缓存的数据
      */
     void flush() throws IOException;
 
@@ -70,6 +74,7 @@ public interface BulkWriter<T> {
      * the stream is expected to happen through the invoker of this method afterwards.
      *
      * @throws IOException Thrown if the finalization fails.
+     * 当写入操作结束后 调用该方法
      */
     void finish() throws IOException;
 
@@ -89,6 +94,7 @@ public interface BulkWriter<T> {
          * @param out The output stream to write the encoded data to.
          * @throws IOException Thrown if the writer cannot be opened, or if the output stream throws
          *     an exception.
+         *     基于文件输出流  包装成一个 BulkWriter对象
          */
         BulkWriter<T> create(FSDataOutputStream out) throws IOException;
     }

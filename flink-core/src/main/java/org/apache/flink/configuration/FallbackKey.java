@@ -18,7 +18,9 @@
 
 package org.apache.flink.configuration;
 
-/** A key with FallbackKeys will fall back to the FallbackKeys if it itself is not configured. */
+/** A key with FallbackKeys will fall back to the FallbackKeys if it itself is not configured.
+ * 当某个值未配置时 就会使用这个对象
+ * */
 public class FallbackKey {
 
     // -------------------------
@@ -37,6 +39,9 @@ public class FallbackKey {
 
     private final String key;
 
+    /**
+     * 表示是否被丢弃
+     */
     private final boolean isDeprecated;
 
     public String getKey() {

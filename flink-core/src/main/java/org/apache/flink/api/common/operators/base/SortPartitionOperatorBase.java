@@ -36,7 +36,9 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-/** @param <IN> The input and result type. */
+/** @param <IN> The input and result type.
+ * 排序后分区
+ * */
 @Internal
 public class SortPartitionOperatorBase<IN> extends SingleInputOperator<IN, IN, NoOpFunction> {
 
@@ -61,12 +63,20 @@ public class SortPartitionOperatorBase<IN> extends SingleInputOperator<IN, IN, N
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 处理一组输入对象
+     * @param inputData
+     * @param runtimeContext
+     * @param executionConfig
+     * @return
+     */
     @Override
     protected List<IN> executeOnCollections(
             List<IN> inputData, RuntimeContext runtimeContext, ExecutionConfig executionConfig) {
 
         TypeInformation<IN> inputType = getInput().getOperatorInfo().getOutputType();
 
+        // 影响排序的列 以及他们的顺序
         int[] sortColumns = this.partitionOrdering.getFieldPositions();
         boolean[] sortOrderings = this.partitionOrdering.getFieldSortDirections();
 
@@ -83,6 +93,7 @@ public class SortPartitionOperatorBase<IN> extends SingleInputOperator<IN, IN, N
                     "Partition sorting does not support type " + inputType + " yet.");
         }
 
+        // 只是简单排序后返回
         Collections.sort(
                 inputData,
                 new Comparator<IN>() {

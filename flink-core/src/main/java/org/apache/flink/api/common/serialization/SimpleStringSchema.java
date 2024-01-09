@@ -32,6 +32,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * Very simple serialization schema for strings.
  *
  * <p>By default, the serializer uses "UTF-8" for string/byte conversion.
+ * 该对象既可以序列化 也可以反序列化
  */
 @PublicEvolving
 public class SimpleStringSchema
@@ -73,11 +74,21 @@ public class SimpleStringSchema
     //  Kafka Serialization
     // ------------------------------------------------------------------------
 
+    /**
+     * 使用字符集 将字节流变成字符串
+     * @param message The message, as a byte array.
+     * @return
+     */
     @Override
     public String deserialize(byte[] message) {
         return new String(message, charset);
     }
 
+    /**
+     * isEnd总是返回false
+     * @param nextElement The element to test for the end-of-stream signal.
+     * @return
+     */
     @Override
     public boolean isEndOfStream(String nextElement) {
         return false;

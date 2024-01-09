@@ -36,6 +36,7 @@ import java.util.List;
  * <p>Objects may be deserialized on demand with a specific classloader.
  *
  * @param <T> The type of the accumulated objects
+ *           将value序列化后 加入到list
  */
 @PublicEvolving
 public class SerializedListAccumulator<T> implements Accumulator<T, ArrayList<byte[]>> {
@@ -54,6 +55,7 @@ public class SerializedListAccumulator<T> implements Accumulator<T, ArrayList<by
             ByteArrayOutputStream outStream = new ByteArrayOutputStream();
             DataOutputViewStreamWrapper out = new DataOutputViewStreamWrapper(outStream);
             serializer.serialize(value, out);
+            // 将序列化后的数据 添加到list中
             localValue.add(outStream.toByteArray());
         } catch (IOException e) {
             throw new IOException("Failed to serialize value '" + value + '\'', e);
@@ -82,6 +84,7 @@ public class SerializedListAccumulator<T> implements Accumulator<T, ArrayList<by
         return newInstance;
     }
 
+    // 反向操作 还原对象
     @SuppressWarnings("unchecked")
     public static <T> List<T> deserializeList(ArrayList<byte[]> data, TypeSerializer<T> serializer)
             throws IOException, ClassNotFoundException {

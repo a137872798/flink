@@ -52,6 +52,7 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * The class {@code LocalFileSystem} is an implementation of the {@link FileSystem} interface for
  * the local file system of the machine where the JVM runs.
+ * 使用本地文件 作为文件系统   与之对应的是hdfs
  */
 @Internal
 public class LocalFileSystem extends FileSystem {
@@ -83,6 +84,14 @@ public class LocalFileSystem extends FileSystem {
 
     // ------------------------------------------------------------------------
 
+    /**
+     * 本地文件只有一个文件块
+     * @param file
+     * @param start
+     * @param len
+     * @return
+     * @throws IOException
+     */
     @Override
     public BlockLocation[] getFileBlockLocations(FileStatus file, long start, long len)
             throws IOException {
@@ -131,9 +140,15 @@ public class LocalFileSystem extends FileSystem {
     @Override
     public FSDataInputStream open(final Path f) throws IOException {
         final File file = pathToFile(f);
+        // LocalDataInputStream 其实就是一个文件流对象
         return new LocalDataInputStream(file);
     }
 
+    /**
+     * 创建一个可恢复的 writer对象
+     * @return
+     * @throws IOException
+     */
     @Override
     public LocalRecoverableWriter createRecoverableWriter() throws IOException {
         return new LocalRecoverableWriter(this);
@@ -155,9 +170,11 @@ public class LocalFileSystem extends FileSystem {
             return null;
         }
         if (localf.isFile()) {
+            // 本地文件 只有一个status
             return new FileStatus[] {new LocalFileStatus(localf, this)};
         }
 
+        // 如果是一个目录 将下面所有文件对应的status返回
         final String[] names = localf.list();
         if (names == null) {
             return null;
@@ -170,6 +187,15 @@ public class LocalFileSystem extends FileSystem {
         return results;
     }
 
+    /**
+     * 这里也是调用文件系统的api
+     * @param f the path to delete
+     * @param recursive if path is a directory and set to <code>true</code>, the directory is
+     *     deleted else throws an exception. In case of a file the recursive can be set to either
+     *     <code>true</code> or <code>false</code>
+     * @return
+     * @throws IOException
+     */
     @Override
     public boolean delete(final Path f, final boolean recursive) throws IOException {
 
@@ -198,9 +224,11 @@ public class LocalFileSystem extends FileSystem {
      * @return <code>true</code> if all files were deleted successfully, <code>false</code>
      *     otherwise
      * @throws IOException thrown if an error occurred while deleting the files/directories
+     *
      */
     private boolean delete(final File f) throws IOException {
 
+        // 删除目录
         if (f.isDirectory()) {
             final File[] files = f.listFiles();
             if (files != null) {
@@ -232,6 +260,12 @@ public class LocalFileSystem extends FileSystem {
         return mkdirsInternal(pathToFile(f));
     }
 
+    /**
+     * 创建目录
+     * @param file
+     * @return
+     * @throws IOException
+     */
     private boolean mkdirsInternal(File file) throws IOException {
         if (file.isDirectory()) {
             return true;
@@ -248,6 +282,13 @@ public class LocalFileSystem extends FileSystem {
         }
     }
 
+    /**
+     * 打开目标文件 产生输出流
+     * @param filePath
+     * @param overwrite
+     * @return
+     * @throws IOException
+     */
     @Override
     public FSDataOutputStream create(final Path filePath, final WriteMode overwrite)
             throws IOException {
@@ -266,6 +307,13 @@ public class LocalFileSystem extends FileSystem {
         return new LocalDataOutputStream(file);
     }
 
+    /**
+     * 修改文件名
+     * @param src the file/directory to rename
+     * @param dst the new name of the file/directory
+     * @return
+     * @throws IOException
+     */
     @Override
     public boolean rename(final Path src, final Path dst) throws IOException {
         final File srcFile = pathToFile(src);
@@ -279,6 +327,7 @@ public class LocalFileSystem extends FileSystem {
         dstParent.mkdirs();
 
         try {
+            // 使用文件系统api
             Files.move(srcFile.toPath(), dstFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
             return true;
         } catch (NoSuchFileException
@@ -307,6 +356,7 @@ public class LocalFileSystem extends FileSystem {
      * <tt>new File(".")</tt> instead of <tt>new File("")</tt>, since the latter returns
      * <tt>false</tt> for <tt>isDirectory</tt> judgement (See issue
      * https://issues.apache.org/jira/browse/FLINK-18612).
+     * 使用路径访问文件
      */
     public File pathToFile(Path path) {
         String localPath = path.getPath();

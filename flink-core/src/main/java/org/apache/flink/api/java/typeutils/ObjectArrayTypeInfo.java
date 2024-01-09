@@ -30,12 +30,21 @@ import java.lang.reflect.Array;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
+/**
+ * 对象数组类型
+ * @param <T>
+ * @param <C>
+ */
 @Public
 public class ObjectArrayTypeInfo<T, C> extends TypeInformation<T> {
 
     private static final long serialVersionUID = 1L;
 
     private final Class<T> arrayType;
+
+    /**
+     * 数组元素的类型信息
+     */
     private final TypeInformation<C> componentInfo;
 
     private ObjectArrayTypeInfo(Class<T> arrayType, TypeInformation<C> componentInfo) {

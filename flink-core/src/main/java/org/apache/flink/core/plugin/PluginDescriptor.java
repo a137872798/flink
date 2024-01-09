@@ -21,21 +21,27 @@ package org.apache.flink.core.plugin;
 import java.net.URL;
 import java.util.Arrays;
 
-/** Descriptive meta information for a plugin. */
+/** Descriptive meta information for a plugin.
+ * 某个插件的描述符
+ * */
 public class PluginDescriptor {
 
-    /** Unique identifier of the plugin. */
+    /** Unique identifier of the plugin.
+     * 每个插件有个唯一id
+     * */
     private final String pluginId;
 
     /**
      * URLs to the plugin resources code. Usually this contains URLs of the jars that will be loaded
      * for the plugin.
+     * 加载插件需要加载的几个jar文件
      */
     private final URL[] pluginResourceURLs;
 
     /**
      * String patterns of classes that should be excluded from loading out of the plugin resources.
      * See {@link org.apache.flink.util.ChildFirstClassLoader}'s field alwaysParentFirstPatterns.
+     * 这些地址需要被排除
      */
     private final String[] loaderExcludePatterns;
 

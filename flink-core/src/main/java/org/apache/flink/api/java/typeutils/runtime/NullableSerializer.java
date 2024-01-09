@@ -51,6 +51,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * }</pre>
  *
  * @param <T> type to serialize
+ *           这是一个包装对象 在外层兼容null
  */
 public class NullableSerializer<T> extends TypeSerializer<T> {
     private static final long serialVersionUID = 3335569358214720033L;
@@ -71,6 +72,12 @@ public class NullableSerializer<T> extends TypeSerializer<T> {
         this.padding = padding;
     }
 
+    /**
+     * 表示要生成一个固定长度的填充数组
+     * @param originalSerializerLength
+     * @param padNullValueIfFixedLen
+     * @return
+     */
     private static byte[] createPadding(
             int originalSerializerLength, boolean padNullValueIfFixedLen) {
         boolean padNullValue = originalSerializerLength > 0 && padNullValueIfFixedLen;
@@ -86,6 +93,8 @@ public class NullableSerializer<T> extends TypeSerializer<T> {
      * @param padNullValueIfFixedLen pad null value to preserve the fixed length of original
      *     serializer
      * @return serializer which supports {@code null} values
+     *
+     * 检查普通的序列化对象是否支持写入null  不支持的情况下 使用该对象进行一层包装
      */
     public static <T> TypeSerializer<T> wrapIfNullIsNotSupported(
             @Nonnull TypeSerializer<T> originalSerializer, boolean padNullValueIfFixedLen) {
@@ -98,11 +107,14 @@ public class NullableSerializer<T> extends TypeSerializer<T> {
      * This method checks if {@code serializer} supports {@code null} value.
      *
      * @param serializer serializer to check
+     *
+     *                   判断该序列化对象是否支持null
      */
     public static <T> boolean checkIfNullSupported(@Nonnull TypeSerializer<T> serializer) {
         int length = serializer.getLength() > 0 ? serializer.getLength() : 1;
         DataOutputSerializer dos = new DataOutputSerializer(length);
         try {
+            // 这里就是尝试写入null
             serializer.serialize(null, dos);
         } catch (IOException | RuntimeException e) {
             return false;
@@ -196,6 +208,8 @@ public class NullableSerializer<T> extends TypeSerializer<T> {
 
     @Override
     public void serialize(T record, DataOutputView target) throws IOException {
+
+        // 在序列化时 多写入一个boolean 表示是否为null
         if (record == null) {
             target.writeBoolean(true);
             target.write(padding);

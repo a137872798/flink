@@ -44,6 +44,7 @@ import java.io.OutputStream;
  *
  * @see FileSystem
  * @see FSDataInputStream
+ * 文件系统输出流
  */
 @Public
 public abstract class FSDataOutputStream extends OutputStream {
@@ -60,6 +61,7 @@ public abstract class FSDataOutputStream extends OutputStream {
      *     of the file to the current writing position.
      * @throws IOException Thrown if an I/O error occurs while obtaining the position from the
      *     stream implementation.
+     *     获取当前文件的偏移量
      */
     public abstract long getPos() throws IOException;
 
@@ -75,6 +77,7 @@ public abstract class FSDataOutputStream extends OutputStream {
      * to force implementations of the {@code FSDataOutputStream} to implement this method directly.
      *
      * @throws IOException Thrown if an I/O error occurs while flushing the stream.
+     * 将文件数据刷盘
      */
     public abstract void flush() throws IOException;
 
@@ -84,6 +87,7 @@ public abstract class FSDataOutputStream extends OutputStream {
      * devices.
      *
      * @throws IOException Thrown if an I/O error occurs
+     * 将数据刷盘
      */
     public abstract void sync() throws IOException;
 
@@ -105,6 +109,7 @@ public abstract class FSDataOutputStream extends OutputStream {
      *
      * @throws IOException Thrown, if an error occurred while closing the stream or guaranteeing
      *     that the data is persistent.
+     *     关闭文件流
      */
     public abstract void close() throws IOException;
 }

@@ -20,7 +20,9 @@ package org.apache.flink.api.connector.source;
 
 import org.apache.flink.annotation.Public;
 
-/** An interface for all the Split types to extend. */
+/** An interface for all the Split types to extend.
+ * 一个输入流 可能会被拆分成多个部分 该接口代表其中一个部分
+ * */
 @Public
 public interface SourceSplit {
 
@@ -28,6 +30,7 @@ public interface SourceSplit {
      * Get the split id of this source split.
      *
      * @return id of this source split.
+     * 该部分的id
      */
     String splitId();
 }

@@ -24,13 +24,25 @@ import org.apache.flink.configuration.description.InlineElement;
 
 import static org.apache.flink.configuration.description.TextElement.text;
 
-/** Describes the type in which a checkpoint should be taken. */
+/** Describes the type in which a checkpoint should be taken.
+ * 检查点类型
+ * */
 @PublicEvolving
 public enum CheckpointType implements DescribedEnum {
+
+    /**
+     * 表示通过job配置 派生出来的检查点
+     */
     CONFIGURED("The checkpoint type derived from the job config"),
 
+    /**
+     * 对整个状态 生成检查点  适用于所有后端
+     */
     FULL("A checkpoint type that checkpoints the entire state, common for all state backends."),
 
+    /**
+     * 只维护增量信息  只能用于某些后端
+     */
     INCREMENTAL(
             "A checkpoint type that checkpoints only the difference between snapshots, specific for certain state backend.");
 

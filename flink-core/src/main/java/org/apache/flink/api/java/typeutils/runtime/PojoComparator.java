@@ -34,13 +34,17 @@ import java.io.ObjectOutputStream;
 import java.lang.reflect.Field;
 import java.util.List;
 
+/**
+ * pojo被看作一个组合对象 内部就是各种field
+ * @param <T>
+ */
 @Internal
 public final class PojoComparator<T> extends CompositeTypeComparator<T>
         implements java.io.Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    // Reflection fields for the comp fields
+    // Reflection fields for the comp fields  一个pojo对象 并不是所有字段都要参与比较的  这里只是几个关键字段
     private transient Field[] keyFields;
 
     private final TypeComparator<Object>[] comparators;
@@ -227,6 +231,7 @@ public final class PojoComparator<T> extends CompositeTypeComparator<T>
     public void setReference(T toCompare) {
         int i = 0;
         for (; i < this.keyFields.length; i++) {
+            // 在比较前 将obj参与比较的相关字段抽出来
             this.comparators[i].setReference(accessField(keyFields[i], toCompare));
         }
     }
@@ -234,6 +239,7 @@ public final class PojoComparator<T> extends CompositeTypeComparator<T>
     @Override
     public boolean equalToReference(T candidate) {
         int i = 0;
+        // 只比较关键字段
         for (; i < this.keyFields.length; i++) {
             if (!this.comparators[i].equalToReference(accessField(keyFields[i], candidate))) {
                 return false;

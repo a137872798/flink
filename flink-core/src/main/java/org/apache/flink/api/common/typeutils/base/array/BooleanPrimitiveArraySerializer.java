@@ -27,7 +27,9 @@ import org.apache.flink.core.memory.DataOutputView;
 
 import java.io.IOException;
 
-/** A serializer for boolean arrays. */
+/** A serializer for boolean arrays.
+ * 以Serializer结尾的对象 表示提供一些序列化相关的方法
+ * */
 @Internal
 public final class BooleanPrimitiveArraySerializer extends TypeSerializerSingleton<boolean[]> {
 
@@ -35,6 +37,9 @@ public final class BooleanPrimitiveArraySerializer extends TypeSerializerSinglet
 
     private static final boolean[] EMPTY = new boolean[0];
 
+    /**
+     * 单例模式
+     */
     public static final BooleanPrimitiveArraySerializer INSTANCE =
             new BooleanPrimitiveArraySerializer();
 
@@ -48,6 +53,11 @@ public final class BooleanPrimitiveArraySerializer extends TypeSerializerSinglet
         return EMPTY;
     }
 
+    /**
+     * 提供拷贝函数
+     * @param from The element reuse be copied.
+     * @return
+     */
     @Override
     public boolean[] copy(boolean[] from) {
         boolean[] copy = new boolean[from.length];
@@ -71,6 +81,7 @@ public final class BooleanPrimitiveArraySerializer extends TypeSerializerSinglet
             throw new IllegalArgumentException("The record must not be null.");
         }
 
+        // 序列化方式为 先写入boolean数组长度  再挨个写入boolean值
         final int len = record.length;
         target.writeInt(len);
         for (int i = 0; i < len; i++) {
@@ -78,6 +89,12 @@ public final class BooleanPrimitiveArraySerializer extends TypeSerializerSinglet
         }
     }
 
+    /**
+     * 反序列化则是 先读取长度 构建数组 然后填充元素
+     * @param source The input view from which to read the data.
+     * @return
+     * @throws IOException
+     */
     @Override
     public boolean[] deserialize(DataInputView source) throws IOException {
         final int len = source.readInt();
@@ -109,7 +126,9 @@ public final class BooleanPrimitiveArraySerializer extends TypeSerializerSinglet
 
     // ------------------------------------------------------------------------
 
-    /** Serializer configuration snapshot for compatibility and format evolution. */
+    /** Serializer configuration snapshot for compatibility and format evolution.
+     * 快照对象代表从字节流中恢复对象 只要借助本对象的反序列化方法即可
+     * */
     @SuppressWarnings("WeakerAccess")
     public static final class BooleanPrimitiveArraySerializerSnapshot
             extends SimpleTypeSerializerSnapshot<boolean[]> {

@@ -43,7 +43,9 @@ import java.util.Set;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** Snapshot class for the {@link PojoSerializer}. */
+/** Snapshot class for the {@link PojoSerializer}.
+ * pojo的快照对象
+ * */
 @Internal
 public class PojoSerializerSnapshot<T> implements TypeSerializerSnapshot<T> {
 

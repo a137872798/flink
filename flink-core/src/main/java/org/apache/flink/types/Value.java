@@ -30,6 +30,7 @@ import java.io.Serializable;
  * of its value.
  *
  * @see org.apache.flink.core.io.IOReadableWritable
+ * 充当可序列化对象的基本值接口
  */
 @Public
 public interface Value extends IOReadableWritable, Serializable {}

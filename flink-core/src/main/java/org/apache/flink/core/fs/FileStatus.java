@@ -28,6 +28,7 @@ import org.apache.flink.annotation.Public;
 
 /**
  * Interface that represents the client side information for a file independent of the file system.
+ * 提供一些文件的信息
  */
 @Public
 public interface FileStatus {
@@ -36,6 +37,7 @@ public interface FileStatus {
      * Return the length of this file.
      *
      * @return the length of this file
+     * 获取文件长度
      */
     long getLen();
 
@@ -43,6 +45,7 @@ public interface FileStatus {
      * Get the block size of the file.
      *
      * @return the number of bytes
+     * 数据块长度
      */
     long getBlockSize();
 
@@ -50,6 +53,7 @@ public interface FileStatus {
      * Get the replication factor of a file.
      *
      * @return the replication factor of a file.
+     * 什么是复制因子?
      */
     short getReplication();
 
@@ -57,6 +61,7 @@ public interface FileStatus {
      * Get the modification time of the file.
      *
      * @return the modification time of file in milliseconds since January 1, 1970 UTC.
+     * 获取文件修改时间
      */
     long getModificationTime();
 
@@ -71,6 +76,7 @@ public interface FileStatus {
      * Checks if this object represents a directory.
      *
      * @return <code>true</code> if this is a directory, <code>false</code> otherwise
+     * 是否是一个目录
      */
     boolean isDir();
 
@@ -78,6 +84,7 @@ public interface FileStatus {
      * Returns the corresponding Path to the FileStatus.
      *
      * @return the corresponding Path to the FileStatus
+     * 获取对应的文件/目录 路径
      */
     Path getPath();
 }

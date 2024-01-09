@@ -44,6 +44,8 @@ import java.util.stream.Collectors;
  * DistributedCache provides static methods to write the registered cache files into job
  * configuration or decode them from job configuration. It also provides user access to the file
  * locally.
+ *
+ * 分布式缓存
  */
 @Public
 public class DistributedCache {
@@ -55,11 +57,21 @@ public class DistributedCache {
      * job-submission process. After registration through the API {@code filePath} denotes the
      * original directory. After the upload to the cluster (which includes zipping the directory),
      * {@code filePath} denotes the (server-side) copy of the zip.
+     * 缓存数据作为一个文件存储在某个目录下
      */
     public static class DistributedCacheEntry implements Serializable {
 
+        /**
+         * 文件目录
+         */
         public String filePath;
+        /**
+         * 是否可执行
+         */
         public Boolean isExecutable;
+        /**
+         * 是否已压缩
+         */
         public boolean isZipped;
 
         public byte[] blobKey;
@@ -128,6 +140,7 @@ public class DistributedCache {
 
     // ------------------------------------------------------------------------
 
+    // 描述一组拷贝缓存数据的任务
     private final Map<String, Future<Path>> cacheCopyTasks;
 
     public DistributedCache(Map<String, Future<Path>> cacheCopyTasks) {
@@ -136,6 +149,7 @@ public class DistributedCache {
 
     // ------------------------------------------------------------------------
 
+    // 获取某个任务结果
     public File getFile(String name) {
         if (name == null) {
             throw new NullPointerException("name must not be null");
@@ -151,8 +165,10 @@ public class DistributedCache {
         }
 
         try {
+            // 阻塞得到结果
             final Path path = future.get();
             URI tmp = path.makeQualified(path.getFileSystem()).toUri();
+            // 将路径包装成file对象
             return new File(tmp);
         } catch (ExecutionException e) {
             throw new RuntimeException("An error occurred while copying the file.", e.getCause());
@@ -169,9 +185,11 @@ public class DistributedCache {
     //  Utilities to read/write cache files from/to the configuration
     // ------------------------------------------------------------------------
 
+    // 将缓存文件信息 写入config
     public static void writeFileInfoToConfig(
             String name, DistributedCacheEntry e, Configuration conf) {
         int num = conf.getInteger(CACHE_FILE_NUM, 0) + 1;
+        // 更新配置   这个应该是类似文件编号
         conf.setInteger(CACHE_FILE_NUM, num);
         conf.setString(CACHE_FILE_NAME + num, name);
         conf.setString(CACHE_FILE_PATH + num, e.filePath);
@@ -182,6 +200,11 @@ public class DistributedCache {
         }
     }
 
+    /**
+     * 从配置中
+     * @param conf
+     * @return
+     */
     public static Set<Entry<String, DistributedCacheEntry>> readFileInfoFromConfig(
             Configuration conf) {
         int num = conf.getInteger(CACHE_FILE_NUM, 0);
@@ -192,6 +215,7 @@ public class DistributedCache {
         Map<String, DistributedCacheEntry> cacheFiles =
                 new HashMap<String, DistributedCacheEntry>();
         for (int i = 1; i <= num; i++) {
+            // 获取各个编号对应的文件信息
             String name = conf.getString(CACHE_FILE_NAME + i, null);
             String filePath = conf.getString(CACHE_FILE_PATH + i, null);
             boolean isExecutable = conf.getBoolean(CACHE_FILE_EXE + i, false);

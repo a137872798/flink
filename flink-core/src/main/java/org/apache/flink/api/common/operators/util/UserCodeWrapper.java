@@ -26,6 +26,7 @@ import java.lang.annotation.Annotation;
 /**
  * UDf operators can have either a class or an object containing the user code, this is the common
  * interface to access them.
+ * 用户定义的 class 或者 object 可以包含用户代码
  */
 @Internal
 public interface UserCodeWrapper<T> extends Serializable {
@@ -35,6 +36,7 @@ public interface UserCodeWrapper<T> extends Serializable {
      * subclass is supposed to just return the user code object or instantiate the class.
      *
      * @return The class with the user code.
+     * 获取用户对象
      */
     T getUserCodeObject(Class<? super T> superClass, ClassLoader cl);
 
@@ -53,6 +55,7 @@ public interface UserCodeWrapper<T> extends Serializable {
      *
      * @param annotationClass the Class object corresponding to the annotation type
      * @return the annotation, or null if no annotation of the requested type was found
+     * 获取用户注解
      */
     <A extends Annotation> A getUserCodeAnnotation(Class<A> annotationClass);
 
@@ -62,6 +65,7 @@ public interface UserCodeWrapper<T> extends Serializable {
      * the user code object.
      *
      * @return The class of the user code object.
+     * 用户定义class
      */
     Class<? extends T> getUserCodeClass();
 

@@ -20,10 +20,15 @@ package org.apache.flink.api.common;
 
 import org.apache.flink.annotation.Public;
 
-/** The result of submitting a job to a JobManager. */
+/** The result of submitting a job to a JobManager.
+ * 当某个job被提交时 会关联一个JobId  便于之后追踪job的执行情况
+ * */
 @Public
 public class JobSubmissionResult {
 
+    /**
+     * job id
+     */
     private final JobID jobID;
 
     public JobSubmissionResult(JobID jobID) {
@@ -45,6 +50,7 @@ public class JobSubmissionResult {
      * getJobExecutionResult} to retrieve the JobExecutionResult.
      *
      * @return True if this is a JobExecutionResult, false otherwise
+     * 表示这不是执行结果
      */
     public boolean isJobExecutionResult() {
         return false;

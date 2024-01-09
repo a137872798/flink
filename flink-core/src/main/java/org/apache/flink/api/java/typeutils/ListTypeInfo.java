@@ -32,6 +32,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * A {@link TypeInformation} for the list types of the Java API.
  *
  * @param <T> The type of the elements in the list.
+ *
+ *           表示一个列表类型
  */
 @PublicEvolving
 public final class ListTypeInfo<T> extends TypeInformation<List<T>> {

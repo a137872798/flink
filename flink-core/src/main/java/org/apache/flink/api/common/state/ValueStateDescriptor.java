@@ -31,6 +31,7 @@ import org.apache.flink.api.common.typeutils.TypeSerializer;
  * reading a {@link ValueState} using {@link ValueState#value()} will be {@code null}.
  *
  * @param <T> The type of the values that the value state can hold.
+ *           该描述信息是针对值状态类型的
  */
 @PublicEvolving
 public class ValueStateDescriptor<T> extends StateDescriptor<ValueState<T>, T> {

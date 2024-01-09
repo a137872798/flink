@@ -29,6 +29,7 @@ import java.nio.charset.Charset;
  * the output bucket file separated by newline.
  *
  * @param <IN> The type of the elements that are being written by the sink.
+ *            一个简单的编码器  将字符串变成字节流
  */
 @PublicEvolving
 public class SimpleStringEncoder<IN> implements Encoder<IN> {
@@ -37,6 +38,9 @@ public class SimpleStringEncoder<IN> implements Encoder<IN> {
 
     private String charsetName;
 
+    /**
+     * 使用的字符集
+     */
     private transient Charset charset;
 
     /**

@@ -54,6 +54,8 @@ import java.util.Optional;
  *   <li>component-first: component -> bootstrap -> owner; opt-in.
  *   <li>owner-first: owner -> component -> bootstrap; opt-in.
  * </ul>
+ *
+ * URLClassLoader 能够加载某个指定的url下的class
  */
 public class ComponentClassLoader extends URLClassLoader {
     private static final ClassLoader PLATFORM_OR_BOOTSTRAP_LOADER;
@@ -68,7 +70,7 @@ public class ComponentClassLoader extends URLClassLoader {
     private final Map<String, String> knownPackagePrefixesModuleAssociation;
 
     public ComponentClassLoader(
-            URL[] classpath,
+            URL[] classpath,   // 待扫描的路径
             ClassLoader ownerClassLoader,
             String[] ownerFirstPackages,
             String[] componentFirstPackages,
@@ -81,6 +83,7 @@ public class ComponentClassLoader extends URLClassLoader {
 
         this.knownPackagePrefixesModuleAssociation = knownPackagePrefixesModuleAssociation;
 
+        // 将包名 "." 变成 路径名 "/"
         ownerFirstResourcePrefixes = convertPackagePrefixesToPathPrefixes(ownerFirstPackages);
         componentFirstResourcePrefixes =
                 convertPackagePrefixesToPathPrefixes(componentFirstPackages);
@@ -90,19 +93,33 @@ public class ComponentClassLoader extends URLClassLoader {
     // Class loading
     // ----------------------------------------------------------------------------------------------
 
+
+    /**
+     * 在进行类加载时  触发该方法
+     * @param name
+     * @param resolve
+     * @return
+     * @throws ClassNotFoundException
+     */
     @Override
     protected Class<?> loadClass(final String name, final boolean resolve)
             throws ClassNotFoundException {
+
+        // 这个是类加载器的锁
         synchronized (getClassLoadingLock(name)) {
             try {
+                // 这个应该是委托上层加载类吧 这段逻辑无法被覆盖
                 final Class<?> loadedClass = findLoadedClass(name);
                 if (loadedClass != null) {
                     return resolveIfNeeded(resolve, loadedClass);
                 }
 
+                // 下面就是不同的地方了
                 if (isComponentFirstClass(name)) {
                     return loadClassFromComponentFirst(name, resolve);
                 }
+
+                // 加载owner下面的类时  会使用相关的类加载器
                 if (isOwnerFirstClass(name)) {
                     return loadClassFromOwnerFirst(name, resolve);
                 }
@@ -141,6 +158,11 @@ public class ComponentClassLoader extends URLClassLoader {
         return Arrays.stream(ownerFirstPackages).anyMatch(name::startsWith);
     }
 
+    /**
+     * 检查目标类是否咋子 组件路径下
+     * @param name
+     * @return
+     */
     private boolean isComponentFirstClass(final String name) {
         return Arrays.stream(componentFirstPackages).anyMatch(name::startsWith);
     }

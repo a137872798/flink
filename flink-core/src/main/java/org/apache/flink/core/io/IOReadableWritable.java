@@ -31,6 +31,7 @@ import java.io.IOException;
  *
  * <p>When implementing this Interface make sure that the implementing class has a default
  * (zero-argument) constructor!
+ * 这里定义了一个可使用io读写的接口
  */
 @Public
 public interface IOReadableWritable {

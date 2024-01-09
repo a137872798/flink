@@ -27,11 +27,22 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 
-/** Represents a text block in the {@link Description}. */
+/** Represents a text block in the {@link Description}.
+ * 该对象可以借助 formatter写入格式化信息
+ * */
 @PublicEvolving
 public class TextElement implements BlockElement, InlineElement {
     private final String format;
+
+    /**
+     * 允许包含一组内连元素
+     */
     private final List<InlineElement> elements;
+
+
+    /**
+     * 表示文本的风格  目前只有code
+     */
     private final EnumSet<TextStyle> textStyles = EnumSet.noneOf(TextStyle.class);
 
     /**

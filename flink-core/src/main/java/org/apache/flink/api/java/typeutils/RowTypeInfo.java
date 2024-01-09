@@ -47,6 +47,8 @@ import static org.apache.flink.util.Preconditions.checkState;
  * <p>Note: The implementations of {@link #hashCode()} and {@link #equals(Object)} do not check
  * field names because those don't matter during serialization and runtime. This might change in
  * future versions. See FLINK-14438 for more information.
+ *
+ * 表示关于 Row 这个元组类型的描述信息
  */
 @PublicEvolving
 public class RowTypeInfo extends TupleTypeInfoBase<Row> {
@@ -76,10 +78,13 @@ public class RowTypeInfo extends TupleTypeInfoBase<Row> {
     private boolean[] comparatorOrders = null;
 
     public RowTypeInfo(TypeInformation<?>... types) {
+        // 代表复合类型是 Row
+        // types 是里面的字段类型
         super(Row.class, types);
 
         this.fieldNames = new String[types.length];
 
+        // 这是默认字段名
         for (int i = 0; i < types.length; i++) {
             fieldNames[i] = "f" + i;
         }
@@ -95,6 +100,13 @@ public class RowTypeInfo extends TupleTypeInfoBase<Row> {
         this.fieldNames = Arrays.copyOf(fieldNames, fieldNames.length);
     }
 
+    /**
+     * 重写了父类的方法
+     * 区别就是 因为本对象有自己的正则 所以在解析子表达式 包括获取下标的时候 走了不同的逻辑
+     * @param fieldExpression The field expression for which the FlatFieldDescriptors are computed.
+     * @param offset The offset to use when computing the positions of the flat fields.
+     * @param result The list into which all flat field descriptors are inserted.  用于存储结果
+     */
     @Override
     public void getFlatFields(
             String fieldExpression, int offset, List<FlatFieldDescriptor> result) {
@@ -165,6 +177,13 @@ public class RowTypeInfo extends TupleTypeInfoBase<Row> {
         }
     }
 
+
+    /**
+     * 主要也是正则变了  所以获取逻辑变了
+     * @param fieldExpression
+     * @param <X>
+     * @return
+     */
     @Override
     public <X> TypeInformation<X> getTypeAt(String fieldExpression) {
         Matcher matcher = PATTERN_NESTED_FIELDS.matcher(fieldExpression);
@@ -217,6 +236,7 @@ public class RowTypeInfo extends TupleTypeInfoBase<Row> {
             int logicalFieldOffset,
             ExecutionConfig config) {
 
+        // 临时性的使用该字段
         comparatorOrders = orders;
         TypeComparator<Row> comparator =
                 super.createComparator(logicalKeyFields, orders, logicalFieldOffset, config);
@@ -331,6 +351,10 @@ public class RowTypeInfo extends TupleTypeInfoBase<Row> {
         return false;
     }
 
+
+    /**
+     * 通过它来构建维护多个comparator的对象
+     */
     private class RowTypeComparatorBuilder implements TypeComparatorBuilder<Row> {
 
         private final ArrayList<TypeComparator> fieldComparators = new ArrayList<TypeComparator>();
@@ -353,6 +377,11 @@ public class RowTypeInfo extends TupleTypeInfoBase<Row> {
             logicalKeyFields.add(fieldId);
         }
 
+        /**
+         * 生成一个组合的比较器
+         * @param config
+         * @return
+         */
         @Override
         public TypeComparator<Row> createTypeComparator(ExecutionConfig config) {
             checkState(
@@ -373,10 +402,12 @@ public class RowTypeInfo extends TupleTypeInfoBase<Row> {
 
             TypeSerializer<?>[] fieldSerializers = new TypeSerializer<?>[maxKey + 1];
 
+            // 到最后一个影响排序的字段为止  创建序列化对象   为啥不是仅将排序字段创建序列化对象呢 ?
             for (int i = 0; i <= maxKey; i++) {
                 fieldSerializers[i] = types[i].createSerializer(config);
             }
 
+            // 记录这些关键字段的下标
             int[] keyPositions = new int[logicalKeyFields.size()];
             for (int i = 0; i < keyPositions.length; i++) {
                 keyPositions[i] = logicalKeyFields.get(i);
@@ -388,6 +419,7 @@ public class RowTypeInfo extends TupleTypeInfoBase<Row> {
             }
 
             //noinspection unchecked
+            // 相关信息组合成 RowComparator
             return new RowComparator(
                     getArity(),
                     keyPositions,
@@ -403,6 +435,7 @@ public class RowTypeInfo extends TupleTypeInfoBase<Row> {
      * @param rowType The original RowTypeInfo whose fields are projected
      * @param fieldMapping The field mapping of the projection
      * @return A RowTypeInfo with projected fields.
+     * 表示保留这几个field 作为新的row
      */
     public static RowTypeInfo projectFields(RowTypeInfo rowType, int[] fieldMapping) {
         TypeInformation[] fieldTypes = new TypeInformation[fieldMapping.length];

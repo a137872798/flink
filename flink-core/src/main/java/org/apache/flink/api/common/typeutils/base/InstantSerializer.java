@@ -27,14 +27,19 @@ import org.apache.flink.core.memory.DataOutputView;
 import java.io.IOException;
 import java.time.Instant;
 
-/** Serializer for serializing/deserializing Instant values including null values. */
+/** Serializer for serializing/deserializing Instant values including null values.
+ * 有关instant的序列化
+ * */
 @Internal
 public final class InstantSerializer extends TypeSerializerSingleton<Instant> {
 
     private static final long serialVersionUID = -4131715684999061277L;
 
+    // 该对象的值分为2部分存储 一部分是秒 一部分是纳秒
     static final int SECONDS_BYTES = Long.BYTES;
     static final int NANOS_BYTES = Integer.BYTES;
+
+    // 使用 MIN_VALUE 表示null
 
     private static final long NULL_SECONDS = Long.MIN_VALUE;
     // Nanos of normal Instant is between 0 and 999,999,999,

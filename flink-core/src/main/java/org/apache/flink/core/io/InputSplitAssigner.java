@@ -25,6 +25,8 @@ import java.util.List;
 /**
  * An input split assigner distributes the {@link InputSplit}s among the instances on which a data
  * source exists.
+ *
+ * 该对象会指定下个要被使用的 inputSplit
  */
 @PublicEvolving
 public interface InputSplitAssigner {
@@ -36,6 +38,7 @@ public interface InputSplitAssigner {
      * @param host The host address of split requesting task.
      * @param taskId The id of the split requesting task.
      * @return the next input split to be consumed, or <code>null</code> if no more splits remain.
+     * 返回下个要被消耗的 inputSplit
      */
     InputSplit getNextInputSplit(String host, int taskId);
 
@@ -44,6 +47,7 @@ public interface InputSplitAssigner {
      *
      * @param splits The list of input splits to be returned.
      * @param taskId The id of the task that failed to process the input splits.
+     *               当任务处理失败时 调用该方法  之后split会被重新分配
      */
     void returnInputSplit(List<InputSplit> splits, int taskId);
 }

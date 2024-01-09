@@ -23,6 +23,8 @@ package org.apache.flink.util;
  * "destroy" the object. On reason for this is for example to release native resources. From this
  * point, the interface fulfills a similar purpose as the {@link java.io.Closeable} interface, but
  * sometimes both should be represented as isolated, independent lifecycle steps.
+ *
+ * 释放对象 以及释放对象拥有的资源
  */
 public interface Disposable {
 

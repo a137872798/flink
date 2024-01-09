@@ -26,6 +26,7 @@ import org.apache.flink.configuration.Configuration;
  * JobManager and TaskManager side through service loader. Basically the implementation of this
  * interface is responsible to receive the serialized form of tokens produced by {@link
  * DelegationTokenProvider}.
+ * 回收token
  */
 @Experimental
 public interface DelegationTokenReceiver {
@@ -56,6 +57,8 @@ public interface DelegationTokenReceiver {
      *
      * @param tokens Serialized form of delegation tokens. Must be deserialized the reverse way
      *     which is implemented in {@link DelegationTokenProvider}.
+     *
+     *               当产生新的token时  要回收旧token
      */
     void onNewTokensObtained(byte[] tokens) throws Exception;
 }

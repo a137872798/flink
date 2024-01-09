@@ -25,7 +25,11 @@ import org.apache.flink.core.memory.MemorySegment;
 
 import java.io.IOException;
 
-/** Null base type for programs that implements the Key interface. */
+/** Null base type for programs that implements the Key interface.
+ * NormalizableKey 提供标准key相关的api
+ * CopyableValue 提供copy相关的api
+ * 该对象代表null
+ * */
 @Public
 public final class NullValue implements NormalizableKey<NullValue>, CopyableValue<NullValue> {
     private static final long serialVersionUID = 1L;

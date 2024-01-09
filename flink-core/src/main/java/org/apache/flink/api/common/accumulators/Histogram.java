@@ -29,6 +29,7 @@ import java.util.TreeMap;
  *
  * <p>This class does not extend to continuous values later, because it makes no attempt to put the
  * data in bins.
+ * 表示将多个int累加 会变成一个树结构
  */
 @Public
 public class Histogram implements Accumulator<Integer, TreeMap<Integer, Integer>> {
@@ -39,6 +40,7 @@ public class Histogram implements Accumulator<Integer, TreeMap<Integer, Integer>
 
     @Override
     public void add(Integer value) {
+        // key 对应数字  value对应出现次数
         Integer current = treeMap.get(value);
         Integer newValue = (current != null ? current : 0) + 1;
         this.treeMap.put(value, newValue);

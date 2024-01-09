@@ -23,6 +23,9 @@ import org.apache.flink.api.common.typeutils.base.ByteComparator;
 
 import static java.lang.Math.min;
 
+/**
+ * 该对象的元素是byte  跟boolean是一样的
+ */
 @Internal
 public class BytePrimitiveArrayComparator extends PrimitiveArrayComparator<byte[], ByteComparator> {
     public BytePrimitiveArrayComparator(boolean ascending) {

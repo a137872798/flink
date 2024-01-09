@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Extension for the {@link Executor} interface which is enriched by method for scheduling tasks in
  * the future.
+ * 自己拓展了定时器接口
  */
 public interface ScheduledExecutor extends Executor {
 

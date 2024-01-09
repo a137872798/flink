@@ -19,7 +19,9 @@ package org.apache.flink.types;
 
 import org.apache.flink.annotation.Public;
 
-/** A type for (synthetic) operators that do not output data. For example, data sinks. */
+/** A type for (synthetic) operators that do not output data. For example, data sinks.
+ * 代表这个操作不会产出值  比如 sink
+ * */
 @Public
 public class Nothing {
     private Nothing() {}

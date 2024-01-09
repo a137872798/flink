@@ -55,6 +55,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *   <li>Managed Memory
  *   <li>Extended resources
  * </ol>
+ * 代表一整套资源
+ * 简单理解也是一个bean对象   可以将不同的 ResourceSpec组合
  */
 @Internal
 public final class ResourceSpec implements Serializable {
@@ -79,10 +81,14 @@ public final class ResourceSpec implements Serializable {
                     MemorySize.ZERO,
                     Collections.emptyMap());
 
-    /** How many cpu cores are needed. Can be null only if it is unknown. */
+    /** How many cpu cores are needed. Can be null only if it is unknown.
+     * CPU 资源
+     * */
     @Nullable private final CPUResource cpuCores;
 
-    /** How much task heap memory is needed. */
+    /** How much task heap memory is needed.
+     * 描述内存大小
+     * */
     @Nullable // can be null only for UNKNOWN
     private final MemorySize taskHeapMemory;
 
@@ -94,6 +100,9 @@ public final class ResourceSpec implements Serializable {
     @Nullable // can be null only for UNKNOWN
     private final MemorySize managedMemory;
 
+    /**
+     * 还有一些外部资源
+     */
     private final Map<String, ExternalResource> extendedResources;
 
     private ResourceSpec(

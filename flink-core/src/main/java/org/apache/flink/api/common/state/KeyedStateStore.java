@@ -20,7 +20,10 @@ package org.apache.flink.api.common.state;
 
 import org.apache.flink.annotation.PublicEvolving;
 
-/** This interface contains methods for registering keyed state with a managed store. */
+/** This interface contains methods for registering keyed state with a managed store.
+ * 表示一个状态存储容器
+ * 开放各个api 通过传入不同类型的state描述符 获取对应的state
+ * */
 @PublicEvolving
 public interface KeyedStateStore {
 
@@ -64,6 +67,8 @@ public interface KeyedStateStore {
      * @return The partitioned state object.
      * @throws UnsupportedOperationException Thrown, if no partitioned state is available for the
      *     function (function is not part of a KeyedStream).
+     *
+     *     通过描述符 获取状态   因为使用的是Value类型的状态 返回的也是 ValueState
      */
     @PublicEvolving
     <T> ValueState<T> getState(ValueStateDescriptor<T> stateProperties);

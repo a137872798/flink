@@ -25,6 +25,7 @@ import org.apache.flink.annotation.Public;
  * is used after a stream source, it realizes "ingestion time" semantics.
  *
  * @param <T> The type of the elements that get timestamps assigned.
+ *           使用最新的时间戳 而非事件时间戳   因为每个事件实际上有2个时间 一个是事件发生时间 一个是接收到的时间(处理时间)
  */
 @Public
 public final class IngestionTimeAssigner<T> implements TimestampAssigner<T> {
@@ -35,6 +36,7 @@ public final class IngestionTimeAssigner<T> implements TimestampAssigner<T> {
     public long extractTimestamp(T element, long recordTimestamp) {
         // make sure timestamps are monotonously increasing, even when the system clock re-syncs
         final long now = Math.max(System.currentTimeMillis(), maxTimestamp);
+        // 跟record时间戳无关 总是尝试返回最新的时间戳
         maxTimestamp = now;
         return now;
     }

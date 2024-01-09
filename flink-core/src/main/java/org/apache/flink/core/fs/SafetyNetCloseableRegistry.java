@@ -51,6 +51,10 @@ import java.util.function.Supplier;
  * <p>Other than that, it works like a normal {@link CloseableRegistry}.
  *
  * <p>All methods in this class are thread-safe.
+ *
+ * 该对象专门注册WrappingProxyCloseable
+ *
+ * 注册WrappingProxyCloseable时  会产生PhantomDelegatingCloseableRef
  */
 @Internal
 public class SafetyNetCloseableRegistry
@@ -81,9 +85,12 @@ public class SafetyNetCloseableRegistry
 
     @VisibleForTesting
     SafetyNetCloseableRegistry(Supplier<CloseableReaperThread> reaperThreadSupplier) {
+        // 容器存放 auto-close对象
         super(new IdentityHashMap<>());
 
         synchronized (REAPER_THREAD_LOCK) {
+
+            // 避免本对象多次创建 造成一些预期外的结果  加上这段逻辑
             if (0 == GLOBAL_SAFETY_NET_REGISTRY_COUNT) {
                 Preconditions.checkState(null == REAPER_THREAD);
                 try {
@@ -98,6 +105,11 @@ public class SafetyNetCloseableRegistry
         }
     }
 
+    /**
+     * 注册一个close对象
+     * @param wrappingProxyCloseable
+     * @param closeableMap
+     */
     @Override
     protected void doRegister(
             @Nonnull WrappingProxyCloseable<? extends Closeable> wrappingProxyCloseable,
@@ -105,16 +117,19 @@ public class SafetyNetCloseableRegistry
 
         assert Thread.holdsLock(getSynchronizationLock());
 
+        // 各种代理 返回内部的对象
         Closeable innerCloseable = WrappingProxyUtil.stripProxy(wrappingProxyCloseable);
 
         if (null == innerCloseable) {
             return;
         }
 
+        // 使用幻影引用对象包装
         PhantomDelegatingCloseableRef phantomRef =
                 new PhantomDelegatingCloseableRef(
                         wrappingProxyCloseable, this, REAPER_THREAD.referenceQueue);
 
+        // 放进去马上就会被回收的
         closeableMap.put(innerCloseable, phantomRef);
     }
 
@@ -138,6 +153,7 @@ public class SafetyNetCloseableRegistry
         try {
             IOUtils.closeAllQuietly(toClose);
         } finally {
+            // 关闭这个注册对象
             synchronized (REAPER_THREAD_LOCK) {
                 --GLOBAL_SAFETY_NET_REGISTRY_COUNT;
                 if (0 == GLOBAL_SAFETY_NET_REGISTRY_COUNT) {
@@ -155,12 +171,20 @@ public class SafetyNetCloseableRegistry
         }
     }
 
-    /** Phantom reference to {@link WrappingProxyCloseable}. */
+    /** Phantom reference to {@link WrappingProxyCloseable}.
+     * 幻影引用
+     * */
     static final class PhantomDelegatingCloseableRef
             extends PhantomReference<WrappingProxyCloseable<? extends Closeable>>
             implements Closeable {
 
+        /**
+         * 被包装的 closeable对象
+         */
         private final Closeable innerCloseable;
+        /**
+         * 关联的注册对象
+         */
         private final SafetyNetCloseableRegistry closeableRegistry;
         private final String debugString;
 
@@ -169,7 +193,9 @@ public class SafetyNetCloseableRegistry
                 SafetyNetCloseableRegistry closeableRegistry,
                 ReferenceQueue<? super WrappingProxyCloseable<? extends Closeable>> q) {
 
+            // 应该是有强引用 保留了包装对象 而当某些情况下 再无其他引用的时候 referent就会被后台线程自动回收
             super(referent, q);
+            // 剥开引用 拿到内部对象
             this.innerCloseable =
                     Preconditions.checkNotNull(WrappingProxyUtil.stripProxy(referent));
             this.closeableRegistry = Preconditions.checkNotNull(closeableRegistry);
@@ -180,6 +206,9 @@ public class SafetyNetCloseableRegistry
             return debugString;
         }
 
+        /**
+         * 关闭前自动从registry中移除
+         */
         @Override
         public void close() throws IOException {
             // Mark sure the inner closeable is still registered and thus unclosed to
@@ -192,9 +221,14 @@ public class SafetyNetCloseableRegistry
         }
     }
 
-    /** Reaper runnable collects and closes leaking resources. */
+    /** Reaper runnable collects and closes leaking resources.
+     * 后台线程 用于回收对象
+     * */
     static class CloseableReaperThread extends Thread {
 
+        /**
+         * 回收队列 配合java的引用对象使用
+         */
         private final ReferenceQueue<WrappingProxyCloseable<? extends Closeable>> referenceQueue;
 
         private volatile boolean running;
@@ -211,6 +245,7 @@ public class SafetyNetCloseableRegistry
         public void run() {
             try {
                 while (running) {
+                    // 不断从引用队列中拿到对象 并关闭
                     final PhantomDelegatingCloseableRef toClose =
                             (PhantomDelegatingCloseableRef) referenceQueue.remove();
 

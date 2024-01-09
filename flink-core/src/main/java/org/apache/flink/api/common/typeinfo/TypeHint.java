@@ -37,6 +37,7 @@ import org.apache.flink.util.FlinkRuntimeException;
  * }</pre>
  *
  * @param <T> The type information to hint.
+ *           可以提供typeInfo的对象
  */
 @Public
 public abstract class TypeHint<T> {

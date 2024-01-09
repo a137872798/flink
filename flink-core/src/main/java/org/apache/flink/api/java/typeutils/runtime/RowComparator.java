@@ -42,6 +42,7 @@ import static org.apache.flink.util.Preconditions.checkArgument;
  * <p>Note: Since comparators are used only in DataSet API for batch use cases, this comparator
  * assumes the latest serialization format and ignores {@link Row#getKind()} for simplicity of the
  * implementation and efficiency.
+ * 针对的是 Row对象 跟pojo其实差不多
  */
 @Internal
 public class RowComparator extends CompositeTypeComparator<Row> {
@@ -183,6 +184,7 @@ public class RowComparator extends CompositeTypeComparator<Row> {
     public void setReference(Row toCompare) {
         int i = 0;
         try {
+            // 给row的每个字段赋予对应的值
             for (; i < keyPositions.length; i++) {
                 TypeComparator<Object> comparator = comparators[i];
                 Object element = toCompare.getField(keyPositions[i]);
@@ -197,6 +199,7 @@ public class RowComparator extends CompositeTypeComparator<Row> {
     public boolean equalToReference(Row candidate) {
         int i = 0;
         try {
+            // 挨个进行比较
             for (; i < keyPositions.length; i++) {
                 TypeComparator<Object> comparator = comparators[i];
                 Object element = candidate.getField(keyPositions[i]); // element can be null

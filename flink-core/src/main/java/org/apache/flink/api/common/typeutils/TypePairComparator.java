@@ -31,6 +31,7 @@ import org.apache.flink.annotation.Internal;
  *
  * @param <T1> The class of the first data type.
  * @param <T2> The class of the second data type.
+ *            用于比较2个不同的类型
  */
 @Internal
 public abstract class TypePairComparator<T1, T2> {

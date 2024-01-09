@@ -44,6 +44,7 @@ import java.util.function.Consumer;
  * taskmanagers.
  *
  * @param <InputT> The type of the sink's input
+ *                表示一个下沉对象 用于写入数据
  */
 @PublicEvolving
 public interface Sink<InputT> extends Serializable {
@@ -54,10 +55,14 @@ public interface Sink<InputT> extends Serializable {
      * @param context the runtime context.
      * @return A sink writer.
      * @throws IOException for any failure during creation.
+     *
+     * 可以从上下文获取一些组件 便于完成一些功能
      */
     SinkWriter<InputT> createWriter(InitContext context) throws IOException;
 
-    /** The interface exposes some runtime info for creating a {@link SinkWriter}. */
+    /** The interface exposes some runtime info for creating a {@link SinkWriter}.
+     * 初始化上下文
+     * */
     @PublicEvolving
     interface InitContext {
         /**
@@ -71,6 +76,7 @@ public interface Sink<InputT> extends Serializable {
          * but are part of the jar file of a user job.
          *
          * @see UserCodeClassLoader
+         * 获取用户定义的类加载器
          */
         UserCodeClassLoader getUserCodeClassLoader();
 
@@ -82,19 +88,25 @@ public interface Sink<InputT> extends Serializable {
          * same way as records should not be sent to the external system individually. Rather,
          * implementers are expected to batch records and only enqueue a single {@link Runnable} per
          * batch to handle the result.
+         * 获取线程池
          */
         MailboxExecutor getMailboxExecutor();
 
         /**
          * Returns a {@link ProcessingTimeService} that can be used to get the current time and
          * register timers.
+         * 获取定时器服务
          */
         ProcessingTimeService getProcessingTimeService();
 
-        /** @return The id of task where the writer is. */
+        /** @return The id of task where the writer is.
+         * 获取当前正在执行的子任务
+         * */
         int getSubtaskId();
 
-        /** @return The number of parallel Sink tasks. */
+        /** @return The number of parallel Sink tasks.
+         * 获取任务并行度
+         * */
         int getNumberOfParallelSubtasks();
 
         /**
@@ -110,23 +122,30 @@ public interface Sink<InputT> extends Serializable {
         /**
          * Returns id of the restored checkpoint, if state was restored from the snapshot of a
          * previous execution.
+         * 获取检查点id  可以恢复到该检查点
          */
         OptionalLong getRestoredCheckpointId();
 
         /**
          * Provides a view on this context as a {@link SerializationSchema.InitializationContext}.
+         * 将对象转换成  SerializationSchema.InitializationContext
          */
         SerializationSchema.InitializationContext asSerializationSchemaInitializationContext();
 
-        /** Returns whether object reuse has been enabled or disabled. */
+        /** Returns whether object reuse has been enabled or disabled.
+         * 判断对象是否可以重复使用 节省对象反复创建和回收的开销
+         * */
         boolean isObjectReuseEnabled();
 
-        /** Creates a serializer for the type of sink's input. */
+        /** Creates a serializer for the type of sink's input.
+         * 生成输入数据相关的序列化对象
+         * */
         <IN> TypeSerializer<IN> createInputSerializer();
 
         /**
          * The ID of the current job. Note that Job ID can change in particular upon manual restart.
          * The returned ID should NOT be used for any job management tasks.
+         * 上下文是绑定在job上的
          */
         JobID getJobId();
 

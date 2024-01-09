@@ -45,6 +45,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * and deferred output for a given output ID, you can also call the getters multiple times.
  *
  * <p><b>WARNING:</b>This class is not thread safe.
+ * 该对象同时管理多个 WatermarkOutput
  */
 @Internal
 public class WatermarkOutputMultiplexer {
@@ -60,14 +61,19 @@ public class WatermarkOutputMultiplexer {
      * The {@link WatermarkOutput} that we use to emit our multiplexed watermark updates. We assume
      * that outside code holds a coordinating lock so we don't lock in this class when accessing
      * this {@link WatermarkOutput}.
+     * 多个output作用后的结果 通过该对象发射
      */
     private final WatermarkOutput underlyingOutput;
 
     /**
      * Map view, to allow finding them when requesting the {@link WatermarkOutput} for a given id.
+     * 每个水位关联一个 output
      */
     private final Map<String, PartialWatermark> watermarkPerOutputId;
 
+    /**
+     * 用于管理一组PartialWatermark
+     */
     private final CombinedWatermarkStatus combinedWatermarkStatus;
 
     /**
@@ -84,6 +90,7 @@ public class WatermarkOutputMultiplexer {
      * Registers a new multiplexed output, which creates internal states for that output and returns
      * an output ID that can be used to get a deferred or immediate {@link WatermarkOutput} for that
      * output.
+     * 注册一个新的output对象
      */
     public void registerNewOutput(String id, WatermarkUpdateListener onWatermarkUpdate) {
         final PartialWatermark outputState = new PartialWatermark(onWatermarkUpdate);
@@ -115,6 +122,8 @@ public class WatermarkOutputMultiplexer {
         final PartialWatermark outputState = watermarkPerOutputId.get(outputId);
         Preconditions.checkArgument(
                 outputState != null, "no output registered under id %s", outputId);
+
+        // 将 PartialWatermark 包装后得到 ImmediateOutput 可以直接获取水位值
         return new ImmediateOutput(outputState);
     }
 
@@ -128,6 +137,7 @@ public class WatermarkOutputMultiplexer {
         final PartialWatermark outputState = watermarkPerOutputId.get(outputId);
         Preconditions.checkArgument(
                 outputState != null, "no output registered under id %s", outputId);
+        // 获得一个延期水位对象
         return new DeferredOutput(outputState);
     }
 
@@ -146,8 +156,10 @@ public class WatermarkOutputMultiplexer {
      */
     private void updateCombinedWatermark() {
         if (combinedWatermarkStatus.updateCombinedWatermark()) {
+            // 发射更新后的水位
             underlyingOutput.emitWatermark(
                     new Watermark(combinedWatermarkStatus.getCombinedWatermark()));
+            // 如果上游处于空闲状态  将下游也标记成空闲
         } else if (combinedWatermarkStatus.isIdle()) {
             underlyingOutput.markIdle();
         }
@@ -156,6 +168,7 @@ public class WatermarkOutputMultiplexer {
     /**
      * Updating the state of an immediate output can possible lead to a combined watermark update to
      * the underlying {@link WatermarkOutput}.
+     * 将PartialWatermark 包装成了output对象   往该对象发射有效水位时 下游会立刻观测到
      */
     private class ImmediateOutput implements WatermarkOutput {
 
@@ -165,24 +178,34 @@ public class WatermarkOutputMultiplexer {
             this.state = state;
         }
 
+        /**
+         * 通过该对象发射水位
+         * @param watermark
+         */
         @Override
         public void emitWatermark(Watermark watermark) {
             long timestamp = watermark.getTimestamp();
+            // 更新水位
             boolean wasUpdated = state.setWatermark(timestamp);
 
             // if it's higher than the max watermark so far we might have to update the
             // combined watermark
             if (wasUpdated && timestamp > combinedWatermarkStatus.getCombinedWatermark()) {
+                // 因为某个output的水位发生了变化  尝试更新combinedWatermarkStatus的水位  并向下游发射水位
                 updateCombinedWatermark();
             }
         }
 
+        /**
+         * 标记成空闲状态
+         */
         @Override
         public void markIdle() {
             state.setIdle(true);
 
             // this can always lead to an advancing watermark. We don't know if this output
             // was holding back the watermark or not.
+            // 有新的水位处于空闲状态 combinedWatermark需要重新计算
             updateCombinedWatermark();
         }
 
@@ -199,6 +222,7 @@ public class WatermarkOutputMultiplexer {
      * Updating the state of a deferred output will never lead to a combined watermark update. Only
      * when {@link WatermarkOutputMultiplexer#onPeriodicEmit()} is called will the deferred updates
      * be combined into a potential combined update of the underlying {@link WatermarkOutput}.
+     * 延迟对象的区别是 接收到水位时 不会直接作用到combinedWatermark上 也不会往下游发射   只有当主动调用onPeriodicEmit时 才会发射
      */
     private static class DeferredOutput implements WatermarkOutput {
 

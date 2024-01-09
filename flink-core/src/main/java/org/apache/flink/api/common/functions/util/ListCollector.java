@@ -27,6 +27,7 @@ import java.util.List;
  * A {@link Collector} that puts the collected elements into a given list.
  *
  * @param <T> The type of the collected elements.
+ *           在收集数据时 不需要深度拷贝
  */
 @Internal
 public class ListCollector<T> implements Collector<T> {

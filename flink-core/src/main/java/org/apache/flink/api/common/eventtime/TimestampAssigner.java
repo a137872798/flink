@@ -29,6 +29,7 @@ import org.apache.flink.annotation.Public;
  * System#currentTimeMillis()} does it.
  *
  * @param <T> The type of the elements to which this assigner assigns timestamps.
+ *           时间戳分配器  为每个元素赋予事件时间
  */
 @Public
 @FunctionalInterface
@@ -53,6 +54,8 @@ public interface TimestampAssigner<T> {
      * @param recordTimestamp The current internal timestamp of the element, or a negative value, if
      *     no timestamp has been assigned yet.
      * @return The new timestamp.
+     *
+     * 接受一个元素对象  以及一个记录时间 返回一个时间戳
      */
     long extractTimestamp(T element, long recordTimestamp);
 }

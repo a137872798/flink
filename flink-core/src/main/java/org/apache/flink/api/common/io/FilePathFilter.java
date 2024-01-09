@@ -25,6 +25,7 @@ import java.io.Serializable;
  * The {@link #filterPath(Path)} method is responsible for deciding if a path is eligible for
  * further processing or not. This can serve to exclude temporary or partial files that are still
  * being written.
+ * 文件过滤器
  */
 @PublicEvolving
 public abstract class FilePathFilter implements Serializable {

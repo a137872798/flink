@@ -26,6 +26,7 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 
 /**
  * Represents combined value and status of a watermark for a set number of input partial watermarks.
+ * 可以基于下标 直接操作某些水位对象
  */
 @Internal
 public final class IndexedCombinedWatermarkStatus {
@@ -39,12 +40,20 @@ public final class IndexedCombinedWatermarkStatus {
         this.partialWatermarks = partialWatermarks;
     }
 
+    /**
+     * 指定数量 快速创建IndexedCombinedWatermarkStatus
+     * @param inputsCount
+     * @return
+     */
     public static IndexedCombinedWatermarkStatus forInputsCount(int inputsCount) {
         CombinedWatermarkStatus.PartialWatermark[] partialWatermarks =
                 IntStream.range(0, inputsCount)
                         .mapToObj(
+                                // 默认创建的监听器 为一个空函数
                                 i -> new CombinedWatermarkStatus.PartialWatermark(watermark -> {}))
                         .toArray(CombinedWatermarkStatus.PartialWatermark[]::new);
+
+        // 将相关属性组合起来
         CombinedWatermarkStatus combinedWatermarkStatus = new CombinedWatermarkStatus();
         for (CombinedWatermarkStatus.PartialWatermark partialWatermark : partialWatermarks) {
             combinedWatermarkStatus.add(partialWatermark);
@@ -58,6 +67,7 @@ public final class IndexedCombinedWatermarkStatus {
      *
      * @return true, if the combined watermark value changed. The global idleness needs to be
      *     checked separately via {@link #isIdle()}
+     *     开放api 可以指定更新某个partialWatermarks的时间戳
      */
     public boolean updateWatermark(int index, long timestamp) {
         checkArgument(index < partialWatermarks.length);

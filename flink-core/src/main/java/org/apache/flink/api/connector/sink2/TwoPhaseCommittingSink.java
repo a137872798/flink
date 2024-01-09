@@ -37,6 +37,8 @@ import java.util.Collection;
  *
  * @param <InputT> The type of the sink's input
  * @param <CommT> The type of the committables.
+ *
+ *               2阶段提交的sink
  */
 @PublicEvolving
 public interface TwoPhaseCommittingSink<InputT, CommT> extends Sink<InputT> {
@@ -48,6 +50,8 @@ public interface TwoPhaseCommittingSink<InputT, CommT> extends Sink<InputT> {
      * @param context the runtime context.
      * @return A sink writer for the two-phase commit protocol.
      * @throws IOException for any failure during creation.
+     *
+     * 第一阶段的写入对象
      */
     PrecommittingSinkWriter<InputT, CommT> createWriter(InitContext context) throws IOException;
 
@@ -57,6 +61,8 @@ public interface TwoPhaseCommittingSink<InputT, CommT> extends Sink<InputT> {
      *
      * @return A committer for the two-phase commit protocol.
      * @throws IOException for any failure during creation.
+     *
+     * 第二阶段需要commit
      */
     Committer<CommT> createCommitter() throws IOException;
 
@@ -74,6 +80,8 @@ public interface TwoPhaseCommittingSink<InputT, CommT> extends Sink<InputT> {
          *
          * @return The data to commit as the second step of the two-phase commit protocol.
          * @throws IOException if fail to prepare for a commit.
+         *
+         * 在写入完成后 产生commit对象 当commit对象被成功提交时 整个二阶段提交才算结束
          */
         Collection<CommT> prepareCommit() throws IOException, InterruptedException;
     }

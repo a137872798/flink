@@ -39,8 +39,9 @@ public class SubmoduleClassLoader extends ComponentClassLoader {
         super(
                 classpath,
                 parentClassLoader,
+                // 日志类路径
                 CoreOptions.PARENT_FIRST_LOGGING_PATTERNS,
-                new String[] {"org.apache.flink"},
+                new String[] {"org.apache.flink"},  // 这样 flink相关的类 都是用本对象加载 而日志相关的由parentClassLoader加载
                 Collections.emptyMap());
     }
 }

@@ -43,11 +43,14 @@ import java.util.Map;
  * used in functions that ignore invalid lines, rather than failing on them.
  *
  * @param <T> The type that is parsed.
+ *           字段解析器
  */
 @PublicEvolving
 public abstract class FieldParser<T> {
 
-    /** An enumeration of different types of errors that may occur. */
+    /** An enumeration of different types of errors that may occur.
+     * 描述各种可能出现的错误
+     * */
     public static enum ParseErrorState {
         /** No error occurred. */
         NONE,
@@ -101,13 +104,16 @@ public abstract class FieldParser<T> {
         return parseField(bytes, startPos, limit, delim, reuse);
     }
 
-    /** Each parser's logic should be implemented inside this method */
+    /** Each parser's logic should be implemented inside this method
+     * 描述如何将字节流解析成某个类型字段
+     * */
     protected abstract int parseField(byte[] bytes, int startPos, int limit, byte[] delim, T reuse);
 
     /**
      * Reset the state of the parser. Called as the very first method inside {@link
      * FieldParser#resetErrorStateAndParse(byte[], int, int, byte[], Object)}, by default it just
      * reset its error state.
+     * 重置错误状态
      */
     protected void resetParserState() {
         this.errorState = ParseErrorState.NONE;
@@ -119,6 +125,8 @@ public abstract class FieldParser<T> {
      * it will return the object instance that was passed the parse function.
      *
      * @return The latest parsed field.
+     *
+     * 获取最近一次解析的结果
      */
     public abstract T getLastResult();
 
@@ -126,6 +134,8 @@ public abstract class FieldParser<T> {
      * Returns an instance of the parsed value type.
      *
      * @return An instance of the parsed value type.
+     *
+     * 产生一个给定类型的新值
      */
     public abstract T createValue();
 
@@ -139,6 +149,7 @@ public abstract class FieldParser<T> {
      * @param startPos The index of the byte array where the check for the delimiter starts.
      * @param delim The delimiter to check for.
      * @return true if a delimiter starts at the given start position, false otherwise.
+     * 从目标位置开始 按照delim分割
      */
     public static final boolean delimiterNext(byte[] bytes, int startPos, byte[] delim) {
 
@@ -158,6 +169,8 @@ public abstract class FieldParser<T> {
      * @param endPos The index of the byte array where the check for the delimiter ends.
      * @param delim The delimiter to check for.
      * @return true if a delimiter ends at the given end position, false otherwise.
+     *
+     * 判断是否以delim结尾的
      */
     public static final boolean endsWithDelimiter(byte[] bytes, int endPos, byte[] delim) {
         if (endPos < delim.length - 1) {
@@ -195,6 +208,7 @@ public abstract class FieldParser<T> {
      * Returns the end position of a string. Sets the error state if the column is empty.
      *
      * @return the end position of the string or -1 if an error occurred
+     * 获取下一个分隔符开始的位置
      */
     protected final int nextStringEndPos(byte[] bytes, int startPos, int limit, byte[] delimiter) {
         int endPos = startPos;
@@ -219,6 +233,7 @@ public abstract class FieldParser<T> {
      * Returns the length of a string. Throws an exception if the column is empty.
      *
      * @return the length of the string
+     * 往下直到遇到下一个delimiter 此时返回limitedLength
      */
     protected static final int nextStringLength(
             byte[] bytes, int startPos, int length, char delimiter) {
@@ -263,6 +278,7 @@ public abstract class FieldParser<T> {
      *
      * @param type The class of the type to get the parser for.
      * @return The parser for the given type, or null, if no such parser exists.
+     * 根据类型获得解析器
      */
     public static <T> Class<FieldParser<T>> getParserForType(Class<T> type) {
         Class<? extends FieldParser<?>> parser = PARSERS.get(type);

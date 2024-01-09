@@ -194,6 +194,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * @see FSDataInputStream
  * @see FSDataOutputStream
+ *
+ * flink 所使用的文件系统 主要还是为了持久化状态的吧
  */
 @Public
 public abstract class FileSystem {
@@ -201,6 +203,7 @@ public abstract class FileSystem {
     /**
      * The possible write modes. The write mode decides what happens if a file should be created,
      * but already exists.
+     * 当文件存在时 选择覆盖 还是报错
      */
     public enum WriteMode {
 
@@ -225,25 +228,36 @@ public abstract class FileSystem {
     /**
      * This lock guards the methods {@link #initOutPathLocalFS(Path, WriteMode, boolean)} and {@link
      * #initOutPathDistFS(Path, WriteMode, boolean)} which are otherwise susceptible to races.
+     * 原子初始化输出目录
      */
     private static final ReentrantLock OUTPUT_DIRECTORY_INIT_LOCK = new ReentrantLock(true);
 
-    /** Object used to protect calls to specific methods. */
+    /** Object used to protect calls to specific methods.
+     * 用于一些需要原子调用的方法
+     * */
     private static final ReentrantLock LOCK = new ReentrantLock(true);
 
-    /** Cache for file systems, by scheme + authority. */
+    /** Cache for file systems, by scheme + authority.
+     * FSKey 用于标识不同的文件系统
+     * */
     private static final HashMap<FSKey, FileSystem> CACHE = new HashMap<>();
 
     /**
      * Mapping of file system schemes to the corresponding factories, populated in {@link
      * FileSystem#initialize(Configuration, PluginManager)}.
+     *
+     * 用于创建不同的文件系统
      */
     private static final HashMap<String, FileSystemFactory> FS_FACTORIES = new HashMap<>();
 
-    /** The default factory that is used when no scheme matches. */
+    /** The default factory that is used when no scheme matches.
+     * 默认使用 hadoop的文件系统
+     * */
     private static final FileSystemFactory FALLBACK_FACTORY = loadHadoopFsFactory();
 
-    /** All known plugins for a given scheme, do not fallback for those. */
+    /** All known plugins for a given scheme, do not fallback for those.
+     * 这是支持的所有文件系统插件
+     * */
     private static final Multimap<String, String> DIRECTLY_SUPPORTED_FILESYSTEM =
             ImmutableMultimap.<String, String>builder()
                     .put("wasb", "flink-fs-azure-hadoop")
@@ -258,12 +272,15 @@ public abstract class FileSystem {
                     .put("gs", "flink-gs-fs-hadoop")
                     .build();
 
-    /** Exceptions for DIRECTLY_SUPPORTED_FILESYSTEM. */
+    /** Exceptions for DIRECTLY_SUPPORTED_FILESYSTEM.
+     * 用于存放备选的文件系统
+     * */
     private static final Set<String> ALLOWED_FALLBACK_FILESYSTEMS = new HashSet<>();
 
     /**
      * The default filesystem scheme to be used, configured during process-wide initialization. This
      * value defaults to the local file systems scheme {@code 'file:///'} or {@code 'file:/'}.
+     * 默认文件系统的schema
      */
     private static URI defaultScheme;
 
@@ -293,6 +310,11 @@ public abstract class FileSystem {
         initializeWithoutPlugins(config);
     }
 
+    /**
+     * 使用配置对象对文件系统进行初始化
+     * @param config
+     * @throws IllegalConfigurationException
+     */
     private static void initializeWithoutPlugins(Configuration config)
             throws IllegalConfigurationException {
         initialize(config, null);
@@ -315,6 +337,8 @@ public abstract class FileSystem {
      * @param config the configuration from where to fetch the parameter.
      * @param pluginManager optional plugin manager that is used to initialized filesystems provided
      *     as plugins.
+     *
+     *                      对文件系统进行初始化
      */
     public static void initialize(Configuration config, @Nullable PluginManager pluginManager)
             throws IllegalConfigurationException {
@@ -322,12 +346,14 @@ public abstract class FileSystem {
         LOCK.lock();
         try {
             // make sure file systems are re-instantiated after re-configuration
+            // 清空缓存数据
             CACHE.clear();
             FS_FACTORIES.clear();
 
             Collection<Supplier<Iterator<FileSystemFactory>>> factorySuppliers = new ArrayList<>(2);
             factorySuppliers.add(() -> ServiceLoader.load(FileSystemFactory.class).iterator());
 
+            // 如果使用了插件管理器  借助插件管理器继续加载文件系统
             if (pluginManager != null) {
                 factorySuppliers.add(
                         () ->
@@ -336,23 +362,28 @@ public abstract class FileSystem {
                                         PluginFileSystemFactory::of));
             }
 
+            // 从suppliers函数中转换成  文件系统工厂
             final List<FileSystemFactory> fileSystemFactories =
                     loadFileSystemFactories(factorySuppliers);
 
             // configure all file system factories
             for (FileSystemFactory factory : fileSystemFactories) {
+                // 配置工厂
                 factory.configure(config);
                 String scheme = factory.getScheme();
 
+                // 按需包装连接限制
                 FileSystemFactory fsf =
                         ConnectionLimitingFactory.decorateIfLimited(factory, scheme, config);
                 FS_FACTORIES.put(scheme, fsf);
             }
 
             // configure the default (fallback) factory
+            // 配置默认的 hdfs文件系统
             FALLBACK_FACTORY.configure(config);
 
             // also read the default file system scheme
+            // 获取config中指定的 默认文件系统schema
             final String stringifiedUri =
                     config.getString(CoreOptions.DEFAULT_FILESYSTEM_SCHEME, null);
             if (stringifiedUri == null) {
@@ -370,6 +401,7 @@ public abstract class FileSystem {
                 }
             }
 
+            // 这个也要重新加载   表示允许使用的备选文件系统
             ALLOWED_FALLBACK_FILESYSTEMS.clear();
             final Iterable<String> allowedFallbackFilesystems =
                     Splitter.on(';')
@@ -390,6 +422,8 @@ public abstract class FileSystem {
      * Returns a reference to the {@link FileSystem} instance for accessing the local file system.
      *
      * @return a reference to the {@link FileSystem} instance for accessing the local file system.
+     *
+     * 本地文件系统 需要经过一层包装  会关联一个自动关闭的注册器
      */
     public static FileSystem getLocalFileSystem() {
         return FileSystemSafetyNet.wrapWithSafetyNetWhenActivated(
@@ -404,11 +438,19 @@ public abstract class FileSystem {
      * @return a reference to the {@link FileSystem} instance for accessing the file system
      *     identified by the given {@link URI}.
      * @throws IOException thrown if a reference to the file system instance could not be obtained
+     *
+     * 获取uri关联的文件系统   每个文件系统会关联一个uri   (uri变成 FSKey)
      */
     public static FileSystem get(URI uri) throws IOException {
         return FileSystemSafetyNet.wrapWithSafetyNetWhenActivated(getUnguardedFileSystem(uri));
     }
 
+    /**
+     * 获取无人看守的 文件系统
+     * @param fsUri
+     * @return
+     * @throws IOException
+     */
     @Internal
     public static FileSystem getUnguardedFileSystem(final URI fsUri) throws IOException {
         checkNotNull(fsUri, "file system URI");
@@ -421,6 +463,7 @@ public abstract class FileSystem {
                 uri = fsUri;
             } else {
                 // Apply the default fs scheme
+                // 获取默认的 schema
                 final URI defaultUri = getDefaultFsUri();
                 URI rewrittenUri = null;
 
@@ -480,9 +523,11 @@ public abstract class FileSystem {
                                 + "')");
             }
 
+            // 此时已经得到了uri  生成FSKey
             final FSKey key = new FSKey(uri.getScheme(), uri.getAuthority());
 
             // See if there is a file system object in the cache
+            // 先尝试从缓存获取
             {
                 FileSystem cached = CACHE.get(key);
                 if (cached != null) {
@@ -493,6 +538,7 @@ public abstract class FileSystem {
             // this "default" initialization makes sure that the FileSystem class works
             // even when not configured with an explicit Flink configuration, like on
             // JobManager or TaskManager setup
+            // 先加载文件系统
             if (FS_FACTORIES.isEmpty()) {
                 initializeWithoutPlugins(new Configuration());
             }
@@ -501,12 +547,16 @@ public abstract class FileSystem {
             final FileSystem fs;
             final FileSystemFactory factory = FS_FACTORIES.get(uri.getScheme());
 
+            // 缓存中没有 就要首次进行创建
             if (factory != null) {
                 ClassLoader classLoader = factory.getClassLoader();
+                // 使用专用的类加载器进行加载
                 try (TemporaryClassLoaderContext ignored =
                         TemporaryClassLoaderContext.of(classLoader)) {
                     fs = factory.create(uri);
                 }
+
+                // 当没有找到时 且不在ALLOWED_FALLBACK_FILESYSTEMS 抛异常
             } else if (!ALLOWED_FALLBACK_FILESYSTEMS.contains(uri.getScheme())
                     && DIRECTLY_SUPPORTED_FILESYSTEM.containsKey(uri.getScheme())) {
                 final Collection<String> plugins =
@@ -522,6 +572,7 @@ public abstract class FileSystem {
                                         + "please see https://nightlies.apache.org/flink/flink-docs-stable/ops/filesystems/.",
                                 uri.getScheme(), String.join(", ", plugins)));
             } else {
+                // 从 fallback中找到   默认使用hdfs
                 try {
                     fs = FALLBACK_FACTORY.create(uri);
                 } catch (UnsupportedFileSystemSchemeException e) {
@@ -549,6 +600,7 @@ public abstract class FileSystem {
                 }
             }
 
+            // 加入缓存 避免重复加载
             CACHE.put(key, fs);
             return fs;
         } finally {
@@ -592,6 +644,7 @@ public abstract class FileSystem {
      * Returns a URI whose scheme and authority identify this file system.
      *
      * @return a URI whose scheme and authority identify this file system
+     * 文件系统的uri 就是记录schema和authority的
      */
     public abstract URI getUri();
 
@@ -602,6 +655,7 @@ public abstract class FileSystem {
      * @return a FileStatus object
      * @throws FileNotFoundException when the path does not exist; IOException see specific
      *     implementation
+     *     获取该路径相关的文件状态
      */
     public abstract FileStatus getFileStatus(Path f) throws IOException;
 
@@ -610,6 +664,7 @@ public abstract class FileSystem {
      * nonexistent file or regions, null will be returned. This call is most helpful with DFS, where
      * it returns hostnames of machines that contain the given file. The FileSystem will simply
      * return an elt containing 'localhost'.
+     * 获取文件这部分数据的文件块位置
      */
     public abstract BlockLocation[] getFileBlockLocations(FileStatus file, long start, long len)
             throws IOException;
@@ -641,6 +696,8 @@ public abstract class FileSystem {
      *
      * @return A RecoverableWriter for this file system.
      * @throws IOException Thrown, if the recoverable writer cannot be instantiated.
+     *
+     * 创建一个可恢复的写入对象
      */
     public RecoverableWriter createRecoverableWriter() throws IOException {
         throw new UnsupportedOperationException(
@@ -654,6 +711,7 @@ public abstract class FileSystem {
      * @return the number of bytes that large input files should be optimally be split into to
      *     minimize I/O time
      * @deprecated This value is no longer used and is meaningless.
+     * 默认一个数据块的大小为32MB
      */
     @Deprecated
     public long getDefaultBlockSize() {
@@ -666,6 +724,7 @@ public abstract class FileSystem {
      * @param f given path
      * @return the statuses of the files/directories in the given path
      * @throws IOException
+     * path 需要是个目录
      */
     public abstract FileStatus[] listStatus(Path f) throws IOException;
 
@@ -778,6 +837,7 @@ public abstract class FileSystem {
      * that all these processes can see the same files.
      *
      * @return True, if this is a distributed file system, false otherwise.
+     * 是否使用了分布式文件系统
      */
     public abstract boolean isDistributedFS();
 
@@ -833,9 +893,12 @@ public abstract class FileSystem {
      *     space for a file.
      * @return True, if the path was successfully prepared, false otherwise.
      * @throws IOException Thrown, if any of the file system access operations failed.
+     *
+     * 在本地文件系统初始化目录
      */
     public boolean initOutPathLocalFS(Path outPath, WriteMode writeMode, boolean createDirectory)
             throws IOException {
+        // 分布式文件系统 返回false
         if (isDistributedFS()) {
             return false;
         }
@@ -860,6 +923,8 @@ public abstract class FileSystem {
         }
 
         try {
+
+            // 先查看之前的文件状态
             FileStatus status;
             try {
                 status = getFileStatus(outPath);
@@ -877,6 +942,7 @@ public abstract class FileSystem {
                             return true;
                         } else {
                             // file may not be overwritten
+                            // 使用该mode 会抛异常
                             throw new IOException(
                                     "File or directory "
                                             + outPath
@@ -896,6 +962,7 @@ public abstract class FileSystem {
                             } else {
                                 // we will write in a single file, delete directory
                                 try {
+                                    // 先删除旧文件
                                     delete(outPath, true);
                                 } catch (IOException e) {
                                     throw new IOException(
@@ -924,6 +991,7 @@ public abstract class FileSystem {
                 }
             }
 
+            // 开始创建文件 or 目录
             if (createDirectory) {
                 // Output directory needs to be created
                 if (!exists(outPath)) {
@@ -939,6 +1007,7 @@ public abstract class FileSystem {
             } else {
                 // check that the output path does not exist and an output file
                 // can be created by the output format.
+                // TODO 没有创建文件呀
                 return !exists(outPath);
             }
         } finally {
@@ -967,6 +1036,7 @@ public abstract class FileSystem {
      * @param createDirectory True, to initialize a directory at the given path, false otherwise.
      * @return True, if the path was successfully prepared, false otherwise.
      * @throws IOException Thrown, if any of the file system access operations failed.
+     * 创建分布式文件/目录 基本同local创建
      */
     public boolean initOutPathDistFS(Path outPath, WriteMode writeMode, boolean createDirectory)
             throws IOException {
@@ -1055,6 +1125,7 @@ public abstract class FileSystem {
      * LocalFileSystem}, these file systems are loaded via Java's service framework.
      *
      * @return A map from the file system scheme to corresponding file system factory.
+     * 借助函数产生并收集文件系统工厂
      */
     private static List<FileSystemFactory> loadFileSystemFactories(
             Collection<Supplier<Iterator<FileSystemFactory>>> factoryIteratorsSuppliers) {
@@ -1062,6 +1133,7 @@ public abstract class FileSystem {
         final ArrayList<FileSystemFactory> list = new ArrayList<>();
 
         // by default, we always have the local file system factory
+        // 添加一个默认工厂
         list.add(new LocalFileSystemFactory());
 
         LOG.debug("Loading extension file systems via services");
@@ -1081,6 +1153,11 @@ public abstract class FileSystem {
         return Collections.unmodifiableList(list);
     }
 
+    /**
+     * 将文件系统工厂加入到list
+     * @param iter
+     * @param list
+     */
     private static void addAllFactoriesToList(
             Iterator<FileSystemFactory> iter, List<FileSystemFactory> list) {
         // we explicitly use an iterator here (rather than for-each) because that way
@@ -1110,8 +1187,10 @@ public abstract class FileSystem {
      *
      * <p>This method does a set of eager checks for availability of certain classes, to be able to
      * give better error messages.
+     * 使用hadoop的文件系统   应该就是hdfs吧
      */
     private static FileSystemFactory loadHadoopFsFactory() {
+        // 通过类加载器  加载相关类
         final ClassLoader cl = FileSystem.class.getClassLoader();
 
         // first, see if the Flink runtime classes are available
@@ -1155,13 +1234,19 @@ public abstract class FileSystem {
 
     // ------------------------------------------------------------------------
 
-    /** An identifier of a file system, via its scheme and its authority. */
+    /** An identifier of a file system, via its scheme and its authority.
+     * 表示不同的文件系统
+     * */
     private static final class FSKey {
 
-        /** The scheme of the file system. */
+        /** The scheme of the file system.
+         * 不同文件系统使用的 schema不同
+         * */
         private final String scheme;
 
-        /** The authority of the file system. */
+        /** The authority of the file system.
+         * 是否理解为优先级?
+         * */
         @Nullable private final String authority;
 
         /**

@@ -33,6 +33,7 @@ import java.util.List;
  *
  * <p>NOTE: This class assumes to be used within a composite type comparator (such as {@link
  * RowComparator}) that handles serialized comparison.
+ * 也是一层包装 使得内部类型支持null
  */
 @Internal
 public class NullAwareComparator<T> extends TypeComparator<T> {
@@ -45,6 +46,7 @@ public class NullAwareComparator<T> extends TypeComparator<T> {
     private final int flatFields;
 
     // stores the null for reference comparison
+    // 表示此时被设置了一个null
     private boolean nullReference = false;
 
     public NullAwareComparator(TypeComparator<T> wrappedComparator, boolean order) {
@@ -232,6 +234,7 @@ public class NullAwareComparator<T> extends TypeComparator<T> {
             flatComparators.add(wrappedComparator);
         }
 
+        // 为每个对象包装一层
         TypeComparator<?>[] result = new TypeComparator[flatComparators.size()];
         for (int i = 0; i < result.length; i++) {
             result[i] = new NullAwareComparator<>(flatComparators.get(i), order);

@@ -28,6 +28,7 @@ import java.io.InputStream;
  *
  * <p>This extends the {@link java.io.InputStream} with methods for accessing the stream's {@link
  * #getPos() current position} and {@link #seek(long) seeking} to a desired position.
+ * 表示一个可以寻址和获取偏移量的输入流
  */
 @Public
 public abstract class FSDataInputStream extends InputStream {
@@ -47,6 +48,7 @@ public abstract class FSDataInputStream extends InputStream {
      * @return current position in the input stream
      * @throws IOException Thrown if an I/O error occurred in the underlying stream implementation
      *     while accessing the stream's position.
+     *     获取当前偏移量
      */
     public abstract long getPos() throws IOException;
 }

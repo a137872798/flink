@@ -37,6 +37,10 @@ public class GuavaRateLimiter
             Executors.newSingleThreadExecutor(new ExecutorThreadFactory("flink-rate-limiter"));
     private final RateLimiter rateLimiter;
 
+    /**
+     * 表示每多少秒产生一个凭证
+     * @param maxPerSecond
+     */
     public GuavaRateLimiter(double maxPerSecond) {
         this.rateLimiter = RateLimiter.create(maxPerSecond);
     }

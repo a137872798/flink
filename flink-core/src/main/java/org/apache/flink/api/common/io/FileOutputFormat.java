@@ -36,6 +36,7 @@ import java.io.IOException;
 /**
  * The abstract base class for all Rich output formats that are file based. Contains the logic to
  * open/close the target file streams.
+ * 代表以文件格式输出 比如HDFS
  */
 @Public
 public abstract class FileOutputFormat<IT> extends RichOutputFormat<IT>
@@ -45,21 +46,28 @@ public abstract class FileOutputFormat<IT> extends RichOutputFormat<IT>
 
     // --------------------------------------------------------------------------------------------
 
-    /** Behavior for creating output directories. */
+    /** Behavior for creating output directories.
+     * 创建输出目录的行为 */
     public static enum OutputDirectoryMode {
 
-        /** A directory is always created, regardless of number of write tasks. */
+        /** A directory is always created, regardless of number of write tasks.
+         * 无论写任务数量 目录总会被创建
+         * */
         ALWAYS,
 
         /**
          * A directory is only created for parallel output tasks, i.e., number of output tasks &gt;
          * 1. If number of output tasks = 1, the output is written to a single file.
+         * 只有当输出任务数量 > 1 时 才会创建目录   否则写入单个文件
          */
         PARONLY
     }
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 文件写入模式 分为覆盖写 和 不覆盖
+     */
     private static WriteMode DEFAULT_WRITE_MODE;
 
     private static OutputDirectoryMode DEFAULT_OUTPUT_DIRECTORY_MODE;
@@ -73,6 +81,7 @@ public abstract class FileOutputFormat<IT> extends RichOutputFormat<IT>
      * for local cluster execution.
      *
      * @param configuration The configuration to load defaults from
+     *                      从配置中加载一些属性
      */
     public static void initDefaultsFromConfiguration(Configuration configuration) {
         final boolean overwrite = configuration.getBoolean(CoreOptions.FILESYTEM_DEFAULT_OVERRIDE);
@@ -94,7 +103,7 @@ public abstract class FileOutputFormat<IT> extends RichOutputFormat<IT>
     /** The key under which the name of the target path is stored in the configuration. */
     public static final String FILE_PARAMETER_KEY = "flink.output.file";
 
-    /** The path of the file to be written. */
+    /** The path of the file to be written. 输出内容的存储路径 */
     protected Path outputFilePath;
 
     /** The write mode of the output. */
@@ -105,18 +114,18 @@ public abstract class FileOutputFormat<IT> extends RichOutputFormat<IT>
 
     // --------------------------------------------------------------------------------------------
 
-    /** The stream to which the data is written; */
+    /** The stream to which the data is written; flink 自己封装的输出流 */
     protected transient FSDataOutputStream stream;
 
     /**
      * The path that is actually written to (may a a file in a the directory defined by {@code
-     * outputFilePath} )
+     * outputFilePath} )   存储结果的路径    看到当使用HDFS时 会使用这个路径
      */
     private transient Path actualFilePath;
 
     /**
      * Flag indicating whether this format actually created a file, which should be removed on
-     * cleanup.
+     * cleanup.   是否真实的创建了一个文件  (当失败时是否要清理)
      */
     private transient boolean fileCreated;
 
@@ -178,6 +187,7 @@ public abstract class FileOutputFormat<IT> extends RichOutputFormat<IT>
                                 + ", nor via the Configuration.");
             }
 
+            // 从配置中读取输出文件路径
             try {
                 this.outputFilePath = new Path(filePath);
             } catch (RuntimeException rex) {
@@ -197,8 +207,15 @@ public abstract class FileOutputFormat<IT> extends RichOutputFormat<IT>
         }
     }
 
+    /**
+     *
+     * @param taskNumber The number of the parallel instance.
+     * @param numTasks The number of parallel tasks.
+     * @throws IOException
+     */
     @Override
     public void open(int taskNumber, int numTasks) throws IOException {
+        // 任务参数有问题
         if (taskNumber < 0 || numTasks < 1) {
             throw new IllegalArgumentException(
                     "TaskNumber: " + taskNumber + ", numTasks: " + numTasks);
@@ -216,6 +233,7 @@ public abstract class FileOutputFormat<IT> extends RichOutputFormat<IT>
                             + outputDirectoryMode);
         }
 
+        // 没有指定输出路径
         Path p = this.outputFilePath;
         if (p == null) {
             throw new IOException("The file path is null.");
@@ -224,13 +242,16 @@ public abstract class FileOutputFormat<IT> extends RichOutputFormat<IT>
         final FileSystem fs = p.getFileSystem();
 
         // if this is a local file system, we need to initialize the local output directory here
+        // 非 HDFS 而是本地文件系统
         if (!fs.isDistributedFS()) {
 
+            // 不需要创建目录 直接生成文件即可
             if (numTasks == 1 && outputDirectoryMode == OutputDirectoryMode.PARONLY) {
                 // output should go to a single file
 
                 // prepare local output path. checks for write mode and removes existing files in
                 // case of OVERWRITE mode
+                // 创建失败
                 if (!fs.initOutPathLocalFS(p, writeMode, false)) {
                     // output preparation failed! Cancel task.
                     throw new IOException(
@@ -241,6 +262,7 @@ public abstract class FileOutputFormat<IT> extends RichOutputFormat<IT>
             } else {
                 // numTasks > 1 || outDirMode == OutputDirectoryMode.ALWAYS
 
+                // 创建目录
                 if (!fs.initOutPathLocalFS(p, writeMode, true)) {
                     // output preparation failed! Cancel task.
                     throw new IOException(
@@ -252,6 +274,7 @@ public abstract class FileOutputFormat<IT> extends RichOutputFormat<IT>
         }
 
         // Suffix the path with the parallel instance index, if needed
+        // 根据配置选择生成目录 还是 文件
         this.actualFilePath =
                 (numTasks > 1 || outputDirectoryMode == OutputDirectoryMode.ALWAYS)
                         ? p.suffix("/" + getDirectoryFileName(taskNumber))
@@ -264,6 +287,11 @@ public abstract class FileOutputFormat<IT> extends RichOutputFormat<IT>
         this.fileCreated = true;
     }
 
+    /**
+     * 创建目录文件
+     * @param taskNumber
+     * @return
+     */
     protected String getDirectoryFileName(int taskNumber) {
         return Integer.toString(taskNumber + 1);
     }
@@ -281,6 +309,8 @@ public abstract class FileOutputFormat<IT> extends RichOutputFormat<IT>
      * Initialization of the distributed file system if it is used.
      *
      * @param parallelism The task parallelism.
+     *
+     *                    output需要一个初始化行为
      */
     @Override
     public void initializeGlobal(int parallelism) throws IOException {
@@ -290,6 +320,7 @@ public abstract class FileOutputFormat<IT> extends RichOutputFormat<IT>
         // only distributed file systems can be initialized at start-up time.
         if (fs.isDistributedFS()) {
 
+            // 根据情况创建目录/文件
             final WriteMode writeMode = getWriteMode();
             final OutputDirectoryMode outDirMode = getOutputDirectoryMode();
 
@@ -314,16 +345,19 @@ public abstract class FileOutputFormat<IT> extends RichOutputFormat<IT>
 
     @Override
     public void tryCleanupOnError() {
+        // 当出现异常 准备进行清理时
         if (this.fileCreated) {
             this.fileCreated = false;
 
             try {
+                // 发现文件已经创建  进行关闭
                 close();
             } catch (IOException e) {
                 LOG.error("Could not properly close FileOutputFormat.", e);
             }
 
             try {
+                // 删除远端文件
                 FileSystem.get(this.actualFilePath.toUri()).delete(actualFilePath, false);
             } catch (FileNotFoundException e) {
                 // ignore, may not be visible yet or may be already removed

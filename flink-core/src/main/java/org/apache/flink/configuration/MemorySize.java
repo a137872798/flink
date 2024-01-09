@@ -44,6 +44,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>The size can be parsed from a text expression. If the expression is a pure number, the value
  * will be interpreted as bytes.
+ * 表示内存大小
  */
 @PublicEvolving
 public class MemorySize implements java.io.Serializable, Comparable<MemorySize> {
@@ -59,13 +60,13 @@ public class MemorySize implements java.io.Serializable, Comparable<MemorySize> 
 
     // ------------------------------------------------------------------------
 
-    /** The memory size, in bytes. */
+    /** The memory size, in bytes. 以字节来描述内存大小 */
     private final long bytes;
 
-    /** The memorized value returned by toString(). */
+    /** The memorized value returned by toString(). 格式化输出 */
     private transient String stringified;
 
-    /** The memorized value returned by toHumanReadableString(). */
+    /** The memorized value returned by toHumanReadableString(). 格式化输出 */
     private transient String humanReadableStr;
 
     /**
@@ -82,7 +83,7 @@ public class MemorySize implements java.io.Serializable, Comparable<MemorySize> 
         return new MemorySize(mebiBytes << 20);
     }
 
-    // ------------------------------------------------------------------------
+    // ------------------------------------------------------------------------  下面是一些单位的转换
 
     /** Gets the memory size in bytes. */
     public long getBytes() {
@@ -192,7 +193,7 @@ public class MemorySize implements java.io.Serializable, Comparable<MemorySize> 
     }
 
     // ------------------------------------------------------------------------
-    //  Calculations
+    //  Calculations    将2个内存大小进行计算  得到一个新的MemorySize
     // ------------------------------------------------------------------------
 
     public MemorySize add(MemorySize that) {

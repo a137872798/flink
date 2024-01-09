@@ -38,6 +38,8 @@ public final class LocalDateTimeComparator extends TypeComparator<LocalDateTime>
 
     private transient LocalDateTime reference;
 
+    // 把日期和时间组合起来
+
     protected final boolean ascendingComparison;
     protected final LocalDateComparator dateComparator;
     protected final LocalTimeComparator timeComparator;
@@ -116,6 +118,7 @@ public final class LocalDateTimeComparator extends TypeComparator<LocalDateTime>
     @Override
     public int compareSerialized(DataInputView firstSource, DataInputView secondSource)
             throws IOException {
+        // 分别比较
         int cmp = dateComparator.compareSerialized(firstSource, secondSource);
         if (cmp == 0) {
             cmp = timeComparator.compareSerialized(firstSource, secondSource);

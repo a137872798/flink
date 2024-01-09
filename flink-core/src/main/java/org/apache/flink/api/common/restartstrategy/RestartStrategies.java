@@ -35,6 +35,8 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>The RestartStrategyConfigurations are used to decouple the core module from the runtime
  * module.
+ *
+ * 表示重启策略  都只是简单的bean对象 没有逻辑
  */
 @PublicEvolving
 public class RestartStrategies {
@@ -43,11 +45,16 @@ public class RestartStrategies {
      * Generates NoRestartStrategyConfiguration.
      *
      * @return NoRestartStrategyConfiguration
+     * 返回一个标注不需要重启的重启策略
      */
     public static RestartStrategyConfiguration noRestart() {
         return new NoRestartStrategyConfiguration();
     }
 
+    /**
+     * 进行集群级别的重启
+     * @return
+     */
     public static RestartStrategyConfiguration fallBackRestart() {
         return new FallbackRestartStrategyConfiguration();
     }
@@ -59,6 +66,8 @@ public class RestartStrategies {
      * @param delayBetweenAttempts Delay in-between restart attempts for the
      *     FixedDelayRestartStrategy
      * @return FixedDelayRestartStrategy
+     *
+     * 在间隔固定的时间后重启
      */
     public static RestartStrategyConfiguration fixedDelayRestart(
             int restartAttempts, long delayBetweenAttempts) {
@@ -100,6 +109,7 @@ public class RestartStrategies {
      * @param backoffMultiplier Delay multiplier how many times is the delay longer than before
      * @param resetBackoffThreshold How long the job must run smoothly to reset the time interval
      * @param jitterFactor How much the delay may differ (in percentage)
+     *                     将各个参数组合 变成了  指数重启对象
      */
     public static ExponentialDelayRestartStrategyConfiguration exponentialDelayRestart(
             Time initialBackoff,
@@ -111,7 +121,9 @@ public class RestartStrategies {
                 initialBackoff, maxBackoff, backoffMultiplier, resetBackoffThreshold, jitterFactor);
     }
 
-    /** Abstract configuration for restart strategies. */
+    /** Abstract configuration for restart strategies.
+     * 重启策略配置
+     * */
     public abstract static class RestartStrategyConfiguration implements Serializable {
         private static final long serialVersionUID = 6285853591578313960L;
 
@@ -121,6 +133,7 @@ public class RestartStrategies {
          * Returns a description which is shown in the web interface.
          *
          * @return Description of the restart strategy
+         * 返回描述信息
          */
         public abstract String getDescription();
 
@@ -130,7 +143,9 @@ public class RestartStrategies {
         }
     }
 
-    /** Configuration representing no restart strategy. */
+    /** Configuration representing no restart strategy.
+     * 表示不需要重启的策略
+     * */
     public static final class NoRestartStrategyConfiguration extends RestartStrategyConfiguration {
         private static final long serialVersionUID = -5894362702943349962L;
 
@@ -153,12 +168,21 @@ public class RestartStrategies {
         }
     }
 
-    /** Configuration representing a fixed delay restart strategy. */
+    /** Configuration representing a fixed delay restart strategy.
+     * 在一定延时后 重启
+     * */
     public static final class FixedDelayRestartStrategyConfiguration
             extends RestartStrategyConfiguration {
         private static final long serialVersionUID = 4149870149673363190L;
 
+        /**
+         * 重试次数
+         */
         private final int restartAttempts;
+
+        /**
+         * 间隔多久后 开始重试
+         */
         private final Time delayBetweenAttemptsInterval;
 
         FixedDelayRestartStrategyConfiguration(
@@ -291,13 +315,26 @@ public class RestartStrategies {
         }
     }
 
-    /** Configuration representing a failure rate restart strategy. */
+    /** Configuration representing a failure rate restart strategy.
+     * 根据失败比率判断是否要重试
+     * */
     public static final class FailureRateRestartStrategyConfiguration
             extends RestartStrategyConfiguration {
         private static final long serialVersionUID = 1195028697539661739L;
+
+        /**
+         * 最大失败比率
+         */
         private final int maxFailureRate;
 
+        /**
+         * 失败间隔时间
+         */
         private final Time failureInterval;
+
+        /**
+         * 多久后重试
+         */
         private final Time delayBetweenAttemptsInterval;
 
         public FailureRateRestartStrategyConfiguration(
@@ -354,6 +391,7 @@ public class RestartStrategies {
      * Restart strategy configuration that could be used by jobs to use cluster level restart
      * strategy. Useful especially when one has a custom implementation of restart strategy set via
      * flink-conf.yaml.
+     * 可以进行集群级别的重启
      */
     public static final class FallbackRestartStrategyConfiguration
             extends RestartStrategyConfiguration {
@@ -391,6 +429,13 @@ public class RestartStrategies {
                 .map(confName -> parseConfiguration(confName, configuration));
     }
 
+
+    /**
+     * 从配置对象中解析  并产生重试策略对象
+     * @param restartstrategyKind
+     * @param configuration
+     * @return
+     */
     private static RestartStrategyConfiguration parseConfiguration(
             String restartstrategyKind, ReadableConfig configuration) {
         switch (restartstrategyKind.toLowerCase()) {

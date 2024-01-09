@@ -24,6 +24,9 @@ import org.apache.flink.core.memory.MemorySegment;
 
 import java.io.IOException;
 
+/**
+ * 比较byte对象
+ */
 @Internal
 public final class ByteComparator extends BasicTypeComparator<Byte> {
 

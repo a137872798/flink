@@ -27,6 +27,10 @@ import java.util.concurrent.CompletionStage;
 @Internal
 public class NoOpRateLimiter implements RateLimiter {
 
+    /**
+     * 总是能立即返回 代表总能获得凭证
+     * @return
+     */
     @Override
     public CompletionStage<Void> acquire() {
         return FutureUtils.completedVoidFuture();

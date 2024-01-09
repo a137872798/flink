@@ -33,6 +33,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * A serializer for arrays of objects.
  *
  * @param <C> The component type.
+ *           代表一般的对象数组的 序列化对象
  */
 @Internal
 public final class GenericArraySerializer<C> extends TypeSerializer<C[]> {
@@ -41,6 +42,9 @@ public final class GenericArraySerializer<C> extends TypeSerializer<C[]> {
 
     private final Class<C> componentClass;
 
+    /**
+     * 用于将内部元素序列化
+     */
     private final TypeSerializer<C> componentSerializer;
 
     private transient C[] EMPTY;
@@ -91,6 +95,7 @@ public final class GenericArraySerializer<C> extends TypeSerializer<C[]> {
         if (serializer.isImmutableType()) {
             return Arrays.copyOf(from, from.length);
         } else {
+            // 可变就要创建副本 避免原对象被修改
             C[] copy = create(from.length);
             for (int i = 0; i < copy.length; i++) {
                 C val = from[i];
@@ -121,6 +126,7 @@ public final class GenericArraySerializer<C> extends TypeSerializer<C[]> {
                 target.writeBoolean(false);
             } else {
                 target.writeBoolean(true);
+                // 有关元素的序列化被委托给 componentSerializer
                 componentSerializer.serialize(val, target);
             }
         }
@@ -130,6 +136,7 @@ public final class GenericArraySerializer<C> extends TypeSerializer<C[]> {
     public C[] deserialize(DataInputView source) throws IOException {
         int len = source.readInt();
 
+        // 逆向操作
         C[] array = create(len);
 
         for (int i = 0; i < len; i++) {

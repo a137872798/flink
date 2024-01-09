@@ -143,6 +143,15 @@ public final class LocalDateComparator extends TypeComparator<LocalDate> impleme
     //                           Static Helpers for Date Comparison
     // --------------------------------------------------------------------------------------------
 
+
+    /**
+     * 序列化时  分为3部分
+     * @param firstSource
+     * @param secondSource
+     * @param ascendingComparison
+     * @return
+     * @throws IOException
+     */
     public static int compareSerializedLocalDate(
             DataInputView firstSource, DataInputView secondSource, boolean ascendingComparison)
             throws IOException {

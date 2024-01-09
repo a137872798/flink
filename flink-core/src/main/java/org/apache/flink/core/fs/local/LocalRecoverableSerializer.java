@@ -28,7 +28,9 @@ import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
-/** Simple serializer for the {@link LocalRecoverable}. */
+/** Simple serializer for the {@link LocalRecoverable}.
+ * 用于本地文件系统恢复数据的对象 也要支持序列化
+ * */
 @Internal
 class LocalRecoverableSerializer implements SimpleVersionedSerializer<LocalRecoverable> {
 
@@ -53,6 +55,7 @@ class LocalRecoverableSerializer implements SimpleVersionedSerializer<LocalRecov
         final byte[] targetBytes = new byte[20 + targetFileBytes.length + tempFileBytes.length];
 
         ByteBuffer bb = ByteBuffer.wrap(targetBytes).order(ByteOrder.LITTLE_ENDIAN);
+        // 前20位是预留的
         bb.putInt(MAGIC_NUMBER);
         bb.putLong(obj.offset());
         bb.putInt(targetFileBytes.length);

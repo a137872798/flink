@@ -30,6 +30,7 @@ import java.util.NoSuchElementException;
  * type.
  *
  * @param <T> The type returned by the iterator.
+ *           将多个迭代器组合在一起
  */
 @Internal
 public class UnionIterator<T> implements Iterator<T>, Iterable<T> {
@@ -67,6 +68,7 @@ public class UnionIterator<T> implements Iterator<T>, Iterable<T> {
 
     @Override
     public Iterator<T> iterator() {
+        // 表示该方法仅能调用该一次
         if (iteratorAvailable) {
             iteratorAvailable = false;
             return this;

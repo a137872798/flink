@@ -29,6 +29,7 @@ import org.apache.flink.api.common.typeutils.TypeComparator;
  *
  * <p>In contrast to atomic types are composite types, where the type information is aware of the
  * individual fields and individual fields may be used as a key.
+ * 原子类型 表示一个不可被拆分的类型 一般可以作为键(key)
  */
 @Public
 public interface AtomicType<T> {
@@ -40,7 +41,11 @@ public interface AtomicType<T> {
      *     false, if the comparator should define the order to be descending.
      * @param executionConfig The config from which the comparator will be parametrized.
      *     Parametrization includes for example registration of class tags for frameworks like Kryo.
+     *
+     *                        这里包含了各种配置
      * @return A comparator for this type.
+     *
+     * 创建key相关的比较器
      */
     TypeComparator<T> createComparator(boolean sortOrderAscending, ExecutionConfig executionConfig);
 }

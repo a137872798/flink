@@ -62,10 +62,12 @@ public final class LocalDateSerializer extends TypeSerializerSingleton<LocalDate
 
     @Override
     public void serialize(LocalDate record, DataOutputView target) throws IOException {
+        // 这样2种情况占用的字节数是一样的
         if (record == null) {
             target.writeInt(Integer.MIN_VALUE);
             target.writeShort(Short.MIN_VALUE);
         } else {
+            // 写入 年月日
             target.writeInt(record.getYear());
             target.writeByte(record.getMonthValue());
             target.writeByte(record.getDayOfMonth());
@@ -75,6 +77,7 @@ public final class LocalDateSerializer extends TypeSerializerSingleton<LocalDate
     @Override
     public LocalDate deserialize(DataInputView source) throws IOException {
         final int year = source.readInt();
+        // 已经代表是null了 要把下一个short也读取出来
         if (year == Integer.MIN_VALUE) {
             source.readShort();
             return null;

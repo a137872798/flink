@@ -22,24 +22,32 @@ import org.apache.flink.annotation.PublicEvolving;
 
 import java.math.BigDecimal;
 
-/** Parses a text field into a {@link java.math.BigDecimal}. */
+/** Parses a text field into a {@link java.math.BigDecimal}.
+ * 从字节流中解析出BigDecimal
+ * */
 @PublicEvolving
 public class BigDecParser extends FieldParser<BigDecimal> {
 
     private static final BigDecimal BIG_DECIMAL_INSTANCE = BigDecimal.ZERO;
 
+    /**
+     * 保存最近一次解析出的结果
+     */
     private BigDecimal result;
     private char[] reuse = null;
 
     @Override
     public int parseField(
             byte[] bytes, int startPos, int limit, byte[] delimiter, BigDecimal reusable) {
+
+        // 获取在下个分隔符之前的数据
         final int endPos = nextStringEndPos(bytes, startPos, limit, delimiter);
         if (endPos < 0) {
             return -1;
         }
 
         try {
+            // 中间的部分代表长度
             final int length = endPos - startPos;
             if (reuse == null || reuse.length < length) {
                 reuse = new char[length];

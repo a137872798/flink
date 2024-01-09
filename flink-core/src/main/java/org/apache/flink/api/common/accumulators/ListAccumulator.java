@@ -26,6 +26,7 @@ import java.util.ArrayList;
  * This accumulator stores a collection of objects.
  *
  * @param <T> The type of the accumulated objects
+ *           列表累加器 就是将元素添加到list中
  */
 @Public
 public class ListAccumulator<T> implements Accumulator<T, ArrayList<T>> {

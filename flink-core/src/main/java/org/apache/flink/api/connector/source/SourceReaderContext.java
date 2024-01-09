@@ -23,29 +23,37 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.metrics.groups.SourceReaderMetricGroup;
 import org.apache.flink.util.UserCodeClassLoader;
 
-/** The interface that exposes some context from runtime to the {@link SourceReader}. */
+/** The interface that exposes some context from runtime to the {@link SourceReader}.
+ * SourceReader 对象所持有的上下文
+ * */
 @Public
 public interface SourceReaderContext {
 
     /** @return The metric group this source belongs to. */
     SourceReaderMetricGroup metricGroup();
 
-    /** Gets the configuration with which Flink was started. */
+    /** Gets the configuration with which Flink was started.
+     * reader启动时 相关的flink配置
+     * */
     Configuration getConfiguration();
 
     /**
      * Gets the hostname of the machine where this reader is executed. This can be used to request
      * splits local to the machine, if needed.
+     * 获取执行reader的机器主机名
      */
     String getLocalHostName();
 
-    /** @return The index of this subtask. */
+    /** @return The index of this subtask.
+     * 看来一个reader被认为是一个子任务 现在获取子任务的index
+     * */
     int getIndexOfSubtask();
 
     /**
      * Sends a split request to the source's {@link SplitEnumerator}. This will result in a call to
      * the {@link SplitEnumerator#handleSplitRequest(int, String)} method, with this reader's
      * parallel subtask id and the hostname where this reader runs.
+     * 发送请求让reader产生split  这样才能从上游读取数据
      */
     void sendSplitRequest();
 
@@ -53,6 +61,7 @@ public interface SourceReaderContext {
      * Send a source event to the source coordinator.
      *
      * @param sourceEvent the source event to coordinator.
+     *                    发送一个 Source事件到协调者对象
      */
     void sendSourceEventToCoordinator(SourceEvent sourceEvent);
 
@@ -61,6 +70,7 @@ public interface SourceReaderContext {
      * are part of the jar file of a user job.
      *
      * @see UserCodeClassLoader
+     * 获取类加载器
      */
     UserCodeClassLoader getUserCodeClassLoader();
 

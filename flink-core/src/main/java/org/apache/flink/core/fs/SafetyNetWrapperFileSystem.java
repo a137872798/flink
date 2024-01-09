@@ -32,10 +32,15 @@ import java.net.URI;
  *
  * <p>Streams obtained by this are therefore managed by the {@link SafetyNetCloseableRegistry} to
  * prevent resource leaks from unclosed streams.
+ *
+ * 通过该文件系统创建的 input/output 会注册到自动关闭的对象中
  */
 @Internal
 public class SafetyNetWrapperFileSystem extends FileSystem implements WrappingProxy<FileSystem> {
 
+    /**
+     * 该对象会做兜底的close
+     */
     private final SafetyNetCloseableRegistry registry;
     private final FileSystem unsafeFileSystem;
 

@@ -29,6 +29,8 @@ import java.util.jar.JarFile;
 /**
  * Utilities for information with respect to class loaders, specifically class loaders for the
  * dynamic loading of user defined classes.
+ *
+ * 提供一些工具方法
  */
 @Internal
 public final class ClassLoaderUtil {
@@ -60,6 +62,7 @@ public final class ClassLoaderUtil {
                     bld.append("URL ClassLoader:");
                 }
 
+                // 格式化urls信息
                 for (URL url : cl.getURLs()) {
                     bld.append(formatURL(url));
                 }

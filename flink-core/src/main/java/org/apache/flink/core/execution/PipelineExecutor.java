@@ -24,7 +24,10 @@ import org.apache.flink.configuration.Configuration;
 
 import java.util.concurrent.CompletableFuture;
 
-/** The entity responsible for executing a {@link Pipeline}, i.e. a user job. */
+/** The entity responsible for executing a {@link Pipeline}, i.e. a user job.
+ * 管道执行器  在声明一个管道 和相关的配置后  会产生一个JobClient  可以通过它来查看job的情况 以及获取执行结果
+ * 执行器 感觉是前端使用 用于提交任务的  协调者接收请求 并将任务分发到各个计算节点
+ * */
 @Internal
 public interface PipelineExecutor {
 
@@ -43,7 +46,7 @@ public interface PipelineExecutor {
      * @return a {@link CompletableFuture} with the {@link JobClient} corresponding to the pipeline.
      */
     CompletableFuture<JobClient> execute(
-            final Pipeline pipeline,
+            final Pipeline pipeline,   // 指定一个管道
             final Configuration configuration,
             final ClassLoader userCodeClassloader)
             throws Exception;

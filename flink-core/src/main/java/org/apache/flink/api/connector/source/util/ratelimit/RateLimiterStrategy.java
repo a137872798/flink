@@ -25,6 +25,8 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 
 /**
  * A factory for {@link RateLimiter RateLimiters} which apply rate-limiting to a source sub-task.
+ *
+ * 表示限流策略
  */
 @Experimental
 public interface RateLimiterStrategy extends Serializable {
@@ -33,6 +35,7 @@ public interface RateLimiterStrategy extends Serializable {
      * Creates a {@link RateLimiter} that lets records through with rate proportional to the
      * parallelism. This method will be called once per source subtask. The cumulative rate over all
      * rate limiters for a source must not exceed the rate limit configured for the strategy.
+     * 描述最高的并行度
      */
     RateLimiter createRateLimiter(int parallelism);
 
@@ -42,6 +45,7 @@ public interface RateLimiterStrategy extends Serializable {
      * @param recordsPerSecond The number of records produced per second. The actual number of
      *     produced records is subject to rounding due to dividing the number of produced records
      *     among the parallel instances.
+     *                         表示每多久产生一个令牌
      */
     static RateLimiterStrategy perSecond(double recordsPerSecond) {
         return parallelism -> new GuavaRateLimiter(recordsPerSecond / parallelism);

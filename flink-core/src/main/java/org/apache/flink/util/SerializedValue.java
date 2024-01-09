@@ -34,6 +34,7 @@ import java.util.Arrays;
  * the corresponding class loader.
  *
  * @param <T> The type of the value held.
+ *           描述一个被序列化的对象
  */
 @Internal
 public class SerializedValue<T> implements java.io.Serializable {
@@ -62,6 +63,7 @@ public class SerializedValue<T> implements java.io.Serializable {
         this.serializedData = InstantiationUtil.serializeObject(value);
     }
 
+    // 使用java自带的序列化方式
     public T deserializeValue(ClassLoader loader) throws IOException, ClassNotFoundException {
         Preconditions.checkNotNull(loader, "No classloader has been passed");
         return InstantiationUtil.deserializeObject(serializedData, loader);

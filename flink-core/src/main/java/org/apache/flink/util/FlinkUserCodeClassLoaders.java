@@ -148,12 +148,15 @@ public class FlinkUserCodeClassLoaders {
      * <p>This classloader delegates to the actual user classloader. Upon {@link #close()}, the
      * delegate is nulled and can be garbage collected. Additional class resolution will be resolved
      * solely through the bootstrap classloader and most likely result in ClassNotFound exceptions.
+     *
+     * 表示一个安全的类加载器
      */
     @Internal
     public static class SafetyNetWrapperClassLoader extends MutableURLClassLoader {
         private static final Logger LOG =
                 LoggerFactory.getLogger(SafetyNetWrapperClassLoader.class);
 
+        // 被包装的对象
         protected volatile FlinkUserCodeClassLoader inner;
 
         protected SafetyNetWrapperClassLoader(FlinkUserCodeClassLoader inner, ClassLoader parent) {

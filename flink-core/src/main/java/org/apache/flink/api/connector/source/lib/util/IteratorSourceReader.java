@@ -36,6 +36,7 @@ import java.util.Iterator;
  *     conversion between iterator and {@code IteratorSourceSplit} type safe.
  * @param <SplitT> The concrete type of the {@code IteratorSourceSplit} that creates and converts
  *     the iterator that produces this reader's elements.
+ *                从split得到元素并准备通过output发送前 可以做一次转换  这里convert保持不变
  */
 @Public
 public class IteratorSourceReader<

@@ -76,6 +76,7 @@ public class Tuple0Serializer extends TupleSerializer<Tuple0> {
     @Override
     public void serialize(Tuple0 record, DataOutputView target) throws IOException {
         Preconditions.checkNotNull(record);
+        // 使用一个常量值
         target.writeByte(42);
     }
 

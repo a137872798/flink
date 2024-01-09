@@ -32,7 +32,9 @@ import java.io.IOException;
 
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** LinkedOptionalMapSerializer - A serializer of {@link LinkedOptionalMap}. */
+/** LinkedOptionalMapSerializer - A serializer of {@link LinkedOptionalMap}.
+ * 用于将LinkedOptionalMap内的数据序列化
+ * */
 @Internal
 public final class LinkedOptionalMapSerializer {
 
@@ -48,10 +50,12 @@ public final class LinkedOptionalMapSerializer {
             BiConsumerWithException<DataOutputView, V, IOException> valueWriter)
             throws IOException {
 
+        // 写入特殊头部
         out.writeLong(HEADER);
         out.writeInt(map.size());
         map.forEach(
                 ((keyName, key, value) -> {
+                    // 写入string
                     out.writeUTF(keyName);
 
                     if (key == null) {

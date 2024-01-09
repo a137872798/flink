@@ -45,6 +45,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * A {@link TypeInformation} for the tuple types of the Java API.
  *
  * @param <T> The type of the tuple.
+ *           元组类型信息
  */
 @Public
 public final class TupleTypeInfo<T extends Tuple> extends TupleTypeInfoBase<T> {
@@ -56,6 +57,7 @@ public final class TupleTypeInfo<T extends Tuple> extends TupleTypeInfoBase<T> {
     @SuppressWarnings("unchecked")
     @PublicEvolving
     public TupleTypeInfo(TypeInformation<?>... types) {
+        // 根据type的数量  选择不同的 tuple类
         this((Class<T>) Tuple.getTupleClass(types.length), types);
     }
 
@@ -69,6 +71,7 @@ public final class TupleTypeInfo<T extends Tuple> extends TupleTypeInfoBase<T> {
 
         this.fieldNames = new String[types.length];
 
+        // 自动生成的名称
         for (int i = 0; i < types.length; i++) {
             fieldNames[i] = "f" + i;
         }
@@ -91,6 +94,11 @@ public final class TupleTypeInfo<T extends Tuple> extends TupleTypeInfoBase<T> {
         return -1;
     }
 
+    /**
+     * 也是将多个序列化对象 包装成专门的元组序列化对象
+     * @param executionConfig
+     * @return
+     */
     @SuppressWarnings("unchecked")
     @Override
     @PublicEvolving
@@ -155,6 +163,7 @@ public final class TupleTypeInfo<T extends Tuple> extends TupleTypeInfoBase<T> {
                 fieldSerializers[i] = types[i].createSerializer(config);
             }
 
+            // 也是将相关信息包装成 元组比较器
             return new TupleComparator<T>(
                     listToPrimitives(logicalKeyFields),
                     fieldComparators.toArray(new TypeComparator[fieldComparators.size()]),
@@ -162,6 +171,10 @@ public final class TupleTypeInfo<T extends Tuple> extends TupleTypeInfoBase<T> {
         }
     }
 
+    /**
+     * 将元组的各个元组类型信息返回
+     * @return
+     */
     @Override
     public Map<String, TypeInformation<?>> getGenericParameters() {
         Map<String, TypeInformation<?>> m = CollectionUtil.newHashMapWithExpectedSize(types.length);

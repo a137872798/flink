@@ -23,7 +23,7 @@ import org.apache.flink.annotation.PublicEvolving;
 import java.util.Collection;
 import java.util.Optional;
 
-/** Contains the information of an external resource. */
+/** Contains the information of an external resource. 用于描述外部资源的属性 */
 @PublicEvolving
 public interface ExternalResourceInfo {
 

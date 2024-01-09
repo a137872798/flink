@@ -62,6 +62,7 @@ public final class ByteValueSerializer extends TypeSerializerSingleton<ByteValue
 
     @Override
     public void serialize(ByteValue record, DataOutputView target) throws IOException {
+        // 间接触发 writeByte
         record.write(target);
     }
 

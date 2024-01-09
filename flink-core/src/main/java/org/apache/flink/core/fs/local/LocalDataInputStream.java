@@ -31,6 +31,9 @@ import java.nio.channels.FileChannel;
 /**
  * The <code>LocalDataInputStream</code> class is a wrapper class for a data input stream to the
  * local file system.
+ *
+ * FSDataInputStream 给普通的InputStream 追加了一个seek/getPos api  可以查询和定位偏移量
+ * 而该对象就是Fs文件流的代理对象
  */
 @Internal
 public class LocalDataInputStream extends FSDataInputStream {
@@ -39,6 +42,8 @@ public class LocalDataInputStream extends FSDataInputStream {
     private final FileInputStream fis;
 
     private final FileChannel fileChannel;
+
+    // 就是用代理模式啊
 
     /**
      * Constructs a new <code>LocalDataInputStream</code> object from a given {@link File} object.

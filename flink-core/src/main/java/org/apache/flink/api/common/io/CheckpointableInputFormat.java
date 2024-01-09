@@ -29,6 +29,7 @@ import java.io.Serializable;
  *
  * @param <S> The type of input split.
  * @param <T> The type of the channel state to be checkpointed / included in the snapshot.
+ *           表示该输入是可以当作检查点使用的   检查点的特点就是可以重做
  */
 @PublicEvolving
 public interface CheckpointableInputFormat<S extends InputSplit, T extends Serializable> {
@@ -40,6 +41,7 @@ public interface CheckpointableInputFormat<S extends InputSplit, T extends Seria
      *
      * @return The state of the channel.
      * @throws IOException Thrown if the creation of the state object failed.
+     * 获取当前的状态
      */
     T getCurrentState() throws IOException;
 

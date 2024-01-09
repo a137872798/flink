@@ -36,6 +36,7 @@ import java.io.Serializable;
  *     streamGraph.setJobName("my_flink");
  *     env.execute(streamGraph);
  * </pre>
+ * 当job状态变化时 触发钩子
  */
 @Internal
 public interface JobStatusHook extends Serializable {

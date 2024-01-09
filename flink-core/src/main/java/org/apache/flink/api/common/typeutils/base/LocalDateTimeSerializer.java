@@ -65,6 +65,7 @@ public final class LocalDateTimeSerializer extends TypeSerializerSingleton<Local
 
     @Override
     public void serialize(LocalDateTime record, DataOutputView target) throws IOException {
+        // 2部分分别序列化/反序列化
         if (record == null) {
             LocalDateSerializer.INSTANCE.serialize(null, target);
             LocalTimeSerializer.INSTANCE.serialize(null, target);

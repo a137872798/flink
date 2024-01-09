@@ -38,13 +38,16 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * followed by the serialized representation of each element.
  *
  * @param <T> The type of element in the list.
+ *           表示一个列表的序列化
  */
 @Internal
 public final class ListSerializer<T> extends TypeSerializer<List<T>> {
 
     private static final long serialVersionUID = 1119562170939152304L;
 
-    /** The serializer for the elements of the list. */
+    /** The serializer for the elements of the list.
+     * 每个元素的序列化 依靠该对象
+     * */
     private final TypeSerializer<T> elementSerializer;
 
     /**
@@ -117,6 +120,8 @@ public final class ListSerializer<T> extends TypeSerializer<List<T>> {
     @Override
     public void serialize(List<T> list, DataOutputView target) throws IOException {
         final int size = list.size();
+
+        // 列表就是要先写入列表长度
         target.writeInt(size);
 
         // We iterate here rather than accessing by index, because we cannot be sure that

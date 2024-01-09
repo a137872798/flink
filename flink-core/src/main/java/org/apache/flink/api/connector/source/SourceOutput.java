@@ -29,6 +29,9 @@ import org.apache.flink.api.common.eventtime.WatermarkOutput;
  * <p>A {@code SourceReader} may have multiple SourceOutputs, scoped to individual <i>Source
  * Splits</i>. That way, streams of events from different splits can be identified and treated
  * separately, for example for watermark generation, or event-time skew handling.
+ *
+ * WatermarkOutput 可以发射水位  水位是之前给予的
+ * 对标一个 SourceSplit
  */
 @Public
 public interface SourceOutput<T> extends WatermarkOutput {
@@ -45,6 +48,7 @@ public interface SourceOutput<T> extends WatermarkOutput {
      * in the next step would be used to extract timestamp from a field of the JSON object.
      *
      * @param record the record to emit.
+     *               将记录发送到下游  但是没有时间戳信息
      */
     void collect(T record);
 
@@ -62,6 +66,8 @@ public interface SourceOutput<T> extends WatermarkOutput {
      *
      * @param record the record to emit.
      * @param timestamp the timestamp of the record.
+     *
+     *                  发送记录  并且携带时间戳
      */
     void collect(T record, long timestamp);
 }

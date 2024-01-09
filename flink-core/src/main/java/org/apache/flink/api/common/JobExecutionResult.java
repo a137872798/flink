@@ -31,12 +31,19 @@ import java.util.stream.Collectors;
 /**
  * The result of a job execution. Gives access to the execution time of the job, and to all
  * accumulators created by this job.
+ * 表示Job的执行结果
  */
 @Public
 public class JobExecutionResult extends JobSubmissionResult {
 
+    /**
+     * job 运行了多少时间
+     */
     private final long netRuntime;
 
+    /**
+     * 每个key 对应的累加结果
+     */
     private final Map<String, OptionalFailure<Object>> accumulatorResults;
 
     /**
@@ -97,6 +104,8 @@ public class JobExecutionResult extends JobSubmissionResult {
      * @param accumulatorName The name of the accumulator.
      * @param <T> The generic type of the accumulator value.
      * @return The value of the accumulator with the given name.
+     *
+     * 获取某个累加器的结果
      */
     @SuppressWarnings("unchecked")
     public <T> T getAccumulatorResult(String accumulatorName) {
@@ -113,6 +122,8 @@ public class JobExecutionResult extends JobSubmissionResult {
      * the accumulator name to the accumulator value.
      *
      * @return A map containing all accumulators produced by the job.
+     *
+     * 获取所有累加结果
      */
     public Map<String, Object> getAllAccumulatorResults() {
         return accumulatorResults.entrySet().stream()
@@ -145,6 +156,8 @@ public class JobExecutionResult extends JobSubmissionResult {
      * @throws java.lang.ClassCastException Thrown, if the accumulator was not aggregating a {@link
      *     java.lang.Integer}
      * @deprecated Will be removed in future versions. Use {@link #getAccumulatorResult} instead.
+     *
+     * 获得某个累加结果
      */
     @Deprecated
     @PublicEvolving
@@ -169,6 +182,7 @@ public class JobExecutionResult extends JobSubmissionResult {
      * @param result The SubmissionResult
      * @return a JobExecutionResult
      * @deprecated Will be removed in future versions.
+     * 转换成一个 提交结果
      */
     @Deprecated
     public static JobExecutionResult fromJobSubmissionResult(JobSubmissionResult result) {

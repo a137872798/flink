@@ -35,6 +35,9 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>Serializers that produce these snapshots must be public, have public a zero-argument
  * constructor and cannot be a non-static inner classes.
+ *
+ * 表示一个简单的快照对象
+ * 无法生成快照  也无法恢复快照  但是直接提供获取序列化对象的api
  */
 @PublicEvolving
 public abstract class SimpleTypeSerializerSnapshot<T> implements TypeSerializerSnapshot<T> {
@@ -62,6 +65,10 @@ public abstract class SimpleTypeSerializerSnapshot<T> implements TypeSerializerS
     //  Serializer Snapshot Methods
     // ------------------------------------------------------------------------
 
+    /**
+     * 简单对象 版本固定不变
+     * @return
+     */
     @Override
     public int getCurrentVersion() {
         return CURRENT_VERSION;
@@ -72,6 +79,12 @@ public abstract class SimpleTypeSerializerSnapshot<T> implements TypeSerializerS
         return serializerSupplier.get();
     }
 
+
+    /**
+     * 跟当前对象比较 返回兼容性结果
+     * @param newSerializer the new serializer to check.
+     * @return
+     */
     @Override
     public TypeSerializerSchemaCompatibility<T> resolveSchemaCompatibility(
             TypeSerializer<T> newSerializer) {
@@ -90,6 +103,7 @@ public abstract class SimpleTypeSerializerSnapshot<T> implements TypeSerializerS
     public void readSnapshot(int readVersion, DataInputView in, ClassLoader classLoader)
             throws IOException {
         switch (readVersion) {
+            // 默认版本是3  也就是什么也不做
             case 3:
                 {
                     break;

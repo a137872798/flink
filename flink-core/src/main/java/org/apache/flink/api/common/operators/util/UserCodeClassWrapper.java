@@ -23,17 +23,28 @@ import org.apache.flink.util.InstantiationUtil;
 
 import java.lang.annotation.Annotation;
 
-/** This holds a class containing user defined code. */
+/** This holds a class containing user defined code.
+ * 代表用户定义的类
+ * */
 @Internal
 public class UserCodeClassWrapper<T> implements UserCodeWrapper<T> {
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 用户定义的类
+     */
     private Class<? extends T> userCodeClass;
 
     public UserCodeClassWrapper(Class<? extends T> userCodeClass) {
         this.userCodeClass = userCodeClass;
     }
 
+    /**
+     * 使用指定类加载器 进行实例话
+     * @param superClass  入参是本类的父类
+     * @param cl
+     * @return
+     */
     @Override
     public T getUserCodeObject(Class<? super T> superClass, ClassLoader cl) {
         return InstantiationUtil.instantiate(userCodeClass, superClass);
@@ -44,6 +55,12 @@ public class UserCodeClassWrapper<T> implements UserCodeWrapper<T> {
         return InstantiationUtil.instantiate(userCodeClass, Object.class);
     }
 
+    /**
+     * 获取类上的某个注解
+     * @param annotationClass the Class object corresponding to the annotation type
+     * @param <A>
+     * @return
+     */
     @Override
     public <A extends Annotation> A getUserCodeAnnotation(Class<A> annotationClass) {
         return userCodeClass.getAnnotation(annotationClass);

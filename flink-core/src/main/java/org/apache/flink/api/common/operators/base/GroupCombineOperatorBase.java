@@ -50,12 +50,16 @@ import static org.apache.flink.util.Preconditions.checkArgument;
  * input. This class is later processed by the compiler to generate the plan.
  *
  * @see org.apache.flink.api.common.functions.CombineFunction
+ *
+ * 单输入/输出对象   输入对象的多个元素会变成一个组 并进入输出
  */
 @Internal
 public class GroupCombineOperatorBase<IN, OUT, FT extends GroupCombineFunction<IN, OUT>>
         extends SingleInputOperator<IN, OUT, FT> {
 
-    /** The ordering for the order inside a reduce group. */
+    /** The ordering for the order inside a reduce group.
+     * 记录顺序信息
+     * */
     private Ordering groupOrder;
 
     public GroupCombineOperatorBase(
@@ -105,6 +109,14 @@ public class GroupCombineOperatorBase<IN, OUT, FT extends GroupCombineFunction<I
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     *
+     * @param inputData
+     * @param ctx
+     * @param executionConfig
+     * @return
+     * @throws Exception
+     */
     @Override
     protected List<OUT> executeOnCollections(
             List<IN> inputData, RuntimeContext ctx, ExecutionConfig executionConfig)
@@ -114,21 +126,26 @@ public class GroupCombineOperatorBase<IN, OUT, FT extends GroupCombineFunction<I
         UnaryOperatorInformation<IN, OUT> operatorInfo = getOperatorInfo();
         TypeInformation<IN> inputType = operatorInfo.getInputType();
 
+        // 获取输入的几个关键列
         int[] keyColumns = getKeyColumns(0);
         int[] sortColumns = keyColumns;
+        // 默认是false
         boolean[] sortOrderings = new boolean[sortColumns.length];
 
         if (groupOrder != null) {
+            // 把影响到分组的列和排序信息添加进去
             sortColumns = ArrayUtils.addAll(sortColumns, groupOrder.getFieldPositions());
             sortOrderings = ArrayUtils.addAll(sortOrderings, groupOrder.getFieldSortDirections());
         }
 
+        // 2个长度要一致
         if (sortColumns.length == 0) { // => all reduce. No comparator
             checkArgument(sortOrderings.length == 0);
         } else {
             final TypeComparator<IN> sortComparator =
                     getTypeComparator(inputType, sortColumns, sortOrderings, executionConfig);
 
+            // 对输入进行排序
             Collections.sort(
                     inputData,
                     new Comparator<IN>() {
@@ -155,6 +172,7 @@ public class GroupCombineOperatorBase<IN, OUT, FT extends GroupCombineFunction<I
             CopyingListCollector<OUT> collector =
                     new CopyingListCollector<OUT>(result, outSerializer);
 
+            // 简单来说就是将所有数据合到一起 调用函数
             function.combine(inputDataCopy, collector);
         } else {
             final TypeSerializer<IN> inputSerializer = inputType.createSerializer(executionConfig);
@@ -162,6 +180,7 @@ public class GroupCombineOperatorBase<IN, OUT, FT extends GroupCombineFunction<I
             final TypeComparator<IN> comparator =
                     getTypeComparator(inputType, keyColumns, keyOrderings, executionConfig);
 
+            // 如果存在keyColumn  将所有元素按照key来分组
             ListKeyGroupedIterator<IN> keyedIterator =
                     new ListKeyGroupedIterator<IN>(inputData, inputSerializer, comparator);
 
@@ -170,6 +189,7 @@ public class GroupCombineOperatorBase<IN, OUT, FT extends GroupCombineFunction<I
             CopyingListCollector<OUT> collector =
                     new CopyingListCollector<OUT>(result, outSerializer);
 
+            // 每次将相同key相关的values作为参数  调用函数
             while (keyedIterator.nextKey()) {
                 function.combine(keyedIterator.getValues(), collector);
             }

@@ -35,13 +35,19 @@ import java.util.Arrays;
  * indexed the same way as their serializers.
  *
  * @param <T> type of custom serialized value
+ *           代表一个组合的序列化对象
  */
 public abstract class CompositeSerializer<T> extends TypeSerializer<T> {
     private static final long serialVersionUID = 1L;
 
-    /** Serializers for fields which constitute T. */
+    /** Serializers for fields which constitute T.
+     * 内部各字段使用的序列化对象
+     * */
     protected final TypeSerializer<Object>[] fieldSerializers;
 
+    /**
+     * 该对象包含了一些序列化对象的信息
+     */
     final PrecomputedParameters precomputed;
 
     /** Can be used for user facing constructor. */
@@ -139,6 +145,12 @@ public abstract class CompositeSerializer<T> extends TypeSerializer<T> {
         return precomputed.length;
     }
 
+    /**
+     * 就是挨个序列化 挨个 copy
+     * @param record The record to serialize.
+     * @param target The output view to write the serialized data to.
+     * @throws IOException
+     */
     @Override
     public void serialize(T record, DataOutputView target) throws IOException {
         Preconditions.checkNotNull(record);
@@ -208,16 +220,24 @@ public abstract class CompositeSerializer<T> extends TypeSerializer<T> {
     protected static class PrecomputedParameters implements Serializable {
         private static final long serialVersionUID = 1L;
 
-        /** Whether target type is immutable. */
+        /** Whether target type is immutable.
+         * 目标类是不可变的
+         * */
         final boolean immutableTargetType;
 
-        /** Whether target type and its fields are immutable. */
+        /** Whether target type and its fields are immutable.
+         * 目标类和字段是否是不可变的
+         * */
         final boolean immutable;
 
-        /** Byte length of target object in serialized form. */
+        /** Byte length of target object in serialized form.
+         * 序列化后的长度
+         * */
         private final int length;
 
-        /** Whether any field serializer is stateful. */
+        /** Whether any field serializer is stateful.
+         * 字段是否是有状态的 决定了 copy时是否要真正拷贝对象
+         * */
         final boolean stateful;
 
         private PrecomputedParameters(
@@ -228,6 +248,12 @@ public abstract class CompositeSerializer<T> extends TypeSerializer<T> {
             this.stateful = stateful;
         }
 
+        /**
+         * 根据信息判断并产生 PrecomputedParameters
+         * @param immutableTargetType
+         * @param fieldSerializers
+         * @return
+         */
         static PrecomputedParameters precompute(
                 boolean immutableTargetType, TypeSerializer<Object>[] fieldSerializers) {
             Preconditions.checkNotNull(fieldSerializers);
@@ -236,6 +262,8 @@ public abstract class CompositeSerializer<T> extends TypeSerializer<T> {
             boolean stateful = false;
             for (TypeSerializer<Object> fieldSerializer : fieldSerializers) {
                 Preconditions.checkNotNull(fieldSerializer);
+
+                // 代表会发生拷贝 也就是有状态
                 if (fieldSerializer != fieldSerializer.duplicate()) {
                     stateful = true;
                 }

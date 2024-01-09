@@ -83,6 +83,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * @param <T> The data type that the originating serializer of this snapshot serializes.
  * @param <S> The type of the originating serializer.
+ *           代表一个组合起来的类型
  */
 @PublicEvolving
 public abstract class CompositeTypeSerializerSnapshot<T, S extends TypeSerializer<T>>
@@ -91,6 +92,7 @@ public abstract class CompositeTypeSerializerSnapshot<T, S extends TypeSerialize
     /**
      * Indicates schema compatibility of the serializer configuration persisted as the outer
      * snapshot.
+     * 表示兼容性的
      */
     protected enum OuterSchemaCompatibility {
         COMPATIBLE_AS_IS,
@@ -120,8 +122,14 @@ public abstract class CompositeTypeSerializerSnapshot<T, S extends TypeSerialize
 
     private static final int HIGHEST_LEGACY_READ_VERSION = 2;
 
+    /**
+     * 该对象内部包含了一组快照对象 可以记录快照信息
+     */
     private NestedSerializersSnapshotDelegate nestedSerializersSnapshotDelegate;
 
+    /**
+     * 原始的序列化类
+     */
     private final Class<S> correspondingSerializerClass;
 
     /**
@@ -143,8 +151,11 @@ public abstract class CompositeTypeSerializerSnapshot<T, S extends TypeSerialize
     @SuppressWarnings("unchecked")
     public CompositeTypeSerializerSnapshot(S serializerInstance) {
         checkNotNull(serializerInstance);
+
+        // 获取内部的一组序列化对象  包装成代理对象
         this.nestedSerializersSnapshotDelegate =
                 new NestedSerializersSnapshotDelegate(getNestedSerializers(serializerInstance));
+
         this.correspondingSerializerClass = (Class<S>) serializerInstance.getClass();
     }
 
@@ -153,9 +164,16 @@ public abstract class CompositeTypeSerializerSnapshot<T, S extends TypeSerialize
         return VERSION;
     }
 
+    /**
+     * 将数据序列化后写入output
+     * @param out the {@link DataOutputView} to write the snapshot to.
+     * @throws IOException
+     */
     @Override
     public final void writeSnapshot(DataOutputView out) throws IOException {
+        // 先生成外部序列化对象的快照
         internalWriteOuterSnapshot(out);
+        // 再写嵌套对象的快照
         nestedSerializersSnapshotDelegate.writeNestedSerializerSnapshots(out);
     }
 
@@ -163,8 +181,10 @@ public abstract class CompositeTypeSerializerSnapshot<T, S extends TypeSerialize
     public final void readSnapshot(
             int readVersion, DataInputView in, ClassLoader userCodeClassLoader) throws IOException {
         if (readVersion > HIGHEST_LEGACY_READ_VERSION) {
+            // writeSnapshot的逆向操作  不过由子类实现
             internalReadOuterSnapshot(in, userCodeClassLoader);
         } else {
+            // TODO
             legacyInternalReadOuterSnapshot(readVersion, in, userCodeClassLoader);
         }
         this.nestedSerializersSnapshotDelegate =
@@ -172,6 +192,10 @@ public abstract class CompositeTypeSerializerSnapshot<T, S extends TypeSerialize
                         in, userCodeClassLoader);
     }
 
+    /**
+     * 获取内部嵌套的快照对象
+     * @return
+     */
     public TypeSerializerSnapshot<?>[] getNestedSerializerSnapshots() {
         return nestedSerializersSnapshotDelegate.getNestedSerializerSnapshots();
     }
@@ -179,10 +203,18 @@ public abstract class CompositeTypeSerializerSnapshot<T, S extends TypeSerialize
     @Override
     public final TypeSerializerSchemaCompatibility<T> resolveSchemaCompatibility(
             TypeSerializer<T> newSerializer) {
+
+        // 检验传入对象与 嵌套序列化对象的 兼容性
         return internalResolveSchemaCompatibility(
                 newSerializer, nestedSerializersSnapshotDelegate.getNestedSerializerSnapshots());
     }
 
+    /**
+     *
+     * @param newSerializer
+     * @param snapshots
+     * @return
+     */
     @Internal
     TypeSerializerSchemaCompatibility<T> internalResolveSchemaCompatibility(
             TypeSerializer<T> newSerializer, TypeSerializerSnapshot<?>[] snapshots) {
@@ -190,11 +222,13 @@ public abstract class CompositeTypeSerializerSnapshot<T, S extends TypeSerialize
             return TypeSerializerSchemaCompatibility.incompatible();
         }
 
+        // 首先外层类要兼容
         S castedNewSerializer = correspondingSerializerClass.cast(newSerializer);
 
         final OuterSchemaCompatibility outerSchemaCompatibility =
                 resolveOuterSchemaCompatibility(castedNewSerializer);
 
+        // 检查嵌套对象是否兼容
         final TypeSerializer<?>[] newNestedSerializers = getNestedSerializers(castedNewSerializer);
         // check that nested serializer arity remains identical; if not, short circuit result
         if (newNestedSerializers.length != snapshots.length) {
@@ -212,6 +246,8 @@ public abstract class CompositeTypeSerializerSnapshot<T, S extends TypeSerialize
 
     @Override
     public final TypeSerializer<T> restoreSerializer() {
+
+        // 通过内部嵌套的序列化对象 恢复外部的序列化对象
         @SuppressWarnings("unchecked")
         TypeSerializer<T> serializer =
                 (TypeSerializer<T>)
@@ -339,6 +375,11 @@ public abstract class CompositeTypeSerializerSnapshot<T, S extends TypeSerialize
     //  Utilities
     // ------------------------------------------------------------------------------------------
 
+    /**
+     * 为外部信息生成快照写入output
+     * @param out
+     * @throws IOException
+     */
     private void internalWriteOuterSnapshot(DataOutputView out) throws IOException {
         out.writeInt(MAGIC_NUMBER);
         out.writeInt(getCurrentOuterSnapshotVersion());
@@ -368,6 +409,13 @@ public abstract class CompositeTypeSerializerSnapshot<T, S extends TypeSerialize
         readOuterSnapshot(legacyReadVersion, in, userCodeClassLoader);
     }
 
+    /**
+     * TODO 有关兼容性的逻辑先不看
+     * @param newNestedSerializers
+     * @param nestedSerializerSnapshots
+     * @param outerSchemaCompatibility
+     * @return
+     */
     private TypeSerializerSchemaCompatibility<T> constructFinalSchemaCompatibilityResult(
             TypeSerializer<?>[] newNestedSerializers,
             TypeSerializerSnapshot<?>[] nestedSerializerSnapshots,

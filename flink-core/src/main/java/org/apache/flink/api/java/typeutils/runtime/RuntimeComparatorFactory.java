@@ -24,6 +24,10 @@ import org.apache.flink.api.common.typeutils.TypeComparatorFactory;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.util.InstantiationUtil;
 
+/**
+ * 该对象可以从config中读取参数 和写入参数到config
+ * @param <T>
+ */
 @Internal
 public final class RuntimeComparatorFactory<T>
         implements TypeComparatorFactory<T>, java.io.Serializable {
@@ -43,6 +47,7 @@ public final class RuntimeComparatorFactory<T>
     @Override
     public void writeParametersToConfig(Configuration config) {
         try {
+            // 将比较器序列化后 作为config的一项
             InstantiationUtil.writeObjectToConfig(comparator, config, CONFIG_KEY);
         } catch (Exception e) {
             throw new RuntimeException("Could not serialize comparator into the configuration.", e);

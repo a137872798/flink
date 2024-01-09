@@ -37,6 +37,10 @@ import org.apache.flink.api.common.eventtime.Watermark;
  * create a split-specific {@code SourceOutput} use the {@link
  * ReaderOutput#createOutputForSplit(String)} method, using the Source Split's ID. Make sure to
  * release the output again once the source has finished processing that split.
+ *
+ *  ReaderOutput 对应的是一整个输入源
+ *  SourceOutput 对标的则是一个 SourceSplit
+ *  整个对象类似一个发射器  需要借助SourceReader获取数据
  */
 @Public
 public interface ReaderOutput<T> extends SourceOutput<T> {
@@ -53,6 +57,7 @@ public interface ReaderOutput<T> extends SourceOutput<T> {
      * in the next step would be used to extract timestamp from a field of the JSON object.
      *
      * @param record the record to emit.
+     *               发送记录  且没有时间戳
      */
     @Override
     void collect(T record);
@@ -80,6 +85,7 @@ public interface ReaderOutput<T> extends SourceOutput<T> {
      *
      * <p>Emitting a watermark also implicitly marks the stream as <i>active</i>, ending previously
      * marked idleness.
+     * 还可以发射水位
      */
     @Override
     void emitWatermark(Watermark watermark);
@@ -105,6 +111,7 @@ public interface ReaderOutput<T> extends SourceOutput<T> {
      * perpetually stalling source split, and may hold back the watermark indefinitely.
      *
      * @see #releaseOutputForSplit(String)
+     * 基于某个split 产生source
      */
     SourceOutput<T> createOutputForSplit(String splitId);
 

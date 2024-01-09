@@ -98,6 +98,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * </ul>
  *
  * @param <T> The type to be serialized.
+ *           其他内置的序列化对象 一般自己实现了序列化方法   而该对象则是借助kryo框架
  */
 public class KryoSerializer<T> extends TypeSerializer<T> {
 
@@ -116,6 +117,9 @@ public class KryoSerializer<T> extends TypeSerializer<T> {
         configureKryoLogging();
     }
 
+    /**
+     * 该对象维护所有注册的序列化对象
+     */
     @Nullable
     private static final ChillSerializerRegistrar flinkChillPackageRegistrar =
             loadFlinkChillPackageRegistrar();
@@ -144,6 +148,8 @@ public class KryoSerializer<T> extends TypeSerializer<T> {
      *
      * <p>This map serves as a preview of the final registration result of the Kryo instance, taking
      * into account registration overwrites.
+     *
+     * KryoRegistration 维护了被注册的序列化实例/class
      */
     private LinkedHashMap<String, KryoRegistration> kryoRegistrations;
 
@@ -278,6 +284,10 @@ public class KryoSerializer<T> extends TypeSerializer<T> {
         return new KryoSerializer<>(this);
     }
 
+    /**
+     * 产生一个实例对象  一般都意味着一个默认对象
+     * @return
+     */
     @Override
     public T createInstance() {
         if (Modifier.isAbstract(type.getModifiers()) || Modifier.isInterface(type.getModifiers())) {
@@ -517,6 +527,9 @@ public class KryoSerializer<T> extends TypeSerializer<T> {
         }
     }
 
+    /**
+     * 确保 kryo已经初始化
+     */
     private void checkKryoInitialized() {
         if (this.kryo == null) {
             this.kryo = getKryoInstance();
@@ -571,6 +584,7 @@ public class KryoSerializer<T> extends TypeSerializer<T> {
     /**
      * Utility method that takes lists of registered types and their serializers, and resolve them
      * into a single list such that the result will resemble the final registration result in Kryo.
+     * 简单来说就是将map内的数据变成 注册对象
      */
     private static LinkedHashMap<String, KryoRegistration> buildKryoRegistrations(
             Class<?> serializedType,
@@ -611,6 +625,7 @@ public class KryoSerializer<T> extends TypeSerializer<T> {
         }
 
         // add Avro support if flink-avro is available; a dummy otherwise
+        // 根据avro是否可用  追加一个序列化对象
         AvroUtils.getAvroUtils().addAvroGenericDataArrayRegistration(kryoRegistrations);
 
         return kryoRegistrations;

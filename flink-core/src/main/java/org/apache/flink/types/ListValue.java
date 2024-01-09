@@ -38,6 +38,8 @@ import java.util.ListIterator;
  * @see java.util.List
  * @see java.util.ArrayList
  * @param <V> Type of the list elements.
+ *
+ *           作为一个列表 内部维护的也是Value类型
  */
 @Public
 public abstract class ListValue<V extends Value> implements Value, List<V> {

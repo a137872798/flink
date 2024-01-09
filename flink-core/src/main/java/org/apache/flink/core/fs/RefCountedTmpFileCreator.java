@@ -36,13 +36,20 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 /**
  * A utility class that creates local {@link RefCountedFileWithStream reference counted files} that
  * serve as temporary files.
+ * 通过该函数来创建带引用计数的文件流
  */
 @Internal
 public class RefCountedTmpFileCreator
         implements FunctionWithException<File, RefCountedFileWithStream, IOException> {
 
+    /**
+     * 一组临时目录
+     */
     private final File[] tempDirectories;
 
+    /**
+     * 代表下个被选择的目录
+     */
     private final AtomicInteger next;
 
     /**
@@ -59,6 +66,7 @@ public class RefCountedTmpFileCreator
         }
 
         this.tempDirectories = tempDirectories.clone();
+        // 这里产生了一个随机下标
         this.next = new AtomicInteger(new Random().nextInt(this.tempDirectories.length));
     }
 
@@ -73,6 +81,7 @@ public class RefCountedTmpFileCreator
      */
     @Override
     public RefCountedFileWithStream apply(File file) throws IOException {
+        // 使用某个临时目录
         final File directory = tempDirectories[nextIndex()];
 
         while (true) {

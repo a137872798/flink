@@ -21,7 +21,9 @@ package org.apache.flink.util.concurrent;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 
-/** Collection of {@link Executor} and {@link ExecutorService} implementations. */
+/** Collection of {@link Executor} and {@link ExecutorService} implementations.
+ * 作为工具类 提供各种执行器
+ * */
 public class Executors {
 
     private Executors() {}
@@ -47,6 +49,8 @@ public class Executors {
      * ExecutorService#shutdown()} is called.
      *
      * @see #newDirectExecutorService()
+     *
+     * 该执行器不会被终止
      */
     public static ExecutorService newDirectExecutorServiceWithNoOpShutdown() {
         return new DirectExecutorService(false);

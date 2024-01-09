@@ -21,7 +21,9 @@ package org.apache.flink.api.common.aggregators;
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.types.DoubleValue;
 
-/** An {@link Aggregator} that sums up {@link DoubleValue} values. */
+/** An {@link Aggregator} that sums up {@link DoubleValue} values.
+ * 聚合器 看起来和累加器的逻辑差不多 区别是返回的是一个包装对象 DoubleValue 并提供了很多现成的api 方便读写
+ * */
 @SuppressWarnings("serial")
 @PublicEvolving
 public class DoubleSumAggregator implements Aggregator<DoubleValue> {

@@ -26,16 +26,28 @@ import java.util.List;
 /**
  * Description for {@link org.apache.flink.configuration.ConfigOption}. Allows providing multiple
  * rich formats.
+ * 表示描述信息
  */
 @PublicEvolving
 public class Description {
 
+    /**
+     * 其中包含的每个block都有描述信息
+     */
     private final List<BlockElement> blocks;
 
+    /**
+     * 该对象可以构建描述信息 然后builder 可以添加 block
+     * @return
+     */
     public static DescriptionBuilder builder() {
         return new DescriptionBuilder();
     }
 
+    /**
+     * 获取所有block
+     * @return
+     */
     public List<BlockElement> getBlocks() {
         return blocks;
     }

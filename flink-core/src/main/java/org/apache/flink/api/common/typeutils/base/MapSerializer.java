@@ -40,11 +40,14 @@ import java.util.Map;
  *
  * @param <K> The type of the keys in the map.
  * @param <V> The type of the values in the map.
+ *
  */
 @Internal
 public final class MapSerializer<K, V> extends TypeSerializer<Map<K, V>> {
 
     private static final long serialVersionUID = -6885593032367050078L;
+
+    // 需要2个序列化对象 分别处理key/value
 
     /** The serializer for the keys in the map */
     private final TypeSerializer<K> keySerializer;
@@ -132,9 +135,11 @@ public final class MapSerializer<K, V> extends TypeSerializer<Map<K, V>> {
         final int size = map.size();
         target.writeInt(size);
 
+        // 一组组键值对分别序列化
         for (Map.Entry<K, V> entry : map.entrySet()) {
             keySerializer.serialize(entry.getKey(), target);
 
+            // 有关value是否为null 还需要写入一个flag
             if (entry.getValue() == null) {
                 target.writeBoolean(true);
             } else {

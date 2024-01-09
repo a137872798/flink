@@ -23,6 +23,8 @@ import org.apache.flink.annotation.Public;
 /**
  * The boundedness of a stream. A stream could either be "bounded" (a stream with finite records) or
  * "unbounded" (a stream with infinite records).
+ *
+ * 表示流的边界 一个流可以是有界的 也可以是无界的
  */
 @Public
 public enum Boundedness {
@@ -50,6 +52,7 @@ public enum Boundedness {
      *
      * <p>A CONTINUOUS_UNBOUNDED stream may also eventually stop at some point. But before that
      * happens, Flink always assumes the sources are going to run forever.
+     * 无界的连续不断的流
      */
     CONTINUOUS_UNBOUNDED
 }

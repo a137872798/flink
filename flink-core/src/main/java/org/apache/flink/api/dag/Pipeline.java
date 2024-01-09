@@ -21,6 +21,8 @@ package org.apache.flink.api.dag;
 
 import org.apache.flink.annotation.Internal;
 
-/** Common interface for Flink pipelines. */
+/** Common interface for Flink pipelines.
+ * 代表一个flink的执行管道
+ * */
 @Internal
 public interface Pipeline {}

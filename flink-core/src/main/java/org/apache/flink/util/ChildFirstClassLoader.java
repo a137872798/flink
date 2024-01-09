@@ -39,6 +39,8 @@ public final class ChildFirstClassLoader extends FlinkUserCodeClassLoader {
      * The classes that should always go through the parent ClassLoader. This is relevant for Flink
      * classes, for example, to avoid loading Flink classes that cross the user-code/system-code
      * barrier in the user-code ClassLoader.
+     * 如果class匹配这些路径  先使用父类加载器 而不从UrlClassLoader设置的urls中查找
+     * 否则都是从指定的urls中查找 所以叫做childFirst
      */
     private final String[] alwaysParentFirstPatterns;
 
@@ -56,10 +58,12 @@ public final class ChildFirstClassLoader extends FlinkUserCodeClassLoader {
             throws ClassNotFoundException {
 
         // First, check if the class has already been loaded
+        // 判断是否已经被加载
         Class<?> c = findLoadedClass(name);
 
         if (c == null) {
             // check whether the class should go parent-first
+            // 检测是否在被指明的路径下
             for (String alwaysParentFirstPattern : alwaysParentFirstPatterns) {
                 if (name.startsWith(alwaysParentFirstPattern)) {
                     return super.loadClassWithoutExceptionHandling(name, resolve);
@@ -67,7 +71,7 @@ public final class ChildFirstClassLoader extends FlinkUserCodeClassLoader {
             }
 
             try {
-                // check the URLs
+                // check the URLs  会从设置的urls中查找 目标类
                 c = findClass(name);
             } catch (ClassNotFoundException e) {
                 // let URLClassLoader do it, which will eventually call the parent

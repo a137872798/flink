@@ -46,6 +46,8 @@ import java.util.Arrays;
  * #readRecord(Object, byte[], int, int)} method.
  *
  * <p>The default delimiter is the newline character {@code '\n'}.
+ * BinaryInputFormat 使用固定大小的块
+ * DelimitedInputFormat 使用分隔符
  */
 @Public
 public abstract class DelimitedInputFormat<OT> extends FileInputFormat<OT>
@@ -150,8 +152,8 @@ public abstract class DelimitedInputFormat<OT> extends FileInputFormat<OT>
 
     private transient byte[] wrapBuffer;
 
+    // 这2个值对应底层输入流的位置  比如 readPos 0 limit 100 代表此时加载到内存的数据为底层输入流 从偏移量0开始到100的数据
     private transient int readPos;
-
     private transient int limit;
 
     protected transient byte[] currBuffer; // buffer in which current record byte sequence is found
@@ -170,6 +172,7 @@ public abstract class DelimitedInputFormat<OT> extends FileInputFormat<OT>
 
     // The delimiter may be set with a byte-sequence or a String. In the latter
     // case the byte representation is updated consistent with current charset.
+    // 使用的分隔符是 换行符
     private byte[] delimiter = new byte[] {'\n'};
     private String delimiterString = null;
 
@@ -200,6 +203,7 @@ public abstract class DelimitedInputFormat<OT> extends FileInputFormat<OT>
      * interpret field delimiters, comment strings, and for configuring {@link FieldParser}s.
      *
      * @return the charset
+     * 获取字符集
      */
     @PublicEvolving
     public Charset getCharset() {
@@ -224,6 +228,7 @@ public abstract class DelimitedInputFormat<OT> extends FileInputFormat<OT>
         this.charset = null;
 
         if (this.delimiterString != null) {
+            // 按照字符集解析分隔符
             this.delimiter = delimiterString.getBytes(getCharset());
         }
     }
@@ -322,6 +327,7 @@ public abstract class DelimitedInputFormat<OT> extends FileInputFormat<OT>
         // the if() clauses are to prevent the configure() method from
         // overwriting the values set by the setters
 
+        // 分隔符
         if (Arrays.equals(delimiter, new byte[] {'\n'})) {
             String delimString = parameters.getString(RECORD_DELIMITER, null);
             if (delimString != null) {
@@ -493,10 +499,13 @@ public abstract class DelimitedInputFormat<OT> extends FileInputFormat<OT>
      * @param split The input split to open.
      * @see
      *     org.apache.flink.api.common.io.FileInputFormat#open(org.apache.flink.core.fs.FileInputSplit)
+     *     基于某个被拆分的任务 (split)
      */
     @Override
     public void open(FileInputSplit split) throws IOException {
+        // 在这里会打开文件
         super.open(split);
+        // 初始化buffer
         initBuffers();
 
         this.offset = splitStart;
@@ -509,11 +518,15 @@ public abstract class DelimitedInputFormat<OT> extends FileInputFormat<OT>
                 this.end = true;
             }
         } else {
+            // 从0开始读取数据
             fillBuffer(0);
         }
         initializeSplit(split, null);
     }
 
+    /**
+     * 初始化buffer
+     */
     private void initBuffers() {
         this.bufferSize = this.bufferSize <= 0 ? DEFAULT_READ_BUFFER_SIZE : this.bufferSize;
 
@@ -569,7 +582,13 @@ public abstract class DelimitedInputFormat<OT> extends FileInputFormat<OT>
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 基于Delimited的 其实就是按行划分的  所以readLine 就是一行数据
+     * @return
+     * @throws IOException
+     */
     protected final boolean readLine() throws IOException {
+        // overLimit 默认为false   如果为true 代表数据读完了
         if (this.stream == null || this.overLimit) {
             return false;
         }
@@ -580,10 +599,15 @@ public abstract class DelimitedInputFormat<OT> extends FileInputFormat<OT>
         int delimPos = 0;
 
         while (true) {
+
+            // 代表buffer中的数据已经读完了
             if (this.readPos >= this.limit) {
                 // readBuffer is completely consumed. Fill it again but keep partially read
                 // delimiter bytes.
+                // 需要重新将数据填充到buffer中
                 if (!fillBuffer(delimPos)) {
+
+                    // TODO 读取失败的情况
                     int countInReadBuffer = delimPos;
                     if (countInWrapBuffer + countInReadBuffer > 0) {
                         // we have bytes left to emit
@@ -615,20 +639,24 @@ public abstract class DelimitedInputFormat<OT> extends FileInputFormat<OT>
                 }
             }
 
+            // 此时已经填充了新数据
             int startPos = this.readPos - delimPos;
             int count;
 
             // Search for next occurrence of delimiter in read buffer.
             while (this.readPos < this.limit && delimPos < this.delimiter.length) {
+                // 检查读取到的是否是 分隔符
                 if ((this.readBuffer[this.readPos]) == this.delimiter[delimPos]) {
                     // Found the expected delimiter character. Continue looking for the next
                     // character of delimiter.
+                    // 推进分隔符
                     delimPos++;
                 } else {
                     // Delimiter does not match.
                     // We have to reset the read position to the character after the first matching
                     // character
                     //   and search for the whole delimiter again.
+                    // 代表后面的部分不匹配分隔符 重新计算
                     readPos -= delimPos;
                     delimPos = 0;
                 }
@@ -636,9 +664,11 @@ public abstract class DelimitedInputFormat<OT> extends FileInputFormat<OT>
             }
 
             // check why we dropped out
+            // 代表读取到的是一个分隔符
             if (delimPos == this.delimiter.length) {
                 // we found a delimiter
                 int readBufferBytesRead = this.readPos - startPos;
+                // 推进分隔符的长度
                 this.offset += countInWrapBuffer + readBufferBytesRead;
                 count = readBufferBytesRead - this.delimiter.length;
 
@@ -705,12 +735,18 @@ public abstract class DelimitedInputFormat<OT> extends FileInputFormat<OT>
         this.currLen = len;
     }
 
-    /** Fills the read buffer with bytes read from the file starting from an offset. */
+    /** Fills the read buffer with bytes read from the file starting from an offset.
+     * 从指定偏移量开始 读取数据填满buffer
+     * */
     private boolean fillBuffer(int offset) throws IOException {
+
+        // 还有多少空间
         int maxReadLength = this.readBuffer.length - offset;
         // special case for reading the whole split.
+        // 代表要读取全部的数据
         if (this.splitLength == FileInputFormat.READ_WHOLE_SPLIT_FLAG) {
             int read = this.stream.read(this.readBuffer, offset, maxReadLength);
+            // 已经没有数据了
             if (read == -1) {
                 this.stream.close();
                 this.stream = null;
@@ -722,7 +758,7 @@ public abstract class DelimitedInputFormat<OT> extends FileInputFormat<OT>
             }
         }
 
-        // else ..
+        // else ..   代表不需要一次读取全部数据
         int toRead;
         if (this.splitLength > 0) {
             // if we have more data, read that
@@ -735,6 +771,7 @@ public abstract class DelimitedInputFormat<OT> extends FileInputFormat<OT>
             // delimiter, discarding it as an incomplete chunk of data that belongs to the last
             // record in the
             // previous split.
+            // 简单理解 当 splitLength <= 0 的时候 就是数据读完了
             toRead = maxReadLength;
             this.overLimit = true;
         }

@@ -27,7 +27,9 @@ import java.io.OutputStream;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** An {@link OutputStream} that keeps track of its current length. */
+/** An {@link OutputStream} that keeps track of its current length.
+ * 记录当前写入的总长度
+ * */
 @Internal
 public final class OffsetAwareOutputStream implements Closeable {
 

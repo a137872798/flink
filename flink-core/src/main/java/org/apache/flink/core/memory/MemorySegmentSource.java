@@ -20,7 +20,9 @@ package org.apache.flink.core.memory;
 
 import org.apache.flink.annotation.Internal;
 
-/** Interface describing entities that can provide memory segments. */
+/** Interface describing entities that can provide memory segments.
+ * 内存块 应该是可以池化管理的
+ * */
 @Internal
 public interface MemorySegmentSource {
 
@@ -28,6 +30,7 @@ public interface MemorySegmentSource {
      * Gets the next memory segment. If no more segments are available, it returns null.
      *
      * @return The next memory segment, or null, if none is available.
+     * 从池化对象中返回下一个内存块
      */
     MemorySegment nextSegment();
 }

@@ -32,6 +32,7 @@ import java.io.Serializable;
  *
  * @param <IN> Type of objects to extract the key from.
  * @param <KEY> Type of key.
+ *             该函数用于从值中抽取出一个key
  */
 @Public
 @FunctionalInterface

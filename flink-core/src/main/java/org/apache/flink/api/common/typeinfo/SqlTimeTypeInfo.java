@@ -36,7 +36,10 @@ import java.util.Objects;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Type information for Java SQL Date/Time/Timestamp. */
+/** Type information for Java SQL Date/Time/Timestamp.
+ * 反正 typeInfo 就是各种类型的类型+序列化对象+比较器
+ * 各种模版化的代码
+ * */
 @PublicEvolving
 public class SqlTimeTypeInfo<T> extends TypeInformation<T> implements AtomicType<T> {
 
@@ -85,6 +88,8 @@ public class SqlTimeTypeInfo<T> extends TypeInformation<T> implements AtomicType
     public boolean isTupleType() {
         return false;
     }
+
+    // 这个类型非嵌套字段数 和 总字段数 也是1
 
     @Override
     public int getArity() {

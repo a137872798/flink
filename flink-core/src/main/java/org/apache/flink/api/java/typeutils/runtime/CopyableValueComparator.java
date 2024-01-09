@@ -29,13 +29,18 @@ import org.apache.flink.util.InstantiationUtil;
 
 import java.io.IOException;
 
-/** Comparator for all Value types that extend Key */
+/** Comparator for all Value types that extend Key
+ * 泛指可以拷贝的值类型的比较器
+ * */
 @Internal
 public class CopyableValueComparator<T extends CopyableValue<T> & Comparable<T>>
         extends TypeComparator<T> {
 
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 表示这个可拷贝的类型
+     */
     private final Class<T> type;
 
     private final boolean ascendingComparison;

@@ -24,6 +24,9 @@ import org.apache.flink.core.memory.DataOutputView;
 import java.io.IOException;
 import java.io.OutputStream;
 
+/**
+ * 包装成流
+ */
 @Internal
 public class DataOutputViewStream extends OutputStream {
     protected DataOutputView outputView;

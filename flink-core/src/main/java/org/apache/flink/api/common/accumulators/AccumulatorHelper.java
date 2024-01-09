@@ -47,26 +47,34 @@ public class AccumulatorHelper {
      * @param toMerge The collection of accumulators that will be merged into the other
      */
     public static void mergeInto(
-            Map<String, OptionalFailure<Accumulator<?, ?>>> target,
+            Map<String, OptionalFailure<Accumulator<?, ?>>> target,   // 将累加器合并
             Map<String, Accumulator<?, ?>> toMerge) {
+
         for (Map.Entry<String, Accumulator<?, ?>> otherEntry : toMerge.entrySet()) {
             OptionalFailure<Accumulator<?, ?>> ownAccumulator = target.get(otherEntry.getKey());
+
+            // 首次插入
             if (ownAccumulator == null) {
                 // Create initial counter (copy!)
                 target.put(
                         otherEntry.getKey(),
                         wrapUnchecked(otherEntry.getKey(), () -> otherEntry.getValue().clone()));
+
+                // 如果发现该累加器已经出现异常 忽略本次处理
             } else if (ownAccumulator.isFailure()) {
                 continue;
             } else {
+
+                // 因为上面 isFailure为false 所以可以拿到累加器
                 Accumulator<?, ?> accumulator = ownAccumulator.getUnchecked();
-                // Both should have the same type
+                // Both should have the same type   检查2个累加器的类型是否一致
                 compareAccumulatorTypes(
                         otherEntry.getKey(),
                         accumulator.getClass(),
                         otherEntry.getValue().getClass());
                 // Merge target counter with other counter
 
+                // 将2个累加器合并后 设置到target中
                 target.put(
                         otherEntry.getKey(),
                         wrapUnchecked(
@@ -76,7 +84,9 @@ public class AccumulatorHelper {
         }
     }
 
-    /** Workaround method for type safety. */
+    /** Workaround method for type safety.
+     * 合并2个累加器
+     * */
     private static <V, R extends Serializable> Accumulator<V, R> mergeSingle(
             Accumulator<?, ?> target, Accumulator<?, ?> toMerge) {
         @SuppressWarnings("unchecked")
@@ -90,7 +100,9 @@ public class AccumulatorHelper {
         return typedTarget;
     }
 
-    /** Compare both classes and throw {@link UnsupportedOperationException} if they differ. */
+    /** Compare both classes and throw {@link UnsupportedOperationException} if they differ.
+     * 判断2个累加器的类型是否一致
+     * */
     @SuppressWarnings("rawtypes")
     public static void compareAccumulatorTypes(
             Object name, Class<? extends Accumulator> first, Class<? extends Accumulator> second)
@@ -99,6 +111,7 @@ public class AccumulatorHelper {
             throw new NullPointerException();
         }
 
+        // 同一class 通过校验
         if (first != second) {
             if (!first.getName().equals(second.getName())) {
                 throw new UnsupportedOperationException(
@@ -127,7 +140,9 @@ public class AccumulatorHelper {
         }
     }
 
-    /** Transform the Map with accumulators into a Map containing only the results. */
+    /** Transform the Map with accumulators into a Map containing only the results.
+     * 取出累加的结果
+     * */
     public static Map<String, OptionalFailure<Object>> toResultMap(
             Map<String, Accumulator<?, ?>> accumulators) {
         Map<String, OptionalFailure<Object>> resultMap = new HashMap<>();
@@ -209,6 +224,7 @@ public class AccumulatorHelper {
                 value = entry.getValue().deserializeValue(loader);
             }
 
+            // 如果是异常 也给你还原过来
             accumulators.put(entry.getKey(), value);
         }
 
@@ -238,8 +254,10 @@ public class AccumulatorHelper {
         Map<String, Object> accumulators =
                 CollectionUtil.newHashMapWithExpectedSize(serializedAccumulators.size());
 
+        // 在反序列化后 取出他们的值
         for (Map.Entry<String, OptionalFailure<Object>> entry :
                 deserializedAccumulators.entrySet()) {
+            // 发现任何异常都会提前抛出
             accumulators.put(entry.getKey(), entry.getValue().getUnchecked());
         }
 

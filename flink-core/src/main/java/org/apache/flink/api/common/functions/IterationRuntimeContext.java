@@ -26,6 +26,7 @@ import org.apache.flink.types.Value;
 /**
  * A specialization of the {@link RuntimeContext} available in iterative computations of the DataSet
  * API.
+ * 可迭代上下文 额外拥有获取聚合器的api
  */
 @Public
 public interface IterationRuntimeContext extends RuntimeContext {
@@ -34,11 +35,18 @@ public interface IterationRuntimeContext extends RuntimeContext {
      * Gets the number of the current superstep. Superstep numbers start at <i>1</i>.
      *
      * @return The number of the current superstep.
+     * 获取当前的步骤
      */
     int getSuperstepNumber();
 
     @PublicEvolving
     <T extends Aggregator<?>> T getIterationAggregator(String name);
 
+    /**
+     * 获取之前聚合的结果
+     * @param name
+     * @param <T>
+     * @return
+     */
     <T extends Value> T getPreviousIterationAggregate(String name);
 }

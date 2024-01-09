@@ -85,6 +85,7 @@ public class ConfigOptions {
     /**
      * The option builder is used to create a {@link ConfigOption}. It is instantiated via {@link
      * ConfigOptions#key(String)}.
+     * 用于构建配置选项
      */
     public static final class OptionBuilder {
         /**
@@ -95,7 +96,9 @@ public class ConfigOptions {
         private static final Class<Map<String, String>> PROPERTIES_MAP_CLASS =
                 (Class<Map<String, String>>) (Class<?>) Map.class;
 
-        /** The key for the config option. */
+        /** The key for the config option.
+         * 选项名
+         * */
         private final String key;
 
         /**
@@ -202,6 +205,7 @@ public class ConfigOptions {
      * Builder for {@link ConfigOption} with a defined atomic type.
      *
      * @param <T> atomic type of the option
+     * 代表指定了option的类型
      */
     public static class TypedConfigOptionBuilder<T> {
         private final String key;
@@ -242,6 +246,7 @@ public class ConfigOptions {
      * Builder for {@link ConfigOption} of list of type {@link E}.
      *
      * @param <E> list element type of the option
+     *           表示配置是一个list
      */
     public static class ListConfigOptionBuilder<E> {
         private final String key;
@@ -257,6 +262,7 @@ public class ConfigOptions {
          *
          * @param values The list of default values for the config option
          * @return The config option with the default value.
+         * 使用默认值创建一个选项对象 该对象有key和fallbackKey 还有默认值   是一个配置的某个选项
          */
         @SafeVarargs
         public final ConfigOption<List<E>> defaultValues(E... values) {

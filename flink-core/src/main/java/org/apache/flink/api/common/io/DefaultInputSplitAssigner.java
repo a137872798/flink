@@ -33,6 +33,7 @@ import java.util.List;
 /**
  * This is the default implementation of the {@link InputSplitAssigner} interface. The default input
  * split assigner simply returns all input splits of an input vertex in an undefined order.
+ * 一个默认的 input split分配对象
  */
 @Internal
 public class DefaultInputSplitAssigner implements InputSplitAssigner {
@@ -51,6 +52,12 @@ public class DefaultInputSplitAssigner implements InputSplitAssigner {
         this.splits.addAll(splits);
     }
 
+    /**
+     * 获取下一个split
+     * @param host The host address of split requesting task.
+     * @param taskId The id of the split requesting task.
+     * @return
+     */
     @Override
     public InputSplit getNextInputSplit(String host, int taskId) {
         InputSplit next = null;
@@ -58,6 +65,7 @@ public class DefaultInputSplitAssigner implements InputSplitAssigner {
         // keep the synchronized part short
         synchronized (this.splits) {
             if (this.splits.size() > 0) {
+                // 插入的时候是无序的  返回的时候 从后往前
                 next = this.splits.remove(this.splits.size() - 1);
             }
         }

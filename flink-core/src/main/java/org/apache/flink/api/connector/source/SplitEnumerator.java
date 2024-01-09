@@ -29,6 +29,8 @@ import java.util.List;
 /**
  * The interface for a split enumerator responsible for discovering the source splits, and assigning
  * them to the {@link SourceReader}.
+ *
+ * 该对象用于拆分数据源  产生多个split后 分配给SourceReader 也就是该对象和 SourceReader 是配合使用的
  */
 @Public
 public interface SplitEnumerator<SplitT extends SourceSplit, CheckpointT>
@@ -48,6 +50,7 @@ public interface SplitEnumerator<SplitT extends SourceSplit, CheckpointT>
      * @param subtaskId the subtask id of the source reader who sent the source event.
      * @param requesterHostname Optional, the hostname where the requesting task is running. This
      *     can be used to make split assignments locality-aware.
+     *                          该对象处理 split请求
      */
     void handleSplitRequest(int subtaskId, @Nullable String requesterHostname);
 
@@ -57,6 +60,7 @@ public interface SplitEnumerator<SplitT extends SourceSplit, CheckpointT>
      *
      * @param splits The splits to add back to the enumerator for reassignment.
      * @param subtaskId The id of the subtask to which the returned splits belong.
+     *                  当某个reader对象处理split失败时 需要将split归还到enumerator 以便重新分配
      */
     void addSplitsBack(List<SplitT> splits, int subtaskId);
 
@@ -64,6 +68,7 @@ public interface SplitEnumerator<SplitT extends SourceSplit, CheckpointT>
      * Add a new source reader with the given subtask ID.
      *
      * @param subtaskId the subtask ID of the new source reader.
+     *                  该对象是协调对象 需要管理所有reader 并根据reader的情况来分配split
      */
     void addReader(int subtaskId);
 
@@ -86,6 +91,7 @@ public interface SplitEnumerator<SplitT extends SourceSplit, CheckpointT>
      * @param checkpointId The ID of the checkpoint for which the snapshot is created.
      * @return an object containing the state of the split enumerator.
      * @throws Exception when the snapshot cannot be taken.
+     * 生成快照 以便重启时恢复
      */
     CheckpointT snapshotState(long checkpointId) throws Exception;
 
@@ -116,6 +122,8 @@ public interface SplitEnumerator<SplitT extends SourceSplit, CheckpointT>
      *
      * @param subtaskId the subtask id of the source reader who sent the source event.
      * @param sourceEvent the source event from the source reader.
+     *                    处理SourceEvent
+     *
      */
     default void handleSourceEvent(int subtaskId, SourceEvent sourceEvent) {}
 }

@@ -40,6 +40,9 @@ import java.util.Map;
  *
  * @param <K> The key type of the elements in the {@link BroadcastState}.
  * @param <V> The value type of the elements in the {@link BroadcastState}.
+ *
+ *           表示一个广播状态 ReadOnlyBroadcastState是一个只读状态 只能get 不能插入
+ *           从暴露的api来看 就像一个map
  */
 @PublicEvolving
 public interface BroadcastState<K, V> extends ReadOnlyBroadcastState<K, V> {

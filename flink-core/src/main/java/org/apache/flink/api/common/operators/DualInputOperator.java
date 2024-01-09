@@ -35,10 +35,15 @@ import java.util.List;
  * @param <IN2> Second input type of the user function
  * @param <OUT> Output type of the user function
  * @param <FT> Type of the user function
+ *
+ *            该对象代表 有2个input 一个output    与 SingleInputOperator的单输入/单输出不同
+ *            FT 就是该operator使用的函数
  */
 @Internal
 public abstract class DualInputOperator<IN1, IN2, OUT, FT extends Function>
         extends AbstractUdfOperator<OUT, FT> {
+
+    // 2个输入对象 每个对象都是operator 也就是可以来自于更复杂的对象
 
     /** The operator producing the first input. */
     protected Operator<IN1> input1;
@@ -46,13 +51,17 @@ public abstract class DualInputOperator<IN1, IN2, OUT, FT extends Function>
     /** The operator producing the second input. */
     protected Operator<IN2> input2;
 
-    /** The positions of the keys in the tuples of the first input. */
+    /** The positions of the keys in the tuples of the first input.
+     * 第一个输入相关的 keys
+     * */
     private final int[] keyFields1;
 
     /** The positions of the keys in the tuples of the second input. */
     private final int[] keyFields2;
 
-    /** Semantic properties of the associated function. */
+    /** Semantic properties of the associated function.
+     * 维护 sourceField 和 targetField的映射关系
+     * */
     private DualInputSemanticProperties semanticProperties = new DualInputSemanticProperties();
 
     // --------------------------------------------------------------------------------------------
@@ -65,7 +74,7 @@ public abstract class DualInputOperator<IN1, IN2, OUT, FT extends Function>
      */
     protected DualInputOperator(
             UserCodeWrapper<FT> stub,
-            BinaryOperatorInformation<IN1, IN2, OUT> operatorInfo,
+            BinaryOperatorInformation<IN1, IN2, OUT> operatorInfo,  // 需要二元信息对象
             String name) {
         super(stub, operatorInfo, name);
         this.keyFields1 = this.keyFields2 = new int[0];
@@ -94,7 +103,9 @@ public abstract class DualInputOperator<IN1, IN2, OUT, FT extends Function>
 
     // --------------------------------------------------------------------------------------------
 
-    /** Gets the information about the operators input/output types. */
+    /** Gets the information about the operators input/output types.
+     * 内部的操作信息 需要根据子类 转换成实际类型
+     * */
     @Override
     @SuppressWarnings("unchecked")
     public BinaryOperatorInformation<IN1, IN2, OUT> getOperatorInfo() {
@@ -268,6 +279,12 @@ public abstract class DualInputOperator<IN1, IN2, OUT, FT extends Function>
         return 2;
     }
 
+
+    /**
+     * 根据传入的input下标 返回不同的容器
+     * @param inputNum
+     * @return
+     */
     @Override
     public int[] getKeyColumns(int inputNum) {
         if (inputNum == 0) {
@@ -283,6 +300,7 @@ public abstract class DualInputOperator<IN1, IN2, OUT, FT extends Function>
 
     @Override
     public void accept(Visitor<Operator<?>> visitor) {
+        // 使用访问者模式  当本对象通过时  继续处理内部的 input1/input2
         boolean descend = visitor.preVisit(this);
         if (descend) {
             this.input1.accept(visitor);

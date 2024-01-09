@@ -21,6 +21,9 @@ package org.apache.flink.api.common.operators;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.aggregators.AggregatorRegistry;
 
+/**
+ * 目前只有 bulkIteration/deltaIteration 2个迭代对象 可以从他们这得到聚合器注册对象
+ */
 @Internal
 public interface IterationOperator {
 

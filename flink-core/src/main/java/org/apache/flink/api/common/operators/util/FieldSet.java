@@ -26,7 +26,9 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 
-/** Immutable unordered collection of fields IDs. */
+/** Immutable unordered collection of fields IDs.
+ * 代表一组 fieldId
+ * */
 @Internal
 public class FieldSet implements Iterable<Integer> {
 
@@ -45,6 +47,7 @@ public class FieldSet implements Iterable<Integer> {
      * Creates a set with one field.
      *
      * @param fieldID The id of the field.
+     *                使用单个id进行初始化
      */
     public FieldSet(Integer fieldID) {
         if (fieldID == null) {
@@ -76,6 +79,7 @@ public class FieldSet implements Iterable<Integer> {
      * Creates a set with the given fields.
      *
      * @param fieldIDs The IDs of the fields.
+     *                 同上
      */
     public FieldSet(int[] fieldIDs, boolean marker) {
         if (fieldIDs == null || fieldIDs.length == 0) {
@@ -102,6 +106,7 @@ public class FieldSet implements Iterable<Integer> {
         if (fieldSet.size() == 0) {
             this.collection = Collections.singleton(fieldID);
         } else {
+            // 借助另一个set的 fieldId 来初始化
             HashSet<Integer> set = new HashSet<Integer>(2 * (fieldSet.collection.size() + 1));
             set.addAll(fieldSet.collection);
             set.add(fieldID);
@@ -140,6 +145,11 @@ public class FieldSet implements Iterable<Integer> {
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 注意 按照这种方式 每次初始化的 FieldSet 他们内部的元素都不会被修改
+     * @param fieldID
+     * @return
+     */
     public FieldSet addField(Integer fieldID) {
         if (fieldID == null) {
             throw new IllegalArgumentException("Field ID must not be null.");
@@ -215,6 +225,7 @@ public class FieldSet implements Iterable<Integer> {
      *
      * @param set The set that is a candidate subset.
      * @return True, if the given set is a subset of this set, false otherwise.
+     * 传入的set是否是本对象的子集
      */
     public boolean isValidSubset(FieldSet set) {
         if (set.size() > size()) {

@@ -29,6 +29,7 @@ import java.util.Set;
  *
  * <p>TaskExecutor will retrieve the {@link ExternalResourceInfo} set of the external resource from
  * the drivers.
+ * 外部资源驱动
  */
 @PublicEvolving
 public interface ExternalResourceDriver {
@@ -39,6 +40,7 @@ public interface ExternalResourceDriver {
      * @param amount of the required external resources
      * @return information set of the required external resources
      * @throws Exception if there is something wrong during retrieving
+     * 申请资源 并得到描述信息
      */
     Set<? extends ExternalResourceInfo> retrieveResourceInfo(long amount) throws Exception;
 }

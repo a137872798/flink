@@ -39,6 +39,7 @@ import java.util.List;
  * @param <IN> The input type.
  * @param <OUT> The result type.
  * @param <FT> The type of the user-defined function.
+ *            代表操作是MapPartitionFunction
  */
 @Internal
 public class MapPartitionOperatorBase<IN, OUT, FT extends MapPartitionFunction<IN, OUT>>
@@ -72,6 +73,7 @@ public class MapPartitionOperatorBase<IN, OUT, FT extends MapPartitionFunction<I
 
         ArrayList<OUT> result = new ArrayList<OUT>(inputData.size() / 4);
 
+        // 便于对输入和输出 序列化
         TypeSerializer<IN> inSerializer =
                 getOperatorInfo().getInputType().createSerializer(executionConfig);
         TypeSerializer<OUT> outSerializer =
@@ -81,6 +83,7 @@ public class MapPartitionOperatorBase<IN, OUT, FT extends MapPartitionFunction<I
         CopyingListCollector<OUT> resultCollector =
                 new CopyingListCollector<OUT>(result, outSerializer);
 
+        // 使用函数处理原数据
         function.mapPartition(source, resultCollector);
 
         result.trimToSize();

@@ -28,6 +28,7 @@ import java.io.IOException;
  *
  * <p>For example, the {@link FileOutputFormat} implements this behavior for distributed file
  * systems and creates/deletes target directories if necessary.
+ * 某些组件可能需要master为他们进行初始化
  */
 @Public
 public interface InitializeOnMaster {
@@ -39,6 +40,7 @@ public interface InitializeOnMaster {
      * @param parallelism The parallelism with which the format or functions will be run.
      * @throws IOException The initialization may throw exceptions, which may cause the job to
      *     abort.
+     *     在分布式程序执行之前 在主程序上调用该方法
      */
     void initializeGlobal(int parallelism) throws IOException;
 }

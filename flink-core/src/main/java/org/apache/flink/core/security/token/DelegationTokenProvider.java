@@ -28,6 +28,8 @@ import java.util.Optional;
  * DelegationTokenManager through service loader. Basically the implementation of this interface is
  * responsible to produce the serialized form of tokens which will be handled by {@link
  * DelegationTokenReceiver} instances both on JobManager and TaskManager side.
+ *
+ * 表示可以提供token
  */
 @Experimental
 public interface DelegationTokenProvider {
@@ -35,14 +37,19 @@ public interface DelegationTokenProvider {
     /** Config prefix of providers. */
     String CONFIG_PREFIX = "security.delegation.token.provider";
 
-    /** Container for obtained delegation tokens. */
+    /** Container for obtained delegation tokens.
+     * 存放token的容器
+     * */
     class ObtainedDelegationTokens {
-        /** Serialized form of delegation tokens. */
+        /** Serialized form of delegation tokens.
+         * token 是一段字节
+         * */
         private byte[] tokens;
 
         /**
          * Time until the tokens are valid, if valid forever then `Optional.empty()` should be
          * returned.
+         * 表示token的有效期
          */
         private Optional<Long> validUntil;
 
@@ -60,7 +67,9 @@ public interface DelegationTokenProvider {
         }
     }
 
-    /** Name of the service to provide delegation tokens. This name should be unique. */
+    /** Name of the service to provide delegation tokens. This name should be unique.
+     * 产生token的服务名
+     * */
     String serviceName();
 
     /** Config prefix of the service. */

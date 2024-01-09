@@ -24,7 +24,9 @@ import org.apache.flink.util.AbstractID;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
-/** The pipeline executor that support caching intermediate dataset. */
+/** The pipeline executor that support caching intermediate dataset.
+ * 支持缓存的执行器
+ * */
 @Internal
 public interface CacheSupportedPipelineExecutor extends PipelineExecutor {
 
@@ -34,6 +36,8 @@ public interface CacheSupportedPipelineExecutor extends PipelineExecutor {
      * @param configuration the {@link Configuration} with the required parameters
      * @param userCodeClassloader the {@link ClassLoader} to deserialize usercode
      * @return A set of ids of the completely cached intermediate dataset.
+     *
+     * 返回已经完成的数据集id
      */
     CompletableFuture<Set<AbstractID>> listCompletedClusterDatasetIds(
             final Configuration configuration, final ClassLoader userCodeClassloader)
@@ -46,6 +50,7 @@ public interface CacheSupportedPipelineExecutor extends PipelineExecutor {
      * @param configuration the {@link Configuration} with the required parameters
      * @param userCodeClassloader the {@link ClassLoader} to deserialize usercode
      * @return Future which will be completed when the cached dataset is invalidated.
+     * 使得该id相关的数据集失效
      */
     CompletableFuture<Void> invalidateClusterDataset(
             AbstractID clusterDatasetId,

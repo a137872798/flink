@@ -27,6 +27,7 @@ import org.apache.flink.annotation.PublicEvolving;
  *
  * @param <IN> Type of the value that can be added to the state.
  * @param <OUT> Type of the value that can be retrieved from the state.
+ *             MergingState 表示2个state可以进行合并
  */
 @PublicEvolving
 public interface MergingState<IN, OUT> extends AppendingState<IN, OUT> {}

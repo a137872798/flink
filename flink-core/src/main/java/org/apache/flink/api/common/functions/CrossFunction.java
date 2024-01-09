@@ -43,6 +43,8 @@ import java.io.Serializable;
  * @param <IN1> The type of the elements in the first input.
  * @param <IN2> The type of the elements in the second input.
  * @param <OUT> The type of the result elements.
+ *
+ *             交叉函数 每个元素会与另一个输入流中所有元素产生结果
  */
 @Public
 @FunctionalInterface

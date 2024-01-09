@@ -47,6 +47,13 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+/**
+ * 基于外连接的函数
+ * @param <IN1>
+ * @param <IN2>
+ * @param <OUT>
+ * @param <FT>
+ */
 @Internal
 public class OuterJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN1, IN2, OUT>>
         extends JoinOperatorBase<IN1, IN2, OUT, FT> {
@@ -57,6 +64,9 @@ public class OuterJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN
         FULL
     }
 
+    /**
+     * 表示外连接的方式
+     */
     private OuterJoinType outerJoinType;
 
     public OuterJoinOperatorBase(
@@ -100,6 +110,16 @@ public class OuterJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN
         return outerJoinType;
     }
 
+
+    /**
+     * 使用外连接处理数据 并收集到output中
+     * @param leftInput
+     * @param rightInput
+     * @param runtimeContext
+     * @param executionConfig
+     * @return
+     * @throws Exception
+     */
     @Override
     protected List<OUT> executeOnCollections(
             List<IN1> leftInput,
@@ -111,6 +131,7 @@ public class OuterJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN
         TypeInformation<IN2> rightInformation = getOperatorInfo().getSecondInputType();
         TypeInformation<OUT> outInformation = getOperatorInfo().getOutputType();
 
+        // 生成2个比较器对象
         TypeComparator<IN1> leftComparator =
                 buildComparatorFor(0, executionConfig, leftInformation);
         TypeComparator<IN2> rightComparator =
@@ -119,6 +140,7 @@ public class OuterJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN
         TypeSerializer<IN1> leftSerializer = leftInformation.createSerializer(executionConfig);
         TypeSerializer<IN2> rightSerializer = rightInformation.createSerializer(executionConfig);
 
+        // 将相关信息拼接起来变成迭代器
         OuterJoinListIterator<IN1, IN2> outerJoinIterator =
                 new OuterJoinListIterator<>(
                         leftInput,
@@ -130,7 +152,7 @@ public class OuterJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN
                         outerJoinType);
 
         // --------------------------------------------------------------------
-        // Run UDF
+        // Run UDF    获取join函数   外连接相当于是选择哪些元素两两配对 而join函数则是包含处理逻辑
         // --------------------------------------------------------------------
         FlatJoinFunction<IN1, IN2, OUT> function = userFunction.getUserCodeObject();
 
@@ -142,6 +164,7 @@ public class OuterJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN
                 new CopyingListCollector<>(
                         result, outInformation.createSerializer(executionConfig));
 
+        // 这个迭代器的使用方式是  先next()  然后分别调用 left/right
         while (outerJoinIterator.next()) {
             IN1 left = outerJoinIterator.getLeft();
             IN2 right = outerJoinIterator.getRight();
@@ -156,6 +179,15 @@ public class OuterJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN
         return result;
     }
 
+
+    /**
+     * 生成比较器对象
+     * @param input
+     * @param executionConfig
+     * @param typeInformation
+     * @param <T>
+     * @return
+     */
     @SuppressWarnings("unchecked")
     private <T> TypeComparator<T> buildComparatorFor(
             int input, ExecutionConfig executionConfig, TypeInformation<T> typeInformation) {
@@ -179,6 +211,11 @@ public class OuterJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN
         return comparator;
     }
 
+    /**
+     * 用于外连接的迭代器
+     * @param <IN1>
+     * @param <IN2>
+     */
     private static class OuterJoinListIterator<IN1, IN2> {
 
         private static enum MatchStatus {
@@ -194,6 +231,10 @@ public class OuterJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN
         private ListKeyGroupedIterator<IN1> leftGroupedIterator;
         private ListKeyGroupedIterator<IN2> rightGroupedIterator;
         private Iterable<IN1> currLeftSubset;
+
+        /**
+         * 代表可重置的迭代器
+         */
         private ResettableIterator currLeftIterator;
         private Iterable<IN2> currRightSubset;
         private ResettableIterator currRightIterator;
@@ -213,14 +254,19 @@ public class OuterJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN
                 final TypeComparator<IN2> rightComparator,
                 OuterJoinType outerJoinType) {
             this.outerJoinType = outerJoinType;
+
+            // 用于比较2个不同类型对象抽出来的某几个字段是否相等
             pairComparator = new GenericPairComparator<>(leftComparator, rightComparator);
+
+            // 将2个输入分别包装成迭代器
             leftGroupedIterator =
                     new ListKeyGroupedIterator<>(leftInput, leftSerializer, leftComparator);
             rightGroupedIterator =
                     new ListKeyGroupedIterator<>(rightInput, rightSerializer, rightComparator);
             // ----------------------------------------------------------------
-            // Sort
+            // Sort   对2个输入进行排序
             // ----------------------------------------------------------------
+
             Collections.sort(
                     leftInput,
                     new Comparator<IN1>() {
@@ -240,13 +286,22 @@ public class OuterJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN
                     });
         }
 
+        /**
+         * 迭代器的使用方式是先调用该方法
+         * @return
+         * @throws IOException
+         */
         @SuppressWarnings("unchecked")
         private boolean next() throws IOException {
             boolean hasMoreElements;
+
+            // 左右两侧迭代器都要加载
             if ((currLeftIterator == null || !currLeftIterator.hasNext())
                     && (currRightIterator == null || !currRightIterator.hasNext())) {
                 hasMoreElements = nextGroups(outerJoinType);
                 if (hasMoreElements) {
+
+                    // 推进并为 leftReturn/rightReturn 赋值
                     if (outerJoinType != OuterJoinType.LEFT) {
                         currLeftIterator = new ListIteratorWrapper(currLeftSubset.iterator());
                     }
@@ -271,9 +326,18 @@ public class OuterJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN
             }
         }
 
+        /**
+         * 返回下一组数据
+         * @param outerJoinType
+         * @return
+         * @throws IOException
+         */
         private boolean nextGroups(OuterJoinType outerJoinType) throws IOException {
             if (outerJoinType == OuterJoinType.FULL) {
+                // 此时补充了 左右子集
                 return nextGroups();
+
+                // 根据左右情况 走不同逻辑
             } else if (outerJoinType == OuterJoinType.LEFT) {
                 boolean leftContainsElements = false;
                 while (!leftContainsElements && nextGroups()) {
@@ -300,15 +364,22 @@ public class OuterJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN
             }
         }
 
+        /**
+         * 切换到下个组
+         * @return
+         * @throws IOException
+         */
         private boolean nextGroups() throws IOException {
             boolean firstEmpty = true;
             boolean secondEmpty = true;
 
             if (this.matchStatus != MatchStatus.FIRST_EMPTY) {
+                // 代表还有数据未读完 不需要更新 pairComparator 内的数据
                 if (this.matchStatus == MatchStatus.FIRST_REMAINED) {
                     // comparator is still set correctly
                     firstEmpty = false;
                 } else {
+                    // 更新到下一个key
                     if (this.leftGroupedIterator.nextKey()) {
                         this.pairComparator.setReference(
                                 leftGroupedIterator.getValues().getCurrent());
@@ -317,6 +388,7 @@ public class OuterJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN
                 }
             }
 
+            // 判断是否需要更新第二个迭代器
             if (this.matchStatus != MatchStatus.SECOND_EMPTY) {
                 if (this.matchStatus == MatchStatus.SECOND_REMAINED) {
                     secondEmpty = false;
@@ -327,12 +399,14 @@ public class OuterJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN
                 }
             }
 
+            // 已经没有数据可以处理了
             if (firstEmpty && secondEmpty) {
                 // both inputs are empty
                 return false;
             } else if (firstEmpty && !secondEmpty) {
-                // input1 is empty, input2 not
+                // input1 is empty, input2 not    外连接就是 允许有值的一侧与null join
                 this.currLeftSubset = Collections.singleton(null);
+                // 获取当前key 相关的一组value
                 this.currRightSubset = this.rightGroupedIterator.getValues();
                 this.matchStatus = MatchStatus.FIRST_EMPTY;
                 return true;
@@ -343,18 +417,19 @@ public class OuterJoinOperatorBase<IN1, IN2, OUT, FT extends FlatJoinFunction<IN
                 this.matchStatus = MatchStatus.SECOND_EMPTY;
                 return true;
             } else {
-                // both inputs are not empty
+                // both inputs are not empty    二者皆不为空
                 final int comp =
                         this.pairComparator.compareToReference(
                                 rightGroupedIterator.getValues().getCurrent());
 
+                // 左右相同 都会被使用 所以都不会剩余 对应NONE_REMAINED
                 if (0 == comp) {
                     // keys match
                     this.currLeftSubset = this.leftGroupedIterator.getValues();
                     this.currRightSubset = this.rightGroupedIterator.getValues();
                     this.matchStatus = MatchStatus.NONE_REMAINED;
                 } else if (0 < comp) {
-                    // key1 goes first
+                    // key1 goes first  先返回左边的 同时右边为null
                     this.currLeftSubset = this.leftGroupedIterator.getValues();
                     this.currRightSubset = Collections.singleton(null);
                     this.matchStatus = MatchStatus.SECOND_REMAINED;

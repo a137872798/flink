@@ -63,6 +63,7 @@ public interface JoinFunction<IN1, IN2, OUT> extends Function, Serializable {
      * @return The resulting element.
      * @throws Exception This method may throw exceptions. Throwing an exception will cause the
      *     operation to fail and may trigger recovery.
+     *     将2个值 合并成out
      */
     OUT join(IN1 first, IN2 second) throws Exception;
 }

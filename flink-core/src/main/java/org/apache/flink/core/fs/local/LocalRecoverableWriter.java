@@ -33,7 +33,9 @@ import java.util.UUID;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** A {@link RecoverableWriter} for the {@link LocalFileSystem}. */
+/** A {@link RecoverableWriter} for the {@link LocalFileSystem}.
+ * 基于本地文件系统的可恢复写入对象
+ * */
 @Internal
 public class LocalRecoverableWriter implements RecoverableWriter {
 
@@ -43,9 +45,16 @@ public class LocalRecoverableWriter implements RecoverableWriter {
         this.fs = checkNotNull(fs);
     }
 
+    /**
+     * RecoverableFsDataOutputStream 相比普通的输出流 多开放了一些api
+     * @param filePath
+     * @return
+     * @throws IOException
+     */
     @Override
     public RecoverableFsDataOutputStream open(Path filePath) throws IOException {
         final File targetFile = fs.pathToFile(filePath);
+        // 产生一个临时文件
         final File tempFile = generateStagingTempFilePath(targetFile);
 
         // try to create the parent
@@ -54,9 +63,16 @@ public class LocalRecoverableWriter implements RecoverableWriter {
             throw new IOException("Failed to create the parent directory: " + parent);
         }
 
+        // 该对象有持久化和恢复  同时在提交时 会将临时文件变成目标文件
         return new LocalRecoverableFsDataOutputStream(targetFile, tempFile);
     }
 
+    /**
+     * 通过记录相关信息的恢复对象 重新生成输出流
+     * @param recoverable
+     * @return
+     * @throws IOException
+     */
     @Override
     public RecoverableFsDataOutputStream recover(ResumeRecoverable recoverable) throws IOException {
         if (recoverable instanceof LocalRecoverable) {
@@ -78,6 +94,12 @@ public class LocalRecoverableWriter implements RecoverableWriter {
         return false;
     }
 
+    /**
+     * 生成提交对象
+     * @param recoverable
+     * @return
+     * @throws IOException
+     */
     @Override
     public Committer recoverForCommit(CommitRecoverable recoverable) throws IOException {
         if (recoverable instanceof LocalRecoverable) {
@@ -89,6 +111,8 @@ public class LocalRecoverableWriter implements RecoverableWriter {
                             + recoverable);
         }
     }
+
+    // commit对象和 resume对象 也需要支持序列化
 
     @Override
     public SimpleVersionedSerializer<CommitRecoverable> getCommitRecoverableSerializer() {
@@ -115,6 +139,11 @@ public class LocalRecoverableWriter implements RecoverableWriter {
         return true;
     }
 
+    /**
+     * 生成临时文件
+     * @param targetFile
+     * @return
+     */
     @VisibleForTesting
     public static File generateStagingTempFilePath(File targetFile) {
         checkArgument(!targetFile.isDirectory(), "targetFile must not be a directory");

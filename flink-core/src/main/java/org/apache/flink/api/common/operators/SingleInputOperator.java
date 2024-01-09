@@ -33,18 +33,27 @@ import java.util.List;
  * @param <IN> Input type of the user function
  * @param <OUT> Output type of the user function
  * @param <FT> Type of the user function
+ *
+ *            单输入的operator对象
  */
 @Internal
 public abstract class SingleInputOperator<IN, OUT, FT extends Function>
         extends AbstractUdfOperator<OUT, FT> {
 
-    /** The input which produces the data consumed by this operator. */
+    /** The input which produces the data consumed by this operator.
+     * 用于产生数据 被本operator消耗
+     * */
     protected Operator<IN> input;
 
-    /** The positions of the keys in the tuple. */
+    /** The positions of the keys in the tuple.
+     * key 在元组中的位置
+     * */
     private final int[] keyFields;
 
-    /** Semantic properties of the associated function. */
+    /** Semantic properties of the associated function.
+     * 关联函数的语义属性
+     * 这个对象维护了 sourceField <--> targetField 的映射关系
+     * */
     private SingleInputSemanticProperties semanticProperties = new SingleInputSemanticProperties();
 
     // --------------------------------------------------------------------------------------------
@@ -59,7 +68,7 @@ public abstract class SingleInputOperator<IN, OUT, FT extends Function>
      */
     protected SingleInputOperator(
             UserCodeWrapper<FT> stub,
-            UnaryOperatorInformation<IN, OUT> operatorInfo,
+            UnaryOperatorInformation<IN, OUT> operatorInfo,   // 作为单输入/单输出的对象 需要2个TypeInformation
             int[] keyPositions,
             String name) {
         super(stub, operatorInfo, name);
@@ -93,6 +102,7 @@ public abstract class SingleInputOperator<IN, OUT, FT extends Function>
      * Returns the input operator or data source, or null, if none is set.
      *
      * @return This operator's input.
+     * 代表提供该对象所需数据的 数据源
      */
     public Operator<IN> getInput() {
         return this.input;
@@ -176,6 +186,10 @@ public abstract class SingleInputOperator<IN, OUT, FT extends Function>
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 无论怎么添加输入 input都会经过union 变成一个 input
+     * @return
+     */
     @Override
     public final int getNumberOfInputs() {
         return 1;
@@ -204,6 +218,7 @@ public abstract class SingleInputOperator<IN, OUT, FT extends Function>
     public void accept(Visitor<Operator<?>> visitor) {
         if (visitor.preVisit(this)) {
             this.input.accept(visitor);
+            // 广播对象也会触发
             for (Operator<?> c : this.broadcastInputs.values()) {
                 c.accept(visitor);
             }

@@ -37,6 +37,10 @@ import java.security.Permission;
  * malicious users who try to tweak security manager on their own, but more for being dependable
  * against user mistakes by gracefully handling them informing users rather than causing silent
  * unavailability.
+ *
+ * SecurityManager 对有关类加载进行一个权限控制
+ *
+ * 这里做一层代理
  */
 public class FlinkSecurityManager extends SecurityManager {
 

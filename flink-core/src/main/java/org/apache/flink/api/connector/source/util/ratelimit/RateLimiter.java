@@ -24,7 +24,9 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import java.util.concurrent.CompletionStage;
 
-/** The interface to rate limit execution of methods. */
+/** The interface to rate limit execution of methods.
+ * 限流器  看来flink中 某些操作需要被限流
+ * */
 @NotThreadSafe
 @Experimental
 public interface RateLimiter {
@@ -33,6 +35,7 @@ public interface RateLimiter {
      * Returns a future that is completed once another event would not exceed the rate limit. For
      * correct functioning, the next invocation of this method should only happen after the
      * previously returned future has been completed.
+     * 获取调用的令牌
      */
     CompletionStage<Void> acquire();
 

@@ -28,13 +28,17 @@ import java.util.Iterator;
  * Wraps an iterator to return deep copies of the original iterator's elements.
  *
  * @param <E> The type of the element returned by the iterator.
+ *           包装迭代器  在迭代时进行深度拷贝
  */
 @Internal
 public class CopyingIterator<E> implements Iterator<E>, Iterable<E> {
 
     private final Iterator<E> source;
+
+    // 通过该对象完成深度拷贝
     private final TypeSerializer<E> serializer;
 
+    // 代表 iterator() 只能调用一次
     private boolean available = true;
 
     public CopyingIterator(Iterator<E> source, TypeSerializer<E> serializer) {

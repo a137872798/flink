@@ -20,7 +20,9 @@ package org.apache.flink.util;
 
 import org.apache.flink.annotation.Internal;
 
-/** Interface to simply add reference counting functionality. */
+/** Interface to simply add reference counting functionality.
+ * 通过retain/release 方法增减引用计数 进而控制对象生命周期
+ * */
 @Internal
 public interface RefCounted {
 

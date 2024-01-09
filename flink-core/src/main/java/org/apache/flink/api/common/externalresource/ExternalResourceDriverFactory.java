@@ -38,6 +38,7 @@ public interface ExternalResourceDriverFactory {
      * @param config configuration for this external resource
      * @return the driver for this external resource
      * @throws Exception if there is something wrong during the creation
+     * 根据配置信息 产生driver
      */
     ExternalResourceDriver createExternalResourceDriver(Configuration config) throws Exception;
 }

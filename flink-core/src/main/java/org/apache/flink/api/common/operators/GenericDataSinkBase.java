@@ -43,14 +43,25 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * Operator for nodes that act as data sinks, storing the data they receive. The way the data is
  * stored is handled by the {@link org.apache.flink.api.common.io.OutputFormat}.
+ *
+ * 这是一个通用的 数据汇集的对象
  */
 @Internal
 public class GenericDataSinkBase<IN> extends Operator<Nothing> {
 
+    /**
+     * 表示用户定义的 OutputFormat 产生并存储输出结果
+     */
     protected final UserCodeWrapper<? extends OutputFormat<IN>> formatWrapper;
 
+    /**
+     * 包含资源 还有一些基础属性
+     */
     protected Operator<IN> input = null;
 
+    /**
+     * 内部包含多个顺序对象
+     */
     private Ordering localOrdering;
 
     // --------------------------------------------------------------------------------------------
@@ -59,8 +70,9 @@ public class GenericDataSinkBase<IN> extends Operator<Nothing> {
      * Creates a GenericDataSink with the provided {@link
      * org.apache.flink.api.common.io.OutputFormat} implementation and the given name.
      *
-     * @param f The {@link org.apache.flink.api.common.io.OutputFormat} implementation used to sink
+     * @param f The {@link org.apache.flink.api.common.io.OutputFormat} implementation used to sink  sink输出的目标
      *     the data.
+     * @param operatorInfo  保存单个输入/输出的类型信息
      * @param name The given name for the sink, used in plans, logs and progress messages.
      */
     public GenericDataSinkBase(
@@ -117,6 +129,7 @@ public class GenericDataSinkBase<IN> extends Operator<Nothing> {
     @Deprecated
     public void setInputs(Operator<IN>... inputs) {
         checkNotNull(inputs, "The inputs may not be null.");
+        // 使用union操作将多个input合起来
         this.input = Operator.createUnionCascade(inputs);
     }
 
@@ -126,6 +139,8 @@ public class GenericDataSinkBase<IN> extends Operator<Nothing> {
      * @param inputs The operator(s) that form the input.
      * @deprecated This method will be removed in future versions. Use the {@link
      *     org.apache.flink.api.common.operators.Union} operator instead.
+     *
+     *     因为sink 只有一个输入 一个输出 所以指定多个inputs时 将他们union成一个输入
      */
     @Deprecated
     public void setInputs(List<Operator<IN>> inputs) {
@@ -221,11 +236,15 @@ public class GenericDataSinkBase<IN> extends Operator<Nothing> {
      *
      * @param visitor The visitor.
      * @see org.apache.flink.util.Visitable#accept(org.apache.flink.util.Visitor)
+     *
+     * Operator实现类 都提供 accpet api    可以传入访问者 并将自身作为参数
      */
     @Override
     public void accept(Visitor<Operator<?>> visitor) {
         boolean descend = visitor.preVisit(this);
+        // 代表操作可以继续
         if (descend) {
+            // 继续作用在内部的input上
             this.input.accept(visitor);
             visitor.postVisit(this);
         }
@@ -233,22 +252,41 @@ public class GenericDataSinkBase<IN> extends Operator<Nothing> {
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 作用在一组集合上
+     * @param inputData  集合数据
+     * @param ctx        运行时上下文
+     * @param executionConfig
+     * @throws Exception
+     */
     @SuppressWarnings("unchecked")
     protected void executeOnCollections(
             List<IN> inputData, RuntimeContext ctx, ExecutionConfig executionConfig)
             throws Exception {
+
+        // 获取包含输出目的地信息的  OutputFormat
         OutputFormat<IN> format = this.formatWrapper.getUserCodeObject();
         TypeInformation<IN> inputType = getInput().getOperatorInfo().getOutputType();
 
         if (this.localOrdering != null) {
+            // 获取每个字段的列号
             int[] sortColumns = this.localOrdering.getFieldPositions();
+            // 这些列的排序顺序
             boolean[] sortOrderings = this.localOrdering.getFieldSortDirections();
 
+            // 根据下面的类型创建出 比较器
             final TypeComparator<IN> sortComparator;
+
+            // 根据input的类型 来判断是否要对inputData进行排序 以及如何排序
+
+            // 代表最终输出的是一个组合类型
             if (inputType instanceof CompositeType) {
                 sortComparator =
                         ((CompositeType<IN>) inputType)
+                                // 借助多列信息/顺序信息 创建比较器
                                 .createComparator(sortColumns, sortOrderings, 0, executionConfig);
+
+                // 应该只有一个字段 跟顺序有关 所以只需要 sortOrderings[0]
             } else if (inputType instanceof AtomicType) {
                 sortComparator =
                         ((AtomicType<IN>) inputType)
@@ -258,6 +296,7 @@ public class GenericDataSinkBase<IN> extends Operator<Nothing> {
                         "Local output sorting does not support type " + inputType + " yet.");
             }
 
+            // 使用排序对象处理input
             Collections.sort(
                     inputData,
                     new Comparator<IN>() {
@@ -268,6 +307,7 @@ public class GenericDataSinkBase<IN> extends Operator<Nothing> {
                     });
         }
 
+        // 这里就是触发相关钩子
         if (format instanceof InitializeOnMaster) {
             ((InitializeOnMaster) format).initializeGlobal(1);
         }
@@ -277,6 +317,7 @@ public class GenericDataSinkBase<IN> extends Operator<Nothing> {
             ((RichOutputFormat<?>) format).setRuntimeContext(ctx);
         }
         format.open(0, 1);
+        // 数据排序过后  按顺序写入
         for (IN element : inputData) {
             format.writeRecord(element);
         }

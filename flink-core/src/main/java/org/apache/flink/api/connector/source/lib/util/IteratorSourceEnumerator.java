@@ -36,12 +36,17 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * assigns it first-come-first-serve.
  *
  * @param <SplitT> The type of the splits used by the source.
+ *                该对象管理多个 SourceReader 并为他们分配 SourceSplit
  */
 @Public
 public class IteratorSourceEnumerator<SplitT extends IteratorSourceSplit<?, ?>>
         implements SplitEnumerator<SplitT, Collection<SplitT>> {
 
+    /**
+     * 相关的上下文
+     */
     private final SplitEnumeratorContext<SplitT> context;
+
     private final Queue<SplitT> remainingSplits;
 
     public IteratorSourceEnumerator(
@@ -59,16 +64,28 @@ public class IteratorSourceEnumerator<SplitT extends IteratorSourceSplit<?, ?>>
     @Override
     public void close() {}
 
+    /**
+     * 有个协调者对象 将枚举对象和 reader对象整合起来   由协调者对象调用该方法
+     * @param subtaskId the subtask id of the source reader who sent the source event.
+     * @param requesterHostname Optional, the hostname where the requesting task is running. This
+     *     can be used to make split assignments locality-aware.
+     */
     @Override
     public void handleSplitRequest(int subtaskId, @Nullable String requesterHostname) {
         final SplitT nextSplit = remainingSplits.poll();
         if (nextSplit != null) {
+            // 一次仅分配一个split
             context.assignSplit(nextSplit, subtaskId);
         } else {
             context.signalNoMoreSplits(subtaskId);
         }
     }
 
+    /**
+     * 通过协调者对象处理失败的reader 将split归还到本对象 这样就可以分配给其他reader了
+     * @param splits The splits to add back to the enumerator for reassignment.
+     * @param subtaskId The id of the subtask to which the returned splits belong.
+     */
     @Override
     public void addSplitsBack(List<SplitT> splits, int subtaskId) {
         remainingSplits.addAll(splits);

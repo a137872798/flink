@@ -27,7 +27,9 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
-/** A simple and efficient serializer for the {@link java.io.DataOutput} interface. */
+/** A simple and efficient serializer for the {@link java.io.DataOutput} interface.
+ * 表示将基础类型 序列化后写入buffer  也就是本对象会开发一些基础的写入api
+ * */
 public class DataOutputSerializer implements DataOutputView, MemorySegmentWritable {
 
     private byte[] buffer;
@@ -38,6 +40,9 @@ public class DataOutputSerializer implements DataOutputView, MemorySegmentWritab
 
     // ------------------------------------------------------------------------
 
+    /**
+     * @param startSize   表示输出容器的初始大小
+     */
     public DataOutputSerializer(int startSize) {
         if (startSize < 1) {
             throw new IllegalArgumentException();
@@ -127,6 +132,13 @@ public class DataOutputSerializer implements DataOutputView, MemorySegmentWritab
         this.position += len;
     }
 
+    /**
+     * 从segment读取数据到 buffer
+     * @param segment memory segment to copy the bytes from.
+     * @param off the start offset in the memory segment.
+     * @param len The number of bytes to copy.
+     * @throws IOException
+     */
     @Override
     public void write(MemorySegment segment, int off, int len) throws IOException {
         if (len < 0 || off < 0 || off > segment.size() - len) {

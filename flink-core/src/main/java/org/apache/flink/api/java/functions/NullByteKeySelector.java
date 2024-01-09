@@ -25,6 +25,8 @@ import org.apache.flink.annotation.Internal;
  * Essentially, it gives all incoming records the same key, which is a {@code (byte) 0} value.
  *
  * @param <T> The type of the input element.
+ *
+ *           代表无论针对任何对象 只能抽出0
  */
 @Internal
 public class NullByteKeySelector<T> implements KeySelector<T, Byte> {

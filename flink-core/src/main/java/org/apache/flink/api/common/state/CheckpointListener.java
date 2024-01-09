@@ -93,6 +93,7 @@ import org.apache.flink.annotation.Public;
  * <p>That way, even if some checkpoints did not complete, or if the notification that they
  * completed got lost, the artifacts will be published as part of the next checkpoint that
  * completes.
+ * 检查点监听器  用于设置回调函数
  */
 @Public
 public interface CheckpointListener {
@@ -118,6 +119,7 @@ public interface CheckpointListener {
      * @param checkpointId The ID of the checkpoint that has been completed.
      * @throws Exception This method can propagate exceptions, which leads to a failure/recovery for
      *     the task. Note that this will NOT lead to the checkpoint being revoked.
+     *     检查点处理成功  比如将检查点存储到外部系统
      */
     void notifyCheckpointComplete(long checkpointId) throws Exception;
 
@@ -142,6 +144,8 @@ public interface CheckpointListener {
      * @param checkpointId The ID of the checkpoint that has been aborted.
      * @throws Exception This method can propagate exceptions, which leads to a failure/recovery for
      *     the task or job.
+     *
+     *     检查点处理失败
      */
     default void notifyCheckpointAborted(long checkpointId) throws Exception {}
 }

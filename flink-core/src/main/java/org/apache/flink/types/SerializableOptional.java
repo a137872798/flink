@@ -27,7 +27,9 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-/** Serializable {@link Optional}. */
+/** Serializable {@link Optional}.
+ * 内部可能维护null
+ * */
 public final class SerializableOptional<T extends Serializable> implements Serializable {
     private static final long serialVersionUID = -3312769593551775940L;
 

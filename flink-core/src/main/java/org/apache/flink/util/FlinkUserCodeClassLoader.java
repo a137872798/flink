@@ -32,6 +32,9 @@ public abstract class FlinkUserCodeClassLoader extends MutableURLClassLoader {
         ClassLoader.registerAsParallelCapable();
     }
 
+    /**
+     * 处理产生的异常
+     */
     private final Consumer<Throwable> classLoadingExceptionHandler;
 
     protected FlinkUserCodeClassLoader(URL[] urls, ClassLoader parent) {
@@ -51,6 +54,7 @@ public abstract class FlinkUserCodeClassLoader extends MutableURLClassLoader {
                 return loadClassWithoutExceptionHandling(name, resolve);
             }
         } catch (Throwable classLoadingException) {
+            // 使用handler处理异常
             classLoadingExceptionHandler.accept(classLoadingException);
             throw classLoadingException;
         }

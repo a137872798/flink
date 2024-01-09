@@ -20,7 +20,9 @@ package org.apache.flink.api.common.accumulators;
 
 import org.apache.flink.annotation.PublicEvolving;
 
-/** An accumulator that finds the minimum {@code double} value. */
+/** An accumulator that finds the minimum {@code double} value.
+ * 最小值
+ * */
 @PublicEvolving
 public class DoubleMinimum implements SimpleAccumulator<Double> {
 

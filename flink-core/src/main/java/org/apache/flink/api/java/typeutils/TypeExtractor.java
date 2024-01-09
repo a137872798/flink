@@ -89,6 +89,10 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * lot of variables such as generics, compiler, interfaces, etc. The type extraction fails regularly
  * with either {@link MissingTypeInfo} or hard exceptions. Whenever you use methods of this class,
  * make sure to provide a way to pass custom type information as a fallback.
+ *
+ * 类型抽取器对象 基于反射来分析class
+ *
+ * TODO
  */
 @Public
 public class TypeExtractor {
@@ -139,6 +143,14 @@ public class TypeExtractor {
     //  Function specific methods
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 将输入类型 通过函数转换后 返回输出类型的info信息
+     * @param mapInterface
+     * @param inType
+     * @param <IN>
+     * @param <OUT>
+     * @return
+     */
     @PublicEvolving
     public static <IN, OUT> TypeInformation<OUT> getMapReturnTypes(
             MapFunction<IN, OUT> mapInterface, TypeInformation<IN> inType) {
@@ -162,6 +174,14 @@ public class TypeExtractor {
                 allowMissing);
     }
 
+    /**
+     * 将输入类型平铺开 变成 Collection<OUT>
+     * @param flatMapInterface
+     * @param inType
+     * @param <IN>
+     * @param <OUT>
+     * @return
+     */
     @PublicEvolving
     public static <IN, OUT> TypeInformation<OUT> getFlatMapReturnTypes(
             FlatMapFunction<IN, OUT> flatMapInterface, TypeInformation<IN> inType) {
@@ -505,11 +525,12 @@ public class TypeExtractor {
      * @param <IN> Input type
      * @param <OUT> Output type
      * @return TypeInformation of the return type of the function
+     * 将输入类型 通过函数处理后 变成另一个类型
      */
     @SuppressWarnings("unchecked")
     @PublicEvolving
     public static <IN, OUT> TypeInformation<OUT> getUnaryOperatorReturnType(
-            Function function,
+            Function function,  // 表示是一个一元函数
             Class<?> baseClass,
             int inputTypeArgumentIndex,
             int outputTypeArgumentIndex,
@@ -528,6 +549,7 @@ public class TypeExtractor {
                 "Indices for output type arguments within lambda not provided");
 
         // explicit result type has highest precedence
+        // 如果函数本身支持该接口 可以直接拿到结果的typeInfo
         if (function instanceof ResultTypeQueryable) {
             return ((ResultTypeQueryable<OUT>) function).getProducedType();
         }
@@ -536,16 +558,20 @@ public class TypeExtractor {
         try {
             final LambdaExecutable exec;
             try {
+                // 抽出了函数信息 变成了一个lambda对象
                 exec = checkAndExtractLambda(function);
             } catch (TypeExtractionException e) {
                 throw new InvalidTypesException("Internal error occurred.", e);
             }
+
+            // TODO 要有SerializedLambda 才会进入上面的分支  先忽略
             if (exec != null) {
 
                 // parameters must be accessed from behind, since JVM can add additional parameters
                 // e.g. when using local variables inside lambda function
                 // paramLen is the total number of parameters of the provided lambda, it includes
                 // parameters added through closure
+                // 该函数需要的参数数量
                 final int paramLen = exec.getParameterTypes().length;
 
                 final Method sam = TypeExtractionUtils.getSingleAbstractMethod(baseClass);
@@ -1369,9 +1395,18 @@ public class TypeExtractor {
         return getParameterType(baseClass, null, clazz, pos);
     }
 
+    /**
+     * 获取参数类型
+     * @param baseClass
+     * @param typeHierarchy
+     * @param clazz
+     * @param pos
+     * @return
+     */
     private static Type getParameterType(
             Class<?> baseClass, List<Type> typeHierarchy, Class<?> clazz, int pos) {
         if (typeHierarchy != null) {
+            // 先加入自身
             typeHierarchy.add(clazz);
         }
         Type[] interfaceTypes = clazz.getGenericInterfaces();
@@ -1430,6 +1465,13 @@ public class TypeExtractor {
     //  Validate input
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 对输入类型进行校验
+     * @param baseClass
+     * @param clazz
+     * @param inputParamPos
+     * @param inTypeInfo
+     */
     private static void validateInputType(
             Class<?> baseClass, Class<?> clazz, int inputParamPos, TypeInformation<?> inTypeInfo) {
         List<Type> typeHierarchy = new ArrayList<>();

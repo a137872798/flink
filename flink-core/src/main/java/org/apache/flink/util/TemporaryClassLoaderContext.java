@@ -53,6 +53,7 @@ public final class TemporaryClassLoaderContext implements AutoCloseable {
      *     // code that needs the context class loader
      * }
      * }</pre>
+     * 在结束后会自动还原类加载起
      */
     public static TemporaryClassLoaderContext of(ClassLoader cl) {
         final Thread t = Thread.currentThread();

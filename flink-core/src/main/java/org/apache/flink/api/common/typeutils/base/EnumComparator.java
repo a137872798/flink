@@ -24,6 +24,10 @@ import org.apache.flink.core.memory.MemorySegment;
 
 import java.io.IOException;
 
+/**
+ * 代表针对枚举的比较对象
+ * @param <T>
+ */
 @Internal
 public final class EnumComparator<T extends Enum<T>> extends BasicTypeComparator<T> {
 
@@ -36,6 +40,7 @@ public final class EnumComparator<T extends Enum<T>> extends BasicTypeComparator
     @Override
     public int compareSerialized(DataInputView firstSource, DataInputView secondSource)
             throws IOException {
+        // 看来枚举在写入时 应该是写入编号
         int i1 = firstSource.readInt();
         int i2 = secondSource.readInt();
         int comp = (i1 < i2 ? -1 : (i1 == i2 ? 0 : 1));

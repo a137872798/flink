@@ -33,6 +33,7 @@ import java.io.IOException;
  * </ul>
  *
  * @param <E> The element type of the collection iterated over.
+ *           对象可以被复用  减少GC开销
  */
 @Internal
 public interface MutableObjectIterator<E> {

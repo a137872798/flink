@@ -24,7 +24,9 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.io.Serializable;
 
-/** Print sink output writer for DataStream and DataSet print API. */
+/** Print sink output writer for DataStream and DataSet print API.
+ * 将结果输出到标准输出
+ * */
 @Internal
 public class PrintSinkOutputWriter<IN> implements Serializable, SinkWriter<IN> {
 

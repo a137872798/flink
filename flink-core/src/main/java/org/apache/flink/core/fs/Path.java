@@ -40,6 +40,7 @@ import java.util.regex.Pattern;
  * separator. A path string is absolute if it begins with a slash.
  *
  * <p>Tailing slashes are removed from the path.
+ * 表示一个路径
  */
 @Public
 public class Path implements IOReadableWritable, Serializable {
@@ -58,7 +59,9 @@ public class Path implements IOReadableWritable, Serializable {
     /** A pre-compiled regex/state-machine to match the windows drive pattern. */
     private static final Pattern WINDOWS_ROOT_DIR_REGEX = Pattern.compile("/\\p{Alpha}+:/");
 
-    /** The internal representation of the path, a hierarchical URI. */
+    /** The internal representation of the path, a hierarchical URI.
+     * path在内部就是表示为一个uri
+     * */
     private URI uri;
 
     /** Constructs a new (empty) path object (used to reconstruct path object after RPC call). */
@@ -132,9 +135,11 @@ public class Path implements IOReadableWritable, Serializable {
                     new Path(
                             child.uri.getScheme(),
                             child.uri.getAuthority(),
+                            // 截取掉 "/"
                             child.uri.getPath().substring(1));
         }
 
+        // 拼接path
         final URI resolved = parentUri.resolve(child.uri);
         initialize(resolved.getScheme(), resolved.getAuthority(), resolved.getPath());
     }
@@ -170,6 +175,7 @@ public class Path implements IOReadableWritable, Serializable {
         // escaped, which we don't require of Paths.
 
         // add a slash in front of paths with Windows drive letters
+        // TODO
         if (hasWindowsDrive(pathString, false)) {
             pathString = "/" + pathString;
         }

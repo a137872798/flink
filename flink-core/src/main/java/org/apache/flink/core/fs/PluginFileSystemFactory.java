@@ -27,6 +27,8 @@ import java.net.URI;
 /**
  * A wrapper around {@link FileSystemFactory} that ensures the plugin classloader is used for all
  * {@link FileSystem} operations.
+ *
+ * 就是多带了个类加载器啊
  */
 public class PluginFileSystemFactory implements FileSystemFactory {
     private final FileSystemFactory inner;
@@ -58,6 +60,7 @@ public class PluginFileSystemFactory implements FileSystemFactory {
 
     @Override
     public FileSystem create(final URI fsUri) throws IOException {
+        // 创建文件系统时 使用该类加载器
         try (TemporaryClassLoaderContext ignored = TemporaryClassLoaderContext.of(loader)) {
             return new ClassLoaderFixingFileSystem(inner.create(fsUri), loader);
         }
@@ -68,6 +71,9 @@ public class PluginFileSystemFactory implements FileSystemFactory {
         return String.format("Plugin %s", inner.getClass().getName());
     }
 
+    /**
+     * 包装原始工厂产生的文件系统
+     */
     static class ClassLoaderFixingFileSystem extends FileSystem
             implements WrappingProxy<FileSystem> {
         private final FileSystem inner;
@@ -77,6 +83,8 @@ public class PluginFileSystemFactory implements FileSystemFactory {
             this.inner = inner;
             this.loader = loader;
         }
+
+        // 再往下的任何操作 都会将类加载器替换为指定的
 
         @Override
         public Path getWorkingDirectory() {

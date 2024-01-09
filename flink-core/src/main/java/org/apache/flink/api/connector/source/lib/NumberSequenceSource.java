@@ -57,6 +57,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * <p>This source is always bounded. For very long sequences (for example over the entire domain of
  * long integer values), user may want to consider executing the application in a streaming manner,
  * because, despite the fact that the produced stream is bounded, the end bound is pretty far away.
+ *
+ * 该对象能产生数字序列  是内置的比较简单的source
  */
 @Public
 public class NumberSequenceSource
@@ -67,6 +69,8 @@ public class NumberSequenceSource
                 ResultTypeQueryable<Long> {
 
     private static final long serialVersionUID = 1L;
+
+    // 该数据源被产生时  指定from/to  然后产生的数据就是之间的序列值
 
     /** The starting number in the sequence, inclusive. */
     private final long from;
@@ -120,6 +124,13 @@ public class NumberSequenceSource
         return new IteratorSourceEnumerator<>(enumContext, splits);
     }
 
+    /**
+     * 根据检查点状态还原枚举对象
+     * @param enumContext The {@link SplitEnumeratorContext context} for the restored split
+     *     enumerator.
+     * @param checkpoint The checkpoint to restore the SplitEnumerator from.
+     * @return
+     */
     @Override
     public SplitEnumerator<NumberSequenceSplit, Collection<NumberSequenceSplit>> restoreEnumerator(
             final SplitEnumeratorContext<NumberSequenceSplit> enumContext,
@@ -127,17 +138,33 @@ public class NumberSequenceSource
         return new IteratorSourceEnumerator<>(enumContext, checkpoint);
     }
 
+    /**
+     * 该对象用于序列化 split
+     * @return
+     */
     @Override
     public SimpleVersionedSerializer<NumberSequenceSplit> getSplitSerializer() {
         return new SplitSerializer();
     }
 
+
+    /**
+     * 用于保存检查点
+     * @return
+     */
     @Override
     public SimpleVersionedSerializer<Collection<NumberSequenceSplit>>
             getEnumeratorCheckpointSerializer() {
         return new CheckpointSerializer();
     }
 
+    /**
+     * 根据split数量 拆分序列
+     * @param from
+     * @param to
+     * @param numSplits
+     * @return
+     */
     protected List<NumberSequenceSplit> splitNumberRange(long from, long to, int numSplits) {
         final NumberSequenceIterator[] subSequences =
                 new NumberSequenceIterator(from, to).split(numSplits);
@@ -159,7 +186,10 @@ public class NumberSequenceSource
     //  splits & checkpoint
     // ------------------------------------------------------------------------
 
-    /** A split of the source, representing a number sub-sequence. */
+    /** A split of the source, representing a number sub-sequence.
+     * 该对象用于遍历split内部的元素
+     * 遍历的元素是 Long
+     * */
     public static class NumberSequenceSplit
             implements IteratorSourceSplit<Long, NumberSequenceIterator> {
 
@@ -192,6 +222,11 @@ public class NumberSequenceSource
             return new NumberSequenceIterator(from, to);
         }
 
+        /**
+         * 在更新迭代器后 产生新对象
+         * @param iterator
+         * @return
+         */
         @Override
         public IteratorSourceSplit<Long, NumberSequenceIterator> getUpdatedSplitForIterator(
                 final NumberSequenceIterator iterator) {
@@ -204,6 +239,9 @@ public class NumberSequenceSource
         }
     }
 
+    /**
+     *
+     */
     private static final class SplitSerializer
             implements SimpleVersionedSerializer<NumberSequenceSplit> {
 
@@ -221,6 +259,7 @@ public class NumberSequenceSource
 
             // We will serialize 2 longs (16 bytes) plus the UFT representation of the string (2 +
             // length)
+            // DataOutputSerializer 内部是基于内存的  提前分配大小
             final DataOutputSerializer out =
                     new DataOutputSerializer(split.splitId().length() + 18);
             serializeV1(out, split);

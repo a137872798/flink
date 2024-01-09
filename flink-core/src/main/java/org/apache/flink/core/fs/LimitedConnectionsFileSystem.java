@@ -57,13 +57,17 @@ import static org.apache.flink.util.Preconditions.checkState;
  * too long, to avoid locked streams of taking up the complete pool. Rather than having a dedicated
  * reaper thread, the calls that try to open a new stream periodically check the currently open
  * streams once the limit of open streams is reached.
+ *
+ * 对流的数量做了限制   当超过时 会通过检测并关闭失活流的方式 保持流的总数不会超过限制
  */
 @Internal
 public class LimitedConnectionsFileSystem extends FileSystem {
 
     private static final Logger LOG = LoggerFactory.getLogger(LimitedConnectionsFileSystem.class);
 
-    /** The original file system to which connections are limited. */
+    /** The original file system to which connections are limited.
+     * 被包装的文件系统
+     * */
     private final FileSystem originalFs;
 
     /** The lock that synchronizes connection bookkeeping. */
@@ -89,6 +93,8 @@ public class LimitedConnectionsFileSystem extends FileSystem {
      * inactive.
      */
     private final long streamInactivityTimeoutNanos;
+
+    // 本文件系统会管理创建的输入输出流  并监控它们是否存活
 
     /** The set of currently open output streams. */
     @GuardedBy("lock")
@@ -170,9 +176,10 @@ public class LimitedConnectionsFileSystem extends FileSystem {
             FileSystem originalFs,
             int maxNumOpenStreamsTotal,
             int maxNumOpenOutputStreams,
-            int maxNumOpenInputStreams,
+            int maxNumOpenInputStreams,  // 表示最多允许多少个流存在
             long streamOpenTimeout,
-            long streamInactivityTimeout) {
+            long streamInactivityTimeout  // 通过这个超时时间来检测stream活跃性
+    ) {
 
         checkArgument(maxNumOpenStreamsTotal >= 0, "maxNumOpenStreamsTotal must be >= 0");
         checkArgument(maxNumOpenOutputStreams >= 0, "maxNumOpenOutputStreams must be >= 0");
@@ -268,6 +275,14 @@ public class LimitedConnectionsFileSystem extends FileSystem {
     //  input & output stream opening methods
     // ------------------------------------------------------------------------
 
+    /**
+     * 通过该对象创建的输出流 要被包装 且被文件系统管理
+     * @param f The file path to write to
+     * @param overwriteMode The action to take if a file or directory already exists at the given
+     *     path.
+     * @return
+     * @throws IOException
+     */
     @Override
     public FSDataOutputStream create(Path f, WriteMode overwriteMode) throws IOException {
         return createOutputStream(() -> originalFs.create(f, overwriteMode));
@@ -388,6 +403,15 @@ public class LimitedConnectionsFileSystem extends FileSystem {
 
     // ------------------------------------------------------------------------
 
+    /**
+     * 创建流对象
+     * @param streamOpener
+     * @param openStreams
+     * @param output  表示 input/output
+     * @param <T>
+     * @return
+     * @throws IOException
+     */
     private <T extends StreamWithTimeout> T createStream(
             final SupplierWithException<T, IOException> streamOpener,
             final HashSet<T> openStreams,
@@ -416,6 +440,7 @@ public class LimitedConnectionsFileSystem extends FileSystem {
                 assert openInputStreams.size() <= numReservedInputStreams;
 
                 // wait until there are few enough streams so we can open another
+                // 确保此时还允许创建流  没有空位则等待
                 waitForAvailability(totalLimit, outputLimit, inputLimit);
 
                 // We do not open the stream here in the locked scope because opening a stream
@@ -437,11 +462,13 @@ public class LimitedConnectionsFileSystem extends FileSystem {
         // open the stream outside the lock.
         boolean success = false;
         try {
+            // 惰性创建流
             final T out = streamOpener.get();
 
             // add the stream to the set, need to re-acquire the lock
             lock.lock();
             try {
+                // 收到本对象管理
                 openStreams.add(out);
             } finally {
                 lock.unlock();
@@ -466,6 +493,14 @@ public class LimitedConnectionsFileSystem extends FileSystem {
         }
     }
 
+    /**
+     * 等待直到有空位创建流
+     * @param totalLimit
+     * @param outputLimit
+     * @param inputLimit
+     * @throws InterruptedException
+     * @throws IOException
+     */
     @GuardedBy("lock")
     private void waitForAvailability(int totalLimit, int outputLimit, int inputLimit)
             throws InterruptedException, IOException {
@@ -477,6 +512,7 @@ public class LimitedConnectionsFileSystem extends FileSystem {
         if (streamOpenTimeoutNanos == 0) {
             deadline = Long.MAX_VALUE;
         } else {
+            // 最大只等待一个打开超时时间
             long deadlineNanos = System.nanoTime() + streamOpenTimeoutNanos;
             // check for overflow
             deadline = deadlineNanos > 0 ? deadlineNanos : Long.MAX_VALUE;
@@ -485,6 +521,7 @@ public class LimitedConnectionsFileSystem extends FileSystem {
         // wait for available connections
         long timeLeft;
 
+        // 不能通过失活关闭流 只能等待流被主动关闭
         if (streamInactivityTimeoutNanos == 0) {
             // simple case: just wait
             while ((timeLeft = (deadline - System.nanoTime())) > 0
@@ -494,6 +531,7 @@ public class LimitedConnectionsFileSystem extends FileSystem {
             }
         } else {
             // complex case: chase down inactive streams
+            // 可以通过检测失活 主动关闭流
             final long checkIntervalNanos = (streamInactivityTimeoutNanos >>> 1) + 1;
 
             long now;
@@ -502,6 +540,7 @@ public class LimitedConnectionsFileSystem extends FileSystem {
                     !hasAvailability(totalLimit, outputLimit, inputLimit)) {
 
                 // check all streams whether there in one that has been inactive for too long
+                // 每隔一定时间 发起一次检测
                 if (!(closeInactiveStream(openOutputStreams, now)
                         || closeInactiveStream(openInputStreams, now))) {
                     // only wait if we did not manage to close any stream.
@@ -536,6 +575,12 @@ public class LimitedConnectionsFileSystem extends FileSystem {
                 && numReservedOutputStreams + numReservedInputStreams < totalLimit;
     }
 
+    /**
+     * 检测有无失活流
+     * @param streams
+     * @param nowNanos
+     * @return
+     */
     @GuardedBy("lock")
     private boolean closeInactiveStream(
             HashSet<? extends StreamWithTimeout> streams, long nowNanos) {
@@ -624,22 +669,29 @@ public class LimitedConnectionsFileSystem extends FileSystem {
 
     // ------------------------------------------------------------------------
 
-    /** Interface for streams that can be checked for inactivity. */
+    /** Interface for streams that can be checked for inactivity.
+     * 用于检查stream是否处于活跃状态
+     * */
     private interface StreamWithTimeout extends Closeable {
 
         /** Gets the progress tracker for this stream. */
         StreamProgressTracker getProgressTracker();
 
-        /** Gets the current position in the stream, as in number of bytes read or written. */
+        /** Gets the current position in the stream, as in number of bytes read or written.
+         * 获取流当前的偏移量
+         * */
         long getPos() throws IOException;
 
         /**
          * Closes the stream asynchronously with a special exception that indicates closing due to
          * lack of progress.
+         * 超过一定时间没有收到数据 自动关闭流
          */
         void closeDueToTimeout() throws IOException;
 
-        /** Checks whether the stream was closed already. */
+        /** Checks whether the stream was closed already.
+         * 判断流是否已经被关闭
+         * */
         boolean isClosed();
     }
 
@@ -648,10 +700,13 @@ public class LimitedConnectionsFileSystem extends FileSystem {
     /**
      * A tracker for stream progress. This records the number of bytes read / written together with
      * a timestamp when the last check happened.
+     * 该对象可以检查流多久没有产生新数据 进而可以判断流是否失活
      */
     private static final class StreamProgressTracker {
 
-        /** The tracked stream. */
+        /** The tracked stream.
+         * 通过该对象来关闭流
+         * */
         private final StreamWithTimeout stream;
 
         /**
@@ -661,7 +716,9 @@ public class LimitedConnectionsFileSystem extends FileSystem {
          */
         private volatile long lastCheckBytes = -1;
 
-        /** The timestamp when the last inactivity evaluation was made. */
+        /** The timestamp when the last inactivity evaluation was made.
+         * 上次检查的时间
+         * */
         private volatile long lastCheckTimestampNanos;
 
         StreamProgressTracker(StreamWithTimeout stream) {
@@ -678,12 +735,14 @@ public class LimitedConnectionsFileSystem extends FileSystem {
          * also sets the given timestamp, to be read via {@link #getLastCheckTimestampNanos()}.
          *
          * @return True, if there were new bytes, false if not.
+         * 传入当前检查时间 并触发一次检查
          */
         public boolean checkNewBytesAndMark(long timestamp) throws IOException {
             // remember the time when checked
             lastCheckTimestampNanos = timestamp;
 
             final long bytesNow = stream.getPos();
+            // 代表stream有新的进展
             if (bytesNow > lastCheckBytes) {
                 lastCheckBytes = bytesNow;
                 return true;
@@ -699,19 +758,28 @@ public class LimitedConnectionsFileSystem extends FileSystem {
      * A data output stream that wraps a given data output stream and un-registers from a given
      * connection-limiting file system (via {@link
      * LimitedConnectionsFileSystem#unregisterOutputStream(OutStream)} upon closing.
+     * 作为输出流 可以根据有无新的数据输出 判断流是否活跃  并提供了close api
      */
     private static final class OutStream extends FSDataOutputStream implements StreamWithTimeout {
 
-        /** The original data output stream to write to. */
+        /** The original data output stream to write to.
+         * 被检测的输出流
+         * */
         private final FSDataOutputStream originalStream;
 
-        /** The connection-limiting file system to un-register from. */
+        /** The connection-limiting file system to un-register from.
+         * 关联的限流文件系统
+         * */
         private final LimitedConnectionsFileSystem fs;
 
-        /** The progress tracker for this stream. */
+        /** The progress tracker for this stream.
+         * 通过该对象发起检查
+         * */
         private final StreamProgressTracker progressTracker;
 
-        /** An exception with which the stream has been externally closed. */
+        /** An exception with which the stream has been externally closed.
+         * 长时间未输出新数据 抛出的异常
+         * */
         private volatile StreamTimeoutException timeoutException;
 
         /** Flag tracking whether the stream was already closed, for proper inactivity tracking. */
@@ -724,6 +792,7 @@ public class LimitedConnectionsFileSystem extends FileSystem {
         }
 
         // --- FSDataOutputStream API implementation
+        // 代理方法
 
         @Override
         public void write(int b) throws IOException {
@@ -784,6 +853,10 @@ public class LimitedConnectionsFileSystem extends FileSystem {
             }
         }
 
+        /**
+         * 表示由于长时间未读取/写入新数据 而产生的超时失败
+         * @throws IOException
+         */
         @Override
         public void closeDueToTimeout() throws IOException {
             this.timeoutException = new StreamTimeoutException();
@@ -817,6 +890,7 @@ public class LimitedConnectionsFileSystem extends FileSystem {
      * A data input stream that wraps a given data input stream and un-registers from a given
      * connection-limiting file system (via {@link
      * LimitedConnectionsFileSystem#unregisterInputStream(InStream)} upon closing.
+     * 基本跟OutStream一样
      */
     private static final class InStream extends FSDataInputStream implements StreamWithTimeout {
 
@@ -1034,12 +1108,14 @@ public class LimitedConnectionsFileSystem extends FileSystem {
          * @param config The configuration to check.
          * @param fsScheme The file system scheme.
          * @return The parsed configuration, or null, if no connection limiting is configured.
+         * 连接数受限的文件系统  从配置中加载限制数
          */
         @Nullable
         public static ConnectionLimitingSettings fromConfig(Configuration config, String fsScheme) {
             checkNotNull(fsScheme, "fsScheme");
             checkNotNull(config, "config");
 
+            // 总限制 输入输出限制
             final ConfigOption<Integer> totalLimitOption =
                     CoreOptions.fileSystemConnectionLimit(fsScheme);
             final ConfigOption<Integer> limitInOption =
@@ -1060,6 +1136,7 @@ public class LimitedConnectionsFileSystem extends FileSystem {
                 // no limit configured
                 return null;
             } else {
+                // 一些超时限制
                 final ConfigOption<Long> openTimeoutOption =
                         CoreOptions.fileSystemConnectionLimitTimeout(fsScheme);
                 final ConfigOption<Long> inactivityTimeoutOption =
@@ -1071,6 +1148,7 @@ public class LimitedConnectionsFileSystem extends FileSystem {
                 checkTimeout(openTimeout, openTimeoutOption);
                 checkTimeout(inactivityTimeout, inactivityTimeoutOption);
 
+                // 各种限制包装成 limitSettings对象
                 return new ConnectionLimitingSettings(
                         totalLimit == -1 ? 0 : totalLimit,
                         limitIn == -1 ? 0 : limitIn,

@@ -25,6 +25,7 @@ import org.apache.flink.util.Preconditions;
 /**
  * Interface for plugins. Plugins typically extend this interface in their SPI and the concrete
  * implementations of a service then implement the SPI contract.
+ * 表示flink插件体系的上层接口
  */
 @PublicEvolving
 public interface Plugin {
@@ -34,6 +35,7 @@ public interface Plugin {
      * plugins that use dynamic class loading afterwards the plugin was loaded.
      *
      * @return the class loader used to load the plugin.
+     * 获取加载该插件的类加载器
      */
     default ClassLoader getClassLoader() {
         return Preconditions.checkNotNull(
@@ -46,6 +48,7 @@ public interface Plugin {
      * Optional method for plugins to pick up settings from the configuration.
      *
      * @param config The configuration to apply to the plugin.
+     *               使用配置对象 装配插件
      */
     default void configure(Configuration config) {}
 }

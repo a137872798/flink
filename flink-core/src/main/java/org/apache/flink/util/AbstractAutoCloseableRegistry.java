@@ -41,6 +41,8 @@ import java.util.Map;
  *
  * @param <C> Type of the closeable this registers
  * @param <T> Type for potential meta data associated with the registering closeables
+ *
+ *           一个注册对象 内部维护了各种可以自动关闭的对象
  */
 @Internal
 public abstract class AbstractAutoCloseableRegistry<
@@ -50,11 +52,15 @@ public abstract class AbstractAutoCloseableRegistry<
     /** Lock that guards state of this registry. * */
     private final Object lock;
 
-    /** Map from tracked Closeables to some associated meta data. */
+    /** Map from tracked Closeables to some associated meta data.
+     * 维护可以自动关闭对象的容器
+     * */
     @GuardedBy("lock")
     protected final Map<R, T> closeableToRef;
 
-    /** Indicates if this registry is closed. */
+    /** Indicates if this registry is closed.
+     * 本注册对象是否已经被关闭
+     * */
     @GuardedBy("lock")
     private boolean closed;
 
@@ -71,6 +77,8 @@ public abstract class AbstractAutoCloseableRegistry<
      *
      * @param closeable Closeable to register.
      * @throws IOException exception when the registry was closed before.
+     *
+     * 注册一个新的 可关闭对象
      */
     public final void registerCloseable(C closeable) throws IOException {
 
@@ -79,12 +87,14 @@ public abstract class AbstractAutoCloseableRegistry<
         }
 
         synchronized (getSynchronizationLock()) {
+            // 成功处理的情况 加入容器并提前返回
             if (!closed) {
                 doRegister(closeable, closeableToRef);
                 return;
             }
         }
 
+        // 抛异常
         IOUtils.closeQuietly(closeable);
         throw new IOException(
                 "Cannot register Closeable, registry is already closed. Closing argument.");
@@ -108,6 +118,10 @@ public abstract class AbstractAutoCloseableRegistry<
         }
     }
 
+    /**
+     * 本对象也是一个自动关闭对象 在关闭时会统一关闭内部所有 authClosable对象
+     * @throws E
+     */
     @Override
     public void close() throws E {
         List<R> toCloseCopy;
@@ -127,6 +141,11 @@ public abstract class AbstractAutoCloseableRegistry<
         doClose(toCloseCopy);
     }
 
+    /**
+     * 可以对这些要关闭的对象做一些增强处理
+     * @param toClose
+     * @throws E
+     */
     protected abstract void doClose(List<R> toClose) throws E;
 
     public boolean isClosed() {

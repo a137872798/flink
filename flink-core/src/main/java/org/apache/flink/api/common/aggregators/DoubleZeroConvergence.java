@@ -35,6 +35,7 @@ public class DoubleZeroConvergence implements ConvergenceCriterion<DoubleValue> 
      * @param iteration The number of the iteration superstep. Ignored in this case.
      * @param value The aggregator value, which is compared to zero.
      * @return True, if the aggregator value is zero, false otherwise.
+     * 当出现0的时候  就可以收敛了
      */
     @Override
     public boolean isConverged(int iteration, DoubleValue value) {

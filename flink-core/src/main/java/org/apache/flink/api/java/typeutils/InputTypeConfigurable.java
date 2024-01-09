@@ -27,6 +27,7 @@ import org.apache.flink.api.common.typeinfo.TypeInformation;
  * configured with the data type they will operate on. The method {@link
  * #setInputType(TypeInformation, ExecutionConfig)} will be called when the output format is used
  * with an output API method.
+ * 表示可以配置输入数据的类型
  */
 @Public
 public interface InputTypeConfigurable {

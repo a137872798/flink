@@ -34,6 +34,9 @@ import java.util.Optional;
 public class PluginConfig {
     private static final Logger LOG = LoggerFactory.getLogger(PluginConfig.class);
 
+    /**
+     * 存储插件的路径
+     */
     private final Optional<Path> pluginsPath;
 
     private final String[] alwaysParentFirstPatterns;

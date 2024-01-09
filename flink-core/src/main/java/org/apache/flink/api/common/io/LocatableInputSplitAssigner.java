@@ -38,13 +38,14 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * The locatable input split assigner assigns to each host splits that are local, before assigning
  * splits that are not local.
+ * 该对象管理一组 split
  */
 @Public
 public final class LocatableInputSplitAssigner implements InputSplitAssigner {
 
     private static final Logger LOG = LoggerFactory.getLogger(LocatableInputSplitAssigner.class);
 
-    // unassigned input splits
+    // unassigned input splits   维护还未分配的split
     private final Set<LocatableInputSplitWithCount> unassigned =
             new HashSet<LocatableInputSplitWithCount>();
 
@@ -61,10 +62,15 @@ public final class LocatableInputSplitAssigner implements InputSplitAssigner {
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 本对象使用一组split进行初始化
+     * @param splits
+     */
     public LocatableInputSplitAssigner(Collection<LocatableInputSplit> splits) {
         for (LocatableInputSplit split : splits) {
             this.unassigned.add(new LocatableInputSplitWithCount(split));
         }
+        // 通过chooser可以得到远端 localCount最小的split
         this.remoteSplitChooser = new LocatableInputSplitChooser(unassigned);
     }
 
@@ -77,6 +83,12 @@ public final class LocatableInputSplitAssigner implements InputSplitAssigner {
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 获取下个要被使用的 split
+     * @param host The host address of split requesting task.
+     * @param taskId The id of the split requesting task.
+     * @return
+     */
     @Override
     public LocatableInputSplit getNextInputSplit(String host, int taskId) {
 
@@ -88,6 +100,7 @@ public final class LocatableInputSplitAssigner implements InputSplitAssigner {
                             this.remoteSplitChooser.getNextUnassignedMinLocalCountSplit(
                                     this.unassigned);
 
+                    // 找到了下个要使用的split 它的localCount是最小的
                     if (split != null) {
                         // got a split to assign. Double check that it hasn't been assigned before.
                         if (this.unassigned.remove(split)) {
@@ -102,7 +115,7 @@ public final class LocatableInputSplitAssigner implements InputSplitAssigner {
                                     "Chosen InputSplit has already been assigned. This should not happen!");
                         }
                     } else {
-                        // all splits consumed
+                        // all splits consumed  在未指定host的情况下 就是返回这样的split 没有就是null
                         return null;
                     }
                 }
@@ -138,6 +151,7 @@ public final class LocatableInputSplitAssigner implements InputSplitAssigner {
                     }
 
                     for (LocatableInputSplitWithCount isw : remaining) {
+                        // 发现是本地的  加入到LocatableInputSplitChooser中进行排序
                         if (isLocal(host, isw.getSplit().getHostnames())) {
                             // Split is local on host.
                             // Increment local count
@@ -158,6 +172,7 @@ public final class LocatableInputSplitAssigner implements InputSplitAssigner {
         // we need to make sure no one else operates in the current list (that protects against
         // list creation races) and that the unassigned set is consistent
         // NOTE: we need to obtain the locks in this order, strictly!!!
+        // 找到host相关的split对象 并选择localCount最小的split
         synchronized (localSplits) {
             synchronized (this.unassigned) {
                 LocatableInputSplitWithCount split =
@@ -181,6 +196,7 @@ public final class LocatableInputSplitAssigner implements InputSplitAssigner {
         }
 
         // we did not find a local split, return a remote split
+        // 本地未找到的情况下 从remote获取
         synchronized (this.remoteSplitChooser) {
             synchronized (this.unassigned) {
                 LocatableInputSplitWithCount split =
@@ -208,6 +224,11 @@ public final class LocatableInputSplitAssigner implements InputSplitAssigner {
         }
     }
 
+    /**
+     * 将split重新加入到unassigned中
+     * @param splits The list of input splits to be returned.
+     * @param taskId The id of the task that failed to process the input splits.
+     */
     @Override
     public void returnInputSplit(List<InputSplit> splits, int taskId) {
         synchronized (this.unassigned) {
@@ -285,15 +306,20 @@ public final class LocatableInputSplitAssigner implements InputSplitAssigner {
 
         // the current minimum local count. We look for splits with this local count.
         private int minLocalCount = -1;
-        // the second smallest count observed so far.
+        // the second smallest count observed so far.  倒数第二小的
         private int nextMinLocalCount = -1;
         // number of elements we need to inspect for the minimum local count.
+        // 代表要检查几个元素
         private int elementCycleCount = 0;
 
         public LocatableInputSplitChooser() {
             this.splits = new LinkedList<LocatableInputSplitWithCount>();
         }
 
+        /**
+         * 该对象初始化时 使用的是一组空的LocatableInputSplitWithCount对象
+         * @param splits
+         */
         public LocatableInputSplitChooser(Collection<LocatableInputSplitWithCount> splits) {
             this.splits = new LinkedList<LocatableInputSplitWithCount>();
             for (LocatableInputSplitWithCount isw : splits) {
@@ -307,8 +333,10 @@ public final class LocatableInputSplitAssigner implements InputSplitAssigner {
          * @param split The input split to add
          */
         public void addInputSplit(LocatableInputSplitWithCount split) {
+            // split此时的计数值
             int localCount = split.getLocalCount();
 
+            // 首次添加 该值为-1
             if (minLocalCount == -1) {
                 // first split to add
                 this.minLocalCount = localCount;
@@ -320,11 +348,13 @@ public final class LocatableInputSplitAssigner implements InputSplitAssigner {
                 this.minLocalCount = localCount;
                 // all other splits have more local host than this one
                 this.elementCycleCount = 1;
+                // 小的放在前面
                 splits.offerFirst(split);
             } else if (localCount == minLocalCount) {
                 this.elementCycleCount++;
                 this.splits.offerFirst(split);
             } else {
+                // 夹在1，2之间
                 if (localCount < nextMinLocalCount) {
                     nextMinLocalCount = localCount;
                 }
@@ -339,6 +369,7 @@ public final class LocatableInputSplitAssigner implements InputSplitAssigner {
          *
          * @param unassignedSplits Set of unassigned input splits.
          * @return An input split with minimum local count or null if all splits have been assigned.
+         * 获取下一个localCount最小的split  并且它还得是未分配的
          */
         public LocatableInputSplitWithCount getNextUnassignedMinLocalCountSplit(
                 Set<LocatableInputSplitWithCount> unassignedSplits) {
@@ -348,12 +379,14 @@ public final class LocatableInputSplitAssigner implements InputSplitAssigner {
             }
 
             do {
+                // 代表这几个localCount是一样的
                 elementCycleCount--;
                 // take first split of the list
                 LocatableInputSplitWithCount split = splits.pollFirst();
+                // 只考虑还未分配的
                 if (unassignedSplits.contains(split)) {
                     int localCount = split.getLocalCount();
-                    // still unassigned, check local count
+                    // still unassigned, check local count  表示此时该split应该要换位置了
                     if (localCount > minLocalCount) {
                         // re-insert at end of the list and continue to look for split with smaller
                         // local count

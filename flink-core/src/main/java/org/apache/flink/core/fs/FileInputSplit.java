@@ -24,14 +24,20 @@ import org.apache.flink.core.io.LocatableInputSplit;
 /**
  * A file input split provides information on a particular part of a file, possibly hosted on a
  * distributed file system and replicated among several hosts.
+ *
+ * 文件输入分割提供文件的特定部分信息
  */
 @Public
 public class FileInputSplit extends LocatableInputSplit {
 
     private static final long serialVersionUID = 1L;
 
-    /** The path of the file this file split refers to. */
+    /** The path of the file this file split refers to.
+     * 表示该部分数据来源于哪个文件
+     */
     private final Path file;
+
+    // 要处理的数据在文件的位置 和 长度
 
     /** The position of the first byte in the file to process. */
     private final long start;

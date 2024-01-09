@@ -44,7 +44,9 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 
-/** @see org.apache.flink.api.common.functions.CoGroupFunction */
+/** @see org.apache.flink.api.common.functions.CoGroupFunction
+ * 同样是将2个输入合成一个输出
+ * */
 @Internal
 public class CoGroupRawOperatorBase<IN1, IN2, OUT, FT extends CoGroupFunction<IN1, IN2, OUT>>
         extends DualInputOperator<IN1, IN2, OUT, FT> {
@@ -179,6 +181,16 @@ public class CoGroupRawOperatorBase<IN1, IN2, OUT, FT extends CoGroupFunction<IN
     }
 
     // ------------------------------------------------------------------------
+
+    /**
+     * 主要处理方法
+     * @param input1
+     * @param input2
+     * @param ctx
+     * @param executionConfig
+     * @return
+     * @throws Exception
+     */
     @Override
     protected List<OUT> executeOnCollections(
             List<IN1> input1, List<IN2> input2, RuntimeContext ctx, ExecutionConfig executionConfig)
@@ -201,6 +213,7 @@ public class CoGroupRawOperatorBase<IN1, IN2, OUT, FT extends CoGroupFunction<IN
         final TypeSerializer<IN1> inputSerializer1 = inputType1.createSerializer(executionConfig);
         final TypeSerializer<IN2> inputSerializer2 = inputType2.createSerializer(executionConfig);
 
+        // 产生 comparator对象
         final TypeComparator<IN1> inputComparator1 =
                 getTypeComparator(executionConfig, inputType1, inputKeys1, inputSortDirections1);
         final TypeComparator<IN2> inputComparator2 =
@@ -225,6 +238,7 @@ public class CoGroupRawOperatorBase<IN1, IN2, OUT, FT extends CoGroupFunction<IN
                         result,
                         getOperatorInfo().getOutputType().createSerializer(executionConfig));
 
+        // 使用函数作用在2个输入上 将结果存储到输出
         function.coGroup(iterator1, iterator2, resultCollector);
 
         FunctionUtils.closeFunction(function);
@@ -245,6 +259,11 @@ public class CoGroupRawOperatorBase<IN1, IN2, OUT, FT extends CoGroupFunction<IN
                 .createComparator(inputKeys, inputSortDirections, 0, executionConfig);
     }
 
+
+    /**
+     * 表示一个简单的迭代器对象
+     * @param <IN>
+     */
     public static class SimpleListIterable<IN> implements Iterable<IN> {
         private List<IN> values;
         private TypeSerializer<IN> serializer;
@@ -256,6 +275,7 @@ public class CoGroupRawOperatorBase<IN1, IN2, OUT, FT extends CoGroupFunction<IN
             this.values = values;
             this.serializer = serializer;
 
+            // 对输入先进行排序
             Collections.sort(
                     values,
                     new Comparator<IN>() {
@@ -272,6 +292,10 @@ public class CoGroupRawOperatorBase<IN1, IN2, OUT, FT extends CoGroupFunction<IN
         }
 
         protected class SimpleListIterator<IN> implements Iterator<IN> {
+
+            /**
+             * 已排序
+             */
             private final List<IN> values;
             private final TypeSerializer<IN> serializer;
             private int pos = 0;

@@ -25,6 +25,7 @@ import org.apache.flink.annotation.PublicEvolving;
  *
  * <p>These release hooks are being executed just before the user code class loader is being
  * released.
+ * 支持为 用户类加载器设置一些释放钩子
  */
 @PublicEvolving
 public interface UserCodeClassLoader {

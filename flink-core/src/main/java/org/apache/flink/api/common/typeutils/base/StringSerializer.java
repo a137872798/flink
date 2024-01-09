@@ -27,7 +27,9 @@ import org.apache.flink.types.StringValue;
 
 import java.io.IOException;
 
-/** Type serializer for {@code String}. */
+/** Type serializer for {@code String}.
+ * TypeSerializerSingleton 就是调用 duplicate时 返回自身 代表一个单例对象
+ * */
 @Internal
 public final class StringSerializer extends TypeSerializerSingleton<String> {
 
@@ -43,10 +45,16 @@ public final class StringSerializer extends TypeSerializerSingleton<String> {
         return true;
     }
 
+    /**
+     * 实例化该类型的对象  string 就是创建空字符串
+     * @return
+     */
     @Override
     public String createInstance() {
         return EMPTY;
     }
+
+    // 不可变对象直接返回自身
 
     @Override
     public String copy(String from) {
@@ -95,6 +103,9 @@ public final class StringSerializer extends TypeSerializerSingleton<String> {
     public static final class StringSerializerSnapshot
             extends SimpleTypeSerializerSnapshot<String> {
 
+        /**
+         * 代表父类快照对象 总是通过该函数拿到常量对象
+         */
         public StringSerializerSnapshot() {
             super(() -> INSTANCE);
         }

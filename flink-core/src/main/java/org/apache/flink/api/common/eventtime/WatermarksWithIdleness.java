@@ -32,6 +32,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * A WatermarkGenerator that adds idleness detection to another WatermarkGenerator. If no events
  * come within a certain time (timeout duration) then this generator marks the stream as idle, until
  * the next watermark is generated.
+ * 给WatermarkGenerator追加一个 超时自动变成idle的能力
  */
 @Public
 public class WatermarksWithIdleness<T> implements WatermarkGenerator<T> {
@@ -40,6 +41,9 @@ public class WatermarksWithIdleness<T> implements WatermarkGenerator<T> {
 
     private final IdlenessTimer idlenessTimer;
 
+    /**
+     * 此时是否处于空闲状态
+     */
     private boolean isIdleNow = false;
 
     /**
@@ -66,18 +70,22 @@ public class WatermarksWithIdleness<T> implements WatermarkGenerator<T> {
     @Override
     public void onEvent(T event, long eventTimestamp, WatermarkOutput output) {
         watermarks.onEvent(event, eventTimestamp, output);
+        // 激活定时器
         idlenessTimer.activity();
         isIdleNow = false;
     }
 
     @Override
     public void onPeriodicEmit(WatermarkOutput output) {
+        // timer认为应当处于idle状态
         if (idlenessTimer.checkIfIdle()) {
+            // 惰性修改为idle
             if (!isIdleNow) {
                 output.markIdle();
                 isIdleNow = true;
             }
         } else {
+            // 否则向output发射水位
             watermarks.onPeriodicEmit(output);
         }
     }
@@ -119,23 +127,28 @@ public class WatermarksWithIdleness<T> implements WatermarkGenerator<T> {
             this.maxIdleTimeNanos = idleNanos;
         }
 
+        /**
+         * 每当收到一个新事件时 累加计数器
+         */
         public void activity() {
             counter++;
         }
 
         public boolean checkIfIdle() {
+            // 代表距离上次触发过激活了
             if (counter != lastCounter) {
-                // activity since the last check. we reset the timer
+                // activity since the last check. we reset the timer  同步2个counter
                 lastCounter = counter;
                 startOfInactivityNanos = 0L;
                 return false;
-            } else // timer started but has not yet reached idle timeout
+            } else // timer started but has not yet reached idle timeout    开始计时 但是此时还未超过判定时间
             if (startOfInactivityNanos == 0L) {
                 // first time that we see no activity since the last periodic probe
                 // begin the timer
                 startOfInactivityNanos = clock.relativeTimeNanos();
                 return false;
             } else {
+                // 超过判定时间自动认为处于idle状态
                 return clock.relativeTimeNanos() - startOfInactivityNanos > maxIdleTimeNanos;
             }
         }

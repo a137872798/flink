@@ -23,7 +23,9 @@ import org.apache.flink.annotation.Internal;
 import java.net.URL;
 import java.net.URLClassLoader;
 
-/** URL class loader that exposes the `addURL` method in URLClassLoader. */
+/** URL class loader that exposes the `addURL` method in URLClassLoader.
+ * 将addURL暴露给子类
+ * */
 @Internal
 public abstract class MutableURLClassLoader extends URLClassLoader {
 

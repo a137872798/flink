@@ -20,7 +20,9 @@ package org.apache.flink.api.common;
 
 import org.apache.flink.annotation.PublicEvolving;
 
-/** Possible states of a job once it has been accepted by the dispatcher. */
+/** Possible states of a job once it has been accepted by the dispatcher.
+ * 表述job此时的状态  状态机
+ * */
 @PublicEvolving
 public enum JobStatus {
     /**
@@ -64,6 +66,9 @@ public enum JobStatus {
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 因为job是在多节点上进行的 所以这里分为本地完成和全局完成
+     */
     private enum TerminalState {
         NON_TERMINAL,
         LOCALLY,

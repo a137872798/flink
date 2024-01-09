@@ -42,6 +42,7 @@ public final class WrappingProxyUtil {
      * @param <T> The type of the delegate. Note that all proxies in the chain must be assignable to
      *     T.
      * @return The unproxied delegate.
+     *
      */
     @SuppressWarnings("unchecked")
     public static <T> T stripProxy(@Nullable final WrappingProxy<T> wrappingProxy) {
@@ -49,9 +50,12 @@ public final class WrappingProxyUtil {
             return null;
         }
 
+        // 获取代理对象
         T delegate = wrappingProxy.getWrappedDelegate();
 
+        // 表示包装层数
         int numProxiesStripped = 0;
+        // 不断的解包装 获取内部对象
         while (delegate instanceof WrappingProxy) {
             throwIfSafetyNetExceeded(++numProxiesStripped);
             delegate = ((WrappingProxy<T>) delegate).getWrappedDelegate();
@@ -60,6 +64,7 @@ public final class WrappingProxyUtil {
         return delegate;
     }
 
+    // 包装层数过多  抛异常
     private static void throwIfSafetyNetExceeded(final int numProxiesStripped) {
         if (numProxiesStripped >= SAFETY_NET_MAX_ITERATIONS) {
             throw new IllegalArgumentException(

@@ -82,22 +82,32 @@ import static org.apache.flink.types.RowUtils.deepHashCodeRow;
  *
  * <p>The {@link #equals(Object)} and {@link #hashCode()} methods of this class support all external
  * conversion classes of the table ecosystem.
+ *
+ * 表示一种元组类型
  */
 @PublicEvolving
 public final class Row implements Serializable {
 
     private static final long serialVersionUID = 3L;
 
-    /** The kind of change a row describes in a changelog. */
+    /** The kind of change a row describes in a changelog.
+     * 行描述信息
+     * */
     private RowKind kind;
 
-    /** Fields organized by position. Either this or {@link #fieldByName} is set. */
+    /** Fields organized by position. Either this or {@link #fieldByName} is set.
+     * 行中的各个字段  因为行本身作为一种元组类型
+     * */
     private final @Nullable Object[] fieldByPosition;
 
-    /** Fields organized by name. Either this or {@link #fieldByPosition} is set. */
+    /** Fields organized by name. Either this or {@link #fieldByPosition} is set.
+     * 可以通过field名去检索
+     * */
     private final @Nullable Map<String, Object> fieldByName;
 
-    /** Mapping from field names to positions. Requires {@link #fieldByPosition} semantics. */
+    /** Mapping from field names to positions. Requires {@link #fieldByPosition} semantics.
+     * 名字换下标
+     * */
     private final @Nullable LinkedHashMap<String, Integer> positionByName;
 
     Row(
@@ -118,7 +128,7 @@ public final class Row implements Serializable {
      * exists for backwards compatibility.
      *
      * @param kind kind of change a row describes in a changelog
-     * @param arity the number of fields in the row
+     * @param arity the number of fields in the row   代表行有多少字段
      */
     public Row(RowKind kind, int arity) {
         this.kind = Preconditions.checkNotNull(kind, "Row kind must not be null.");
@@ -516,6 +526,7 @@ public final class Row implements Serializable {
      * <p>Note: The row must operate in position-based field mode. Field names are not projected.
      *
      * @param fieldPositions field indices to be projected
+     *                       仅保留几个字段
      */
     public static Row project(Row row, int[] fieldPositions) {
         final Row newRow = Row.withPositions(row.kind, fieldPositions.length);
@@ -550,6 +561,8 @@ public final class Row implements Serializable {
      * <p>This method does not perform a deep copy.
      *
      * <p>Note: All rows must operate in position-based field mode.
+     *
+     * 将多行进行拼接
      */
     public static Row join(Row first, Row... remainings) {
         Preconditions.checkArgument(
@@ -577,6 +590,7 @@ public final class Row implements Serializable {
         index += first.fieldByPosition.length;
 
         // copy the remaining rows
+        // 就是通过数组拷贝的方式
         for (Row remaining : remainings) {
             assert remaining.fieldByPosition != null;
             System.arraycopy(

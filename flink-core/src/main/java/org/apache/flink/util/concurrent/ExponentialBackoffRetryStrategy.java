@@ -25,10 +25,15 @@ import java.time.Duration;
 /**
  * An implementation of {@link RetryStrategy} that retries that has an exponential backoff with a
  * cap.
+ * 每次重试  增加重试时间
  */
 public class ExponentialBackoffRetryStrategy implements RetryStrategy {
     private final int remainingRetries;
     private final Duration currentRetryDelay;
+
+    /**
+     * 最大延迟
+     */
     private final Duration maxRetryDelay;
 
     /**

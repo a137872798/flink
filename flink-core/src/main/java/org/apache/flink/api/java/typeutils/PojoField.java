@@ -31,13 +31,21 @@ import java.util.Objects;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Represent a field definition for {@link PojoTypeInfo} type of objects. */
+/** Represent a field definition for {@link PojoTypeInfo} type of objects.
+ * 表示pojo的一个字段
+ * */
 @Internal
 public class PojoField implements Serializable {
 
     private static final long serialVersionUID = 1975295846436559363L;
 
+    /**
+     * 对应java反射的一个字段
+     */
     private transient Field field;
+    /**
+     * 该字段相关的typeInfo
+     */
     private final TypeInformation<?> type;
 
     public PojoField(Field field, TypeInformation<?> type) {

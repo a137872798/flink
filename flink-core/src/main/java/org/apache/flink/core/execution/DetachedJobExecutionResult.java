@@ -28,6 +28,7 @@ import java.util.Map;
 /**
  * The {@link JobExecutionResult} returned by a context environment when executing a job in detached
  * mode.
+ * 表示以独立模式执行时的结果
  */
 @Internal
 public final class DetachedJobExecutionResult extends JobExecutionResult {
@@ -45,6 +46,8 @@ public final class DetachedJobExecutionResult extends JobExecutionResult {
     public DetachedJobExecutionResult(final JobID jobID) {
         super(jobID, -1, null);
     }
+
+    // 调用api 都是各种抛异常
 
     @Override
     public long getNetRuntime() {

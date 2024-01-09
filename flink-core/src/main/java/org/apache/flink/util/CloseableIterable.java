@@ -29,6 +29,7 @@ import java.util.Iterator;
  * This interface represents an iterable that is also closeable.
  *
  * @param <T> type of the iterated objects.
+ *           描述一个可以被关闭的 可产生迭代器的对象
  */
 public interface CloseableIterable<T> extends Iterable<T>, Closeable {
 

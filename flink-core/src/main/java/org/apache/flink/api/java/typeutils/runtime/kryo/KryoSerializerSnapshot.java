@@ -39,7 +39,9 @@ import static org.apache.flink.api.java.typeutils.runtime.kryo.KryoSerializerSna
 import static org.apache.flink.util.LinkedOptionalMap.mergeRightIntoLeft;
 import static org.apache.flink.util.LinkedOptionalMap.optionalMapOf;
 
-/** {@link TypeSerializerSnapshot} for {@link KryoSerializer}. */
+/** {@link TypeSerializerSnapshot} for {@link KryoSerializer}.
+ * 快照对象 在某个时刻生成快照数据 重启后可以基于快照重建序列化对象
+ * */
 public class KryoSerializerSnapshot<T> implements TypeSerializerSnapshot<T> {
 
     private static final Logger LOG = LoggerFactory.getLogger(KryoSerializerSnapshot.class);
@@ -81,6 +83,10 @@ public class KryoSerializerSnapshot<T> implements TypeSerializerSnapshot<T> {
         this.snapshotData = createFrom(in, userCodeClassLoader);
     }
 
+    /**
+     * 从快照中还原本对象
+     * @return
+     */
     @Override
     public TypeSerializer<T> restoreSerializer() {
         return new KryoSerializer<>(

@@ -75,6 +75,7 @@ import java.util.Map;
  * recursive flattening).
  *
  * @param <T> The type represented by this type information.
+ *           表示类型的信息
  */
 @Public
 public abstract class TypeInformation<T> implements Serializable {
@@ -86,6 +87,7 @@ public abstract class TypeInformation<T> implements Serializable {
      * BasicTypeInfo} and are primitives, their boxing types, Strings, Date, Void, ...
      *
      * @return True, if this type information describes a basic type, false otherwise.
+     * 表示是否是基础类型
      */
     @PublicEvolving
     public abstract boolean isBasicType();
@@ -95,6 +97,7 @@ public abstract class TypeInformation<T> implements Serializable {
      * Java API tuples.
      *
      * @return True, if this type information describes a tuple type, false otherwise.
+     * 是否是元组类型
      */
     @PublicEvolving
     public abstract boolean isTupleType();
@@ -103,6 +106,7 @@ public abstract class TypeInformation<T> implements Serializable {
      * Gets the arity of this type - the number of fields without nesting.
      *
      * @return Gets the number of fields in this type without nesting.
+     * 获取非嵌套的字段数量
      */
     @PublicEvolving
     public abstract int getArity();
@@ -115,6 +119,7 @@ public abstract class TypeInformation<T> implements Serializable {
      * <p>The total number of fields must be at least 1.
      *
      * @return The number of fields in this type, including its sub-fields (for composite types)
+     * 获取总字段数量  包括嵌套和传递的字段数量
      */
     @PublicEvolving
     public abstract int getTotalFields();
@@ -123,6 +128,7 @@ public abstract class TypeInformation<T> implements Serializable {
      * Gets the class of the type represented by this type information.
      *
      * @return The class of the type represented by this type information.
+     * 获取类型的class信息
      */
     @PublicEvolving
     public abstract Class<T> getTypeClass();
@@ -141,6 +147,7 @@ public abstract class TypeInformation<T> implements Serializable {
      *
      * @return map of inferred subtypes; it does not have to contain all generic parameters as key;
      *     values may be null if type could not be inferred
+     *     获取该类型下 各个参数的类型信息
      */
     @PublicEvolving
     public Map<String, TypeInformation<?>> getGenericParameters() {
@@ -153,6 +160,7 @@ public abstract class TypeInformation<T> implements Serializable {
      * and comparable to be keys.
      *
      * @return True, if the type can be used as a key, false otherwise.
+     * 该类型是否可以作为 hash表的 key   也就是要 equals + hashCode
      */
     @PublicEvolving
     public abstract boolean isKeyType();
@@ -160,6 +168,7 @@ public abstract class TypeInformation<T> implements Serializable {
     /**
      * Checks whether this type can be used as a key for sorting. The order produced by sorting this
      * type must be meaningful.
+     * 该类型是否可以作为排序的键
      */
     @PublicEvolving
     public boolean isSortKeyType() {
@@ -172,6 +181,7 @@ public abstract class TypeInformation<T> implements Serializable {
      *
      * @param config The config used to parameterize the serializer.
      * @return A serializer for this type.
+     * 创建一个针对该类型的序列化对象
      */
     @PublicEvolving
     public abstract TypeSerializer<T> createSerializer(ExecutionConfig config);
@@ -207,6 +217,7 @@ public abstract class TypeInformation<T> implements Serializable {
      */
     public static <T> TypeInformation<T> of(Class<T> typeClass) {
         try {
+            // class的信息是通过  extractor抽取的
             return TypeExtractor.createTypeInfo(typeClass);
         } catch (InvalidTypesException e) {
             throw new FlinkRuntimeException(

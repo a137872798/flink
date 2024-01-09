@@ -24,7 +24,9 @@ import org.apache.flink.api.common.operators.util.FieldSet;
 import java.util.HashMap;
 import java.util.Map;
 
-/** Container for the semantic properties associated to a dual input operator. */
+/** Container for the semantic properties associated to a dual input operator.
+ * dualInput 是2个输入  所以这里mapping也有2个
+ * */
 @Internal
 public class DualInputSemanticProperties implements SemanticProperties {
     private static final long serialVersionUID = 1L;
@@ -54,6 +56,15 @@ public class DualInputSemanticProperties implements SemanticProperties {
         this.readFields2 = null;
     }
 
+    // 具体的实现逻辑 还是和 SingleInput很相似
+
+    /**
+     *
+     * @param input The input id for the requested source field (0 for first input, 1 for second
+     *     input)    代表指定的是第几个input
+     * @param sourceField The index of the field for which the target position index is requested.
+     * @return
+     */
     @Override
     public FieldSet getForwardingTargetFields(int input, int sourceField) {
 

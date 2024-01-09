@@ -54,27 +54,39 @@ public abstract class IteratorSourceReaderBase<
                 E, O, IterT extends Iterator<E>, SplitT extends IteratorSourceSplit<E, IterT>>
         implements SourceReader<O, SplitT> {
 
-    /** The context for this reader, to communicate with the enumerator. */
+    /** The context for this reader, to communicate with the enumerator.
+     * 这个是reader相关的上下文对象 可以获取配置也可以申请增加split
+     * */
     private final SourceReaderContext context;
 
-    /** The availability future. This reader is available as soon as a split is assigned. */
+    /** The availability future. This reader is available as soon as a split is assigned.
+     * 表示流处于可用状态
+     * */
     private CompletableFuture<Void> availability;
 
     /**
      * The iterator producing data. Non-null after a split has been assigned. This field is null or
      * non-null always together with the {@link #currentSplit} field.
+     * 当产生一个split后 会转换成迭代器  当split读取完毕后 会切换到下个split  转换成新的迭代器
      */
     @Nullable private IterT iterator;
 
     /**
      * The split whose data we return. Non-null after a split has been assigned. This field is null
      * or non-null always together with the {@link #iterator} field.
+     *
+     * 当前被使用的split
      */
     @Nullable private SplitT currentSplit;
 
-    /** The remaining splits that were assigned but not yet processed. */
+    /** The remaining splits that were assigned but not yet processed.
+     * 表示被产生 但还未发送数据的split
+     * */
     private final Queue<SplitT> remainingSplits;
 
+    /**
+     * 代表没有split了
+     */
     private boolean noMoreSplits;
 
     public IteratorSourceReaderBase(SourceReaderContext context) {
@@ -88,6 +100,7 @@ public abstract class IteratorSourceReaderBase<
     @Override
     public void start() {
         // request a split if we don't have one
+        // 启动后 此时split为空 需要上下文发送产生split的请求
         if (remainingSplits.isEmpty()) {
             context.sendSplitRequest();
         }
@@ -96,17 +109,25 @@ public abstract class IteratorSourceReaderBase<
 
     protected void start(SourceReaderContext context) {}
 
+    /**
+     *
+     * @param output
+     * @return
+     */
     @Override
     public InputStatus pollNext(ReaderOutput<O> output) {
         if (iterator != null) {
             if (iterator.hasNext()) {
+                // 通过迭代器拿到元素 并通过output发往下游
                 output.collect(convert(iterator.next()));
                 return InputStatus.MORE_AVAILABLE;
             } else {
                 finishSplit();
             }
         }
+        // 获取下一个split
         final InputStatus inputStatus = tryMoveToNextSplit();
+        // 此时元素已经得到补充 重新从迭代器获取
         if (inputStatus == InputStatus.MORE_AVAILABLE) {
             output.collect(convert(iterator.next()));
         }
@@ -115,6 +136,9 @@ public abstract class IteratorSourceReaderBase<
 
     protected abstract O convert(E value);
 
+    /**
+     * 表示当前split已经被读完了
+     */
     private void finishSplit() {
         iterator = null;
         currentSplit = null;
@@ -122,12 +146,18 @@ public abstract class IteratorSourceReaderBase<
         // request another split if no other is left
         // we do this only here in the finishSplit part to avoid requesting a split
         // whenever the reader is polled and doesn't currently have a split
+        // 需要请求协调者 申请一个新的split
         if (remainingSplits.isEmpty() && !noMoreSplits) {
             context.sendSplitRequest();
         }
     }
 
+    /**
+     * 获取下个split
+     * @return
+     */
     private InputStatus tryMoveToNextSplit() {
+        // 先尝试从队列申请  单个节点可能会一次性申请多个split  不过如果该节点宕机了 任务会如何移动呢?
         currentSplit = remainingSplits.poll();
         if (currentSplit != null) {
             iterator = currentSplit.getIterator();
@@ -140,6 +170,7 @@ public abstract class IteratorSourceReaderBase<
                 availability = new CompletableFuture<>();
             }
 
+            // 代表 split还没有补充 此时处于不可用状态
             return InputStatus.NOTHING_AVAILABLE;
         }
     }
@@ -149,6 +180,10 @@ public abstract class IteratorSourceReaderBase<
         return availability;
     }
 
+    /**
+     * 可能调用tryMoveToNextSplit时 split补充的没有这么快
+     * @param splits The splits assigned by the split enumerator.
+     */
     @Override
     public void addSplits(List<SplitT> splits) {
         remainingSplits.addAll(splits);
@@ -156,6 +191,9 @@ public abstract class IteratorSourceReaderBase<
         availability.complete(null);
     }
 
+    /**
+     * 有协调者发起通知  告知该reader已经没有数据了
+     */
     @Override
     public void notifyNoMoreSplits() {
         noMoreSplits = true;
@@ -163,6 +201,11 @@ public abstract class IteratorSourceReaderBase<
         availability.complete(null);
     }
 
+    /**
+     * 持久化一些关键信息 便于重启后继续任务  不过如果该节点始终不恢复 任务会丢失吗
+     * @param checkpointId
+     * @return
+     */
     @Override
     public List<SplitT> snapshotState(long checkpointId) {
         if (currentSplit == null && remainingSplits.isEmpty()) {
@@ -170,6 +213,8 @@ public abstract class IteratorSourceReaderBase<
         }
 
         final ArrayList<SplitT> allSplits = new ArrayList<>(1 + remainingSplits.size());
+
+        // 当前迭代器内的数据 要包装成split
         if (iterator != null && iterator.hasNext()) {
             assert currentSplit != null;
 

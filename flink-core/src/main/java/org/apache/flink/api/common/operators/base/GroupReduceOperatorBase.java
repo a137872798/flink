@@ -49,16 +49,23 @@ import java.util.List;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
 
-/** @see org.apache.flink.api.common.functions.GroupReduceFunction */
+/** @see org.apache.flink.api.common.functions.GroupReduceFunction
+ * 将组内的元素reduce后 传入output
+ * */
 @Internal
 public class GroupReduceOperatorBase<IN, OUT, FT extends GroupReduceFunction<IN, OUT>>
         extends SingleInputOperator<IN, OUT, FT> {
 
-    /** The ordering for the order inside a reduce group. */
+    /** The ordering for the order inside a reduce group.
+     * 排序对象 内部的顺序按照各字段
+     * */
     private Ordering groupOrder;
 
     private boolean combinable;
 
+    /**
+     * 该对象可以为key 计算一个分区值
+     */
     private Partitioner<?> customPartitioner;
 
     public GroupReduceOperatorBase(
@@ -151,6 +158,10 @@ public class GroupReduceOperatorBase<IN, OUT, FT extends GroupReduceFunction<IN,
         return this.combinable;
     }
 
+    /**
+     * 分区对象 一定会有keyColumns  并且长度为1
+     * @param customPartitioner
+     */
     public void setCustomPartitioner(Partitioner<?> customPartitioner) {
         if (customPartitioner != null) {
             int[] keys = getKeyColumns(0);
@@ -188,6 +199,14 @@ public class GroupReduceOperatorBase<IN, OUT, FT extends GroupReduceFunction<IN,
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 将输入合并成输出
+     * @param inputData
+     * @param ctx
+     * @param executionConfig
+     * @return
+     * @throws Exception
+     */
     @Override
     protected List<OUT> executeOnCollections(
             List<IN> inputData, RuntimeContext ctx, ExecutionConfig executionConfig)
@@ -197,6 +216,7 @@ public class GroupReduceOperatorBase<IN, OUT, FT extends GroupReduceFunction<IN,
         UnaryOperatorInformation<IN, OUT> operatorInfo = getOperatorInfo();
         TypeInformation<IN> inputType = operatorInfo.getInputType();
 
+        // 这里存储排序分组相关的属性
         int[] keyColumns = getKeyColumns(0);
         int[] sortColumns = keyColumns;
         boolean[] sortOrderings = new boolean[sortColumns.length];
@@ -226,6 +246,7 @@ public class GroupReduceOperatorBase<IN, OUT, FT extends GroupReduceFunction<IN,
 
         ArrayList<OUT> result = new ArrayList<OUT>();
 
+        // 描述输入的数据
         if (inputData.size() > 0) {
             final TypeSerializer<IN> inputSerializer = inputType.createSerializer(executionConfig);
             if (keyColumns.length == 0) {
@@ -240,6 +261,7 @@ public class GroupReduceOperatorBase<IN, OUT, FT extends GroupReduceFunction<IN,
 
                 function.reduce(inputDataCopy, collector);
             } else {
+                // 跟 GroupCombineOperatorBase 基本一样 区别就是调用的函数不同
                 boolean[] keyOrderings = new boolean[keyColumns.length];
                 final TypeComparator<IN> comparator =
                         getTypeComparator(inputType, keyColumns, keyOrderings, executionConfig);

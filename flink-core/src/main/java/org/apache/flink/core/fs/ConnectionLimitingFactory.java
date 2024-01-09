@@ -27,7 +27,9 @@ import java.net.URI;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** A wrapping factory that adds a {@link LimitedConnectionsFileSystem} to a file system. */
+/** A wrapping factory that adds a {@link LimitedConnectionsFileSystem} to a file system.
+ * 一层代理对象 为生成的文件系统追加一些连接数限制
+ * */
 @Internal
 public class ConnectionLimitingFactory implements FileSystemFactory {
 
@@ -83,11 +85,13 @@ public class ConnectionLimitingFactory implements FileSystemFactory {
      * @param config The configuration
      * @return The decorated factors, if connection limiting is configured, the original factory
      *     otherwise.
+     *     如果文件系统是有连接数限制的  包装一层限制对象
      */
     public static FileSystemFactory decorateIfLimited(
             FileSystemFactory factory, String scheme, Configuration config) {
         checkNotNull(factory, "factory");
 
+        // 从config中抽取限制参数  包装成settings对象
         final ConnectionLimitingSettings settings =
                 ConnectionLimitingSettings.fromConfig(config, scheme);
 
@@ -96,6 +100,7 @@ public class ConnectionLimitingFactory implements FileSystemFactory {
             // no limit configured
             return factory;
         } else {
+            // 生成包装对象
             return new ConnectionLimitingFactory(factory, settings);
         }
     }

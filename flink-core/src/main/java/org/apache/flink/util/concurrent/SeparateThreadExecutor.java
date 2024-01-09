@@ -24,7 +24,9 @@ import javax.annotation.Nonnull;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadFactory;
 
-/** An {@link Executor} that runs every runnable in a separate thread. */
+/** An {@link Executor} that runs every runnable in a separate thread.
+ * 每次创建新线程来执行任务
+ * */
 public final class SeparateThreadExecutor implements Executor {
     private final ThreadFactory threadFactory;
 

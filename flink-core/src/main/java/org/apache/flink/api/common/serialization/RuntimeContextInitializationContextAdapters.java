@@ -29,6 +29,7 @@ import java.util.function.Function;
  * A set of adapters between {@link RuntimeContext} and {@link
  * DeserializationSchema.InitializationContext} or {@link
  * SerializationSchema.InitializationContext}.
+ * 工具类 将当前运行时上下文 包装成别的
  */
 @Internal
 public final class RuntimeContextInitializationContextAdapters {
@@ -54,6 +55,9 @@ public final class RuntimeContextInitializationContextAdapters {
                 runtimeContext, mapMetricGroup);
     }
 
+    /**
+     * 表示一个在反序列化中使用的 初始化上下文
+     */
     private static final class RuntimeContextDeserializationInitializationContextAdapter
             implements DeserializationSchema.InitializationContext {
         private final RuntimeContext runtimeContext;
@@ -76,6 +80,9 @@ public final class RuntimeContextInitializationContextAdapters {
         }
     }
 
+    /**
+     * 序列化的上下文对象 看过去没啥区别
+     */
     private static final class RuntimeContextSerializationInitializationContextAdapter
             implements SerializationSchema.InitializationContext {
         private final RuntimeContext runtimeContext;
@@ -98,6 +105,10 @@ public final class RuntimeContextInitializationContextAdapters {
         }
     }
 
+
+    /**
+     * 适配器  实际上也是使用RuntimeContext的类加载器
+     */
     private static final class RuntimeContextUserCodeClassLoaderAdapter
             implements UserCodeClassLoader {
         private final RuntimeContext runtimeContext;
@@ -111,6 +122,11 @@ public final class RuntimeContextInitializationContextAdapters {
             return runtimeContext.getUserCodeClassLoader();
         }
 
+        /**
+         * 为上下文注册释放钩子
+         * @param releaseHookName
+         * @param releaseHook releaseHook which is executed before the user code class loader is being
+         */
         @Override
         public void registerReleaseHookIfAbsent(String releaseHookName, Runnable releaseHook) {
             runtimeContext.registerUserCodeClassLoaderReleaseHookIfAbsent(

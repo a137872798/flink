@@ -36,6 +36,7 @@ import java.util.function.BiConsumer;
  * </ol>
  *
  * @param <SplitT> the type of the splits.
+ *                SplitEnumerator 相关的上下文对象
  */
 @Public
 public interface SplitEnumeratorContext<SplitT extends SourceSplit> {
@@ -47,6 +48,8 @@ public interface SplitEnumeratorContext<SplitT extends SourceSplit> {
      *
      * @param subtaskId the subtask id of the source reader to send this event to.
      * @param event the source event to send.
+     *
+     *              产生事件 并发送给SourceReader
      */
     void sendEventToSourceReader(int subtaskId, SourceEvent event);
 
@@ -85,6 +88,7 @@ public interface SplitEnumeratorContext<SplitT extends SourceSplit> {
      * #registeredReadersOfAttempts()} instead.
      *
      * @return the currently registered readers.
+     * 获取当前注册的所有reader
      */
     Map<Integer, ReaderInfo> registeredReaders();
 
@@ -93,6 +97,8 @@ public interface SplitEnumeratorContext<SplitT extends SourceSplit> {
      * id to a map which maps an attempt to its reader info.
      *
      * @return the currently registered readers.
+     *
+     * 追加一个新的reader 参与负载
      */
     default Map<Integer, Map<Integer, ReaderInfo>> registeredReadersOfAttempts() {
         throw new UnsupportedOperationException();
@@ -102,6 +108,8 @@ public interface SplitEnumeratorContext<SplitT extends SourceSplit> {
      * Assign the splits.
      *
      * @param newSplitAssignments the new split assignments to add.
+     *
+     *                            应该是要把这组split 分配给对应的reader
      */
     void assignSplits(SplitsAssignment<SplitT> newSplitAssignments);
 
@@ -113,6 +121,8 @@ public interface SplitEnumeratorContext<SplitT extends SourceSplit> {
      *
      * @param split The new split
      * @param subtask The index of the operator's parallel subtask that shall receive the split.
+     *                同上
+     *
      */
     default void assignSplit(SplitT split, int subtask) {
         assignSplits(new SplitsAssignment<>(split, subtask));
@@ -123,6 +133,8 @@ public interface SplitEnumeratorContext<SplitT extends SourceSplit> {
      *
      * @param subtask The index of the operator's parallel subtask that shall be signaled it will
      *     not receive any further split.
+     *
+     *                通知某个reader 已经没有分配给它的任务了
      */
     void signalNoMoreSplits(int subtask);
 
@@ -179,6 +191,7 @@ public interface SplitEnumeratorContext<SplitT extends SourceSplit> {
      * <p>It is important that the runnable does not block.
      *
      * @param runnable a runnable to execute
+     *                 将某个任务提交给协调者线程运行
      */
     void runInCoordinatorThread(Runnable runnable);
 }

@@ -21,6 +21,10 @@ import org.apache.flink.annotation.Internal;
 
 import java.io.Serializable;
 
+/**
+ * 表示可以留档的对象
+ * @param <T>
+ */
 @Internal
 public interface Archiveable<T extends Serializable> {
     T archive();

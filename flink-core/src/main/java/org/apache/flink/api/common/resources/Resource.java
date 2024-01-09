@@ -31,6 +31,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * Base class for resources one can specify. Notice that the scale of value will be limited to
  * {@link #MAX_VALUE_SCALE} and all the trailing zeros will be stripped for readability.
+ * 描述一个资源
  */
 @Internal
 public abstract class Resource<T extends Resource<T>>
@@ -40,6 +41,7 @@ public abstract class Resource<T extends Resource<T>>
 
     private static final int MAX_VALUE_SCALE = 8;
 
+    // 简单看就是 kv 但是支持一些基于值的计算
     private final String name;
 
     private final BigDecimal value;
@@ -65,6 +67,7 @@ public abstract class Resource<T extends Resource<T>>
         checkArgument(getClass() == other.getClass(), "Merge with different resource type");
         checkArgument(name.equals(other.getName()), "Merge with different resource name");
 
+        // 基于新的值 实例化对象
         return create(value.add(other.getValue()));
     }
 
@@ -145,6 +148,7 @@ public abstract class Resource<T extends Resource<T>>
      *
      * @param value The value of the resource
      * @return A new instance of the sub resource
+     * 根据值实例化配置
      */
     protected abstract T create(BigDecimal value);
 }

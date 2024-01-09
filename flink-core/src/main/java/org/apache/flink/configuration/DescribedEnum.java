@@ -32,6 +32,7 @@ import org.apache.flink.configuration.description.TextElement;
  *
  * <p>More precisely, only an {@link InlineElement} can be returned as block elements cannot be
  * nested into a list.
+ *
  */
 @PublicEvolving
 public interface DescribedEnum {

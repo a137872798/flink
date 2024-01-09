@@ -27,7 +27,9 @@ import java.util.HashSet;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
 
-/** Type information for numeric integer primitive types: int, long, byte, short, character. */
+/** Type information for numeric integer primitive types: int, long, byte, short, character.
+ * 反正也是在数字类型的基础上 进一步限制类型
+ * */
 @Public
 public class IntegerTypeInfo<T> extends NumericTypeInfo<T> {
 

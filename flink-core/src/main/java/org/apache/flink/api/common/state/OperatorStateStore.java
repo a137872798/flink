@@ -22,7 +22,9 @@ import org.apache.flink.annotation.PublicEvolving;
 
 import java.util.Set;
 
-/** This interface contains methods for registering operator state with a managed store. */
+/** This interface contains methods for registering operator state with a managed store.
+ * 提供获取状态的api  以及查看注册了哪些状态的api(获取状态名)
+ * */
 @PublicEvolving
 public interface OperatorStateStore {
 

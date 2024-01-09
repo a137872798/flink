@@ -51,24 +51,35 @@ public class ReplicatingInputSplitAssigner implements InputSplitAssigner {
         Arrays.fill(assignCounts, 0);
     }
 
+    /**
+     * 获取下一个split
+     * @param host The host address of split requesting task.
+     * @param taskId The id of the split requesting task.
+     * @return
+     */
     @Override
     public InputSplit getNextInputSplit(String host, int taskId) {
 
         // get assignment count
         Integer assignCnt;
         if (taskId < this.assignCounts.length) {
+            // 获取对应的task 分配的数量   一开始都是0
             assignCnt = this.assignCounts[taskId];
         } else {
+            // 如果task 超过了assign数组长度
             int newSize = this.assignCounts.length * 2;
             if (taskId >= newSize) {
                 newSize = taskId;
             }
+
+            // 之前的保留 之后的用0填充
             int[] newAssignCounts = Arrays.copyOf(assignCounts, newSize);
             Arrays.fill(newAssignCounts, assignCounts.length, newSize, 0);
 
             assignCnt = 0;
         }
 
+        // 每个task关联的 assignCnt 对应的是 split的下标
         if (assignCnt >= inputSplits.length) {
             // all splits for this task have been assigned
             return null;
@@ -80,6 +91,11 @@ public class ReplicatingInputSplitAssigner implements InputSplitAssigner {
         }
     }
 
+    /**
+     * 重置某个任务的  assign数量
+     * @param splits The list of input splits to be returned.
+     * @param taskId The id of the task that failed to process the input splits.
+     */
     @Override
     public void returnInputSplit(List<InputSplit> splits, int taskId) {
         Preconditions.checkArgument(taskId >= 0 && taskId < assignCounts.length);

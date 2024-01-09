@@ -32,7 +32,9 @@ import org.apache.flink.api.common.operators.util.UserCodeObjectWrapper;
 
 import java.util.List;
 
-/** @param <IN> The input and result type. */
+/** @param <IN> The input and result type.
+ * 分区操作  关联的function为NoOpFunction  代表不需要操作
+ * */
 @Internal
 public class PartitionOperatorBase<IN> extends SingleInputOperator<IN, IN, NoOpFunction> {
 
@@ -45,10 +47,19 @@ public class PartitionOperatorBase<IN> extends SingleInputOperator<IN, IN, NoOpF
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 表示分区所使用的方法
+     */
     private final PartitionMethod partitionMethod;
 
+    /**
+     * 传入 key 和总分区数 可以计算出一个合适的分区
+     */
     private Partitioner<?> customPartitioner;
 
+    /**
+     * 表示被分区的数据 可以通过 bucketNum 得到相关的数据
+     */
     private DataDistribution distribution;
 
     private Ordering ordering;
@@ -120,6 +131,13 @@ public class PartitionOperatorBase<IN> extends SingleInputOperator<IN, IN, NoOpF
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 直接返回了 input
+     * @param inputData
+     * @param runtimeContext
+     * @param executionConfig
+     * @return
+     */
     @Override
     protected List<IN> executeOnCollections(
             List<IN> inputData, RuntimeContext runtimeContext, ExecutionConfig executionConfig) {

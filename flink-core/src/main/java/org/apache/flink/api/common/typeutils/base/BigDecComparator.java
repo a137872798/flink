@@ -25,7 +25,9 @@ import org.apache.flink.core.memory.MemorySegment;
 import java.io.IOException;
 import java.math.BigDecimal;
 
-/** Comparator for comparing BigDecimal values. Does not support null values. */
+/** Comparator for comparing BigDecimal values. Does not support null values.
+ * BigDecimal 也实现了 comparable 所以可以自动比较
+ * */
 @Internal
 public final class BigDecComparator extends BasicTypeComparator<BigDecimal> {
 
@@ -73,6 +75,8 @@ public final class BigDecComparator extends BasicTypeComparator<BigDecimal> {
      * Adds a normalized key containing a normalized order of magnitude of the given record. 2 bits
      * determine the sign (negative, zero, positive), 33 bits determine the magnitude. This method
      * adds at most 5 bytes that contain information.
+     *
+     * 生成标准化键   TODO
      */
     @Override
     public void putNormalizedKey(BigDecimal record, MemorySegment target, int offset, int len) {

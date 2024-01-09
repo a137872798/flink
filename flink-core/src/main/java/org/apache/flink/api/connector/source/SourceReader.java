@@ -51,12 +51,15 @@ import java.util.concurrent.CompletableFuture;
  *
  * @param <T> The type of the record emitted by this source reader.
  * @param <SplitT> The type of the source splits.
+ *                在开启reader对象后 就会不断的从source中获得元素
  */
 @Public
 public interface SourceReader<T, SplitT extends SourceSplit>
         extends AutoCloseable, CheckpointListener {
 
-    /** Start the reader. */
+    /** Start the reader.
+     * 启动reader对象
+     * */
     void start();
 
     /**
@@ -69,6 +72,8 @@ public interface SourceReader<T, SplitT extends SourceSplit>
      * InputStatus#MORE_AVAILABLE} to let the caller thread know there are more records available.
      *
      * @return The InputStatus of the SourceReader after the method invocation.
+     *
+     * 拉到的元素 通过ReaderOutput进行发射
      */
     InputStatus pollNext(ReaderOutput<T> output) throws Exception;
 
@@ -76,6 +81,7 @@ public interface SourceReader<T, SplitT extends SourceSplit>
      * Checkpoint on the state of the source.
      *
      * @return the state of the source.
+     * 通过检查点 还原快照状态
      */
     List<SplitT> snapshotState(long checkpointId);
 
@@ -98,6 +104,7 @@ public interface SourceReader<T, SplitT extends SourceSplit>
      * pollNext(...)} even though no data is available.
      *
      * @return a future that will be completed once there is a record available to poll.
+     * 获取标记 有关该reader对象是否可用
      */
     CompletableFuture<Void> isAvailable();
 
@@ -107,6 +114,7 @@ public interface SourceReader<T, SplitT extends SourceSplit>
      * SplitEnumeratorContext#assignSplits(SplitsAssignment)}.
      *
      * @param splits The splits assigned by the split enumerator.
+     *               为source追加一些 split 每个split 会对应一个 SourceOutput
      */
     void addSplits(List<SplitT> splits);
 
@@ -128,6 +136,7 @@ public interface SourceReader<T, SplitT extends SourceSplit>
      * require any custom events.
      *
      * @param sourceEvent the event sent by the {@link SplitEnumerator}.
+     *                    处理有关source的事件
      */
     default void handleSourceEvents(SourceEvent sourceEvent) {}
 
@@ -156,6 +165,7 @@ public interface SourceReader<T, SplitT extends SourceSplit>
      *
      * @param splitsToPause the splits to pause
      * @param splitsToResume the splits to resume
+     *                       选择暂停和恢复 某些split
      */
     @PublicEvolving
     default void pauseOrResumeSplits(

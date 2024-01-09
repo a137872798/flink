@@ -27,6 +27,7 @@ import java.io.IOException;
  * The {@code SinkWriter} is responsible for writing data.
  *
  * @param <InputT> The type of the sink writer's input
+ *                该对象开放往sink写入数据的api
  */
 @PublicEvolving
 public interface SinkWriter<InputT> extends AutoCloseable {
@@ -37,12 +38,15 @@ public interface SinkWriter<InputT> extends AutoCloseable {
      * @param element The input record
      * @param context The additional information about the input record
      * @throws IOException if fail to add an element.
+     *
+     * 将元素写入sink  同时可以借助Context 访问一些信息
      */
     void write(InputT element, Context context) throws IOException, InterruptedException;
 
     /**
      * Called on checkpoint or end of input so that the writer to flush all pending data for
      * at-least-once.
+     * 将写入的数据刷盘
      */
     void flush(boolean endOfInput) throws IOException, InterruptedException;
 
@@ -53,10 +57,14 @@ public interface SinkWriter<InputT> extends AutoCloseable {
      *
      * @param watermark The watermark.
      * @throws IOException if fail to add a watermark.
+     *
+     * 还可以写入水位信息
      */
     default void writeWatermark(Watermark watermark) throws IOException, InterruptedException {}
 
-    /** Context that {@link #write} can use for getting additional data about an input record. */
+    /** Context that {@link #write} can use for getting additional data about an input record.
+     * 在写入时 可以访问的上下文对象    可以查看当前水位和时间戳
+     * */
     @PublicEvolving
     interface Context {
 

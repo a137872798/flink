@@ -30,6 +30,7 @@ import java.util.Map;
  *
  * <p>The assignment is always incremental. In another word, splits in the assignment are simply
  * added to the existing assignment.
+ * 表示分配给某个reader的一组 split
  */
 @Public
 public final class SplitsAssignment<SplitT extends SourceSplit> {

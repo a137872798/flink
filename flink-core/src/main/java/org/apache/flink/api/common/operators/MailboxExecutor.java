@@ -80,10 +80,14 @@ import java.util.concurrent.RejectedExecutionException;
  *     }
  * }
  * }</pre>
+ *
+ * 用于执行任务的执行器   邮箱执行器
  */
 @PublicEvolving
 public interface MailboxExecutor {
-    /** A constant for empty args to save on object allocation. */
+    /** A constant for empty args to save on object allocation.
+     * 空的参数常量
+     * */
     Object[] EMPTY_ARGS = new Object[0];
 
     /**
@@ -98,6 +102,7 @@ public interface MailboxExecutor {
      *     error-reporting.
      * @throws RejectedExecutionException if this task cannot be accepted for execution, e.g.
      *     because the mailbox is quiesced or closed.
+     *     执行某个命令
      */
     default void execute(ThrowingRunnable<? extends Exception> command, String description) {
         execute(command, description, EMPTY_ARGS);
@@ -120,7 +125,7 @@ public interface MailboxExecutor {
     void execute(
             ThrowingRunnable<? extends Exception> command,
             String descriptionFormat,
-            Object... descriptionArgs);
+            Object... descriptionArgs);  // 执行命令时使用的参数
 
     /**
      * Submits the given command for execution in the future in the mailbox thread and returns a
@@ -140,7 +145,7 @@ public interface MailboxExecutor {
      *     because the mailbox is quiesced or closed.
      */
     default @Nonnull Future<Void> submit(
-            @Nonnull RunnableWithException command,
+            @Nonnull RunnableWithException command,  // 代表一个运行时可能会产生异常的对象
             String descriptionFormat,
             Object... descriptionArgs) {
         FutureTaskWithException<Void> future = new FutureTaskWithException<>(command);
@@ -163,6 +168,7 @@ public interface MailboxExecutor {
      * @return a Future representing pending completion of the task
      * @throws RejectedExecutionException if this task cannot be accepted for execution, e.g.
      *     because the mailbox is quiesced or closed.
+     *     区别就是参数为空
      */
     default @Nonnull Future<Void> submit(
             @Nonnull RunnableWithException command, String description) {
@@ -187,6 +193,7 @@ public interface MailboxExecutor {
      * @return a Future representing pending completion of the task
      * @throws RejectedExecutionException if this task cannot be accepted for execution, e.g.
      *     because the mailbox is quiesced or closed.
+     *     提交执行任务
      */
     default @Nonnull <T> Future<T> submit(
             @Nonnull Callable<T> command, String descriptionFormat, Object... descriptionArgs) {
@@ -228,6 +235,7 @@ public interface MailboxExecutor {
      * @throws IllegalStateException if the mailbox is closed and can no longer supply runnables for
      *     yielding.
      * @throws FlinkRuntimeException if executed {@link RunnableWithException} thrown an exception.
+     * 当前任务让出CPU 让其他线程先执行
      */
     void yield() throws InterruptedException, FlinkRuntimeException;
 
@@ -243,6 +251,7 @@ public interface MailboxExecutor {
      * @throws IllegalStateException if the mailbox is closed and can no longer supply runnables for
      *     yielding.
      * @throws RuntimeException if executed {@link RunnableWithException} thrown an exception.
+     * 当前线程尝试让出CPU
      */
     boolean tryYield() throws FlinkRuntimeException;
 }

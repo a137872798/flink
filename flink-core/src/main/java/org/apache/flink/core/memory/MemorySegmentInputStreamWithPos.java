@@ -24,11 +24,15 @@ import javax.annotation.Nonnull;
 
 import java.io.InputStream;
 
-/** Un-synchronized input stream using the given memory segment. */
+/** Un-synchronized input stream using the given memory segment.
+ * 表示基于内存读写 包含一个内存块 同时还维护了偏移量信息
+ * */
 public class MemorySegmentInputStreamWithPos extends InputStream {
 
     private MemorySegment segment;
     private int position;
+
+    // 表示总长度
     private int count;
     private int mark;
 

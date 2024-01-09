@@ -28,7 +28,8 @@ import org.apache.flink.types.NormalizableKey;
 
 import java.io.IOException;
 
-/** Specialized comparator for ByteValue based on CopyableValueComparator. */
+/** Specialized comparator for ByteValue based on CopyableValueComparator.
+ * */
 @Internal
 public class ByteValueComparator extends TypeComparator<ByteValue> {
 
@@ -77,6 +78,7 @@ public class ByteValueComparator extends TypeComparator<ByteValue> {
     @Override
     public int compareSerialized(DataInputView firstSource, DataInputView secondSource)
             throws IOException {
+        // 间接触发 readByte
         reference.read(firstSource);
         tempReference.read(secondSource);
         int comp = reference.compareTo(tempReference);

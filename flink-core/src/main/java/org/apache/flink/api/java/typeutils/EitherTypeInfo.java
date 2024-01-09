@@ -36,6 +36,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * @param <L> the Left value type
  * @param <R> the Right value type
+ *
+ *           Either 表示 左或者右
  */
 @Public
 public class EitherTypeInfo<L, R> extends TypeInformation<Either<L, R>> {

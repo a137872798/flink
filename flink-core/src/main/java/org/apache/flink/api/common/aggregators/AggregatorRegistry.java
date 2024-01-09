@@ -30,24 +30,32 @@ import java.util.Map;
 @Internal
 public class AggregatorRegistry {
 
+    // 通过该对象管理所有聚合器
     private final Map<String, Aggregator<?>> registry = new HashMap<String, Aggregator<?>>();
 
+    // 该对象可用于判断迭代算法是否已收敛
     private ConvergenceCriterion<? extends Value> convergenceCriterion;
 
     private String convergenceCriterionAggregatorName;
 
     // --------------------------------------------------------------------------------------------
 
+    // 注册某个聚合器
     public void registerAggregator(String name, Aggregator<?> aggregator) {
         if (name == null || aggregator == null) {
             throw new IllegalArgumentException("Name and aggregator must not be null");
         }
+        // 重复注册 抛出异常
         if (this.registry.containsKey(name)) {
             throw new RuntimeException("An aggregator is already registered under the given name.");
         }
         this.registry.put(name, aggregator);
     }
 
+    /**
+     * 获取所有注册的聚合器
+     * @return
+     */
     public Collection<AggregatorWithName<?>> getAllRegisteredAggregators() {
         ArrayList<AggregatorWithName<?>> list =
                 new ArrayList<AggregatorWithName<?>>(this.registry.size());
@@ -60,6 +68,7 @@ public class AggregatorRegistry {
         return list;
     }
 
+    // 除了注册聚合器外 还可以注册用于判断迭代是否收敛的 ConvergenceCriterion对象
     public <T extends Value> void registerAggregationConvergenceCriterion(
             String name, Aggregator<T> aggregator, ConvergenceCriterion<T> convergenceCheck) {
         if (name == null || aggregator == null || convergenceCheck == null) {

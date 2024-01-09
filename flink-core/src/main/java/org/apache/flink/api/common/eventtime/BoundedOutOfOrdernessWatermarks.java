@@ -32,14 +32,20 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>The watermarks are generated periodically. The delay introduced by this watermark strategy is
  * the periodic interval length, plus the out-of-orderness bound.
+ *
+ * 表示一个受限制的 无序水位产生器
  */
 @Public
 public class BoundedOutOfOrdernessWatermarks<T> implements WatermarkGenerator<T> {
 
-    /** The maximum timestamp encountered so far. */
+    /** The maximum timestamp encountered so far.
+     * 目前遇到的最大时间戳
+     * */
     private long maxTimestamp;
 
-    /** The maximum out-of-orderness that this watermark generator assumes. */
+    /** The maximum out-of-orderness that this watermark generator assumes.
+     * 水位生成器所假定的 最大无序性   也就是时间允许比maxTimestamp 早 outOfOrdernessMillis
+     * */
     private final long outOfOrdernessMillis;
 
     /**
@@ -61,11 +67,13 @@ public class BoundedOutOfOrdernessWatermarks<T> implements WatermarkGenerator<T>
 
     @Override
     public void onEvent(T event, long eventTimestamp, WatermarkOutput output) {
+        // 每当收到一个新的事件时 尝试更新最大时间戳
         maxTimestamp = Math.max(maxTimestamp, eventTimestamp);
     }
 
     @Override
     public void onPeriodicEmit(WatermarkOutput output) {
+        // 向下发射一个最小的水位
         output.emitWatermark(new Watermark(maxTimestamp - outOfOrdernessMillis - 1));
     }
 }

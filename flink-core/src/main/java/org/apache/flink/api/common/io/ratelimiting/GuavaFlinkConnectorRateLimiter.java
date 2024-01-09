@@ -25,6 +25,7 @@ import org.apache.flink.shaded.guava31.com.google.common.util.concurrent.RateLim
 /**
  * An implementation of {@link FlinkConnectorRateLimiter} that uses Guava's RateLimiter for rate
  * limiting.
+ * 借助guava的RateLimiter实现能力
  */
 public class GuavaFlinkConnectorRateLimiter implements FlinkConnectorRateLimiter {
 
@@ -50,6 +51,7 @@ public class GuavaFlinkConnectorRateLimiter implements FlinkConnectorRateLimiter
     @Override
     public void open(RuntimeContext runtimeContext) {
         this.runtimeContext = runtimeContext;
+        // 每个消费者每秒能使用的byte量
         localRateBytesPerSecond =
                 globalRateBytesPerSecond / runtimeContext.getNumberOfParallelSubtasks();
         this.rateLimiter = RateLimiter.create(localRateBytesPerSecond);

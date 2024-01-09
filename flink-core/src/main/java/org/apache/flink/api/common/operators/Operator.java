@@ -33,26 +33,47 @@ import java.util.List;
  * to one or more inputs, producing a result.
  *
  * @param <OUT> Output type of the records output by this operator
+ *             操作者对象 本身支持访问者模式  支持传入一个 Visitor对象 可以对内部的相关元素触发前后置访问
  */
 @Internal
 public abstract class Operator<OUT> implements Visitable<Operator<?>> {
 
+    /**
+     * 包含各种配置
+     */
     protected final Configuration parameters; // the parameters to parameterize the UDF
 
+    /**
+     * 包含一些有关提示编译的信息
+     */
     protected CompilerHints compilerHints; // hints to the compiler
 
+    /**
+     * 契约实例的名称
+     */
     protected String name; // the name of the contract instance. optional.
 
+    /**
+     * 描述并行度
+     */
     private int parallelism =
             ExecutionConfig.PARALLELISM_DEFAULT; // the number of parallel instances to use
 
+    /**
+     * 描述需要的最小资源
+     */
     private ResourceSpec minResources =
             ResourceSpec.DEFAULT; // the minimum resource of the contract instance.
 
+    /**
+     * 推荐的最佳资源
+     */
     private ResourceSpec preferredResources =
             ResourceSpec.DEFAULT; // the preferred resource of the contract instance.
 
-    /** The return type of the user function. */
+    /** The return type of the user function.
+     * 操作者信息 内部包含一个 TypeInformation 记录OUT信息
+     * */
     protected final OperatorInformation<OUT> operatorInfo;
 
     // --------------------------------------------------------------------------------------------
@@ -260,6 +281,7 @@ public abstract class Operator<OUT> implements Visitable<Operator<?>> {
      * @param input1 The first input operator.
      * @param input2 The other input operators.
      * @return The single operator or a cascade of unions of the operators.
+     * 创建级联对象
      */
     public static <T> Operator<T> createUnionCascade(Operator<T> input1, Operator<T>... input2) {
         // return cases where we don't need a union
@@ -270,6 +292,8 @@ public abstract class Operator<OUT> implements Visitable<Operator<?>> {
         }
 
         TypeInformation<T> type = null;
+
+        // input1的优先级最高
         if (input1 != null) {
             type = input1.getOperatorInfo().getOutputType();
         } else if (input2.length > 0 && input2[0] != null) {
@@ -279,6 +303,7 @@ public abstract class Operator<OUT> implements Visitable<Operator<?>> {
         }
 
         // Otherwise construct union cascade
+        // 产生了一个 代表二元操作的 union操作  就是输入输出是一个类型
         Union<T> lastUnion =
                 new Union<T>(new BinaryOperatorInformation<T, T, T>(type, type, type), "<unknown>");
 
@@ -286,8 +311,11 @@ public abstract class Operator<OUT> implements Visitable<Operator<?>> {
         if (input2[0] == null) {
             throw new IllegalArgumentException("The input may not contain null elements.");
         }
+
+        // 第一个输入是 input2
         lastUnion.setFirstInput(input2[0]);
 
+        // 第二个是 input1
         if (input1 != null) {
             lastUnion.setSecondInput(input1);
             i = 1;
@@ -302,6 +330,7 @@ public abstract class Operator<OUT> implements Visitable<Operator<?>> {
             Union<T> tmpUnion =
                     new Union<T>(
                             new BinaryOperatorInformation<T, T, T>(type, type, type), "<unknown>");
+            // 每个union的结果作为下次的input 将他们叠加起来变成最后的 lastUnion
             tmpUnion.setSecondInput(lastUnion);
             if (input2[i] == null) {
                 throw new IllegalArgumentException("The input may not contain null elements.");

@@ -35,6 +35,8 @@ import java.util.Collection;
  * CommitRequest#signalAlreadyCommitted()}.
  *
  * @param <CommT> The type of information needed to commit the staged data
+ *
+ *               该对象用于提交请求
  */
 @PublicEvolving
 public interface Committer<CommT> extends AutoCloseable {
@@ -43,6 +45,7 @@ public interface Committer<CommT> extends AutoCloseable {
      *
      * @param committables A list of commit requests staged by the sink writer.
      * @throws IOException for reasons that may yield a complete restart of the job.
+     * 提交一组Req对象
      */
     void commit(Collection<CommitRequest<CommT>> committables)
             throws IOException, InterruptedException;
@@ -51,16 +54,20 @@ public interface Committer<CommT> extends AutoCloseable {
      * A request to commit a specific committable.
      *
      * @param <CommT>
+     *     该请求包装了一个可提交的对象
      */
     @PublicEvolving
     interface CommitRequest<CommT> {
 
-        /** Returns the committable. */
+        /** Returns the committable.
+         * 获取内部的可提交对象
+         * */
         CommT getCommittable();
 
         /**
          * Returns how many times this particular committable has been retried. Starts at 0 for the
          * first attempt.
+         * 提交有一个重试次数
          */
         int getNumberOfRetries();
 
@@ -69,6 +76,7 @@ public interface Committer<CommT> extends AutoCloseable {
          *
          * <p>Currently calling this method only logs the error, discards the comittable and
          * continues. In the future the behaviour might be configurable.
+         * 标记提交失败  这样会避免重试
          */
         void signalFailedWithKnownReason(Throwable t);
 
@@ -84,12 +92,14 @@ public interface Committer<CommT> extends AutoCloseable {
          * The commit failed for a retriable reason. If the sink supports a retry maximum, this may
          * permanently fail after reaching that maximum. Else the committable will be retried as
          * long as this method is invoked after each attempt.
+         * 在提交失败后 调用该方法会在一定延时后重试
          */
         void retryLater();
 
         /**
          * Updates the underlying committable and retries later (see {@link #retryLater()} for a
          * description). This method can be used if a committable partially succeeded.
+         * 更新可提交对象 并重试
          */
         void updateAndRetryLater(CommT committable);
 
@@ -97,6 +107,7 @@ public interface Committer<CommT> extends AutoCloseable {
          * Signals that a committable is skipped as it was committed already in a previous run.
          * Using this method is optional but eases bookkeeping and debugging. It also serves as a
          * code documentation for the branches dealing with recovery.
+         * 标记已经提交成功
          */
         void signalAlreadyCommitted();
     }

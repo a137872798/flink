@@ -21,10 +21,24 @@ package org.apache.flink.core.memory;
 import java.io.IOException;
 import java.util.Collection;
 
-/** The provider used for requesting and releasing batch of memory segments. */
+/** The provider used for requesting and releasing batch of memory segments.
+ * 可以产生内存块
+ * */
 public interface MemorySegmentProvider {
+
+    /**
+     * 请求一定数量的内存块
+     * @param numberOfSegmentsToRequest
+     * @return
+     * @throws IOException
+     */
     Collection<MemorySegment> requestUnpooledMemorySegments(int numberOfSegmentsToRequest)
             throws IOException;
 
+    /**
+     * 归还内存块 便于循环利用
+     * @param segments
+     * @throws IOException
+     */
     void recycleUnpooledMemorySegments(Collection<MemorySegment> segments) throws IOException;
 }

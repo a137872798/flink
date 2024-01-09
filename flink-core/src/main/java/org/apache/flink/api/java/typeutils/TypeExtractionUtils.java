@@ -38,6 +38,9 @@ import java.util.List;
 import static org.apache.flink.shaded.asm9.org.objectweb.asm.Type.getConstructorDescriptor;
 import static org.apache.flink.shaded.asm9.org.objectweb.asm.Type.getMethodDescriptor;
 
+/**
+ * 为 TypeExtractor 提供一些辅助方法
+ */
 @Internal
 public class TypeExtractionUtils {
 
@@ -48,6 +51,7 @@ public class TypeExtractionUtils {
     /** Similar to a Java 8 Executable but with a return type. */
     public static class LambdaExecutable {
 
+        // 这些元素注册了一个方法
         private Type[] parameterTypes;
         private Type returnType;
         private String name;
@@ -94,12 +98,16 @@ public class TypeExtractionUtils {
      *
      * @throws TypeExtractionException lambda extraction is pretty hacky, it might fail for unknown
      *     JVM issues.
+     *
+     *     查找Function的方法 或者构造函数  并包装成一个 lambda对象
      */
     public static LambdaExecutable checkAndExtractLambda(Function function)
             throws TypeExtractionException {
         try {
             // get serialized lambda
             SerializedLambda serializedLambda = null;
+
+            // 这里不断往父类查找
             for (Class<?> clazz = function.getClass();
                     clazz != null;
                     clazz = clazz.getSuperclass()) {
@@ -120,6 +128,7 @@ public class TypeExtractionUtils {
             }
 
             // not a lambda method -> return null
+            // 找不到 serializedLambda 返回 null
             if (serializedLambda == null) {
                 return null;
             }
@@ -181,11 +190,17 @@ public class TypeExtractionUtils {
             int[] lambdaTypeArgumentIndices,
             int paramLen,
             int baseParametersLen) {
+
+        // 这个取到的是输出类型
         Type output =
                 exec.getParameterTypes()[
                         paramLen - baseParametersLen + lambdaTypeArgumentIndices[0]];
+
+        // 剩下的参数好像都是增强output的
         for (int i = 1; i < lambdaTypeArgumentIndices.length; i++) {
+            // 检验确保output 没有泛型参数
             validateLambdaType(baseClass, output);
+            // 拿到里面指定的泛型参数
             output = extractTypeArgument(output, lambdaTypeArgumentIndices[i]);
         }
         validateLambdaType(baseClass, output);
@@ -202,6 +217,8 @@ public class TypeExtractionUtils {
      * @return The extracted type argument
      * @throws InvalidTypesException if the given type does not have any type arguments or if the
      *     index exceeds the number of type arguments.
+     *
+     *     如果T是泛型类型参数 根据下标获取参数
      */
     public static Type extractTypeArgument(Type t, int index) throws InvalidTypesException {
         if (t instanceof ParameterizedType) {
@@ -230,6 +247,8 @@ public class TypeExtractionUtils {
      * @param baseClass a class that is a FunctionalInterface to retrieve a SAM from
      * @throws InvalidTypesException if the given class does not implement FunctionalInterface
      * @return single abstract method of the given class
+     *
+     * 从class中拿到抽象方法  并且应当只有一个
      */
     public static Method getSingleAbstractMethod(Class<?> baseClass) {
 
@@ -262,7 +281,9 @@ public class TypeExtractionUtils {
         return sam;
     }
 
-    /** Returns all declared methods of a class including methods of superclasses. */
+    /** Returns all declared methods of a class including methods of superclasses.
+     * 从下往上 将所有方法加入list
+     * */
     public static List<Method> getAllDeclaredMethods(Class<?> clazz) {
         List<Method> result = new ArrayList<>();
         while (clazz != null) {
@@ -273,7 +294,9 @@ public class TypeExtractionUtils {
         return result;
     }
 
-    /** Convert ParameterizedType or Class to a Class. */
+    /** Convert ParameterizedType or Class to a Class.
+     * 如果是可泛型的对象 返回原始class
+     * */
     @SuppressWarnings("unchecked")
     public static <T> Class<T> typeToClass(Type t) {
         if (t instanceof Class) {
@@ -306,6 +329,7 @@ public class TypeExtractionUtils {
      *
      * @param t type for which a hierarchy need to be created
      * @return type of the immediate child of the stop class
+     * 从下往上 把所有父类加入到list中
      */
     public static Type getTypeHierarchy(List<Type> typeHierarchy, Type t, Class<?> stopAtClass) {
         while (!(isClassType(t) && typeToClass(t).equals(stopAtClass))) {
@@ -324,6 +348,7 @@ public class TypeExtractionUtils {
      *
      * @param clazz class to be analyzed
      * @param superClassName class name of the super class
+     *                       检查clazz是否有名为superClassName的父类
      */
     public static boolean hasSuperclass(Class<?> clazz, String superClassName) {
         List<Type> hierarchy = new ArrayList<>();

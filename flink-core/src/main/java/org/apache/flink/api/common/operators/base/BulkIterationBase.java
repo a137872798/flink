@@ -47,7 +47,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-/** */
+/**
+ * 没看懂这对象怎么用的 很多属性都是后面set的
+ */
 @Internal
 public class BulkIterationBase<T> extends SingleInputOperator<T, T, AbstractRichFunction>
         implements IterationOperator {
@@ -61,6 +63,9 @@ public class BulkIterationBase<T> extends SingleInputOperator<T, T, AbstractRich
 
     private final Operator<T> inputPlaceHolder;
 
+    /**
+     * 该对象可以按照字段注册聚合器
+     */
     private final AggregatorRegistry aggregators = new AggregatorRegistry();
 
     private int numberOfIterations = -1;
@@ -74,7 +79,10 @@ public class BulkIterationBase<T> extends SingleInputOperator<T, T, AbstractRich
         this(operatorInfo, DEFAULT_NAME);
     }
 
-    /** @param name */
+    /**
+     * @param name
+     * @param operatorInfo 同时指定input output  并且是一样的类型
+     * */
     public BulkIterationBase(UnaryOperatorInformation<T, T> operatorInfo, String name) {
         super(
                 new UserCodeClassWrapper<AbstractRichFunction>(AbstractRichFunction.class),
@@ -90,7 +98,9 @@ public class BulkIterationBase<T> extends SingleInputOperator<T, T, AbstractRich
         return this.inputPlaceHolder;
     }
 
-    /** @param result */
+    /** @param result
+     * 设置中间结果
+     * */
     public void setNextPartialSolution(Operator<T> result) {
         if (result == null) {
             throw new NullPointerException(
@@ -104,7 +114,9 @@ public class BulkIterationBase<T> extends SingleInputOperator<T, T, AbstractRich
         return this.iterationResult;
     }
 
-    /** @return The operator representing the termination criterion. */
+    /** @return The operator representing the termination criterion.
+     * 返回在setTerminationCriterion中设置的 criterion
+     * */
     public Operator<?> getTerminationCriterion() {
         return this.terminationCriterion;
     }
@@ -112,13 +124,16 @@ public class BulkIterationBase<T> extends SingleInputOperator<T, T, AbstractRich
     /** @param criterion */
     public <X> void setTerminationCriterion(Operator<X> criterion) {
 
+        // 获取该operator的输出类型
         TypeInformation<X> type = criterion.getOperatorInfo().getOutputType();
 
         FlatMapOperatorBase<X, X, TerminationCriterionMapper<X>> mapper =
                 new FlatMapOperatorBase<X, X, TerminationCriterionMapper<X>>(
-                        new TerminationCriterionMapper<X>(),
-                        new UnaryOperatorInformation<X, X>(type, type),
+                        new TerminationCriterionMapper<X>(),   // 一个是使用的函数
+                        new UnaryOperatorInformation<X, X>(type, type),  // 一个是input/output 类型
                         "Termination Criterion Aggregation Wrapper");
+
+        // 也就是criterion会作为 mapper的输入
         mapper.setInput(criterion);
 
         this.terminationCriterion = mapper;
@@ -163,6 +178,8 @@ public class BulkIterationBase<T> extends SingleInputOperator<T, T, AbstractRich
         }
     }
 
+    // 无法设置广播变量 读取也总为空
+
     /**
      * The BulkIteration meta operator cannot have broadcast inputs.
      *
@@ -200,6 +217,7 @@ public class BulkIterationBase<T> extends SingleInputOperator<T, T, AbstractRich
     /**
      * Specialized operator to use as a recognizable place-holder for the input to the step function
      * when composing the nested data flow.
+     * 用于解决占位符的对象
      */
     public static class PartialSolutionPlaceHolder<OT> extends Operator<OT> {
 
@@ -217,6 +235,7 @@ public class BulkIterationBase<T> extends SingleInputOperator<T, T, AbstractRich
 
         @Override
         public void accept(Visitor<Operator<?>> visitor) {
+            // 没看出什么特别的  就是用访问者模式接触该对象
             visitor.preVisit(this);
             visitor.postVisit(this);
         }
@@ -235,15 +254,24 @@ public class BulkIterationBase<T> extends SingleInputOperator<T, T, AbstractRich
             implements FlatMapFunction<X, X> {
         private static final long serialVersionUID = 1L;
 
+        /**
+         * 看作一个简单的聚合器
+         */
         private TerminationCriterionAggregator aggregator;
 
         @Override
         public void open(Configuration parameters) {
+            // 从上下文中 获取特殊的聚合器
             aggregator =
                     getIterationRuntimeContext()
                             .getIterationAggregator(TERMINATION_CRITERION_AGGREGATOR_NAME);
         }
 
+        /**
+         * 这个就是FlatMapFunction的核心方法  只是将聚合器+1
+         * @param in
+         * @param out The collector for returning result values.
+         */
         @Override
         public void flatMap(X in, Collector<X> out) {
             aggregator.aggregate(1L);
@@ -253,6 +281,7 @@ public class BulkIterationBase<T> extends SingleInputOperator<T, T, AbstractRich
     /**
      * Aggregator that basically only adds 1 for every output tuple of the termination criterion
      * branch
+     * 针对终止情况的聚合器   一般也是每次只加1
      */
     @SuppressWarnings("serial")
     public static class TerminationCriterionAggregator implements Aggregator<LongValue> {
@@ -282,6 +311,7 @@ public class BulkIterationBase<T> extends SingleInputOperator<T, T, AbstractRich
     /**
      * Convergence for the termination criterion is reached if no tuple is output at current
      * iteration for the termination criterion branch
+     * 用于判断迭代能否提前收束
      */
     public static class TerminationCriterionAggregationConvergence
             implements ConvergenceCriterion<LongValue> {
@@ -299,6 +329,7 @@ public class BulkIterationBase<T> extends SingleInputOperator<T, T, AbstractRich
                 log.info("Termination criterion stats in iteration [" + iteration + "]: " + count);
             }
 
+            // 聚合数量为0的时候 代表可以收束
             return count == 0;
         }
     }

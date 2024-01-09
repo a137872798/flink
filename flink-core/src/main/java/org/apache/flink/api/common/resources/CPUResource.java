@@ -24,7 +24,9 @@ import java.math.BigDecimal;
 
 import static java.math.BigDecimal.ROUND_HALF_UP;
 
-/** Represents CPU resource. */
+/** Represents CPU resource.
+ * 简单来说就是赋予值cpu的含义
+ * */
 @Internal
 public class CPUResource extends Resource<CPUResource> {
 

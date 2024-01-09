@@ -28,13 +28,16 @@ import static org.apache.flink.configuration.description.TextElement.text;
 /** Describes the binary format in which a savepoint should be taken. */
 @PublicEvolving
 public enum SavepointFormatType implements DescribedEnum {
-    /** A canonical, common for all state backends format. It lets users switch state backends. */
+    /** A canonical, common for all state backends format. It lets users switch state backends.
+     * 表示一种规范 且通用于所有后端的格式
+     * */
     CANONICAL(
             "A canonical, common for all state backends format. It lets you switch state backends."),
 
     /**
      * A format specific for the chosen state backend, in its native binary format. Might be faster
      * to take and restore from than the canonical one.
+     * 使用特定于后端的格式 恢复速度可能会更快
      */
     NATIVE(
             "A format specific for the chosen state backend, in its native binary format."

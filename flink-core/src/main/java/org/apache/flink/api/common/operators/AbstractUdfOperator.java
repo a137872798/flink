@@ -29,14 +29,19 @@ import java.util.Map;
  * Abstract superclass for all contracts that represent actual operators.
  *
  * @param <FT> Type of the user function
+ *            代表所有实际操作类型的抽象类
  */
 @Internal
 public abstract class AbstractUdfOperator<OUT, FT extends Function> extends Operator<OUT> {
 
-    /** The object or class containing the user function. */
+    /** The object or class containing the user function.
+     * 被包装的用户代码 可能是一个class  也可能是一个object    注意这是用户定义的函数
+     * */
     protected final UserCodeWrapper<FT> userFunction;
 
-    /** The extra inputs which parameterize the user function. */
+    /** The extra inputs which parameterize the user function.
+     * 表示用户函数需要的一些额外的输入   operator 就可以看作是一个输入对象
+     * */
     protected final Map<String, Operator<?>> broadcastInputs = new HashMap<>();
 
     // --------------------------------------------------------------------------------------------
@@ -64,6 +69,8 @@ public abstract class AbstractUdfOperator<OUT, FT extends Function> extends Oper
      *
      * @return The object with the user function for this operator.
      * @see org.apache.flink.api.common.operators.Operator#getUserCodeWrapper()
+     *
+     * 获取用户定义的函数
      */
     @Override
     public UserCodeWrapper<FT> getUserCodeWrapper() {
@@ -86,6 +93,7 @@ public abstract class AbstractUdfOperator<OUT, FT extends Function> extends Oper
      * wrapped in this operator.
      *
      * @param root The root of the plan producing this input.
+     *             追加一个广播变量
      */
     public void setBroadcastVariable(String name, Operator<?> root) {
         if (name == null) {
@@ -123,6 +131,7 @@ public abstract class AbstractUdfOperator<OUT, FT extends Function> extends Oper
      * Gets the column numbers of the key fields in the input records for the given input.
      *
      * @return The column numbers of the key fields.
+     * 返回某个输入的 关键字段列号
      */
     public abstract int[] getKeyColumns(int inputNum);
 

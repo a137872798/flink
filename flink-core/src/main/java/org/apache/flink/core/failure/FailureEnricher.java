@@ -30,6 +30,7 @@ import java.util.concurrent.Executor;
 /**
  * Failure Enricher enabling custom logic and attaching metadata in the form of labels to each type
  * of failure as tracked in the JobMaster.
+ * 使得失败信息更丰富
  */
 @Experimental
 public interface FailureEnricher {
@@ -51,6 +52,7 @@ public interface FailureEnricher {
      * @param cause the exception that caused this failure
      * @param context the context that includes extra information (e.g., if it was a global failure)
      * @return map of KV pairs (labels) associated with the failure
+     * 处理异常 并产生一组失败信息
      */
     CompletableFuture<Map<String, String>> processFailure(
             final Throwable cause, final Context context);
@@ -58,24 +60,32 @@ public interface FailureEnricher {
     /**
      * An interface used by the {@link FailureEnricher}. Context includes an executor pool for the
      * enrichers to run heavy operations, the Classloader used for code gen, and other metadata.
+     * 生成异常信息时 需要借助上下文对象
      */
     @Experimental
     interface Context {
 
-        /** Type of failure. */
+        /** Type of failure.
+         * 描述失败的类型
+         * */
         enum FailureType {
             /**
              * The failure has occurred in the scheduler context and can't be tracked back to a
              * particular task.
+             * 表示全局级别的失败
              */
             GLOBAL,
-            /** The failure has been reported by a particular task. */
+            /** The failure has been reported by a particular task.
+             * 单个task失败
+             * */
             TASK,
             /**
              * The TaskManager has non-gracefully disconnected from the JobMaster or we have not
              * received heartbeats for the {@link
              * org.apache.flink.configuration.HeartbeatManagerOptions#HEARTBEAT_INTERVAL configured
              * timeout}.
+             *
+             * taskManger出错
              */
             TASK_MANAGER
         }
@@ -122,6 +132,7 @@ public interface FailureEnricher {
          * IO-heavy.
          *
          * @return the Executor pool
+         * 获取给FailureEnricher使用的线程池
          */
         Executor getIOExecutor();
     }

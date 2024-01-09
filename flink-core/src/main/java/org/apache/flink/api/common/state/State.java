@@ -27,10 +27,13 @@ import org.apache.flink.annotation.PublicEvolving;
  * automatically supplied by the system, so the function always sees the value mapped to the key of
  * the current element. That way, the system can handle stream and state partitioning consistently
  * together.
+ * 在flink中 通过持久化状态 以及加载状态 使得流可以被重新执行
  */
 @PublicEvolving
 public interface State {
 
-    /** Removes the value mapped under the current key. */
+    /** Removes the value mapped under the current key.
+     * 状态可以被重制
+     * */
     void clear();
 }

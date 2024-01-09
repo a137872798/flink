@@ -39,6 +39,7 @@ import java.util.List;
  * changed operator parallelism.
  *
  * @param <T> Type of values that this list state keeps.
+ *           代表列表类型的状态   首先MergingState 代表2个list可以合并 其次 MergingState 衍生自 AppendState 代表可以追加单个元素
  */
 @PublicEvolving
 public interface ListState<T> extends MergingState<T, Iterable<T>> {
@@ -52,6 +53,7 @@ public interface ListState<T> extends MergingState<T, Iterable<T>> {
      *
      * @param values The new values for the state.
      * @throws Exception The method may forward exception thrown internally (by I/O or functions).
+     * 直接更新整个列表
      */
     void update(List<T> values) throws Exception;
 
@@ -64,6 +66,7 @@ public interface ListState<T> extends MergingState<T, Iterable<T>> {
      *
      * @param values The new values to be added to the state.
      * @throws Exception The method may forward exception thrown internally (by I/O or functions).
+     * 追加列表中的元素
      */
     void addAll(List<T> values) throws Exception;
 }

@@ -34,7 +34,9 @@ import org.apache.flink.api.common.typeutils.TypeSerializer;
 import java.util.ArrayList;
 import java.util.List;
 
-/** @see org.apache.flink.api.common.functions.FlatMapFunction */
+/** @see org.apache.flink.api.common.functions.FlatMapFunction
+ * 跟 FilterOperatorBase 很相似
+ * */
 @Internal
 public class FlatMapOperatorBase<IN, OUT, FT extends FlatMapFunction<IN, OUT>>
         extends SingleInputOperator<IN, OUT, FT> {
@@ -56,6 +58,14 @@ public class FlatMapOperatorBase<IN, OUT, FT extends FlatMapFunction<IN, OUT>>
 
     // ------------------------------------------------------------------------
 
+    /**
+     * 使用函数处理输入
+     * @param input
+     * @param ctx
+     * @param executionConfig
+     * @return
+     * @throws Exception
+     */
     @Override
     protected List<OUT> executeOnCollections(
             List<IN> input, RuntimeContext ctx, ExecutionConfig executionConfig) throws Exception {
@@ -66,11 +76,13 @@ public class FlatMapOperatorBase<IN, OUT, FT extends FlatMapFunction<IN, OUT>>
 
         ArrayList<OUT> result = new ArrayList<OUT>(input.size());
 
+        // 因为元素可能会经过处理 所以使用的是副本
         TypeSerializer<IN> inSerializer =
                 getOperatorInfo().getInputType().createSerializer(executionConfig);
         TypeSerializer<OUT> outSerializer =
                 getOperatorInfo().getOutputType().createSerializer(executionConfig);
 
+        // 产生output 并存入collector时  也是存入副本
         CopyingListCollector<OUT> resultCollector =
                 new CopyingListCollector<OUT>(result, outSerializer);
 

@@ -30,11 +30,13 @@ import java.lang.reflect.Field;
  * Serializable, therefore readObject/writeObject need to be implemented in classes where there is a
  * field of type java.lang.reflect.Field. The two static methods in this class are to be called from
  * these readObject/writeObject methods.
+ * 有关某个class字段的序列化对象
  */
 @Internal
 public class FieldSerializer {
 
     public static void serializeField(Field field, ObjectOutputStream out) throws IOException {
+        // 写入class名 和field名
         out.writeObject(field.getDeclaringClass());
         out.writeUTF(field.getName());
     }

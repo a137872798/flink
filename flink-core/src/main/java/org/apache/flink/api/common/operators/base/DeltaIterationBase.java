@@ -56,27 +56,48 @@ import java.util.Map;
  *
  * <p>This class is a subclass of {@code DualInputOperator}. The solution set is considered the
  * first input, the workset is considered the second input.
+ *
+ * IterationOperator 代表是一个迭代器操作 可以获取一个累加器注册对象
  */
 @Internal
 public class DeltaIterationBase<ST, WT> extends DualInputOperator<ST, WT, ST, AbstractRichFunction>
         implements IterationOperator {
 
+    /**
+     * 解决方案集 占位符   对应第一个输入
+     */
     private final Operator<ST> solutionSetPlaceholder;
 
+    /**
+     * 工作集 占位符     对应第二个输入
+     */
     private final Operator<WT> worksetPlaceholder;
 
+    /**
+     * 解决方案集 增量数据
+     */
     private Operator<ST> solutionSetDelta;
 
+    /**
+     * 下个工作集
+     */
     private Operator<WT> nextWorkset;
 
-    /** The positions of the keys in the solution tuple. */
+    /** The positions of the keys in the solution tuple.
+     * 解决方案集 的keys
+     * */
     private final int[] solutionSetKeyFields;
 
-    /** The maximum number of iterations. Possibly used only as a safeguard. */
+    /** The maximum number of iterations. Possibly used only as a safeguard.
+     * 最大迭代次数 作为一个保护
+     * */
     private int maxNumberOfIterations = -1;
 
     private final AggregatorRegistry aggregators = new AggregatorRegistry();
 
+    /**
+     * 解决方案集 是否被管理
+     */
     private boolean solutionSetUnManaged;
 
     // --------------------------------------------------------------------------------------------
@@ -195,6 +216,8 @@ public class DeltaIterationBase<ST, WT> extends DualInputOperator<ST, WT, ST, Ab
     // Getting / Setting the Inputs
     // --------------------------------------------------------------------------------------------
 
+    // 初始状态时 获取2个输入
+
     /**
      * Returns the initial solution set input, or null, if none is set.
      *
@@ -293,6 +316,7 @@ public class DeltaIterationBase<ST, WT> extends DualInputOperator<ST, WT, ST, Ab
     /**
      * Specialized operator to use as a recognizable place-holder for the working set input to the
      * step function.
+     * 工作集
      */
     public static class WorksetPlaceHolder<WT> extends Operator<WT> {
 
@@ -323,6 +347,7 @@ public class DeltaIterationBase<ST, WT> extends DualInputOperator<ST, WT, ST, Ab
     /**
      * Specialized operator to use as a recognizable place-holder for the solution set input to the
      * step function.
+     * 表示一个解决方案集
      */
     public static class SolutionSetPlaceHolder<ST> extends Operator<ST> {
 
@@ -350,6 +375,14 @@ public class DeltaIterationBase<ST, WT> extends DualInputOperator<ST, WT, ST, Ab
         }
     }
 
+    /**
+     * 这些类 该方法都没有实现  到底是怎么用的?
+     * @param inputData1
+     * @param inputData2
+     * @param runtimeContext
+     * @param executionConfig
+     * @return
+     */
     @Override
     protected List<ST> executeOnCollections(
             List<ST> inputData1,

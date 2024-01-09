@@ -24,7 +24,9 @@ import org.apache.flink.api.common.operators.util.FieldSet;
 import java.util.HashMap;
 import java.util.Map;
 
-/** Container for the semantic properties associated to a single input operator. */
+/** Container for the semantic properties associated to a single input operator.
+ * 针对单输入operator的语义属性
+ * */
 @Internal
 public class SingleInputSemanticProperties implements SemanticProperties {
     private static final long serialVersionUID = 1L;
@@ -40,12 +42,15 @@ public class SingleInputSemanticProperties implements SemanticProperties {
         this.readFields = null;
     }
 
+    // 下面这2个方法的 input参数 好像代表第几个input   然后因为是 singleInput 所以只能为0
+
     @Override
     public FieldSet getForwardingTargetFields(int input, int sourceField) {
         if (input != 0) {
             throw new IndexOutOfBoundsException();
         }
 
+        // 传入 sourceField的id  会得到一组field
         return this.fieldMapping.containsKey(sourceField)
                 ? this.fieldMapping.get(sourceField)
                 : FieldSet.EMPTY_SET;
@@ -57,6 +62,7 @@ public class SingleInputSemanticProperties implements SemanticProperties {
             throw new IndexOutOfBoundsException();
         }
 
+        // 这个是反向查询
         for (Map.Entry<Integer, FieldSet> e : fieldMapping.entrySet()) {
             if (e.getValue().contains(targetField)) {
                 return e.getKey();
@@ -80,14 +86,17 @@ public class SingleInputSemanticProperties implements SemanticProperties {
      *
      * @param sourceField the position in the source record(s)
      * @param targetField the position in the destination record(s)
+     *                    添加正向的 field
      */
     public void addForwardedField(int sourceField, int targetField) {
+        // 表示 targetField 已经加过了  拒绝重复添加
         if (isTargetFieldPresent(targetField)) {
             throw new InvalidSemanticAnnotationException(
                     "Target field " + targetField + " was added twice.");
         }
 
         FieldSet targetFields = fieldMapping.get(sourceField);
+        // 将targetField 追加到FieldSet中
         if (targetFields != null) {
             fieldMapping.put(sourceField, targetFields.addField(targetField));
         } else {
@@ -95,6 +104,11 @@ public class SingleInputSemanticProperties implements SemanticProperties {
         }
     }
 
+    /**
+     * 检查 targetField 是否已经存在
+     * @param targetField
+     * @return
+     */
     private boolean isTargetFieldPresent(int targetField) {
         for (FieldSet targetFields : fieldMapping.values()) {
             if (targetFields.contains(targetField)) {
@@ -124,6 +138,9 @@ public class SingleInputSemanticProperties implements SemanticProperties {
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 这个对象 传什么返回什么
+     */
     public static class AllFieldsForwardedProperties extends SingleInputSemanticProperties {
 
         private static final long serialVersionUID = 1L;

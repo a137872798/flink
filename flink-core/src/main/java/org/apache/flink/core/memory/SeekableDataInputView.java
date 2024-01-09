@@ -23,6 +23,7 @@ import org.apache.flink.annotation.PublicEvolving;
 /**
  * Interface marking a {@link DataInputView} as seekable. Seekable views can set the position where
  * they read from.
+ * 作为输入流 可以手动设定位置
  */
 @PublicEvolving
 public interface SeekableDataInputView extends DataInputView {

@@ -28,17 +28,25 @@ import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-/** A client that is scoped to a specific job. */
+/** A client that is scoped to a specific job.
+ * 该客户端仅限于 特定的job
+ * */
 @PublicEvolving
 public interface JobClient {
 
-    /** Returns the {@link JobID} that uniquely identifies the job this client is scoped to. */
+    /** Returns the {@link JobID} that uniquely identifies the job this client is scoped to.
+     * 返回该client 关联的job
+     * */
     JobID getJobID();
 
-    /** Requests the {@link JobStatus} of the associated job. */
+    /** Requests the {@link JobStatus} of the associated job.
+     * 返回此时job的状态
+     * */
     CompletableFuture<JobStatus> getJobStatus();
 
-    /** Cancels the associated job. */
+    /** Cancels the associated job.
+     * 取消关联的job
+     * */
     CompletableFuture<Void> cancel();
 
     /**
@@ -73,11 +81,14 @@ public interface JobClient {
      * @param savepointDirectory directory the savepoint should be written to
      * @param formatType binary format of the savepoint
      * @return a {@link CompletableFuture} containing the path where the savepoint is located
+     *
+     * stop操作 仅限于流式程序
      */
     CompletableFuture<String> stopWithSavepoint(
-            boolean advanceToEndOfEventTime,
-            @Nullable String savepointDirectory,
-            SavepointFormatType formatType);
+            boolean advanceToEndOfEventTime,   // 表示源是否应当注入管道
+            @Nullable String savepointDirectory,  // 保存点存储的目录
+            SavepointFormatType formatType  // 保存点使用的格式
+    );
 
     /**
      * Triggers a savepoint for the associated job. The savepoint will be written to the given
@@ -87,6 +98,8 @@ public interface JobClient {
      * @param savepointDirectory directory the savepoint should be written to
      * @return a {@link CompletableFuture} containing the path where the savepoint is located
      * @deprecated pass the format explicitly
+     *
+     * 触发完成一次 保存点的写入
      */
     @Deprecated
     default CompletableFuture<String> triggerSavepoint(@Nullable String savepointDirectory) {
@@ -109,12 +122,18 @@ public interface JobClient {
      * Requests the accumulators of the associated job. Accumulators can be requested while it is
      * running or after it has finished. The class loader is used to deserialize the incoming
      * accumulator results.
+     *
+     * 获取累加器    client为什么会有这样的api?
      */
     CompletableFuture<Map<String, Object>> getAccumulators();
 
-    /** Returns the {@link JobExecutionResult result of the job execution} of the submitted job. */
+    /** Returns the {@link JobExecutionResult result of the job execution} of the submitted job.
+     * JobExecutionResult 中主要存储的就是累加器的结果
+     * */
     CompletableFuture<JobExecutionResult> getJobExecutionResult();
 
-    /** The client reports the heartbeat to the dispatcher for aliveness. */
+    /** The client reports the heartbeat to the dispatcher for aliveness.
+     * 客户端需要定时发送心跳 向dispatcher证明自己存活
+     * */
     default void reportHeartbeat(long expiredTimestamp) {}
 }

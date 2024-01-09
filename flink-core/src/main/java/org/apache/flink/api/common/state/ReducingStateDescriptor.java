@@ -38,6 +38,9 @@ public class ReducingStateDescriptor<T> extends StateDescriptor<ReducingState<T>
 
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 状态的值就是通过该函数进行累加的
+     */
     private final ReduceFunction<T> reduceFunction;
 
     /**

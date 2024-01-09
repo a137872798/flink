@@ -26,6 +26,7 @@ import java.util.stream.Stream;
 /**
  * An interface to be implemented by the entity responsible for finding the correct {@link
  * PipelineExecutor} to execute a given {@link org.apache.flink.api.dag.Pipeline}.
+ * 该对象管理所有的 PipelineExecutor
  */
 @Internal
 public interface PipelineExecutorServiceLoader {
@@ -38,9 +39,12 @@ public interface PipelineExecutorServiceLoader {
      * @return a compatible {@link PipelineExecutorFactory}.
      * @throws Exception if there is more than one compatible factories, or something went wrong
      *     when loading the registered factories.
+     *     产生工厂
      */
     PipelineExecutorFactory getExecutorFactory(final Configuration configuration) throws Exception;
 
-    /** Loads and returns a stream of the names of all available executors. */
+    /** Loads and returns a stream of the names of all available executors.
+     * 返回所管理的所有可用的执行器
+     * */
     Stream<String> getExecutorNames();
 }

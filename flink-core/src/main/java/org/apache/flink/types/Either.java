@@ -31,6 +31,7 @@ import org.apache.flink.api.java.typeutils.runtime.EitherSerializer;
  *
  * @param <L> the type of Left
  * @param <R> the type of Right
+ *           代表左 或者右
  */
 @Public
 @TypeInfo(EitherTypeInfoFactory.class)

@@ -27,6 +27,8 @@ import java.io.Serializable;
 @PublicEvolving
 public interface ConvergenceCriterion<T extends Value> extends Serializable {
 
-    /** Decide whether the iterative algorithm has converged */
+    /** Decide whether the iterative algorithm has converged
+     * 用于判断迭代算法是否收敛
+     * */
     boolean isConverged(int iteration, T value);
 }

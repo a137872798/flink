@@ -32,14 +32,20 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * An executor decorator that allows only a certain number of concurrent executions. The {@link
  * #execute(Runnable)} method blocks once that number of executions is exceeded.
+ *
+ * 支持背压的执行器
  */
 @Internal
 public final class BackPressuringExecutor implements Executor {
 
-    /** The executor for the actual execution. */
+    /** The executor for the actual execution.
+     * 代理对象 对其他执行器包装了一层 使之支持背压
+     * */
     private final Executor delegate;
 
-    /** The semaphore to track permits and block until permits are available. */
+    /** The semaphore to track permits and block until permits are available.
+     * 其实就是限流啊
+     * */
     private final Semaphore permits;
 
     public BackPressuringExecutor(Executor delegate, int numConcurrentExecutions) {
@@ -73,12 +79,18 @@ public final class BackPressuringExecutor implements Executor {
 
     // ------------------------------------------------------------------------
 
+    /**
+     * 执行完毕后 自动释放凭证
+     */
     private static class SemaphoreReleasingRunnable implements Runnable {
 
         private final Runnable delegate;
 
         private final Semaphore toRelease;
 
+        /**
+         * 避免重复释放
+         */
         private final AtomicBoolean released = new AtomicBoolean();
 
         SemaphoreReleasingRunnable(Runnable delegate, Semaphore toRelease) {

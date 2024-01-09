@@ -48,6 +48,8 @@ public class SimpleVersionedSerialization {
      * @param serializer The serializer to serialize the datum with.
      * @param datum The datum to serialize.
      * @param out The stream to serialize to.
+     *
+     *            可以写入一个带版本号的可序列化对象
      */
     public static <T> void writeVersionAndSerialize(
             SimpleVersionedSerializer<T> serializer, T datum, DataOutputView out)

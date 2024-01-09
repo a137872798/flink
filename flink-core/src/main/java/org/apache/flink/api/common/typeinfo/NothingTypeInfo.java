@@ -24,7 +24,9 @@ import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 import org.apache.flink.types.Nothing;
 
-/** Placeholder type information for the {@link Nothing} type. */
+/** Placeholder type information for the {@link Nothing} type.
+ * 表示一个空类型
+ * */
 @Public
 public class NothingTypeInfo extends TypeInformation<Nothing> {
 

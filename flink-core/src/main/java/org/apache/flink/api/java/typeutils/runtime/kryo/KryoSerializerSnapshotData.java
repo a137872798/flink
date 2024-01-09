@@ -43,6 +43,10 @@ import static org.apache.flink.util.LinkedOptionalMapSerializer.readOptionalMap;
 import static org.apache.flink.util.LinkedOptionalMapSerializer.writeOptionalMap;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
+/**
+ * 快照数据对象
+ * @param <T>
+ */
 final class KryoSerializerSnapshotData<T> {
 
     private static final Logger LOG = LoggerFactory.getLogger(KryoSerializerSnapshotData.class);
@@ -51,6 +55,14 @@ final class KryoSerializerSnapshotData<T> {
     // Factories
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * @param typeClass
+     * @param defaultKryoSerializers
+     * @param defaultKryoSerializerClasses
+     * @param kryoRegistrations
+     * @param <T>
+     * @return
+     */
     static <T> KryoSerializerSnapshotData<T> createFrom(
             Class<T> typeClass,
             LinkedHashMap<Class<?>, SerializableSerializer<?>> defaultKryoSerializers,
@@ -64,6 +76,14 @@ final class KryoSerializerSnapshotData<T> {
                 optionalMapOf(kryoRegistrations, Function.identity()));
     }
 
+    /**
+     * 通过序列化数据 还原
+     * @param in
+     * @param cl
+     * @param <T>
+     * @return
+     * @throws IOException
+     */
     static <T> KryoSerializerSnapshotData<T> createFrom(DataInputView in, ClassLoader cl)
             throws IOException {
         Class<T> typeClass = readTypeClass(in, cl);

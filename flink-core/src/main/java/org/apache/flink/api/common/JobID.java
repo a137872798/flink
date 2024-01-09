@@ -31,13 +31,14 @@ import java.nio.ByteBuffer;
  * <p>Jobs act simultaneously as <i>sessions</i>, because jobs can be created and submitted
  * incrementally in different parts. Newer fragments of a graph can be attached to existing graphs,
  * thereby extending the current data flow graphs.
+ * AbstractID id为16字节 分为2部分 每部分8字节
  */
 @Public
 public final class JobID extends AbstractID {
 
     private static final long serialVersionUID = 1L;
 
-    /** Creates a new (statistically) random JobID. */
+    /** Creates a new (statistically) random JobID. 默认生成随机数 */
     public JobID() {
         super();
     }

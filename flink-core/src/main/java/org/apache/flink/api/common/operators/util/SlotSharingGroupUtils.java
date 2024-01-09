@@ -27,6 +27,12 @@ import java.util.stream.Collectors;
 
 /** Utils for {@link SlotSharingGroup}. */
 public class SlotSharingGroupUtils {
+
+    /**
+     * 将共享组的资源抽出来 生成 ResourceSpec
+     * @param slotSharingGroup
+     * @return
+     */
     public static ResourceSpec extractResourceSpec(SlotSharingGroup slotSharingGroup) {
         if (!slotSharingGroup.getCpuCores().isPresent()) {
             return ResourceSpec.UNKNOWN;

@@ -42,6 +42,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * <i>(pool-name)</i> is configurable, and <i>n</i> is an incrementing number.
  *
  * <p>All threads created by this factory are daemon threads and have the default (normal) priority.
+ *
+ * flink专门定制的线程工厂
  */
 public class ExecutorThreadFactory implements ThreadFactory {
 
@@ -50,6 +52,9 @@ public class ExecutorThreadFactory implements ThreadFactory {
 
     private final AtomicInteger threadNumber = new AtomicInteger(1);
 
+    /**
+     * 通过该工厂创建的线程属于同一个线程组
+     */
     private final ThreadGroup group;
 
     private final String namePrefix;

@@ -36,6 +36,7 @@ import static org.apache.flink.configuration.description.TextElement.text;
  * some storage between stages. Downstream tasks then fetch these records after the upstream tasks
  * finished. Such an exchange reduces the resources required to execute the job as it does not need
  * to run upstream and downstream tasks simultaneously.
+ * 表示一个打乱的模式
  */
 @PublicEvolving
 public enum BatchShuffleMode implements DescribedEnum {
@@ -45,6 +46,7 @@ public enum BatchShuffleMode implements DescribedEnum {
      *
      * <p>This leads to lower latency and more evenly distributed (but higher) resource usage across
      * tasks.
+     * 上下游同时进行任务   会有更低的延迟 和更多的资源使用率
      */
     ALL_EXCHANGES_PIPELINED(
             text(
@@ -56,6 +58,7 @@ public enum BatchShuffleMode implements DescribedEnum {
      *
      * <p>This reduces the resource usage as downstream tasks are started after upstream tasks
      * finished.
+     * 上游完成后 执行下游  减少资源使用
      */
     ALL_EXCHANGES_BLOCKING(
             text(
@@ -68,6 +71,7 @@ public enum BatchShuffleMode implements DescribedEnum {
      * <p>This adapts the resource usage to whatever is available.
      *
      * <p>This type will spill all data to disk to support re-consume.
+     * 上游已经启动 下游随时可用  所有数据都会写入到磁盘
      */
     ALL_EXCHANGES_HYBRID_FULL(
             text(
@@ -81,6 +85,9 @@ public enum BatchShuffleMode implements DescribedEnum {
      * <p>This adapts the resource usage to whatever is available.
      *
      * <p>This type will selective spilling data to reduce disk writes as much as possible.
+     *
+     *
+     * 基本同上 但是会考虑磁盘的能力 选择性写入
      */
     ALL_EXCHANGES_HYBRID_SELECTIVE(
             text(

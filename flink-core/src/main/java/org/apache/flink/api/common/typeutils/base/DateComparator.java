@@ -69,6 +69,14 @@ public final class DateComparator extends BasicTypeComparator<Date> {
     //                           Static Helpers for Date Comparison
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * date在序列化时 变成时间戳
+     * @param firstSource
+     * @param secondSource
+     * @param ascendingComparison
+     * @return
+     * @throws IOException
+     */
     public static int compareSerializedDate(
             DataInputView firstSource, DataInputView secondSource, boolean ascendingComparison)
             throws IOException {

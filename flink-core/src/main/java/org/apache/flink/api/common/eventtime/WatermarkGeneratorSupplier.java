@@ -29,6 +29,7 @@ import java.io.Serializable;
  *
  * <p>This interface is {@link Serializable} because the supplier may be shipped to workers during
  * distributed execution.
+ * 该对象用于产生 WatermarkGenerator
  */
 @PublicEvolving
 @FunctionalInterface

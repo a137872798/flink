@@ -41,6 +41,7 @@ import java.util.ServiceLoader;
  * can locate and load service implementations from the plugin for a given SPI. The {@link
  * PluginDescriptor}, which among other information contains the resource URLs, is provided at
  * construction.
+ * 用于加载某个插件
  */
 @ThreadSafe
 public class PluginLoader implements AutoCloseable {
@@ -74,7 +75,7 @@ public class PluginLoader implements AutoCloseable {
     }
 
     public static PluginLoader create(
-            PluginDescriptor pluginDescriptor,
+            PluginDescriptor pluginDescriptor,  // 描述要被加载的插件 同时下面还有一组jar
             ClassLoader parentClassLoader,
             String[] alwaysParentFirstPatterns) {
         return new PluginLoader(

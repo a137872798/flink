@@ -42,6 +42,8 @@ import java.util.Objects;
  * }</pre>
  *
  * @param <T> the type of elements in the side-output stream.
+ *
+ *           表示输出流的一个标签
  */
 @PublicEvolving
 public class OutputTag<T> implements Serializable {

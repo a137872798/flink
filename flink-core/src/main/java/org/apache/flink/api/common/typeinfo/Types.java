@@ -67,6 +67,8 @@ import java.util.Map;
  *
  * @see TypeInformation#of(Class) specify type information based on a class that will be analyzed
  * @see TypeInformation#of(TypeHint) specify type information based on a {@link TypeHint}
+ *
+ * 以常量形式提供某些类的 typeInfo
  */
 @PublicEvolving
 public class Types {
@@ -171,6 +173,8 @@ public class Types {
      * default names (f0, f1, f2 ..).
      *
      * @param types The types of the row fields, e.g., Types.STRING, Types.INT
+     *
+     *              将多个types包装成 row后 返回row的typeInfo
      */
     public static TypeInformation<Row> ROW(TypeInformation<?>... types) {
         return new RowTypeInfo(types);
@@ -192,6 +196,7 @@ public class Types {
      *
      * @param fieldNames array of field names
      * @param types array of field types
+     *              同时将field的名字带进去
      */
     public static TypeInformation<Row> ROW_NAMED(String[] fieldNames, TypeInformation<?>... types) {
         return new RowTypeInfo(types, fieldNames);
@@ -208,6 +213,8 @@ public class Types {
      * tuple does not support null-valued fields unless the type of the field supports nullability.
      *
      * @param types The types of the tuple fields, e.g., Types.STRING, Types.INT
+     *
+     *              tuple也是元组类型
      */
     public static <T extends Tuple> TypeInformation<T> TUPLE(TypeInformation<?>... types) {
         return new TupleTypeInfo<>(types);
@@ -247,6 +254,8 @@ public class Types {
      * @param tupleSubclass A subclass of {@link org.apache.flink.api.java.tuple.Tuple0} till {@link
      *     org.apache.flink.api.java.tuple.Tuple25} that defines all field types and does not add
      *     any additional fields
+     *
+     *                      尝试直接抽出tuple的信息
      */
     public static <T extends Tuple> TypeInformation<T> TUPLE(Class<T> tupleSubclass) {
         final TypeInformation<T> ti = TypeExtractor.createTypeInfo(tupleSubclass);
@@ -275,6 +284,7 @@ public class Types {
      * can use {@link Types#POJO(Class, Map)} to specify all fields manually.
      *
      * @param pojoClass POJO class to be analyzed by Flink
+     *                  抽出一个代表实体的 类型信息  实体会有各种各样的属性 所以也算组合类型
      */
     public static <T> TypeInformation<T> POJO(Class<T> pojoClass) {
         final TypeInformation<T> ti = TypeExtractor.createTypeInfo(pojoClass);
@@ -316,11 +326,13 @@ public class Types {
             Class<T> pojoClass, Map<String, TypeInformation<?>> fields) {
         final List<PojoField> pojoFields = new ArrayList<>(fields.size());
         for (Map.Entry<String, TypeInformation<?>> field : fields.entrySet()) {
+            // TypeExtractor 提供反射能力
             final Field f = TypeExtractor.getDeclaredField(pojoClass, field.getKey());
             if (f == null) {
                 throw new InvalidTypesException(
                         "Field '" + field.getKey() + "' could not be accessed.");
             }
+            // 抽出字段后 将其包装成 PojoField
             pojoFields.add(new PojoField(f, field.getValue()));
         }
 
@@ -417,6 +429,8 @@ public class Types {
      *
      * @param keyType type information for the map's keys
      * @param valueType type information for the map's values
+     *
+     *                  map类型 内部有 key value
      */
     public static <K, V> TypeInformation<Map<K, V>> MAP(
             TypeInformation<K> keyType, TypeInformation<V> valueType) {
@@ -434,6 +448,7 @@ public class Types {
      * a list into {@link ArrayList} when copying or deserializing.
      *
      * @param elementType type information for the list's elements
+     *                    为什么要区分 list 和 array呢
      */
     public static <E> TypeInformation<List<E>> LIST(TypeInformation<E> elementType) {
         return new ListTypeInfo<>(elementType);

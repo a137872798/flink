@@ -25,6 +25,7 @@ import org.apache.flink.annotation.Internal;
  * that object.
  *
  * @param <T> The type that is wrapped.
+ *           简单理解为解包装
  */
 @Internal
 public interface WrappingProxy<T> {

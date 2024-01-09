@@ -22,7 +22,9 @@ import org.apache.flink.annotation.PublicEvolving;
 
 import java.util.Random;
 
-/** A statistically unique identification number. */
+/** A statistically unique identification number.
+ * 唯一标识的抽象类
+ * */
 @PublicEvolving
 public class AbstractID implements Comparable<AbstractID>, java.io.Serializable {
 
@@ -33,10 +35,12 @@ public class AbstractID implements Comparable<AbstractID>, java.io.Serializable 
     /** The size of a long in bytes. */
     private static final int SIZE_OF_LONG = 8;
 
-    /** The size of the ID in byte. */
+    /** The size of the ID in byte.  id 使用了16字节 */
     public static final int SIZE = 2 * SIZE_OF_LONG;
 
     // ------------------------------------------------------------------------
+
+    // id还分为高位和低位 2部分
 
     /** The upper part of the actual ID. */
     protected final long upperPart;
@@ -56,6 +60,7 @@ public class AbstractID implements Comparable<AbstractID>, java.io.Serializable 
                     "Argument bytes must by an array of " + SIZE + " bytes");
         }
 
+        // 使用长度为16的字节数组进行初始化
         this.lowerPart = byteArrayToLong(bytes, 0);
         this.upperPart = byteArrayToLong(bytes, SIZE_OF_LONG);
     }

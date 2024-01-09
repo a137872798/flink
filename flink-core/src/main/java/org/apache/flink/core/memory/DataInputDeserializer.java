@@ -27,7 +27,9 @@ import java.io.UTFDataFormatException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
-/** A simple and efficient deserializer for the {@link java.io.DataInput} interface. */
+/** A simple and efficient deserializer for the {@link java.io.DataInput} interface.
+ * 读取buffer中的数据 并支持将字节转换按照某些类型来读取
+ * */
 public class DataInputDeserializer implements DataInputView, java.io.Serializable {
 
     private static final byte[] EMPTY = new byte[0];
@@ -63,6 +65,10 @@ public class DataInputDeserializer implements DataInputView, java.io.Serializabl
     //  Changing buffers
     // ------------------------------------------------------------------------
 
+    /**
+     * 使用ByteBuffer 初始化本对象
+     * @param buffer
+     */
     public void setBuffer(@Nonnull ByteBuffer buffer) {
         if (buffer.hasArray()) {
             this.buffer = buffer.array();
@@ -109,6 +115,10 @@ public class DataInputDeserializer implements DataInputView, java.io.Serializabl
     //                               Data Input
     // ----------------------------------------------------------------------------------------
 
+    /**
+     * 表示数组还有多少数据未读
+     * @return
+     */
     public int available() {
         if (position < end) {
             return end - position;
@@ -135,6 +145,11 @@ public class DataInputDeserializer implements DataInputView, java.io.Serializabl
         }
     }
 
+    /**
+     * flink里 看到 char好像都是当作2byte
+     * @return
+     * @throws IOException
+     */
     @Override
     public char readChar() throws IOException {
         if (this.position < this.end - 1) {

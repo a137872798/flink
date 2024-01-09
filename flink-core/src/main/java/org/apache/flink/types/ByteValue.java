@@ -28,6 +28,8 @@ import java.io.IOException;
 /**
  * Boxed serializable and comparable byte type, representing the primitive type {@code byte} (signed
  * 8 bit integer).
+ *
+ * ByteValue 是 byte的包装类 跟BooleanValue 一个套路
  */
 @Public
 public class ByteValue

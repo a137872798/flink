@@ -20,6 +20,8 @@ package org.apache.flink.configuration.description;
 
 import org.apache.flink.annotation.PublicEvolving;
 
-/** Part of description that represents a block e.g. some text, linebreak or a list. */
+/** Part of description that represents a block e.g. some text, linebreak or a list.
+ * 代表单个块元素  有些对象可能会有多个块  该对象表示每个块都有描述信息
+ * */
 @PublicEvolving
 public interface BlockElement extends DescriptionElement {}

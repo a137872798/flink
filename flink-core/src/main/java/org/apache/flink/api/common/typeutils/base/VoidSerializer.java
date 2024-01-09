@@ -60,6 +60,12 @@ public final class VoidSerializer extends TypeSerializerSingleton<Void> {
         return 1;
     }
 
+    /**
+     * void 序列化写入0 反序列化 返回null
+     * @param record The record to serialize.
+     * @param target The output view to write the serialized data to.
+     * @throws IOException
+     */
     @Override
     public void serialize(Void record, DataOutputView target) throws IOException {
         // make progress in the stream, write one byte

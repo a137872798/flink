@@ -21,7 +21,9 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.typeutils.TypeComparator;
 import org.apache.flink.core.memory.MemorySegment;
 
-/** Utilities related to {@link TypeComparator}. */
+/** Utilities related to {@link TypeComparator}.
+ * 为不同类型的数据 生成一个标准key
+ * */
 @Internal
 public class NormalizedKeyUtil {
 

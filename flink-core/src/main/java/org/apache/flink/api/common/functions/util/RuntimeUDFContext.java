@@ -44,9 +44,19 @@ import java.util.concurrent.Future;
 @Internal
 public class RuntimeUDFContext extends AbstractRuntimeUDFContext {
 
+    /**
+     * 存储会广播的变量  广播变量就是会传播到下游所有算子
+     */
     private final HashMap<String, Object> initializedBroadcastVars = new HashMap<>();
 
+    /**
+     * 未初始化的广播变量
+     */
     private final HashMap<String, List<?>> uninitializedBroadcastVars = new HashMap<>();
+
+    /**
+     * 该上下文关联的job
+     */
     private final JobID jobID;
 
     @VisibleForTesting
@@ -107,6 +117,7 @@ public class RuntimeUDFContext extends AbstractRuntimeUDFContext {
                                 + "' is not a List. A different call must have requested this variable with a BroadcastVariableInitializer.");
             }
         } else {
+            // 此时会转移到已初始化的容器中
             List<?> uninitialized = this.uninitializedBroadcastVars.remove(name);
             if (uninitialized != null) {
                 this.initializedBroadcastVars.put(name, uninitialized);
@@ -118,6 +129,15 @@ public class RuntimeUDFContext extends AbstractRuntimeUDFContext {
         }
     }
 
+    /**
+     * 使用BroadcastVariableInitializer 进行初始化
+     * @param name The name under which the broadcast variable is registered;
+     * @param initializer The initializer that creates the shared data structure of the broadcast
+     *     variable from the sequence of elements.
+     * @param <T>
+     * @param <C>
+     * @return
+     */
     @SuppressWarnings("unchecked")
     @Override
     public <T, C> C getBroadcastVariableWithInitializer(

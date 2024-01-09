@@ -24,7 +24,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
 
-/** Creates a new instance of a certain subclass of {@link java.util.zip.InflaterInputStream}. */
+/** Creates a new instance of a certain subclass of {@link java.util.zip.InflaterInputStream}.
+ * 创建一个自动解压缩的输入流
+ * */
 @Internal
 public interface InflaterInputStreamFactory<T extends InputStream> {
 
@@ -41,6 +43,7 @@ public interface InflaterInputStreamFactory<T extends InputStream> {
      * the compression algorithm in the {@link java.util.zip.InflaterInputStream} {@code T}.
      *
      * @return a (possibly empty) collection of lower-case file extensions, without the period
+     * 返回支持处理的所有拓展名
      */
     Collection<String> getCommonFileExtensions();
 }

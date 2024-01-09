@@ -26,6 +26,8 @@ import org.apache.flink.annotation.PublicEvolving;
  * @deprecated {@code InputDependencyConstraint} is not used anymore and will be deleted in one of
  *     the future versions. It was previously used in the scheduler implementations that were
  *     removed as part of FLINK-20589.
+ *     输入的约束
+ *     表示当任何input可以被消费 或者等待上游所有input都可以消费
  */
 @PublicEvolving
 @Deprecated

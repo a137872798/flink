@@ -27,12 +27,14 @@ import java.io.IOException;
 
 /**
  * Boxed serializable and comparable boolean type, representing the primitive type {@code boolean}.
+ * 这个包装对象 代表原始类型 boolean
  */
 @Public
 public class BooleanValue
-        implements NormalizableKey<BooleanValue>,
-                ResettableValue<BooleanValue>,
-                CopyableValue<BooleanValue> {
+        implements NormalizableKey<BooleanValue>,  // 表示应该可以生成一个标准key
+        ResettableValue<BooleanValue>,  // 表示可以从容器中读取/写入到容器 以及可以修改值
+        CopyableValue<BooleanValue> // 可拷贝
+{
 
     private static final long serialVersionUID = 1L;
 
@@ -42,7 +44,8 @@ public class BooleanValue
 
     private boolean value;
 
-    public BooleanValue() {}
+    public BooleanValue() {
+    }
 
     public BooleanValue(boolean value) {
         this.value = value;

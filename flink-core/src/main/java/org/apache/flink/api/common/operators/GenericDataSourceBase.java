@@ -39,16 +39,23 @@ import java.util.List;
  *
  * @param <OUT> The output type of the data source
  * @param <T> The type of input format invoked by instances of this data source.
+ *           首先无论是 sink 还是source 也是一个operator 这样就可以跟其他operator连起来了  一般的operator是function 而该对象则是数据源或者数据汇
  */
 @Internal
 public class GenericDataSourceBase<OUT, T extends InputFormat<OUT, ?>> extends Operator<OUT> {
 
     private static final String DEFAULT_NAME = "<Unnamed Generic Data Source>";
 
+    /**
+     * 表示用户定义的输入格式对象
+     */
     protected final UserCodeWrapper<? extends T> formatWrapper;
 
     protected String statisticsKey;
 
+    /**
+     * 这是一个可以将输入数据分区的对象
+     */
     private SplitDataProperties splitProperties;
 
     /**
@@ -56,7 +63,7 @@ public class GenericDataSourceBase<OUT, T extends InputFormat<OUT, ?>> extends O
      *
      * @param format The {@link org.apache.flink.api.common.io.InputFormat} implementation used to
      *     read the data.
-     * @param operatorInfo The type information for the operator.
+     * @param operatorInfo The type information for the operator.   这里的OUT 代表source产生的数据类型
      * @param name The given name for the Pact, used in plans, logs and progress messages.
      */
     public GenericDataSourceBase(T format, OperatorInformation<OUT> operatorInfo, String name) {
@@ -210,6 +217,13 @@ public class GenericDataSourceBase<OUT, T extends InputFormat<OUT, ?>> extends O
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 处理产生的数据
+     * @param ctx
+     * @param executionConfig
+     * @return
+     * @throws Exception
+     */
     protected List<OUT> executeOnCollections(RuntimeContext ctx, ExecutionConfig executionConfig)
             throws Exception {
         @SuppressWarnings("unchecked")
@@ -227,13 +241,17 @@ public class GenericDataSourceBase<OUT, T extends InputFormat<OUT, ?>> extends O
         List<OUT> result = new ArrayList<OUT>();
 
         // splits
+        // 尝试将数据源拆分   便于并行处理
         InputSplit[] splits = inputFormat.createInputSplits(1);
+
+        // 产生一个针对数据源类型的序列化对象
         TypeSerializer<OUT> serializer =
                 getOperatorInfo().getOutputType().createSerializer(executionConfig);
 
         for (InputSplit split : splits) {
             inputFormat.open(split);
 
+            // 这里是挨个处理split   将所有结果存入 result
             while (!inputFormat.reachedEnd()) {
                 OUT next = inputFormat.nextRecord(serializer.createInstance());
                 if (next != null) {

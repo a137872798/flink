@@ -20,14 +20,18 @@ package org.apache.flink.types;
 
 import org.apache.flink.annotation.PublicEvolving;
 
-/** Lists all kinds of changes that a row can describe in a changelog. */
+/** Lists all kinds of changes that a row can describe in a changelog.
+ * 表示针对某个行的操作
+ * */
 @PublicEvolving
 public enum RowKind {
 
     // Note: Enums have no stable hash code across different JVMs, use toByteValue() for
     // this purpose.
 
-    /** Insertion operation. */
+    /** Insertion operation.
+     * 插入一个新行
+     * */
     INSERT("+I", (byte) 0),
 
     /**
@@ -36,6 +40,7 @@ public enum RowKind {
      * <p>This kind SHOULD occur together with {@link #UPDATE_AFTER} for modelling an update that
      * needs to retract the previous row first. It is useful in cases of a non-idempotent update,
      * i.e., an update of a row that is not uniquely identifiable by a key.
+     * 表示更新某个行
      */
     UPDATE_BEFORE("-U", (byte) 1),
 
@@ -48,7 +53,9 @@ public enum RowKind {
      */
     UPDATE_AFTER("+U", (byte) 2),
 
-    /** Deletion operation. */
+    /** Deletion operation.
+     * 代表删除行
+     * */
     DELETE("-D", (byte) 3);
 
     private final String shortString;

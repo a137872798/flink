@@ -66,6 +66,7 @@ public class PojoTypeInfo<T> extends CompositeType<T> {
 
     private static final long serialVersionUID = 1L;
 
+    // 又是不同的正则
     private static final String REGEX_FIELD = "[\\p{L}_\\$][\\p{L}\\p{Digit}_\\$]*";
     private static final String REGEX_NESTED_FIELDS = "(" + REGEX_FIELD + ")(\\.(.+))?";
     private static final String REGEX_NESTED_FIELDS_WILDCARD =
@@ -79,6 +80,9 @@ public class PojoTypeInfo<T> extends CompositeType<T> {
     private static final Pattern PATTERN_NESTED_FIELDS_WILDCARD =
             Pattern.compile(REGEX_NESTED_FIELDS_WILDCARD);
 
+    /**
+     * 代表pojo的各字段
+     */
     private final PojoField[] fields;
 
     private final int totalFields;
@@ -92,6 +96,7 @@ public class PojoTypeInfo<T> extends CompositeType<T> {
 
         this.fields = fields.toArray(new PojoField[fields.size()]);
 
+        // 按照field名字进行排序
         Arrays.sort(
                 this.fields,
                 new Comparator<PojoField>() {
@@ -103,6 +108,7 @@ public class PojoTypeInfo<T> extends CompositeType<T> {
 
         int counterFields = 0;
 
+        // 因为可能会有组合类型
         for (PojoField field : fields) {
             counterFields += field.getTypeInformation().getTotalFields();
         }
@@ -143,6 +149,12 @@ public class PojoTypeInfo<T> extends CompositeType<T> {
         return false;
     }
 
+    /**
+     * 逻辑一样的
+     * @param fieldExpression The field expression for which the FlatFieldDescriptors are computed.
+     * @param offset The offset to use when computing the positions of the flat fields.
+     * @param result The list into which all flat field descriptors are inserted.
+     */
     @Override
     @PublicEvolving
     public void getFlatFields(
@@ -331,6 +343,8 @@ public class PojoTypeInfo<T> extends CompositeType<T> {
     @PublicEvolving
     @SuppressWarnings("unchecked")
     public TypeSerializer<T> createSerializer(ExecutionConfig config) {
+        // 表示使用 kryo 或者 avro 进行序列化/反序列化   这2种都是针对对象的
+
         if (config.isForceKryoEnabled()) {
             return new KryoSerializer<>(getTypeClass(), config);
         }
@@ -346,6 +360,7 @@ public class PojoTypeInfo<T> extends CompositeType<T> {
         TypeSerializer<?>[] fieldSerializers = new TypeSerializer<?>[fields.length];
         Field[] reflectiveFields = new Field[fields.length];
 
+        // 将多个基于field的序列化对象组合起来
         for (int i = 0; i < fields.length; i++) {
             fieldSerializers[i] = fields[i].getTypeInformation().createSerializer(config);
             reflectiveFields[i] = fields[i].getField();
@@ -432,6 +447,7 @@ public class PojoTypeInfo<T> extends CompositeType<T> {
                     keyFields.size() == fieldComparators.size(),
                     "Number of key fields and field comparators is not equal.");
 
+            // 相关信息 组合 变成比较器
             return new PojoComparator<T>(
                     keyFields.toArray(new Field[keyFields.size()]),
                     fieldComparators.toArray(new TypeComparator[fieldComparators.size()]),

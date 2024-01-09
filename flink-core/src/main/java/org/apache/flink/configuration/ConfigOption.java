@@ -37,12 +37,19 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * option is immutable.
  *
  * @param <T> The type of value associated with the configuration option.
+ *           表示一个配置的一个选项
  */
 @PublicEvolving
 public class ConfigOption<T> {
 
+    /**
+     * FallbackKey 包含一个 key名字 和一个表示是否丢弃的boolean
+     */
     private static final FallbackKey[] EMPTY = new FallbackKey[0];
 
+    /**
+     * TODO 先忽略描述信息
+     */
     static final Description EMPTY_DESCRIPTION = Description.builder().text("").build();
 
     // ------------------------------------------------------------------------
@@ -50,13 +57,19 @@ public class ConfigOption<T> {
     /** The current key for that config option. */
     private final String key;
 
-    /** The list of deprecated keys, in the order to be checked. */
+    /** The list of deprecated keys, in the order to be checked.
+     * 应该是别名吧
+     * */
     private final FallbackKey[] fallbackKeys;
 
-    /** The default value for this option. */
+    /** The default value for this option.
+     * 表示这个选项的默认值
+     * */
     private final T defaultValue;
 
-    /** The description for this option. */
+    /** The description for this option.
+     * TODO
+     * */
     private final Description description;
 
     /**
@@ -67,6 +80,8 @@ public class ConfigOption<T> {
      *   <li>typeClass == {@code Map.class} -> {@code ConfigOption<Map<String, String>>}
      *   <li>typeClass == atomic class and isList == true for {@code ConfigOption<List<Integer>>}
      * </ul>
+     *
+     * 表示配置值类型
      */
     private final Class<?> clazz;
 
@@ -92,10 +107,12 @@ public class ConfigOption<T> {
      * @param isList tells if the ConfigOption describes a list option, see description of the clazz
      *     field
      * @param fallbackKeys The list of fallback keys, in the order to be checked
+     *
+     *                     该构造函数就是简单的赋值
      */
     ConfigOption(
-            String key,
-            Class<?> clazz,
+            String key,  // 该选项的key
+            Class<?> clazz,  // 该选项的类型
             Description description,
             T defaultValue,
             boolean isList,
@@ -121,6 +138,8 @@ public class ConfigOption<T> {
      *
      * @param fallbackKeys The fallback keys, in the order in which they should be checked.
      * @return A new config options, with the given fallback keys.
+     *
+     * 追加fallbackKeys
      */
     public ConfigOption<T> withFallbackKeys(String... fallbackKeys) {
         final Stream<FallbackKey> newFallbackKeys =

@@ -34,6 +34,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * A {@link TypeInformation} for java enumeration types.
  *
  * @param <T> The type represented by this type information.
+ *           枚举类型的
  */
 @Public
 public class EnumTypeInfo<T extends Enum<T>> extends TypeInformation<T> implements AtomicType<T> {

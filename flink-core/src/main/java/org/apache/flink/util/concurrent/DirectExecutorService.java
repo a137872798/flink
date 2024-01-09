@@ -37,9 +37,13 @@ import java.util.concurrent.TimeoutException;
 /**
  * The direct executor service directly executes the runnables and the callables in the calling
  * thread.
+ * 直接执行器  应该就是用当前线程直接执行
  */
 class DirectExecutorService implements ExecutorService {
 
+    /**
+     * 被拒绝时是否要抛出异常
+     */
     private final boolean triggerRejectedExecutionException;
 
     private boolean isShutdown = false;
@@ -91,6 +95,7 @@ class DirectExecutorService implements ExecutorService {
         throwRejectedExecutionExceptionIfShutdown();
 
         try {
+            // 直接在本线程调用
             T result = task.call();
 
             return new CompletedFuture<>(result, null);
@@ -159,6 +164,7 @@ class DirectExecutorService implements ExecutorService {
 
         while (iterator.hasNext()) {
             iterator.next();
+            // 剩下的都超时了
             result.add(
                     new Future<T>() {
                         @Override

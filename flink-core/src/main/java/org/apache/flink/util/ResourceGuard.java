@@ -34,6 +34,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * #acquireResource()} will fail with exception. Notice that, obviously clients are responsible to
  * release the resource after usage. All clients are considered equal, i.e. there is only a global
  * count maintained how many times the resource was acquired but not by whom.
+ *
+ * 被叫做资源守卫
  */
 public class ResourceGuard implements AutoCloseable, Serializable {
 
@@ -42,7 +44,9 @@ public class ResourceGuard implements AutoCloseable, Serializable {
     /** The object that serves as lock for count and the closed-flag. */
     private final SerializableObject lock;
 
-    /** Number of clients that have ongoing access to the resource. */
+    /** Number of clients that have ongoing access to the resource.
+     * 发放的租约数量
+     * */
     private volatile int leaseCount;
 
     /** This flag indicated if it is still possible to acquire access to the resource. */

@@ -27,7 +27,9 @@ import org.apache.flink.core.memory.DataOutputView;
 
 import java.io.IOException;
 
-/** A serializer for byte arrays. */
+/** A serializer for byte arrays.
+ * 有关字节数组的序列化对象 应该跟boolean是一样的
+ * */
 @Internal
 public final class BytePrimitiveArraySerializer extends TypeSerializerSingleton<byte[]> {
 
@@ -64,6 +66,12 @@ public final class BytePrimitiveArraySerializer extends TypeSerializerSingleton<
         return -1;
     }
 
+    /**
+     * 先写长度 再写数据
+     * @param record The record to serialize.
+     * @param target The output view to write the serialized data to.
+     * @throws IOException
+     */
     @Override
     public void serialize(byte[] record, DataOutputView target) throws IOException {
         if (record == null) {

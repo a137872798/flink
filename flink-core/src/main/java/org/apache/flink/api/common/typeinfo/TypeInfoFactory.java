@@ -30,6 +30,7 @@ import java.util.Map;
  * TypeInfo}. In a hierarchy of types the closest factory will be chosen while traversing upwards.
  *
  * @param <T> type for which {@link TypeInformation} is created
+ *           产生某个type相关的 typeInfo
  */
 @Public
 public abstract class TypeInfoFactory<T> {

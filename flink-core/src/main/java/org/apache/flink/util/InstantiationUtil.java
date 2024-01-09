@@ -547,6 +547,7 @@ public final class InstantiationUtil {
         return deserializeObject(new InflaterInputStream(new ByteArrayInputStream(bytes)), cl);
     }
 
+    // 使用Java自带的序列化方式
     public static byte[] serializeObject(Object o) throws IOException {
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 ObjectOutputStream oos = new ObjectOutputStream(baos)) {

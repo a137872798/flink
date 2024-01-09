@@ -34,13 +34,17 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * @param <IN> The type of the values that are added to the state.
  * @param <ACC> The type of the accumulator (intermediate aggregation state).
  * @param <OUT> The type of the values that are returned from the state.
+ *             聚合状态
+ *             相比StateDescriptor 就是多一个聚合函数
  */
 @PublicEvolving
 public class AggregatingStateDescriptor<IN, ACC, OUT>
         extends StateDescriptor<AggregatingState<IN, OUT>, ACC> {
     private static final long serialVersionUID = 1L;
 
-    /** The aggregation function for the state. */
+    /** The aggregation function for the state.
+     * 描述聚合状态的数据是如何聚合的
+     * */
     private final AggregateFunction<IN, ACC, OUT> aggFunction;
 
     /**

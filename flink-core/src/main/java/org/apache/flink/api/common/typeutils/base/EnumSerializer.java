@@ -40,7 +40,9 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** {@link TypeSerializer} for Java enums. */
+/** {@link TypeSerializer} for Java enums.
+ * 有关java枚举的序列化对象
+ * */
 @Internal
 public final class EnumSerializer<T extends Enum<T>> extends TypeSerializer<T> {
 
@@ -55,6 +57,7 @@ public final class EnumSerializer<T extends Enum<T>> extends TypeSerializer<T> {
      *
      * <p>On a fresh start with no reconfiguration, the ordinals would simply be identical to the
      * enum constants actual ordinals. Ordinals may change after reconfiguration.
+     * 每个枚举值 以及他们的序号
      */
     private Map<T, Integer> valueToOrdinal;
 
@@ -62,6 +65,7 @@ public final class EnumSerializer<T extends Enum<T>> extends TypeSerializer<T> {
      * Array of enum constants with their indexes identical to their ordinals in the {@link
      * #valueToOrdinal} map. Serves as a bidirectional map to have fast access from ordinal to
      * value. May be reordered after reconfiguration.
+     * 每个枚举值
      */
     private T[] values;
 
@@ -93,6 +97,10 @@ public final class EnumSerializer<T extends Enum<T>> extends TypeSerializer<T> {
         return this;
     }
 
+    /**
+     * 实例化时 只返回第一个枚举
+     * @return
+     */
     @Override
     public T createInstance() {
         checkState(values != null);
@@ -114,12 +122,24 @@ public final class EnumSerializer<T extends Enum<T>> extends TypeSerializer<T> {
         return 4;
     }
 
+    /**
+     * 序列化时  只写入编号
+     * @param record The record to serialize.
+     * @param target The output view to write the serialized data to.
+     * @throws IOException
+     */
     @Override
     public void serialize(T record, DataOutputView target) throws IOException {
         // use our own maintained ordinals instead of the actual enum ordinal
         target.writeInt(valueToOrdinal.get(record));
     }
 
+    /**
+     * 反序列化时   因为value还是存在的 用序号查看即可
+     * @param source The input view from which to read the data.
+     * @return
+     * @throws IOException
+     */
     @Override
     public T deserialize(DataInputView source) throws IOException {
         return values[source.readInt()];
@@ -177,6 +197,8 @@ public final class EnumSerializer<T extends Enum<T>> extends TypeSerializer<T> {
         return new EnumSerializerSnapshot<>(enumClass, values);
     }
 
+    // 一些简单的基础类型 都是不支持存储/读取快照的
+
     /** {@link TypeSerializerSnapshot} for {@link EnumSerializer}. */
     public static final class EnumSerializerSnapshot<T extends Enum<T>>
             implements TypeSerializerSnapshot<T> {
@@ -200,6 +222,11 @@ public final class EnumSerializer<T extends Enum<T>> extends TypeSerializer<T> {
             return CURRENT_VERSION;
         }
 
+        /**
+         * 写入枚举信息  就是枚举类名 + 枚举值数量 + 每个枚举值的名字
+         * @param out the {@link DataOutputView} to write the snapshot to.
+         * @throws IOException
+         */
         @Override
         public void writeSnapshot(DataOutputView out) throws IOException {
             checkState(enumClass != null, "Enum class can not be null.");
@@ -213,6 +240,7 @@ public final class EnumSerializer<T extends Enum<T>> extends TypeSerializer<T> {
         @Override
         public void readSnapshot(int readVersion, DataInputView in, ClassLoader userCodeClassLoader)
                 throws IOException {
+            // 通过类加载器 读取枚举类
             enumClass = InstantiationUtil.resolveClassByName(in, userCodeClassLoader);
 
             int numEnumConstants = in.readInt();
@@ -222,6 +250,7 @@ public final class EnumSerializer<T extends Enum<T>> extends TypeSerializer<T> {
             for (int i = 0; i < numEnumConstants; i++) {
                 String enumName = in.readUTF();
                 try {
+                    // 通过api 可以得到具体的枚举值
                     previousEnums[i] = Enum.valueOf(enumClass, enumName);
                 } catch (IllegalArgumentException e) {
                     throw new IllegalStateException(
@@ -241,6 +270,11 @@ public final class EnumSerializer<T extends Enum<T>> extends TypeSerializer<T> {
             return new EnumSerializer<>(enumClass, previousEnums);
         }
 
+        /**
+         * 检查2个序列化对象是否兼容  要检查前后枚举是否变化
+         * @param newSerializer the new serializer to check.
+         * @return
+         */
         @Override
         public TypeSerializerSchemaCompatibility<T> resolveSchemaCompatibility(
                 TypeSerializer<T> newSerializer) {

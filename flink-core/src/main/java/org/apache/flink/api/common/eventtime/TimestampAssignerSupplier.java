@@ -30,14 +30,23 @@ import java.io.Serializable;
  *
  * <p>This interface is {@link Serializable} because the supplier may be shipped to workers during
  * distributed execution.
+ * 该对象用于创建 时间戳分配器
  */
 @PublicEvolving
 @FunctionalInterface
 public interface TimestampAssignerSupplier<T> extends Serializable {
 
-    /** Instantiates a {@link TimestampAssigner}. */
+    /** Instantiates a {@link TimestampAssigner}.
+     * 生成 时间戳分配器
+     * */
     TimestampAssigner<T> createTimestampAssigner(Context context);
 
+    /**
+     * 包装一个可序列化的时间戳分配器
+     * @param assigner
+     * @param <T>
+     * @return
+     */
     static <T> TimestampAssignerSupplier<T> of(SerializableTimestampAssigner<T> assigner) {
         return new SupplierFromSerializableTimestampAssigner<>(assigner);
     }
@@ -45,6 +54,7 @@ public interface TimestampAssignerSupplier<T> extends Serializable {
     /**
      * Additional information available to {@link #createTimestampAssigner(Context)}. This can be
      * access to {@link org.apache.flink.metrics.MetricGroup MetricGroups}, for example.
+     * 在创建时  允许传入上下文对象 提供一些额外信息
      */
     interface Context {
 

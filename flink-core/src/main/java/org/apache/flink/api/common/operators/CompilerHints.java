@@ -41,6 +41,9 @@ public class CompilerHints {
 
     private float filterFactor = -1.0f;
 
+    /**
+     * 每个 FieldSet 内部存储了一组fieldId   多个对象合起来变成 uniqueFields
+     */
     private Set<FieldSet> uniqueFields;
 
     // --------------------------------------------------------------------------------------------

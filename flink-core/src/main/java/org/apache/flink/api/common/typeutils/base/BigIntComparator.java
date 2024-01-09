@@ -68,6 +68,7 @@ public final class BigIntComparator extends BasicTypeComparator<BigInteger> {
      * Adds a normalized key containing the normalized number of bits and MSBs of the given record.
      * 1 bit determines the sign (negative, zero/positive), 31 bit the bit length of the record.
      * Remaining bytes contain the most significant bits of the record.
+     * TODO
      */
     @Override
     public void putNormalizedKey(BigInteger record, MemorySegment target, int offset, int len) {

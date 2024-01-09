@@ -22,7 +22,9 @@ import org.apache.flink.annotation.Experimental;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.plugin.Plugin;
 
-/** Factory class for creating {@link FailureEnricher}. */
+/** Factory class for creating {@link FailureEnricher}.
+ * 该工厂创建FailureEnricher  而FailureEnricher是用于丰富失败信息的
+ * */
 @Experimental
 public interface FailureEnricherFactory extends Plugin {
 

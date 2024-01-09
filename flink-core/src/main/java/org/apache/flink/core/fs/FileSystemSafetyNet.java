@@ -59,11 +59,15 @@ import static org.apache.flink.util.Preconditions.checkState;
  *     }
  * }
  * }</pre>
+ *
+ * 该对象提供静态方法生成包装对象
  */
 @Internal
 public class FileSystemSafetyNet {
 
-    /** The map from thread to the safety net registry for that thread. */
+    /** The map from thread to the safety net registry for that thread.
+     * 每个线程维护一个注册器
+     * */
     private static final ThreadLocal<SafetyNetCloseableRegistry> REGISTRIES = new ThreadLocal<>();
 
     // ------------------------------------------------------------------------
@@ -78,6 +82,7 @@ public class FileSystemSafetyNet {
      * <p>This method should be called at the beginning of a thread that should be guarded.
      *
      * @throws IllegalStateException Thrown, if a safety net was already registered for the thread.
+     * 生成本线程的注册器
      */
     @Internal
     public static void initializeSafetyNetForThread() {
@@ -101,6 +106,7 @@ public class FileSystemSafetyNet {
      * by the safety net.
      *
      * <p>This method should be called at the very end of a guarded thread.
+     * 移除本线程的注册器  同时触发close
      */
     @Internal
     public static void closeSafetyNetAndGuardedResourcesForThread() {
@@ -115,6 +121,11 @@ public class FileSystemSafetyNet {
     //  Utilities
     // ------------------------------------------------------------------------
 
+    /**
+     * 为文件系统对象 做一层包装  生成的input/output 会加入自动关闭的注册器中
+     * @param fs
+     * @return
+     */
     static FileSystem wrapWithSafetyNetWhenActivated(FileSystem fs) {
         SafetyNetCloseableRegistry reg = REGISTRIES.get();
         return reg != null ? new SafetyNetWrapperFileSystem(fs, reg) : fs;

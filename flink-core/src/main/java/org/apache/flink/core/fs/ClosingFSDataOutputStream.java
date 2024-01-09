@@ -28,6 +28,8 @@ import java.io.IOException;
  * is used to implement a safety net against unclosed streams.
  *
  * <p>See {@link SafetyNetCloseableRegistry} for more details on how this is utilized.
+ *
+ * 生成该对象时 会加入到一个自动关闭的注册器中 兜底关闭 如果手动关闭 则会从注册器移除
  */
 @Internal
 public class ClosingFSDataOutputStream extends FSDataOutputStreamWrapper

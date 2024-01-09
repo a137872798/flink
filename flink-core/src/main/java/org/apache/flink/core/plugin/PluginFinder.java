@@ -25,6 +25,7 @@ import java.util.Collection;
  * Implementations of this interface provide mechanisms to locate plugins and create corresponding
  * {@link PluginDescriptor} objects. The result can then be used to initialize a {@link
  * PluginLoader}.
+ * 通过该对象检索所有可能的插件
  */
 public interface PluginFinder {
 

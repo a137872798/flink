@@ -30,6 +30,8 @@ import java.io.Serializable;
  * in a specific format (for example as byte strings).
  *
  * @param <T> The type to be serialized.
+ *           序列化schema对象
+ *           跟 DeserializationSchema 完全是镜像式的
  */
 @Public
 public interface SerializationSchema<T> extends Serializable {

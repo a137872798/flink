@@ -50,13 +50,17 @@ import java.util.stream.Stream;
  *            |                |-plugin-b-1.jar
  *           ...               |-...
  * </pre>
+ *
+ * 检索目录 并为插件产生描述对象
  */
 public class DirectoryBasedPluginFinder implements PluginFinder {
 
     /** Pattern to match jar files in a directory. */
     private static final String JAR_MATCHER_PATTERN = "glob:**.jar";
 
-    /** Root directory to the plugin folders. */
+    /** Root directory to the plugin folders.
+     * 将该目录作为根目录
+     * */
     private final Path pluginsRootDir;
 
     /** Matcher for jar files in the filesystem of the root folder. */
@@ -64,6 +68,7 @@ public class DirectoryBasedPluginFinder implements PluginFinder {
 
     public DirectoryBasedPluginFinder(Path pluginsRootDir) {
         this.pluginsRootDir = pluginsRootDir;
+        // 只检索所有以jar结尾的文件
         this.jarFileMatcher = pluginsRootDir.getFileSystem().getPathMatcher(JAR_MATCHER_PATTERN);
     }
 
@@ -77,6 +82,7 @@ public class DirectoryBasedPluginFinder implements PluginFinder {
         try (Stream<Path> stream = Files.list(pluginsRootDir)) {
             return stream.filter((Path path) -> Files.isDirectory(path))
                     .map(
+                            // 产生描述信息
                             FunctionUtils.uncheckedFunction(
                                     this::createPluginDescriptorForSubDirectory))
                     .collect(Collectors.toList());
@@ -94,6 +100,7 @@ public class DirectoryBasedPluginFinder implements PluginFinder {
 
     private URL[] createJarURLsFromDirectory(Path subDirectory) throws IOException {
         try (Stream<Path> stream = Files.list(subDirectory)) {
+            // 收集该目录下所有的jar包
             URL[] urls =
                     stream.filter((Path p) -> Files.isRegularFile(p) && jarFileMatcher.matches(p))
                             .map(FunctionUtils.uncheckedFunction((Path p) -> p.toUri().toURL()))

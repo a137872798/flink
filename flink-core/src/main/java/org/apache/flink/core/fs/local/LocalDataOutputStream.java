@@ -31,6 +31,8 @@ import java.nio.channels.ClosedChannelException;
 /**
  * The <code>LocalDataOutputStream</code> class is a wrapper class for a data output stream to the
  * local file system.
+ *
+ * FSDataOutputStream 同样为普通的输出流 拓展了几个api
  */
 @Internal
 public class LocalDataOutputStream extends FSDataOutputStream {

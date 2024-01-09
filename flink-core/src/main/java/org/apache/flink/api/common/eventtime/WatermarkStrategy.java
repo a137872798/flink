@@ -51,6 +51,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>This interface is {@link Serializable} because watermark strategies may be shipped to workers
  * during distributed execution.
+ * 水位策略
  */
 @Public
 public interface WatermarkStrategy<T>
@@ -66,6 +67,7 @@ public interface WatermarkStrategy<T>
 
     /**
      * Instantiates a {@link TimestampAssigner} for assigning timestamps according to this strategy.
+     * 默认的时间戳分配器就是获取事件时间
      */
     @Override
     default TimestampAssigner<T> createTimestampAssigner(
@@ -143,6 +145,7 @@ public interface WatermarkStrategy<T>
      * <p>Idleness can be important if some partitions have little data and might not have events
      * during some periods. Without idleness, these streams can stall the overall event time
      * progress of the application.
+     * 一定时间没收到数据 自动变成idle
      */
     default WatermarkStrategy<T> withIdleness(Duration idleTimeout) {
         checkNotNull(idleTimeout, "idleTimeout");

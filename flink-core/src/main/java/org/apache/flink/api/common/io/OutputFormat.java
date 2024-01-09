@@ -39,6 +39,7 @@ import java.io.Serializable;
  * </ol>
  *
  * @param <IT> The type of the consumed records.
+ *            作为一个输出的格式对象
  */
 @Public
 public interface OutputFormat<IT> extends Serializable {
@@ -51,6 +52,7 @@ public interface OutputFormat<IT> extends Serializable {
      * <p>This method is always called first on a newly instantiated output format.
      *
      * @param parameters The configuration with all parameters.
+     *                   输出流也可以先进行配置
      */
     void configure(Configuration parameters);
 
@@ -85,6 +87,7 @@ public interface OutputFormat<IT> extends Serializable {
      *
      * @param record The records to add to the output.
      * @throws IOException Thrown, if the records could not be added due to an I/O problem.
+     * 往output中追加一条记录
      */
     void writeRecord(IT record) throws IOException;
 
@@ -106,6 +109,7 @@ public interface OutputFormat<IT> extends Serializable {
          * Gets the parallelism with which the parallel task runs.
          *
          * @return The parallelism with which the parallel task runs.
+         * 一共由多少个并行任务
          */
         int getNumTasks();
 
@@ -114,6 +118,7 @@ public interface OutputFormat<IT> extends Serializable {
          * parallelism-1 (parallelism as returned by {@link #getNumTasks()}).
          *
          * @return The index of the parallel subtask.
+         * 当前是第几个输出任务
          */
         int getTaskNumber();
 
@@ -121,6 +126,7 @@ public interface OutputFormat<IT> extends Serializable {
          * Gets the attempt number of this parallel subtask. First attempt is numbered 0.
          *
          * @return Attempt number of the subtask.
+         * 获取并行子任务的尝试编号 第一次为0
          */
         int getAttemptNumber();
     }

@@ -25,7 +25,9 @@ import org.apache.flink.core.io.GenericInputSplit;
 
 import java.io.IOException;
 
-/** Generic base class for all Rich inputs that are not based on files. */
+/** Generic base class for all Rich inputs that are not based on files.
+ * 通用的 输入格式对象  而不是基于文件的
+ * */
 @Public
 public abstract class GenericInputFormat<OT> extends RichInputFormat<OT, GenericInputSplit> {
 
@@ -55,6 +57,7 @@ public abstract class GenericInputFormat<OT> extends RichInputFormat<OT, Generic
 
         numSplits = (this instanceof NonParallelInput) ? 1 : numSplits;
         GenericInputSplit[] splits = new GenericInputSplit[numSplits];
+        // 产生的通用对象内没有任何数据源  不像FileInputSplit 底层是关联文件的
         for (int i = 0; i < splits.length; i++) {
             splits[i] = new GenericInputSplit(i, numSplits);
         }

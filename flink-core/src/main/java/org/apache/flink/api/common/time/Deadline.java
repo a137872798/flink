@@ -26,14 +26,20 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.concurrent.TimeoutException;
 
-/** This class stores a deadline, as obtained via {@link #now()} or from {@link #plus(Duration)}. */
+/** This class stores a deadline, as obtained via {@link #now()} or from {@link #plus(Duration)}.
+ * 表示一个截止时间
+ * */
 @Internal
 public class Deadline {
 
-    /** The deadline, relative to {@link System#nanoTime()}. */
+    /** The deadline, relative to {@link System#nanoTime()}.
+     * deadline的 纳秒模式
+     * */
     private final long timeNanos;
 
-    /** Clock providing the time for this deadline. */
+    /** Clock providing the time for this deadline.
+     * 代表闹钟 可以获取时间
+     * */
     private final Clock clock;
 
     private Deadline(long deadline, Clock clock) {

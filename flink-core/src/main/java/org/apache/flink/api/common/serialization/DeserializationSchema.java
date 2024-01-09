@@ -43,6 +43,8 @@ import java.io.Serializable;
  * an operator or transformation function.
  *
  * @param <T> The type created by the deserialization schema.
+ *
+ *           反序列化的schema对象
  */
 @Public
 public interface DeserializationSchema<T> extends Serializable, ResultTypeQueryable<T> {
@@ -54,6 +56,8 @@ public interface DeserializationSchema<T> extends Serializable, ResultTypeQuerya
      * as e.g. registering user metrics.
      *
      * @param context Contextual information that can be used during initialization.
+     *
+     *                在使用前 借助一个初始化上下文
      */
     @PublicEvolving
     default void open(InitializationContext context) throws Exception {}
@@ -63,6 +67,7 @@ public interface DeserializationSchema<T> extends Serializable, ResultTypeQuerya
      *
      * @param message The message, as a byte array.
      * @return The deserialized message as an object (null if the message cannot be deserialized).
+     * 将字节流 反序列化成对象
      */
     T deserialize(byte[] message) throws IOException;
 
@@ -76,6 +81,7 @@ public interface DeserializationSchema<T> extends Serializable, ResultTypeQuerya
      *
      * @param message The message, as a byte array.
      * @param out The collector to put the resulting messages.
+     *            将字节流反序列化后 使用采集器收集
      */
     @PublicEvolving
     default void deserialize(byte[] message, Collector<T> out) throws IOException {
@@ -91,6 +97,7 @@ public interface DeserializationSchema<T> extends Serializable, ResultTypeQuerya
      *
      * @param nextElement The element to test for the end-of-stream signal.
      * @return True, if the element signals end of stream, false otherwise.
+     * 判断当前元素是否是 stream的最后一个元素
      */
     boolean isEndOfStream(T nextElement);
 
@@ -102,6 +109,8 @@ public interface DeserializationSchema<T> extends Serializable, ResultTypeQuerya
      *   <li>Register user metrics via {@link InitializationContext#getMetricGroup()}
      *   <li>Access the user code class loader.
      * </ul>
+     *
+     * 初始化上下文对象
      */
     @PublicEvolving
     interface InitializationContext {
@@ -122,6 +131,7 @@ public interface DeserializationSchema<T> extends Serializable, ResultTypeQuerya
          * but are part of the jar file of a user job.
          *
          * @see UserCodeClassLoader
+         * 可以获取用户指定的类加载器 专门用于加载用户定义的class
          */
         UserCodeClassLoader getUserCodeClassLoader();
     }

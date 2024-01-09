@@ -43,6 +43,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p>Heavily based on j256 simplejmx project
  *
  * <p>https://github.com/j256/simplejmx/blob/master/src/main/java/com/j256/simplejmx/server/JmxServer.java
+ * 与JMX服务交互 上报一些统计信息
  */
 class JMXServer {
     private static final Logger LOG = LoggerFactory.getLogger(JMXServer.class);
@@ -50,6 +51,9 @@ class JMXServer {
     private final AtomicReference<Remote> rmiServerReference = new AtomicReference<>();
 
     private Registry rmiRegistry;
+    /**
+     * 通过该对象连接到JMX服务
+     */
     private JMXConnectorServer connector;
     private int port;
 
@@ -88,6 +92,11 @@ class JMXServer {
         return port;
     }
 
+    /**
+     * 初始化连接
+     * @param port
+     * @throws IOException
+     */
     private void internalStart(int port) throws IOException {
         rmiServerReference.set(null);
 

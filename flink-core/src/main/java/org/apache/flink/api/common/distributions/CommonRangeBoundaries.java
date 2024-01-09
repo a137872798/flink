@@ -22,9 +22,24 @@ import org.apache.flink.api.common.typeutils.TypeComparator;
 
 @Internal
 public class CommonRangeBoundaries<T> implements RangeBoundaries<T> {
+    /**
+     * 用于比较给定类型 也可用来做hash
+     */
     private final TypeComparator<T> typeComparator;
+
+    /**
+     * 外层代表多个对象  内层代表每个对象参与比较的多个field 与keys对应
+     */
     private final Object[][] boundaries;
+
+    /**
+     * 由 typeComparator 平铺开得到  该数组中每个比较器针对某个field   看来一个类型比较器可能会涉及到对内部多个字段的比较 然后得到一个最终序号
+     */
     private final TypeComparator[] flatComparators;
+
+    /**
+     * 对应flatComparators 的field
+     */
     private final Object[] keys;
 
     public CommonRangeBoundaries(TypeComparator<T> typeComparators, Object[][] boundaries) {
@@ -43,6 +58,8 @@ public class CommonRangeBoundaries<T> implements RangeBoundaries<T> {
     private int binarySearch(T record) {
         int low = 0;
         int high = this.boundaries.length - 1;
+
+        // 从record中抽取 之后需要对比的字段 并存入keys中
         typeComparator.extractKeys(record, keys, 0);
 
         while (low <= high) {
@@ -62,6 +79,7 @@ public class CommonRangeBoundaries<T> implements RangeBoundaries<T> {
         return low;
     }
 
+    // 将keys 与boundary的值进行比较 得到一个位置
     private int compareKeys(TypeComparator[] flatComparators, Object[] keys, Object[] boundary) {
         if (flatComparators.length != keys.length || flatComparators.length != boundary.length) {
             throw new RuntimeException(
@@ -75,6 +93,7 @@ public class CommonRangeBoundaries<T> implements RangeBoundaries<T> {
             }
         }
 
+        // 全部都为0 代表完全相等
         return 0;
     }
 }

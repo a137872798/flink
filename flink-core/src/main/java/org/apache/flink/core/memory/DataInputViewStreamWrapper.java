@@ -33,6 +33,11 @@ public class DataInputViewStreamWrapper extends DataInputStream implements DataI
         super(in);
     }
 
+    /**
+     * 将 DataInputStream的api 伪装成 DataInputView
+     * @param numBytes The number of bytes to skip.
+     * @throws IOException
+     */
     @Override
     public void skipBytesToRead(int numBytes) throws IOException {
         if (skipBytes(numBytes) != numBytes) {

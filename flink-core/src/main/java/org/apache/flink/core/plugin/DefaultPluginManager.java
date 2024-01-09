@@ -39,7 +39,9 @@ import java.util.Map;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-/** Default implementation of {@link PluginManager}. */
+/** Default implementation of {@link PluginManager}.
+ * 可以根据接口类型加载所有插件
+ * */
 @Internal
 @ThreadSafe
 public class DefaultPluginManager implements PluginManager {
@@ -52,15 +54,22 @@ public class DefaultPluginManager implements PluginManager {
      */
     private final ClassLoader parentClassLoader;
 
-    /** A collection of descriptions of all plugins known to this plugin manager. */
+    /** A collection of descriptions of all plugins known to this plugin manager.
+     * 被管理的插件的描述信息
+     * */
     private final Collection<PluginDescriptor> pluginDescriptors;
 
     private final Lock pluginLoadersLock;
 
+    /**
+     * 每个插件 关联他们的加载器
+     */
     @GuardedBy("pluginLoadersLock")
     private final Map<String, PluginLoader> pluginLoaders;
 
-    /** List of patterns for classes that should always be resolved from the parent ClassLoader. */
+    /** List of patterns for classes that should always be resolved from the parent ClassLoader.
+     * 表示该路径下的资源 应当由父类加载器加载
+     * */
     private final String[] alwaysParentFirstPatterns;
 
     @VisibleForTesting
@@ -91,6 +100,12 @@ public class DefaultPluginManager implements PluginManager {
         this.alwaysParentFirstPatterns = alwaysParentFirstPatterns;
     }
 
+    /**
+     * 加载实现某个接口的所有插件
+     * @param service the service interface (SPI) for which implementations are requested.
+     * @param <P>
+     * @return
+     */
     @Override
     public <P> Iterator<P> load(Class<P> service) {
         ArrayList<Iterator<P>> combinedIterators = new ArrayList<>(pluginDescriptors.size());
@@ -104,6 +119,8 @@ public class DefaultPluginManager implements PluginManager {
                     pluginLoader = pluginLoaders.get(pluginId);
                 } else {
                     LOG.info("Plugin loader with ID not found, creating it: {}", pluginId);
+
+                    // 没有的话 惰性创建
                     pluginLoader =
                             PluginLoader.create(
                                     pluginDescriptor, parentClassLoader, alwaysParentFirstPatterns);
@@ -114,6 +131,7 @@ public class DefaultPluginManager implements PluginManager {
             }
             combinedIterators.add(pluginLoader.load(service));
         }
+        // 将他们整合起来
         return Iterators.concat(combinedIterators.iterator());
     }
 

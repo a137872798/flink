@@ -24,6 +24,9 @@ import org.apache.flink.core.io.IOReadableWritable;
 
 import java.io.Serializable;
 
+/**
+ * 用于描述数据分布的
+ */
 @PublicEvolving
 public interface DataDistribution extends IOReadableWritable, Serializable {
 

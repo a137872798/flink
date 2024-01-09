@@ -59,6 +59,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>After the {@link #open(FileInputSplit)} method completed, the file input data is available
  * from the {@link #stream} field.
+ * 基于文件的输入格式对象  OT代表记录类型
+ * FileInputSplit 记录了某个并行的数据来源 (对应于某个文件)
  */
 @Public
 public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputSplit> {
@@ -78,6 +80,7 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
     /**
      * A mapping of file extensions to decompression algorithms based on DEFLATE. Such compressions
      * lead to unsplittable files.
+     * 针对不同文件拓展名的不同文件解压流工厂
      */
     protected static final Map<String, InflaterInputStreamFactory<?>>
             INFLATER_INPUT_STREAM_FACTORIES = new HashMap<String, InflaterInputStreamFactory<?>>();
@@ -95,6 +98,7 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
      * for local cluster execution.
      *
      * @param configuration The configuration to load defaults from
+     *                      从配置中加载一些特殊属性
      */
     private static void initDefaultsFromConfiguration(Configuration configuration) {
         final long to =
@@ -150,6 +154,11 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
         }
     }
 
+    /**
+     * 根据拓展名 找到对应的输入流工厂
+     * @param fileExtension
+     * @return
+     */
     protected static InflaterInputStreamFactory<?> getInflaterInputStreamFactory(
             String fileExtension) {
         synchronized (INFLATER_INPUT_STREAM_FACTORIES) {
@@ -177,16 +186,21 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
     //  They are all transient, because we do not want them so be serialized
     // --------------------------------------------------------------------------------------------
 
-    /** The input stream reading from the input file. */
+    /** The input stream reading from the input file.
+     * 表示从文件中读取出来的数据流 可以seek() getPos() */
     protected transient FSDataInputStream stream;
 
-    /** The start of the split that this parallel instance must consume. */
+    /** The start of the split that this parallel instance must consume.
+     * 划分出来的 split所对应的起始位置和长度
+     * */
     protected transient long splitStart;
 
     /** The length of the split that this parallel instance must consume. */
     protected transient long splitLength;
 
-    /** The current split that this parallel instance must consume. */
+    /** The current split that this parallel instance must consume.
+     * 当前划分出来的并行对象
+     * */
     protected transient FileInputSplit currentSplit;
 
     // --------------------------------------------------------------------------------------------
@@ -198,10 +212,13 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
      *
      * @deprecated Please override {@link FileInputFormat#supportsMultiPaths()} and use {@link
      *     FileInputFormat#getFilePaths()} and {@link FileInputFormat#setFilePaths(Path...)}.
+     *     文件输入流来自于哪个文件
      */
     @Deprecated protected Path filePath;
 
-    /** The list of paths to files and directories that contain the input. */
+    /** The list of paths to files and directories that contain the input.
+     * 一组文件 并包含该input
+     * */
     private Path[] filePaths;
 
     /** The minimal split size, set by the configure() method. */
@@ -216,11 +233,13 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
     /**
      * Some file input formats are not splittable on a block level (deflate) Therefore, the
      * FileInputFormat can only read whole files.
+     * 某些文件是不可分割的 只能读取整块数据
      */
     protected boolean unsplittable = false;
 
     /**
      * The flag to specify whether recursive traversal of the input directory structure is enabled.
+     * 是否支持递归读取目录
      */
     protected boolean enumerateNestedFiles = false;
 
@@ -233,6 +252,10 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
 
     public FileInputFormat() {}
 
+    /**
+     * 在初始化该对象时  指定一个文件路径
+     * @param filePath
+     */
     protected FileInputFormat(Path filePath) {
         if (filePath != null) {
             setFilePath(filePath);
@@ -440,10 +463,12 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
      *
      * @see
      *     org.apache.flink.api.common.io.InputFormat#configure(org.apache.flink.configuration.Configuration)
+     *     作为inputFormat  可以使用config进行配置
      */
     @Override
     public void configure(Configuration parameters) {
 
+        // 当文件路径还未配置时 从config中获取
         if (getFilePaths().length == 0) {
             // file path was not specified yet. Try to set it from the parameters.
             String filePath = parameters.getString(FILE_PARAMETER_KEY, null);
@@ -566,6 +591,11 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
                 latestModTime, totalLength, BaseStatistics.AVG_RECORD_BYTES_UNKNOWN);
     }
 
+    /**
+     * LocatableInputSplitAssigner 该对象可以根据一定规则返回split
+     * @param splits
+     * @return
+     */
     @Override
     public LocatableInputSplitAssigner getInputSplitAssigner(FileInputSplit[] splits) {
         return new LocatableInputSplitAssigner(splits);
@@ -579,6 +609,7 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
      * @param minNumSplits The minimum desired number of file splits.
      * @return The computed file splits.
      * @see org.apache.flink.api.common.io.InputFormat#createInputSplits(int)
+     * 将文件按照指定数量分割 产生多个 split对象
      */
     @Override
     public FileInputSplit[] createInputSplits(int minNumSplits) throws IOException {
@@ -589,12 +620,14 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
         // take the desired number of splits into account
         minNumSplits = Math.max(minNumSplits, this.numSplits);
 
+        // 提前分配好空间
         final List<FileInputSplit> inputSplits = new ArrayList<FileInputSplit>(minNumSplits);
 
         // get all the files that are involved in the splits
         List<FileStatus> files = new ArrayList<>();
         long totalLength = 0;
 
+        // 想要知道怎么拆分文件 需要先检查path的类型
         for (Path path : getFilePaths()) {
             final FileSystem fs = path.getFileSystem();
             final FileStatus pathFile = fs.getFileStatus(path);
@@ -602,25 +635,29 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
             if (pathFile.isDir()) {
                 totalLength += addFilesInDir(path, files, true);
             } else {
+                // 操作与addFilesInDir一致
                 testForUnsplittable(pathFile);
-
                 files.add(pathFile);
                 totalLength += pathFile.getLen();
             }
         }
 
-        // returns if unsplittable
+        // returns if unsplittable     代表至少有一个压缩文件
         if (unsplittable) {
             int splitNum = 0;
             for (final FileStatus file : files) {
                 final FileSystem fs = file.getPath().getFileSystem();
+
+                // 返回一组文件块
                 final BlockLocation[] blocks = fs.getFileBlockLocations(file, 0, file.getLen());
                 Set<String> hosts = new HashSet<String>();
+                // 这些文件块 分布在哪些node上
                 for (BlockLocation block : blocks) {
                     hosts.addAll(Arrays.asList(block.getHosts()));
                 }
                 long len = file.getLen();
                 if (testForUnsplittable(file)) {
+                    // 代表要全部读完
                     len = READ_WHOLE_SPLIT_FLAG;
                 }
                 FileInputSplit fis =
@@ -629,12 +666,14 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
                                 file.getPath(),
                                 0,
                                 len,
+                                // 代表这个文件要从哪些节点上获得
                                 hosts.toArray(new String[hosts.size()]));
                 inputSplits.add(fis);
             }
             return inputSplits.toArray(new FileInputSplit[inputSplits.size()]);
         }
 
+        // 单个split的最大长度
         final long maxSplitSize =
                 totalLength / minNumSplits + (totalLength % minNumSplits == 0 ? 0 : 1);
 
@@ -671,27 +710,32 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
                 // get the block locations and make sure they are in order with respect to their
                 // offset
                 final BlockLocation[] blocks = fs.getFileBlockLocations(file, 0, len);
+                // 获取该文件相关的所有block
                 Arrays.sort(blocks);
 
                 long bytesUnassigned = len;
+
+                // 表示整个文件的偏移量
                 long position = 0;
 
                 int blockIndex = 0;
 
+                // 只要还未读取的量 > 最后一个split能支持的量  就还需要产生新的split
                 while (bytesUnassigned > maxBytesForLastSplit) {
                     // get the block containing the majority of the data
+                    // 按照合适的大小划分block 产生split
                     blockIndex = getBlockIndexForPosition(blocks, position, halfSplit, blockIndex);
                     // create a new split
                     FileInputSplit fis =
                             new FileInputSplit(
                                     splitNum++,
                                     file.getPath(),
-                                    position,
-                                    splitSize,
+                                    position,   // 整个文件的偏移量
+                                    splitSize,  // 该split块对应的大小
                                     blocks[blockIndex].getHosts());
                     inputSplits.add(fis);
 
-                    // adjust the positions
+                    // adjust the positions   每次读取 splitSize的数据 并推进position
                     position += splitSize;
                     bytesUnassigned -= splitSize;
                 }
@@ -709,12 +753,15 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
                     inputSplits.add(fis);
                 }
             } else {
+                // 当遇到长度为0的特殊文件时
+
                 // special case with a file of zero bytes size
                 final BlockLocation[] blocks = fs.getFileBlockLocations(file, 0, 0);
                 String[] hosts;
                 if (blocks.length > 0) {
                     hosts = blocks[0].getHosts();
                 } else {
+                    // 空数组
                     hosts = new String[0];
                 }
                 final FileInputSplit fis =
@@ -730,6 +777,7 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
      * Enumerate all files in the directory and recursive if enumerateNestedFiles is true.
      *
      * @return the total length of accepted files.
+     * 将某个目录下所有的文件加入到 list中
      */
     private long addFilesInDir(Path path, List<FileStatus> files, boolean logExcludedFiles)
             throws IOException {
@@ -738,8 +786,10 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
         long length = 0;
 
         for (FileStatus dir : fs.listStatus(path)) {
+            // 又发现了目录
             if (dir.isDir()) {
                 if (acceptFile(dir) && enumerateNestedFiles) {
+                    // 递归
                     length += addFilesInDir(dir.getPath(), files, logExcludedFiles);
                 } else {
                     if (logExcludedFiles && LOG.isDebugEnabled()) {
@@ -750,6 +800,7 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
                     }
                 }
             } else {
+                // 此时dir是一个文件
                 if (acceptFile(dir)) {
                     files.add(dir);
                     length += dir.getLen();
@@ -768,6 +819,7 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
     }
 
     protected boolean testForUnsplittable(FileStatus pathFile) {
+        // 代表是个压缩文件  压缩文件无法精确split
         if (getInflaterInputStreamFactory(pathFile.getPath()) != null) {
             unsplittable = true;
             return true;
@@ -803,8 +855,8 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
      * described by the given offset.
      *
      * @param blocks The different blocks of the file. Must be ordered by their offset.
-     * @param offset The offset of the position in the file.
-     * @param startIndex The earliest index to look at.
+     * @param offset The offset of the position in the file.   文件偏移量
+     * @param startIndex The earliest index to look at.    block的下标
      * @return The index of the block containing the given position.
      */
     private int getBlockIndexForPosition(
@@ -814,9 +866,13 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
             long blockStart = blocks[i].getOffset();
             long blockEnd = blockStart + blocks[i].getLength();
 
+            // 代表这个block 包含了起始偏移量
             if (offset >= blockStart && offset < blockEnd) {
+                // 接下来就是看数据需要延续到下个block 还是仅这个block
+
                 // got the block where the split starts
                 // check if the next block contains more than this one does
+                // 如果已经到了最后一个block  肯定是返回i   如果该block数据仅剩下不足 1/2 splitSize 就返回下一个block
                 if (i < blocks.length - 1 && blockEnd - offset < halfSplitSize) {
                     return i + 1;
                 } else {
@@ -835,6 +891,7 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
      *
      * <p>The stream is actually opened in an asynchronous thread to make sure any interruptions to
      * the thread working on the input format do not reach the file system.
+     * 打开某个已经被拆分的split
      */
     @Override
     public void open(FileInputSplit fileSplit) throws IOException {
@@ -855,11 +912,13 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
         }
 
         // open the split in an asynchronous thread
+        // 通过单独的线程 异步打开
         final InputSplitOpenThread isot = new InputSplitOpenThread(fileSplit, this.openTimeout);
         isot.start();
 
         try {
             this.stream = isot.waitForCompletion();
+            // 为inputStream包装一层解压逻辑
             this.stream = decorateInputStream(this.stream, fileSplit);
         } catch (Throwable t) {
             throw new IOException(
@@ -1025,9 +1084,13 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
     /**
      * Obtains a DataInputStream in an thread that is not interrupted. This is a necessary hack
      * around the problem that the HDFS client is very sensitive to InterruptedExceptions.
+     * 每个split 通过一个线程启动
      */
     public static class InputSplitOpenThread extends Thread {
 
+        /**
+         * 包含要启动的split信息
+         */
         private final FileInputSplit split;
 
         private final long timeout;
@@ -1054,6 +1117,7 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
 
                 // check for canceling and close the stream in that case, because no one will obtain
                 // it
+                // 因为这是个耗时操作 可能结束的时候 发现已经被标记成禁止了
                 if (this.aborted) {
                     final FSDataInputStream f = this.fdis;
                     this.fdis = null;
@@ -1064,6 +1128,11 @@ public abstract class FileInputFormat<OT> extends RichInputFormat<OT, FileInputS
             }
         }
 
+        /**
+         * 等待打开文件 产生输入流
+         * @return
+         * @throws Throwable
+         */
         public FSDataInputStream waitForCompletion() throws Throwable {
             final long start = System.currentTimeMillis();
             long remaining = this.timeout;

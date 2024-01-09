@@ -38,6 +38,7 @@ final class WatermarkStrategyWithIdleness<T> implements WatermarkStrategy<T> {
         return baseStrategy.createTimestampAssigner(context);
     }
 
+    // 包装返回的WatermarkGenerator对象
     @Override
     public WatermarkGenerator<T> createWatermarkGenerator(
             WatermarkGeneratorSupplier.Context context) {

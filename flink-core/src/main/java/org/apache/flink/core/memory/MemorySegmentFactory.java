@@ -30,7 +30,9 @@ import java.nio.ByteBuffer;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
 
-/** A factory for memory segments ({@link MemorySegment}). */
+/** A factory for memory segments ({@link MemorySegment}).
+ * 该对象用于产生内存块
+ * */
 @Internal
 public final class MemorySegmentFactory {
     private static final Logger LOG = LoggerFactory.getLogger(MemorySegmentFactory.class);
@@ -168,6 +170,8 @@ public final class MemorySegmentFactory {
             int size, Object owner, Runnable customCleanupAction) {
         long address = MemoryUtils.allocateUnsafe(size);
         ByteBuffer offHeapBuffer = MemoryUtils.wrapUnsafeMemoryWithByteBuffer(address, size);
+        // 手动释放内存
+        // customCleanupAction 可以增加自己的逻辑
         Runnable cleaner = MemoryUtils.createMemoryCleaner(address, customCleanupAction);
         return new MemorySegment(offHeapBuffer, owner, false, cleaner);
     }

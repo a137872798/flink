@@ -30,7 +30,7 @@ import java.io.Serializable;
 public interface RangeBoundaries<T> extends Serializable {
 
     /**
-     * Get the range index of record.
+     * Get the range index of record.   获得record在range的下标
      *
      * @param record The input record.
      * @return The range index.

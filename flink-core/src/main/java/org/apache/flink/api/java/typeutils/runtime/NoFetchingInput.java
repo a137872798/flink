@@ -62,6 +62,7 @@ public class NoFetchingInput extends Input {
      * @param required the number of bytes being available in the buffer
      * @return the number of bytes remaining, which is equal to required
      * @throws KryoException
+     * 调用上层方法从in读取数据
      */
     @Override
     protected int require(int required) throws KryoException {

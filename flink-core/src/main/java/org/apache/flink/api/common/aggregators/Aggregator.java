@@ -76,6 +76,7 @@ import java.io.Serializable;
  * <i>average</i> through a sum and a count.
  *
  * @param <T> The type of the aggregated value.
+ *           支持聚合的值 必须是继承 IOReadableWritable, Serializable 的类型
  */
 @PublicEvolving
 public interface Aggregator<T extends Value> extends Serializable {

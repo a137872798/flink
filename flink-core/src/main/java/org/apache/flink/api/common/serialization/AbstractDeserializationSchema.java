@@ -71,13 +71,17 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * }</pre>
  *
  * @param <T> The type created by the deserialization schema.
+ *
+ *           骨架类  具体的反序列化方式由子类提供
  */
 @PublicEvolving
 public abstract class AbstractDeserializationSchema<T> implements DeserializationSchema<T> {
 
     private static final long serialVersionUID = 2L;
 
-    /** The type produced by this {@code DeserializationSchema}. */
+    /** The type produced by this {@code DeserializationSchema}.
+     * 描述本对象的类型信息
+     * */
     private final TypeInformation<T> type;
 
     // ------------------------------------------------------------------------
@@ -100,6 +104,7 @@ public abstract class AbstractDeserializationSchema<T> implements Deserializatio
      */
     protected AbstractDeserializationSchema() {
         try {
+            // 借助类型抽取器  抽取出本对象的type信息
             this.type =
                     TypeExtractor.createTypeInfo(
                             AbstractDeserializationSchema.class, getClass(), 0, null, null);
@@ -159,6 +164,7 @@ public abstract class AbstractDeserializationSchema<T> implements Deserializatio
      *
      * @param message The message, as a byte array.
      * @return The de-serialized message as an object.
+     * 具体的反序列化方式 由子类实现
      */
     @Override
     public abstract T deserialize(byte[] message) throws IOException;

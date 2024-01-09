@@ -37,7 +37,9 @@ import java.util.Arrays;
 @Internal
 public abstract class PostVersionedIOReadableWritable extends VersionedIOReadableWritable {
 
-    /** NOTE: CANNOT CHANGE! */
+    /** NOTE: CANNOT CHANGE!
+     * 版本号是固定的
+     * */
     private static final byte[] VERSIONED_IDENTIFIER = new byte[] {-15, -51, -123, -97};
 
     /**

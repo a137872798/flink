@@ -25,6 +25,7 @@ import java.util.EnumSet;
 /**
  * Allows providing multiple formatters for the description. E.g. Html formatter, Markdown formatter
  * etc.
+ * 表示一个可产生格式化描述信息的对象
  */
 @PublicEvolving
 public abstract class Formatter {
@@ -38,6 +39,7 @@ public abstract class Formatter {
      * @return string representation of the description
      */
     public String format(Description description) {
+        // 挨个产生描述信息
         for (BlockElement blockElement : description.getBlocks()) {
             blockElement.format(this);
         }
@@ -48,6 +50,10 @@ public abstract class Formatter {
         formatLink(state, element.getLink(), element.getText());
     }
 
+    /**
+     * 表示formatter如何处理 text类型的元素
+     * @param element
+     */
     public void format(TextElement element) {
         String[] inlineElements =
                 element.getElements().stream()

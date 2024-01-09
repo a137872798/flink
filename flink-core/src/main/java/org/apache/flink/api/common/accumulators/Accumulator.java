@@ -35,21 +35,22 @@ import java.io.Serializable;
  *
  * @param <V> Type of values that are added to the accumulator
  * @param <R> Type of the accumulator result as it will be reported to the client
+ *           累加器接口 在内部可以进行数据的累加
  */
 @Public
 public interface Accumulator<V, R extends Serializable> extends Serializable, Cloneable {
     /** @param value The value to add to the accumulator object */
     void add(V value);
 
-    /** @return local The local value from the current UDF context */
+    /** @return local The local value from the current UDF context 获取在当前用户定义的上下文中的值 */
     R getLocalValue();
 
-    /** Reset the local value. This only affects the current UDF context. */
+    /** Reset the local value. This only affects the current UDF context. 释放掉该值 */
     void resetLocal();
 
     /**
      * Used by system internally to merge the collected parts of an accumulator at the end of the
-     * job.
+     * job.  将2个累加器的值进行合并
      *
      * @param other Reference to accumulator to merge in.
      */
@@ -60,6 +61,7 @@ public interface Accumulator<V, R extends Serializable> extends Serializable, Cl
      * throw a {@link java.lang.CloneNotSupportedException}
      *
      * @return The duplicated accumulator.
+     * 产生累加器的副本 内部的value也会被复制 让我想到了split
      */
     Accumulator<V, R> clone();
 }

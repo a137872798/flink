@@ -39,6 +39,7 @@ public interface LocatedFileStatus extends FileStatus {
      *
      * <p>Files without location information typically expose one block with no host information for
      * that block.
+     * 获取该文件下各个数据块的位置
      */
     BlockLocation[] getBlockLocations();
 }
