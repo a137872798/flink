@@ -48,10 +48,14 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** The slow task detector which detects slow tasks based on their execution time. */
+/** The slow task detector which detects slow tasks based on their execution time.
+ * 基于执行时间来检测慢任务
+ * */
 public class ExecutionTimeBasedSlowTaskDetector implements SlowTaskDetector {
 
     private final long checkIntervalMillis;
+
+    // 这是基线
 
     private final long baselineLowerBoundMillis;
 
@@ -67,6 +71,7 @@ public class ExecutionTimeBasedSlowTaskDetector implements SlowTaskDetector {
                             Thread.currentThread(), throwable);
 
     public ExecutionTimeBasedSlowTaskDetector(Configuration configuration) {
+        // 检查间隔
         this.checkIntervalMillis =
                 configuration.get(SlowTaskDetectorOptions.CHECK_INTERVAL).toMillis();
         checkArgument(
@@ -109,6 +114,12 @@ public class ExecutionTimeBasedSlowTaskDetector implements SlowTaskDetector {
         this.fatalErrorHandler = checkNotNull(fatalErrorHandler);
     }
 
+    /**
+     * 启动探测器
+     * @param executionGraph
+     * @param listener 当发现慢任务时 会进行通知
+     * @param mainThreadExecutor
+     */
     @Override
     public void start(
             final ExecutionGraph executionGraph,
@@ -126,10 +137,12 @@ public class ExecutionTimeBasedSlowTaskDetector implements SlowTaskDetector {
                 mainThreadExecutor.schedule(
                         () -> {
                             try {
+                                // 每隔一段时间 通过findSlowTasks找到慢任务 并通知监听器
                                 listener.notifySlowTasks(findSlowTasks(executionGraph));
                             } catch (Throwable throwable) {
                                 fatalErrorHandler.onFatalError(throwable);
                             }
+                            // 开启下次任务
                             scheduleTask(executionGraph, listener, mainThreadExecutor);
                         },
                         checkIntervalMillis,
@@ -141,6 +154,7 @@ public class ExecutionTimeBasedSlowTaskDetector implements SlowTaskDetector {
      * finished tasks' execution time. The baseline will be T*M, where M is the multiplier. Note
      * that the execution time will be weighted with its input bytes when calculating the median. A
      * task will be identified as slow if its weighted execution time is longer than the baseline.
+     * 查询慢任务
      */
     @VisibleForTesting
     Map<ExecutionVertexID, Collection<ExecutionAttemptID>> findSlowTasks(
@@ -149,9 +163,11 @@ public class ExecutionTimeBasedSlowTaskDetector implements SlowTaskDetector {
 
         final Map<ExecutionVertexID, Collection<ExecutionAttemptID>> slowTasks = new HashMap<>();
 
+        // 找到需要检测的一组 task
         final List<ExecutionJobVertex> jobVerticesToCheck = getJobVerticesToCheck(executionGraph);
 
         for (ExecutionJobVertex ejv : jobVerticesToCheck) {
+            // 产生一个基线对象   基线相当于一个基准  这个是具备一般意义   低于该值就可以认为是慢的
             final ExecutionTimeWithInputBytes baseline = getBaseline(ejv, currentTimeMillis);
 
             for (ExecutionVertex ev : ejv.getTaskVertices()) {
@@ -159,6 +175,7 @@ public class ExecutionTimeBasedSlowTaskDetector implements SlowTaskDetector {
                     continue;
                 }
 
+                // 低于基线的都认为是慢的
                 final List<ExecutionAttemptID> slowExecutions =
                         findExecutionsExceedingBaseline(
                                 ev.getCurrentExecutions(), baseline, currentTimeMillis);
@@ -172,14 +189,26 @@ public class ExecutionTimeBasedSlowTaskDetector implements SlowTaskDetector {
         return slowTasks;
     }
 
+    /**
+     * 找到还未结束的任务 并检测时间
+     * @param executionGraph
+     * @return
+     */
     private List<ExecutionJobVertex> getJobVerticesToCheck(final ExecutionGraph executionGraph) {
         return IterableUtils.toStream(executionGraph.getVerticesTopologically())
                 .filter(ExecutionJobVertex::isInitialized)
+                // task级别 只要还有一个subtask未结束 就不会进入 finished状态
                 .filter(ejv -> ejv.getAggregateState() != ExecutionState.FINISHED)
+                // 当完成的比率超过该值 才会进行下一步检测
                 .filter(ejv -> getFinishedRatio(ejv) >= baselineRatio)
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 计算完成的比率
+     * @param executionJobVertex
+     * @return
+     */
     private double getFinishedRatio(final ExecutionJobVertex executionJobVertex) {
         checkState(executionJobVertex.getTaskVertices().length > 0);
         long finishedCount =
@@ -189,10 +218,20 @@ public class ExecutionTimeBasedSlowTaskDetector implements SlowTaskDetector {
         return (double) finishedCount / executionJobVertex.getTaskVertices().length;
     }
 
+    /**
+     * 计算基线
+     * @param executionJobVertex
+     * @param currentTimeMillis
+     * @return
+     */
     private ExecutionTimeWithInputBytes getBaseline(
             final ExecutionJobVertex executionJobVertex, final long currentTimeMillis) {
+
+        // 取中间值
         final ExecutionTimeWithInputBytes weightedExecutionTimeMedian =
                 calculateFinishedTaskExecutionTimeMedian(executionJobVertex, currentTimeMillis);
+
+        // 乘以系数得到一个基线值
         long multipliedBaseline =
                 (long) (weightedExecutionTimeMedian.getExecutionTime() * baselineMultiplier);
 
@@ -200,16 +239,25 @@ public class ExecutionTimeBasedSlowTaskDetector implements SlowTaskDetector {
                 multipliedBaseline, weightedExecutionTimeMedian.getInputBytes());
     }
 
+    /**
+     * 计算基线
+     * @param executionJobVertex
+     * @param currentTime
+     * @return
+     */
     private ExecutionTimeWithInputBytes calculateFinishedTaskExecutionTimeMedian(
             final ExecutionJobVertex executionJobVertex, final long currentTime) {
 
+        // 表示至少超过这么多子任务完成了
         final int baselineExecutionCount =
                 (int) Math.round(executionJobVertex.getParallelism() * baselineRatio);
 
         if (baselineExecutionCount == 0) {
+            // 返回空对象
             return new ExecutionTimeWithInputBytes(0L, NUM_BYTES_UNKNOWN);
         }
 
+        // 找到完成的子任务
         final List<Execution> finishedExecutions =
                 Arrays.stream(executionJobVertex.getTaskVertices())
                         .flatMap(ev -> ev.getCurrentExecutions().stream())
@@ -220,14 +268,23 @@ public class ExecutionTimeBasedSlowTaskDetector implements SlowTaskDetector {
 
         final List<ExecutionTimeWithInputBytes> firstFinishedExecutions =
                 finishedExecutions.stream()
+                        // 产生 ExecutionTimeWithInputBytes 对象
                         .map(e -> getExecutionTimeAndInputBytes(e, currentTime))
                         .sorted()
                         .limit(baselineExecutionCount)
                         .collect(Collectors.toList());
 
+        // 取中间的
         return firstFinishedExecutions.get(baselineExecutionCount / 2);
     }
 
+    /**
+     * 找到低于基线的执行对象
+     * @param executions
+     * @param baseline
+     * @param currentTimeMillis
+     * @return
+     */
     private List<ExecutionAttemptID> findExecutionsExceedingBaseline(
             Collection<Execution> executions,
             ExecutionTimeWithInputBytes baseline,
@@ -241,6 +298,7 @@ public class ExecutionTimeBasedSlowTaskDetector implements SlowTaskDetector {
                         // speculative execution to provide the capability of parallel execution
                         // running.
                         e ->
+                                // 找到运行中的
                                 !e.getState().isTerminal()
                                         && e.getState() != ExecutionState.CANCELING
                                         && e.getState() != ExecutionState.CREATED)
@@ -248,6 +306,7 @@ public class ExecutionTimeBasedSlowTaskDetector implements SlowTaskDetector {
                         e -> {
                             ExecutionTimeWithInputBytes timeWithBytes =
                                     getExecutionTimeAndInputBytes(e, currentTimeMillis);
+                            // 执行时间要超过这个最小值  才能认为是慢的
                             return timeWithBytes.getExecutionTime() >= baselineLowerBoundMillis
                                     && timeWithBytes.compareTo(baseline) >= 0;
                         })
@@ -255,12 +314,20 @@ public class ExecutionTimeBasedSlowTaskDetector implements SlowTaskDetector {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 获取执行时间
+     * @param execution
+     * @param currentTime
+     * @return
+     */
     private long getExecutionTime(final Execution execution, final long currentTime) {
+        // 获取进入部署阶段的时间
         final long deployingTimestamp = execution.getStateTimestamp(ExecutionState.DEPLOYING);
         if (deployingTimestamp == 0) {
             return 0;
         }
 
+        // 用另一个时间配合计算
         if (execution.getState() == ExecutionState.FINISHED) {
             return execution.getStateTimestamp(ExecutionState.FINISHED) - deployingTimestamp;
         } else {
@@ -292,7 +359,9 @@ public class ExecutionTimeBasedSlowTaskDetector implements SlowTaskDetector {
         return scheduledDetectionFuture;
     }
 
-    /** This class defines the execution time and input bytes for an execution. */
+    /** This class defines the execution time and input bytes for an execution.
+     * 记录多少时间处理了多少数据
+     * */
     @VisibleForTesting
     static class ExecutionTimeWithInputBytes implements Comparable<ExecutionTimeWithInputBytes> {
 

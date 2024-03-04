@@ -37,25 +37,52 @@ import org.apache.flink.util.MutableObjectIterator;
  * @param <S> The UDF type.
  * @param <OT> The produced data type.
  * @see Driver
+ * 每个任务可以通过上下文获取到一些信息
  */
 public interface TaskContext<S, OT> {
 
+    /**
+     * 任务相关的配置
+     * @return
+     */
     TaskConfig getTaskConfig();
 
+    /**
+     * 任务管理器的运行时信息
+     * @return
+     */
     TaskManagerRuntimeInfo getTaskManagerInfo();
 
+    /**
+     * 该任务专属的类加载器
+     * @return
+     */
     ClassLoader getUserCodeClassLoader();
 
+    /**
+     * 通过该对象来分配内存
+     * @return
+     */
     MemoryManager getMemoryManager();
 
     IOManager getIOManager();
 
+    /**
+     * 上下文中会包含计算需要的数据流  这里按照index获取数据流
+     * @param index
+     * @param <X>
+     * @return
+     */
     <X> MutableObjectIterator<X> getInput(int index);
 
     <X> TypeSerializerFactory<X> getInputSerializer(int index);
 
     <X> TypeComparator<X> getDriverComparator(int index);
 
+    /**
+     * 获取用户定义的函数
+     * @return
+     */
     S getStub();
 
     ExecutionConfig getExecutionConfig();

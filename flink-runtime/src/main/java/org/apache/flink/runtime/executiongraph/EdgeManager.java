@@ -31,29 +31,50 @@ import java.util.Map;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Class that manages all the connections between tasks. */
+/** Class that manages all the connections between tasks.
+ * 可以将顶点连接起来
+ * */
 public class EdgeManager {
 
+    /**
+     * IntermediateResultPartitionID 代表一个中间结果集   可以被多个subtask消耗 所以对应多个ConsumerVertexGroup
+     */
     private final Map<IntermediateResultPartitionID, List<ConsumerVertexGroup>> partitionConsumers =
             new HashMap<>();
 
+    /**
+     * 每个ExecutionVertexID 代表一个subtask 用于消费数据
+     * ConsumedPartitionGroup 就代表被消费的数据
+     */
     private final Map<ExecutionVertexID, List<ConsumedPartitionGroup>> vertexConsumedPartitions =
             new HashMap<>();
 
+    /**
+     * 包含该id的所有数据集   因为同一个中间数据集是可以被消费多次的  所以对应的id可以出现在多个数据集组中
+     */
     private final Map<IntermediateResultPartitionID, List<ConsumedPartitionGroup>>
             consumedPartitionsById = new HashMap<>();
 
+    /**
+     * 表示某结果集会由某个子任务消费
+     */
     public void connectPartitionWithConsumerVertexGroup(
             IntermediateResultPartitionID resultPartitionId,
             ConsumerVertexGroup consumerVertexGroup) {
 
         checkNotNull(consumerVertexGroup);
 
+        // 获取结果集的所有消费组   也可以为同一个结果集追加多个消费组
         List<ConsumerVertexGroup> groups =
                 getConsumerVertexGroupsForPartitionInternal(resultPartitionId);
         groups.add(consumerVertexGroup);
     }
 
+    /**
+     * 添加一个消费者与数据集的关系
+     * @param executionVertexId
+     * @param consumedPartitionGroup
+     */
     public void connectVertexWithConsumedPartitionGroup(
             ExecutionVertexID executionVertexId, ConsumedPartitionGroup consumedPartitionGroup) {
 
@@ -65,11 +86,21 @@ public class EdgeManager {
         consumedPartitions.add(consumedPartitionGroup);
     }
 
+    /**
+     * 获取消费该数据集的所有subtask
+     * @param resultPartitionId
+     * @return
+     */
     private List<ConsumerVertexGroup> getConsumerVertexGroupsForPartitionInternal(
             IntermediateResultPartitionID resultPartitionId) {
         return partitionConsumers.computeIfAbsent(resultPartitionId, id -> new ArrayList<>());
     }
 
+    /**
+     * 获取该subtask消费的所有数据集
+     * @param executionVertexId
+     * @return
+     */
     private List<ConsumedPartitionGroup> getConsumedPartitionGroupsForVertexInternal(
             ExecutionVertexID executionVertexId) {
         return vertexConsumedPartitions.computeIfAbsent(executionVertexId, id -> new ArrayList<>());
@@ -87,6 +118,10 @@ public class EdgeManager {
                 getConsumedPartitionGroupsForVertexInternal(executionVertexId));
     }
 
+    /**
+     * 注册数据集
+     * @param group
+     */
     public void registerConsumedPartitionGroup(ConsumedPartitionGroup group) {
         for (IntermediateResultPartitionID partitionId : group) {
             consumedPartitionsById

@@ -50,6 +50,7 @@ import java.util.stream.Collectors;
 
 /**
  * This class holds the all {@link TaskLocalStateStoreImpl} objects for a task executor (manager).
+ * 管理task的本地状态
  */
 public class TaskExecutorLocalStateStoresManager {
 
@@ -62,6 +63,9 @@ public class TaskExecutorLocalStateStoresManager {
     /**
      * This map holds all local state stores for tasks running on the task manager / executor that
      * own the instance of this. Maps from allocation id to all the subtask's local state stores.
+     *
+     * JobVertexSubtaskKey 可以对应到某个job下的某个subtask
+     * OwnedTaskLocalStateStore则是维护该subtask的各种状态快照
      */
     @GuardedBy("lock")
     private final Map<AllocationID, Map<JobVertexSubtaskKey, OwnedTaskLocalStateStore>>
@@ -70,7 +74,9 @@ public class TaskExecutorLocalStateStoresManager {
     /** The configured mode for local recovery on this task manager. */
     private final boolean localRecoveryEnabled;
 
-    /** This is the root directory for all local state of this task manager / executor. */
+    /** This is the root directory for all local state of this task manager / executor.
+     * 维护存储状态的目录
+     * */
     private final Reference<File[]> localStateRootDirectories;
 
     /** Executor that runs the discarding of released state objects. */
@@ -120,6 +126,16 @@ public class TaskExecutorLocalStateStoresManager {
                 ShutdownHookUtil.addShutdownHook(this::shutdown, getClass().getSimpleName(), LOG);
     }
 
+    /**
+     * 检索某个任务的状态快照
+     * @param jobId
+     * @param allocationID
+     * @param jobVertexID
+     * @param subtaskIndex
+     * @param clusterConfiguration
+     * @param jobConfiguration
+     * @return
+     */
     @Nonnull
     public TaskLocalStateStore localStateStoreForSubtask(
             @Nonnull JobID jobId,
@@ -153,6 +169,7 @@ public class TaskExecutorLocalStateStoresManager {
 
             final JobVertexSubtaskKey taskKey = new JobVertexSubtaskKey(jobVertexID, subtaskIndex);
 
+            // 就是map的检索
             OwnedTaskLocalStateStore taskLocalStateStore = taskStateManagers.get(taskKey);
 
             if (taskLocalStateStore == null) {
@@ -160,7 +177,10 @@ public class TaskExecutorLocalStateStoresManager {
                 LocalRecoveryDirectoryProviderImpl directoryProvider = null;
                 if (localRecoveryEnabled) {
                     // create the allocation base dirs, one inside each root dir.
+                    // 找到存储数据的目录
                     File[] allocationBaseDirectories = allocationBaseDirectories(allocationID);
+
+                    // 将相关信息包装起来
                     directoryProvider =
                             new LocalRecoveryDirectoryProviderImpl(
                                     allocationBaseDirectories, jobId, jobVertexID, subtaskIndex);
@@ -178,6 +198,8 @@ public class TaskExecutorLocalStateStoresManager {
                                         clusterConfiguration.getBoolean(
                                                 StateChangelogOptions.ENABLE_STATE_CHANGE_LOG));
 
+
+                // 根据是否使用 changelog 生成不同的对象
                 if (localRecoveryConfig.isLocalRecoveryEnabled() && changelogEnabled) {
                     taskLocalStateStore =
                             new ChangelogTaskLocalStateStore(
@@ -240,6 +262,7 @@ public class TaskExecutorLocalStateStoresManager {
             cleanupLocalStores = taskStateStoresByAllocationID.remove(allocationID);
         }
 
+        // 执行清理函数 并删除相关目录
         if (cleanupLocalStores != null) {
             doRelease(cleanupLocalStores.values());
         }
@@ -251,6 +274,7 @@ public class TaskExecutorLocalStateStoresManager {
      * Retains the given set of allocations. All other allocations will be released.
      *
      * @param allocationsToRetain
+     * 保留这些id对应的目录
      */
     public void retainLocalStateForAllocations(Set<AllocationID> allocationsToRetain) {
         final Collection<AllocationID> allocationIds = findStoredAllocations();
@@ -264,9 +288,12 @@ public class TaskExecutorLocalStateStoresManager {
         final Set<AllocationID> storedAllocations = new HashSet<>();
         for (File localStateRootDirectory : localStateRootDirectories.deref()) {
             try {
+
+                // 找到相关目录
                 final Collection<Path> allocationDirectories =
                         listAllocationDirectoriesIn(localStateRootDirectory);
 
+                // 提取出id
                 for (Path allocationDirectory : allocationDirectories) {
                     final String hexString =
                             allocationDirectory
@@ -301,6 +328,9 @@ public class TaskExecutorLocalStateStoresManager {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 当进程终止时 触发该函数
+     */
     public void shutdown() {
         synchronized (lock) {
             if (closed) {
@@ -315,6 +345,7 @@ public class TaskExecutorLocalStateStoresManager {
 
         ShutdownHookUtil.removeShutdownHook(shutdownHook, getClass().getSimpleName(), LOG);
 
+        // 表示本对象有目录所有权  就可以进行删除
         if (localStateRootDirectories.isOwned()) {
             for (File localStateRootDirectory : localStateRootDirectories.deref()) {
                 try {
@@ -355,6 +386,10 @@ public class TaskExecutorLocalStateStoresManager {
         return allocationDirectories;
     }
 
+    /**
+     * 释放状态数据
+     * @param toRelease
+     */
     private void doRelease(Iterable<OwnedTaskLocalStateStore> toRelease) {
 
         if (toRelease != null) {
@@ -391,6 +426,7 @@ public class TaskExecutorLocalStateStoresManager {
     /**
      * Composite key of {@link JobVertexID} and subtask index that describes the subtask of a job
      * vertex.
+     * jobId 与 subtaskIndex的组合
      */
     private static final class JobVertexSubtaskKey {
 

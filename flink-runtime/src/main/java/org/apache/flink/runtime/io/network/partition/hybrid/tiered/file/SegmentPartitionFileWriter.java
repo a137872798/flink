@@ -58,6 +58,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * <p>To minimize the number of files, each subpartition keeps only a single segment-finish file.
  * For instance, if segment-finish file 5 exists, it indicates that segments 1 to 5 have all been
  * finished.
+ * 针对段分区文件
  */
 public class SegmentPartitionFileWriter implements PartitionFileWriter {
 
@@ -79,6 +80,12 @@ public class SegmentPartitionFileWriter implements PartitionFileWriter {
         Arrays.fill(subpartitionChannels, null);
     }
 
+    /**
+     * 写入数据
+     * @param partitionId the partition id
+     * @param buffersToWrite the buffers to be written to the partition file   这里包含了数据
+     * @return
+     */
     @Override
     public CompletableFuture<Void> write(
             TieredStoragePartitionId partitionId, List<SubpartitionBufferContext> buffersToWrite) {
@@ -94,6 +101,7 @@ public class SegmentPartitionFileWriter implements PartitionFileWriter {
                                         new CompletableFuture<>();
                                 ioExecutor.execute(
                                         () ->
+                                                // 调用写入api 并将future加入列表
                                                 flushOrFinishSegment(
                                                         partitionId,
                                                         subpartitionId,
@@ -105,6 +113,9 @@ public class SegmentPartitionFileWriter implements PartitionFileWriter {
         return FutureUtils.waitForAll(completableFutures);
     }
 
+    /**
+     * 关闭所有文件
+     */
     @Override
     public void release() {
         if (isReleased) {
@@ -130,6 +141,13 @@ public class SegmentPartitionFileWriter implements PartitionFileWriter {
     //  Internal Methods
     // ------------------------------------------------------------------------
 
+    /**
+     *
+     * @param partitionId
+     * @param subpartitionId
+     * @param segmentBufferContext
+     * @param flushSuccessNotifier
+     */
     private void flushOrFinishSegment(
             TieredStoragePartitionId partitionId,
             int subpartitionId,
@@ -143,25 +161,31 @@ public class SegmentPartitionFileWriter implements PartitionFileWriter {
         if (buffersToFlush.size() > 0) {
             flush(partitionId, subpartitionId, segmentId, buffersToFlush);
         }
+        // 生成表示段写入完成的文件
         if (isSegmentFinished) {
             writeSegmentFinishFile(partitionId, subpartitionId, segmentId);
         }
+        // 完成后 结束future
         flushSuccessNotifier.complete(null);
     }
 
-    /** This method is only called by the flushing thread. */
+    /** This method is only called by the flushing thread.
+     * 数据刷盘
+     * */
     private void flush(
             TieredStoragePartitionId partitionId,
             int subpartitionId,
             int segmentId,
             List<Tuple2<Buffer, Integer>> buffersToFlush) {
         try {
+            // 完成写入
             writeBuffers(
                     partitionId,
                     subpartitionId,
                     segmentId,
                     buffersToFlush,
                     getTotalBytes(buffersToFlush));
+            // 进行刷盘操作   可能recycleBuffer会触发刷盘吧
             buffersToFlush.forEach(bufferToFlush -> bufferToFlush.f0.recycleBuffer());
         } catch (IOException exception) {
             ExceptionUtils.rethrow(exception);
@@ -174,6 +198,7 @@ public class SegmentPartitionFileWriter implements PartitionFileWriter {
      * segment-finish file.
      *
      * <p>Note that the method is only called by the flushing thread.
+     * 生成一个表示段完成的文件  算是一个标识文件
      */
     private void writeSegmentFinishFile(
             TieredStoragePartitionId partitionId, int subpartitionId, int segmentId) {
@@ -190,16 +215,31 @@ public class SegmentPartitionFileWriter implements PartitionFileWriter {
         }
     }
 
+    /**
+     * 返回 buffer的总大小
+     * @param buffersToFlush
+     * @return
+     */
     private long getTotalBytes(List<Tuple2<Buffer, Integer>> buffersToFlush) {
         long expectedBytes = 0;
         for (Tuple2<Buffer, Integer> bufferToFlush : buffersToFlush) {
             Buffer buffer = bufferToFlush.f0;
+            // 追加头部长度
             int numBytes = buffer.readableBytes() + BufferReaderWriterUtil.HEADER_LENGTH;
             expectedBytes += numBytes;
         }
         return expectedBytes;
     }
 
+    /**
+     * 将buffer数据写入文件
+     * @param partitionId
+     * @param subpartitionId
+     * @param segmentId
+     * @param buffersToFlush
+     * @param expectedBytes
+     * @throws IOException
+     */
     private void writeBuffers(
             TieredStoragePartitionId partitionId,
             int subpartitionId,
@@ -209,10 +249,19 @@ public class SegmentPartitionFileWriter implements PartitionFileWriter {
             throws IOException {
         WritableByteChannel currentChannel =
                 getOrInitSubpartitionChannel(partitionId, subpartitionId, segmentId);
+        // 写入数据
         SegmentPartitionFile.writeBuffers(
                 currentChannel, expectedBytes, generateBufferWithHeaders(buffersToFlush));
     }
 
+    /**
+     * 定位到channel
+     * @param partitionId
+     * @param subpartitionId
+     * @param segmentId
+     * @return
+     * @throws IOException
+     */
     private WritableByteChannel getOrInitSubpartitionChannel(
             TieredStoragePartitionId partitionId, int subpartitionId, int segmentId)
             throws IOException {

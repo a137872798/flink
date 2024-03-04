@@ -46,6 +46,8 @@ import static org.apache.flink.util.Preconditions.checkState;
  *
  * <p>The format of the frame header is +------------------+------------------+--------+ | FRAME
  * LENGTH (4) | MAGIC NUMBER (4) | ID (1) | +------------------+------------------+--------+
+ *
+ * 在进行业务层面的解析前  先走一遍netty的解码器
  */
 public class NettyMessageClientDecoderDelegate extends ChannelInboundHandlerAdapter {
     private final Logger LOG = LoggerFactory.getLogger(NettyMessageClientDecoderDelegate.class);
@@ -56,13 +58,16 @@ public class NettyMessageClientDecoderDelegate extends ChannelInboundHandlerAdap
     /** The decoder for messages other than BufferResponse. */
     private final NettyMessageDecoder nonBufferResponseDecoder;
 
-    /** The accumulation buffer for the frame header. */
+    /** The accumulation buffer for the frame header.
+     * 存储头部数据
+     * */
     private ByteBuf frameHeaderBuffer;
 
     /** The decoder for the current message. It is null if we are decoding the frame header. */
     private NettyMessageDecoder currentDecoder;
 
     NettyMessageClientDecoderDelegate(NetworkClientHandler networkClientHandler) {
+        // 创建2个解码器
         this.bufferResponseDecoder =
                 new BufferResponseDecoder(
                         new NetworkBufferAllocator(checkNotNull(networkClientHandler)));
@@ -94,9 +99,16 @@ public class NettyMessageClientDecoderDelegate extends ChannelInboundHandlerAdap
         super.channelInactive(ctx);
     }
 
+    /**
+     * 核心方法就是这个
+     * @param ctx
+     * @param msg
+     * @throws Exception
+     */
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         if (!(msg instanceof ByteBuf)) {
+            // 其余类型传给下游
             ctx.fireChannelRead(msg);
             return;
         }
@@ -105,10 +117,13 @@ public class NettyMessageClientDecoderDelegate extends ChannelInboundHandlerAdap
         try {
             while (data.isReadable()) {
                 if (currentDecoder != null) {
+                    // 这里开始解析结果
                     NettyMessageDecoder.DecodingResult result = currentDecoder.onChannelRead(data);
                     if (!result.isFinished()) {
                         break;
                     }
+
+                    // 将数据传往下个处理器
                     ctx.fireChannelRead(result.getMessage());
 
                     currentDecoder = null;
@@ -123,6 +138,10 @@ public class NettyMessageClientDecoderDelegate extends ChannelInboundHandlerAdap
         }
     }
 
+    /**
+     * 首次进入  先解析头部
+     * @param data
+     */
     private void decodeFrameHeader(ByteBuf data) {
         ByteBuf fullFrameHeaderBuf =
                 ByteBufUtils.accumulate(
@@ -131,6 +150,7 @@ public class NettyMessageClientDecoderDelegate extends ChannelInboundHandlerAdap
                         FRAME_HEADER_LENGTH,
                         frameHeaderBuffer.readableBytes());
 
+        // 代表有一个头部
         if (fullFrameHeaderBuf != null) {
             int messageAndFrameLength = fullFrameHeaderBuf.readInt();
             checkState(
@@ -144,8 +164,10 @@ public class NettyMessageClientDecoderDelegate extends ChannelInboundHandlerAdap
 
             int msgId = fullFrameHeaderBuf.readByte();
             if (msgId == NettyMessage.BufferResponse.ID) {
+                // BufferResponse 类型使用 bufferResponseDecoder 处理
                 currentDecoder = bufferResponseDecoder;
             } else {
+                // 其余类型使用该对象处理
                 currentDecoder = nonBufferResponseDecoder;
             }
 

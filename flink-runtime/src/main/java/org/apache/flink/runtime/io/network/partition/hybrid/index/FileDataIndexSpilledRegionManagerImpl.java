@@ -74,6 +74,9 @@ public class FileDataIndexSpilledRegionManagerImpl<T extends FileDataIndexRegion
      */
     private final List<TreeMap<Integer, RegionGroup>> subpartitionFinishedRegionGroupMetas;
 
+    /**
+     * 对应索引文件
+     */
     private FileChannel channel;
 
     /** The Offset of next region group, new region group will start from this offset. */
@@ -84,12 +87,15 @@ public class FileDataIndexSpilledRegionManagerImpl<T extends FileDataIndexRegion
     /** Free space of every subpartition's current region group. */
     private final int[] subpartitionFreeSpaceInBytes;
 
-    /** Metadata of every subpartition's current region group. */
+    /** Metadata of every subpartition's current region group.
+     * 每个子分区当前的regionGroup
+     * */
     private final RegionGroup[] currentRegionGroup;
 
     /**
      * Default size of region group. If the size of a region is larger than this value, it will be
      * allocated and occupy a single region group.
+     * 每个regionGroup的大小
      */
     private final int regionGroupSizeInBytes;
 
@@ -116,6 +122,7 @@ public class FileDataIndexSpilledRegionManagerImpl<T extends FileDataIndexRegion
             BiConsumer<Integer, T> cacheRegionConsumer,
             FileDataIndexRegionHelper<T> fileDataIndexRegionHelper) {
         try {
+            // 打开索引文件
             this.channel =
                     FileChannel.open(
                             indexFilePath,
@@ -135,6 +142,8 @@ public class FileDataIndexSpilledRegionManagerImpl<T extends FileDataIndexRegion
         this.subpartitionCurrentOffset = new long[numSubpartitions];
         this.subpartitionFreeSpaceInBytes = new int[numSubpartitions];
         this.currentRegionGroup = new RegionGroup[numSubpartitions];
+
+        // 按照子分区数量 初始化结构
         for (int i = 0; i < numSubpartitions; i++) {
             subpartitionFinishedRegionGroupMetas.add(new TreeMap<>());
         }
@@ -143,11 +152,21 @@ public class FileDataIndexSpilledRegionManagerImpl<T extends FileDataIndexRegion
         this.regionGroupSizeInBytes = regionGroupSizeInBytes;
     }
 
+    /**
+     * 查找某个region
+     * @param subpartition the subpartition id that target region belong to.
+     * @param bufferIndex the buffer index that target region contains.
+     * @param loadToCache whether to load the found region into the cache.
+     * @return
+     */
     @Override
     public long findRegion(int subpartition, int bufferIndex, boolean loadToCache) {
         // first of all, find the region from current writing region group.
         RegionGroup regionGroup = currentRegionGroup[subpartition];
+
+        // 首先尝试从currentRegionGroup中查找
         if (regionGroup != null) {
+            // 尝试加载指定buffer  得到并返回
             long regionOffset =
                     findRegionInRegionGroup(subpartition, bufferIndex, regionGroup, loadToCache);
             if (regionOffset != -1) {
@@ -160,6 +179,7 @@ public class FileDataIndexSpilledRegionManagerImpl<T extends FileDataIndexRegion
                 subpartitionFinishedRegionGroupMetas.get(subpartition);
         // all region groups with a minBufferIndex less than or equal to this target buffer index
         // may contain the target region.
+        // 从所有regionGroup中查找
         for (RegionGroup meta :
                 subpartitionRegionGroupMetaTreeMap.headMap(bufferIndex, true).values()) {
             long regionOffset =
@@ -171,6 +191,14 @@ public class FileDataIndexSpilledRegionManagerImpl<T extends FileDataIndexRegion
         return -1;
     }
 
+    /**
+     * 查找某个regionGroup下某个buffer数据
+     * @param subpartition
+     * @param bufferIndex
+     * @param meta
+     * @param loadToCache
+     * @return
+     */
     private long findRegionInRegionGroup(
             int subpartition, int bufferIndex, RegionGroup meta, boolean loadToCache) {
         if (bufferIndex <= meta.getMaxBufferIndex()) {
@@ -185,10 +213,20 @@ public class FileDataIndexSpilledRegionManagerImpl<T extends FileDataIndexRegion
         return -1;
     }
 
+    /**
+     * 读取数据
+     * @param subpartition
+     * @param bufferIndex
+     * @param meta
+     * @param loadToCache
+     * @return
+     * @throws IOException
+     */
     private long readRegionGroupAndLoadToCacheIfNeeded(
             int subpartition, int bufferIndex, RegionGroup meta, boolean loadToCache)
             throws IOException {
         // read all regions belong to this region group.
+        // 加载该group下 所有的region数据
         List<Tuple2<T, Long>> regionAndOffsets =
                 readRegionGroup(meta.getOffset(), meta.getNumRegions());
         // -1 indicates that target region is not founded from this region group.
@@ -200,9 +238,11 @@ public class FileDataIndexSpilledRegionManagerImpl<T extends FileDataIndexRegion
             Tuple2<T, Long> regionAndOffset = it.next();
             T region = regionAndOffset.f0;
             // whether the region contains this buffer.
+            // 检查该region是否包含 index对应的buffer数据
             if (region.containBuffer(bufferIndex)) {
                 // target region is founded.
                 targetRegion = region;
+                // 记录偏移量
                 targetRegionOffset = regionAndOffset.f1;
                 it.remove();
             }
@@ -234,9 +274,11 @@ public class FileDataIndexSpilledRegionManagerImpl<T extends FileDataIndexRegion
         long oldRegionOffset = findRegion(subpartition, newRegion.getFirstBufferIndex(), false);
         if (oldRegionOffset != -1) {
             // if region is already exists in file, overwrite it.
+            // 表示覆盖操作
             writeRegionToOffset(oldRegionOffset, newRegion);
         } else {
             // otherwise, append region to region group.
+            // 添加数据
             appendRegion(subpartition, newRegion);
         }
     }
@@ -262,44 +304,74 @@ public class FileDataIndexSpilledRegionManagerImpl<T extends FileDataIndexRegion
                 <= maxCacheCapacity;
     }
 
+    /**
+     * 往某个子分区添加一个region
+     * @param subpartition
+     * @param region
+     * @throws IOException
+     */
     private void appendRegion(int subpartition, T region) throws IOException {
         int regionSize = region.getSize();
         // check whether we have enough space to append this region.
+        // 空间不足
         if (subpartitionFreeSpaceInBytes[subpartition] < regionSize) {
             // No enough free space, start a new region group. Note that if region is larger than
             // region group's size, this will start a new region group only contains the big region.
+            // 创建新region
             startNewRegionGroup(subpartition, Math.max(regionSize, regionGroupSizeInBytes));
         }
         // spill this region to current offset of file index.
         writeRegionToOffset(subpartitionCurrentOffset[subpartition], region);
         // a new region was appended to region group, update it.
+        // 将数据写入regionGroup
         updateRegionGroup(subpartition, region);
     }
 
+    /**
+     * 将channel数据写入文件
+     * @param offset
+     * @param region
+     * @throws IOException
+     */
     private void writeRegionToOffset(long offset, T region) throws IOException {
         channel.position(offset);
         fileDataIndexRegionHelper.writeRegionToFile(channel, region);
     }
 
+    /**
+     * 创建一个新的regionGroup
+     * @param subpartition
+     * @param newRegionGroupSize
+     */
     private void startNewRegionGroup(int subpartition, int newRegionGroupSize) {
         RegionGroup oldRegionGroup = currentRegionGroup[subpartition];
+        // 更新当前使用的regionGroup
         currentRegionGroup[subpartition] = new RegionGroup(nextRegionGroupOffset);
+        // 更新当前偏移量
         subpartitionCurrentOffset[subpartition] = nextRegionGroupOffset;
         nextRegionGroupOffset += newRegionGroupSize;
+        // 更新当前可用空间
         subpartitionFreeSpaceInBytes[subpartition] = newRegionGroupSize;
         if (oldRegionGroup != null) {
             // put the finished region group to subpartitionFinishedRegionGroupMetas.
+            // 被替换后 才加入tree中
             subpartitionFinishedRegionGroupMetas
                     .get(subpartition)
                     .put(oldRegionGroup.minBufferIndex, oldRegionGroup);
         }
     }
 
+    /**
+     * 更新regionGroup数据
+     * @param subpartition
+     * @param region
+     */
     private void updateRegionGroup(int subpartition, T region) {
         int regionSize = region.getSize();
         subpartitionFreeSpaceInBytes[subpartition] -= regionSize;
         subpartitionCurrentOffset[subpartition] += regionSize;
         RegionGroup regionGroup = currentRegionGroup[subpartition];
+        // 往group中追加一个region
         regionGroup.addRegion(
                 region.getFirstBufferIndex(),
                 region.getFirstBufferIndex() + region.getNumBuffers() - 1);
@@ -311,12 +383,15 @@ public class FileDataIndexSpilledRegionManagerImpl<T extends FileDataIndexRegion
      * @param offset offset of this region group.
      * @param numRegions number of regions of this region group.
      * @return List of all regions and its offset belong to this region group.
+     * 从文件中加载数据
      */
     private List<Tuple2<T, Long>> readRegionGroup(long offset, int numRegions) throws IOException {
         List<Tuple2<T, Long>> regionAndOffsets = new ArrayList<>();
+        // 因为本次针对的是一个regionGroup 所以挨个读取region的数据
         for (int i = 0; i < numRegions; i++) {
             T region = fileDataIndexRegionHelper.readRegionFromFile(channel, offset);
             regionAndOffsets.add(Tuple2.of(region, offset));
+            // 推进偏移量
             offset += region.getSize();
         }
         return regionAndOffsets;
@@ -325,8 +400,12 @@ public class FileDataIndexSpilledRegionManagerImpl<T extends FileDataIndexRegion
     /**
      * Metadata of spilled regions region group. When a region group is finished(i.e. no longer
      * appended), its corresponding {@link RegionGroup} becomes immutable.
+     * 多个region被称为  regionGroup
      */
     private static class RegionGroup {
+
+        // 内部buffer 最小索引和最大索引  同时还有region的数量 和该regionGroup的偏移量
+
         /**
          * Minimum buffer index of this region group. It is the smallest bufferIndex(inclusive) in
          * all regions belong to this region group.
@@ -364,6 +443,11 @@ public class FileDataIndexSpilledRegionManagerImpl<T extends FileDataIndexRegion
             return numRegions;
         }
 
+        /**
+         * 表示添加了一个新的region  尝试更新index 和数量
+         * @param firstBufferIndexOfRegion
+         * @param maxBufferIndexOfRegion
+         */
         public void addRegion(int firstBufferIndexOfRegion, int maxBufferIndexOfRegion) {
             if (firstBufferIndexOfRegion < minBufferIndex) {
                 this.minBufferIndex = firstBufferIndexOfRegion;
@@ -375,15 +459,27 @@ public class FileDataIndexSpilledRegionManagerImpl<T extends FileDataIndexRegion
         }
     }
 
-    /** Factory of {@link FileDataIndexSpilledRegionManager}. */
+    /** Factory of {@link FileDataIndexSpilledRegionManager}.
+     * 创建regionManager的工厂
+     * */
     public static class Factory<T extends FileDataIndexRegionHelper.Region>
             implements FileDataIndexSpilledRegionManager.Factory<T> {
+
+        /**
+         * 每个regionGroup的大小
+         */
         private final int regionGroupSizeInBytes;
 
         private final long maxCacheCapacity;
 
+        /**
+         * 每个region的header大小
+         */
         private final int regionHeaderSize;
 
+        /**
+         * 该对象包含读写逻辑
+         */
         private final FileDataIndexRegionHelper<T> fileDataIndexRegionHelper;
 
         public Factory(

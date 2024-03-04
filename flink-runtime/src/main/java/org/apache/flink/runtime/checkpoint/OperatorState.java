@@ -38,6 +38,8 @@ import static org.apache.flink.util.Preconditions.checkState;
  * Simple container class which contains the raw/managed operator state and key-group state handles
  * from all subtasks of an operator and therefore represents the complete state of a logical
  * operator.
+ *
+ * 表示某个算子此时的状态
  */
 public class OperatorState implements CompositeStateHandle {
 
@@ -46,7 +48,9 @@ public class OperatorState implements CompositeStateHandle {
     /** The id of the operator. */
     private final OperatorID operatorID;
 
-    /** The handles to states created by the parallel tasks: subtaskIndex -> subtaskstate. */
+    /** The handles to states created by the parallel tasks: subtaskIndex -> subtaskstate.
+     * 也是有子任务的
+     * */
     private final Map<Integer, OperatorSubtaskState> operatorSubtaskStates;
 
     /** The state of the operator coordinator. Null, if no such state exists. */

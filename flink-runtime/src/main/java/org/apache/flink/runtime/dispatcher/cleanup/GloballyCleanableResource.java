@@ -30,6 +30,7 @@ import java.util.concurrent.Executor;
  *
  * @see LocallyCleanableResource
  * @see org.apache.flink.api.common.JobStatus
+ * 全局的资源清理对象
  */
 @FunctionalInterface
 public interface GloballyCleanableResource {
@@ -41,6 +42,7 @@ public interface GloballyCleanableResource {
      * @param jobId The {@link JobID} of the job for which the local data should be cleaned up.
      * @param cleanupExecutor The fallback executor for IO-heavy operations.
      * @return The cleanup result future.
+     * 清理全局层面的资源
      */
     CompletableFuture<Void> globalCleanupAsync(JobID jobId, Executor cleanupExecutor);
 }

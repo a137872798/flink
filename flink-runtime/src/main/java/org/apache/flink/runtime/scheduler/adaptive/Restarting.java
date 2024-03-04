@@ -33,7 +33,9 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ScheduledFuture;
 
-/** State which describes a job which is currently being restarted. */
+/** State which describes a job which is currently being restarted.
+ * 表示重启 job
+ * */
 class Restarting extends StateWithExecutionGraph {
 
     private final Context context;
@@ -68,6 +70,7 @@ class Restarting extends StateWithExecutionGraph {
     @Override
     public void onLeave(Class<? extends State> newState) {
         if (goToWaitingForResourcesFuture != null) {
+            // 离开本状态就不需要等待资源了
             goToWaitingForResourcesFuture.cancel(false);
         }
 

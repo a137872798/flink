@@ -24,9 +24,19 @@ import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
 
-/** Common utils for processing vertex groups. */
+/** Common utils for processing vertex groups.
+ * 在执行时相关的顶点组
+ * */
 public final class VertexGroupComputeUtil {
 
+    /**
+     * 将2个顶点组进行合并
+     * @param group1
+     * @param group2
+     * @param vertexToGroup
+     * @param <V>
+     * @return
+     */
     public static <V> Set<V> mergeVertexGroups(
             final Set<V> group1, final Set<V> group2, final Map<V, Set<V>> vertexToGroup) {
 
@@ -40,6 +50,8 @@ public final class VertexGroupComputeUtil {
             smallerSet = group2;
             largerSet = group1;
         }
+
+        // 每个小组中的顶点使用大的组
         for (V v : smallerSet) {
             vertexToGroup.put(v, largerSet);
         }

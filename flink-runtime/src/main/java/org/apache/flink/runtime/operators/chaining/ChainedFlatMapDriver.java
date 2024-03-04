@@ -27,12 +27,17 @@ import org.apache.flink.runtime.operators.BatchTask;
 
 public class ChainedFlatMapDriver<IT, OT> extends ChainedDriver<IT, OT> {
 
+    /**
+     * 将一个值平铺并映射后 交给另一个采集器
+     */
     private FlatMapFunction<IT, OT> mapper;
 
     // --------------------------------------------------------------------------------------------
 
     @Override
     public void setup(AbstractInvokable parent) {
+
+        // 从配置中找到udf函数 并初始化
         @SuppressWarnings("unchecked")
         final FlatMapFunction<IT, OT> mapper =
                 BatchTask.instantiateUserCode(

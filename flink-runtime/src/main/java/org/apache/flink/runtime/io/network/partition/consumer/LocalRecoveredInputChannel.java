@@ -28,6 +28,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * An input channel reads recovered state from previous unaligned checkpoint snapshots and then
  * converts into {@link LocalInputChannel} finally.
+ * 表示数据存储在本地
  */
 public class LocalRecoveredInputChannel extends RecoveredInputChannel {
     private final ResultPartitionManager partitionManager;

@@ -25,7 +25,8 @@ import org.apache.flink.runtime.scheduler.strategy.ExecutionVertexID;
 import java.util.Collection;
 import java.util.Map;
 
-/** Component responsible for listening on slow tasks. */
+/** Component responsible for listening on slow tasks.
+ * */
 public interface SlowTaskDetectorListener {
 
     /**
@@ -33,6 +34,7 @@ public interface SlowTaskDetectorListener {
      *
      * @param slowTasks the map of execution vertices and their execution attempts which are
      *     detected as slow.
+     *                  监听慢任务
      */
     void notifySlowTasks(Map<ExecutionVertexID, Collection<ExecutionAttemptID>> slowTasks);
 }

@@ -31,8 +31,13 @@ import static org.apache.flink.util.Preconditions.checkArgument;
  * Core result of {@link SlotAllocator#determineParallelism(JobInformation, Collection)} among with
  * {@link org.apache.flink.runtime.scheduler.adaptive.JobSchedulingPlan.SlotAssignment
  * slotAssignments}, describing the parallelism each vertex could be scheduled with.
+ * 顶点的并行度
  */
 public class VertexParallelism {
+
+    /**
+     * 维护多个顶点的并行度
+     */
     private final Map<JobVertexID, Integer> parallelismForVertices;
 
     public VertexParallelism(Map<JobVertexID, Integer> parallelismForVertices) {

@@ -27,14 +27,33 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-/** Represents a pending task manager in the {@link SlotManager}. */
+/** Represents a pending task manager in the {@link SlotManager}.
+ * 表示正要申请的 TaskManager (worker)
+ * */
 public class PendingTaskManager {
     private final PendingTaskManagerId pendingTaskManagerId;
+
+    /**
+     * 需要的总资源描述
+     */
     private final ResourceProfile totalResourceProfile;
+    /**
+     * 默认每个slot的需求量
+     */
     private final ResourceProfile defaultSlotResourceProfile;
+    /**
+     * 一个TaskManager应该可以提供多个slot
+     */
     private final int numSlots;
 
+    /**
+     * 表示资源剩余的部分
+     */
     private ResourceProfile unusedResource;
+
+    /**
+     * 提前分配的资源
+     */
     Map<JobID, ResourceCounter> pendingSlotAllocationRecords;
 
     public PendingTaskManager(ResourceProfile totalResourceProfile, int numSlots) {
@@ -76,12 +95,20 @@ public class PendingTaskManager {
         unusedResource = totalResourceProfile;
     }
 
+    /**
+     * 更换当前的资源分配信息
+     * @param pendingSlotAllocations
+     */
     public void replaceAllPendingAllocations(Map<JobID, ResourceCounter> pendingSlotAllocations) {
         pendingSlotAllocationRecords.clear();
         pendingSlotAllocationRecords.putAll(pendingSlotAllocations);
         unusedResource = calculateUnusedResourceProfile();
     }
 
+    /**
+     * 清理分配数据的同时 归还到unusedResource
+     * @param jobId
+     */
     public void clearPendingAllocationsOfJob(JobID jobId) {
         Optional.ofNullable(pendingSlotAllocationRecords.remove(jobId))
                 .ifPresent(
@@ -90,6 +117,10 @@ public class PendingTaskManager {
                                         unusedResource.merge(resourceCounter.getTotalResource()));
     }
 
+    /**
+     * 将总资源减去分配的部分 得到剩余的部分
+     * @return
+     */
     private ResourceProfile calculateUnusedResourceProfile() {
         return totalResourceProfile.subtract(
                 pendingSlotAllocationRecords.values().stream()

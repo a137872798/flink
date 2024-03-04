@@ -32,12 +32,20 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * Group of consumer {@link ExecutionVertexID}s. One such a group corresponds to one {@link
  * ConsumedPartitionGroup}.
+ *
+ * 该对象维护了消费数据的顶点  每个顶点可以产生多个subtask
  */
 public class ConsumerVertexGroup implements Iterable<ExecutionVertexID> {
     private final List<ExecutionVertexID> vertices;
 
+    /**
+     * 表示处理后的结果类型
+     */
     private final ResultPartitionType resultPartitionType;
 
+    /**
+     * 数据来源
+     */
     @Nullable private ConsumedPartitionGroup consumedPartitionGroup;
 
     private ConsumerVertexGroup(
@@ -81,6 +89,10 @@ public class ConsumerVertexGroup implements Iterable<ExecutionVertexID> {
         return checkNotNull(consumedPartitionGroup, "ConsumedPartitionGroup is not properly set.");
     }
 
+    /**
+     * 该对象则是设置待消费数据 (producer数据)
+     * @param consumedPartitionGroup
+     */
     public void setConsumedPartitionGroup(ConsumedPartitionGroup consumedPartitionGroup) {
         checkState(this.consumedPartitionGroup == null);
         this.consumedPartitionGroup = checkNotNull(consumedPartitionGroup);

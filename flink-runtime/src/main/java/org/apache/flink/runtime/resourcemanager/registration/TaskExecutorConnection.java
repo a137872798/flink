@@ -34,6 +34,9 @@ public class TaskExecutorConnection {
 
     private final InstanceID instanceID;
 
+    /**
+     * 通过网关访问 TaskExecutor
+     */
     private final TaskExecutorGateway taskExecutorGateway;
 
     public TaskExecutorConnection(ResourceID resourceID, TaskExecutorGateway taskExecutorGateway) {

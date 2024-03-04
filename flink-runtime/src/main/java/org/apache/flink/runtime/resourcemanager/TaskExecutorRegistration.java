@@ -28,32 +28,48 @@ import java.io.Serializable;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Information provided by the TaskExecutor when it registers to the ResourceManager. */
+/** Information provided by the TaskExecutor when it registers to the ResourceManager.
+ * 当TaskExecutor注册到ResourceManager上时保留的信息
+ * */
 public class TaskExecutorRegistration implements Serializable {
     private static final long serialVersionUID = -5727832919954047964L;
 
-    /** The address of the TaskExecutor that registers. */
+    /** The address of the TaskExecutor that registers.
+     * 执行器的地址
+     * */
     private final String taskExecutorAddress;
 
-    /** The resource ID of the TaskExecutor that registers. */
+    /** The resource ID of the TaskExecutor that registers.
+     * 执行器会有一个资源id
+     * */
     private final ResourceID resourceId;
 
-    /** Port used for data communication between TaskExecutors. */
+    /** Port used for data communication between TaskExecutors.
+     * 网络端口
+     * */
     private final int dataPort;
 
     /** Port used for JMX RMI. */
     private final int jmxPort;
 
-    /** HardwareDescription of the registering TaskExecutor. */
+    /** HardwareDescription of the registering TaskExecutor.
+     * 硬件描述信息
+     * */
     private final HardwareDescription hardwareDescription;
 
-    /** Memory configuration of the registering TaskExecutor. */
+    /** Memory configuration of the registering TaskExecutor.
+     * 关于内存的配置
+     * */
     private final TaskExecutorMemoryConfiguration memoryConfiguration;
 
-    /** The default resource profile for slots requested with unknown resource requirements. */
+    /** The default resource profile for slots requested with unknown resource requirements.
+     * 表示一个slot默认资源
+     * */
     private final ResourceProfile defaultSlotResourceProfile;
 
-    /** The task executor total resource profile. */
+    /** The task executor total resource profile.
+     * 总资源
+     * */
     private final ResourceProfile totalResourceProfile;
 
     /**
@@ -61,6 +77,7 @@ public class TaskExecutorRegistration implements Serializable {
      * value will be set by resource manager when launch this TaskManager(via the config option
      * {@link TaskManagerOptionsInternal#TASK_MANAGER_NODE_ID}). In other modes, this value will be
      * the external address of the TaskManager.
+     * 表示TaskManager所在节点的id
      */
     private final String nodeId;
 

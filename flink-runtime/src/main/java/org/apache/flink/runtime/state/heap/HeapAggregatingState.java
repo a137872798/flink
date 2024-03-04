@@ -38,6 +38,8 @@ import java.io.IOException;
  * @param <IN> The type of the value added to the state.
  * @param <ACC> The type of the value stored in the state (the accumulator type).
  * @param <OUT> The type of the value returned from the state.
+ *
+ *             表示state是一个累加器
  */
 class HeapAggregatingState<K, N, IN, ACC, OUT> extends AbstractHeapMergingState<K, N, IN, ACC, OUT>
         implements InternalAggregatingState<K, N, IN, ACC, OUT> {
@@ -88,6 +90,7 @@ class HeapAggregatingState<K, N, IN, ACC, OUT> extends AbstractHeapMergingState<
     public OUT get() {
         ACC accumulator = getInternal();
         return accumulator != null
+                // 读取累加器中存储的结果
                 ? aggregateTransformation.aggFunction.getResult(accumulator)
                 : null;
     }
@@ -97,11 +100,13 @@ class HeapAggregatingState<K, N, IN, ACC, OUT> extends AbstractHeapMergingState<
         final N namespace = currentNamespace;
 
         if (value == null) {
+            // 表示删除累加器
             clear();
             return;
         }
 
         try {
+            // aggregateTransformation 具备创建聚合器对象 以及往内部添加值的api
             stateTable.transform(namespace, value, aggregateTransformation);
         } catch (Exception e) {
             throw new IOException(
@@ -113,6 +118,12 @@ class HeapAggregatingState<K, N, IN, ACC, OUT> extends AbstractHeapMergingState<
     //  state merging
     // ------------------------------------------------------------------------
 
+    /**
+     * 每个状态都是一个累加器  那么mergeState就变成2个累加器合并
+     * @param a
+     * @param b
+     * @return
+     */
     @Override
     protected ACC mergeState(ACC a, ACC b) {
         return aggregateTransformation.aggFunction.merge(a, b);
@@ -124,6 +135,12 @@ class HeapAggregatingState<K, N, IN, ACC, OUT> extends AbstractHeapMergingState<
         return this;
     }
 
+    /**
+     * StateTransformationFunction 作为StateTable支持的组件  可以作用在新旧2个state上
+     * @param <IN>
+     * @param <ACC>
+     * @param <OUT>
+     */
     static final class AggregateTransformation<IN, ACC, OUT>
             implements StateTransformationFunction<ACC, IN> {
 

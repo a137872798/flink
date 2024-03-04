@@ -28,6 +28,8 @@ import java.io.IOException;
  * by {@link CheckpointStorageCoordinatorView}.
  *
  * <p>Methods of this interface act as a worker role in task manager.
+ *
+ * 表示作为工作者角色能使用的api
  */
 @Internal
 public interface CheckpointStorageWorkerView {
@@ -43,6 +45,7 @@ public interface CheckpointStorageWorkerView {
      * @param reference The checkpoint location reference.
      * @return A checkpoint storage location reflecting the reference and checkpoint ID.
      * @throws IOException Thrown, if the storage location cannot be initialized from the reference.
+     * 解开位置信息 得到可以以流形式读取检查点的工厂
      */
     CheckpointStreamFactory resolveCheckpointStorageLocation(
             long checkpointId, CheckpointStorageLocationReference reference) throws IOException;
@@ -65,6 +68,7 @@ public interface CheckpointStorageWorkerView {
      *
      * @return A checkpoint state stream to the location for state owned by tasks.
      * @throws IOException Thrown, if the stream cannot be opened.
+     * 以task为单位创建可以写入检查点的流
      */
     CheckpointStateOutputStream createTaskOwnedStateStream() throws IOException;
 
@@ -73,6 +77,7 @@ public interface CheckpointStorageWorkerView {
      * access to additional operations that can be performed in the task owned state location.
      *
      * @return A toolset for additional operations for state owned by tasks.
+     * CheckpointStateToolset 提供复制状态的接口
      */
     CheckpointStateToolset createTaskOwnedCheckpointStateToolset();
 }

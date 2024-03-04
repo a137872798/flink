@@ -30,6 +30,7 @@ import java.util.concurrent.locks.ReentrantLock;
 /**
  * This tracker remembers CompletableFutures as long as they are incomplete and allows us to fail
  * them later.
+ * 用于追踪未完成的future
  */
 public final class IncompleteFuturesTracker {
 
@@ -39,6 +40,10 @@ public final class IncompleteFuturesTracker {
 
     @Nullable private Throwable failureCause;
 
+    /**
+     * 多维护一个未完成的任务
+     * @param future
+     */
     public void trackFutureWhileIncomplete(CompletableFuture<?> future) {
         // this is only a best-effort shortcut for efficiency
         if (future.isDone()) {
@@ -58,6 +63,7 @@ public final class IncompleteFuturesTracker {
         }
 
         // when the future completes, it removes itself from the set
+        // 当任务完成时  从队列移除
         future.whenComplete((success, failure) -> removeFromSet(future));
     }
 
@@ -77,6 +83,10 @@ public final class IncompleteFuturesTracker {
         }
     }
 
+    /**
+     * 使用异常来唤醒future
+     * @param cause
+     */
     public void failAllFutures(Throwable cause) {
         final Collection<CompletableFuture<?>> futuresToFail;
 

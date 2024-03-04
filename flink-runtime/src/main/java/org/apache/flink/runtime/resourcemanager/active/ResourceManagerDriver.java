@@ -32,6 +32,7 @@ import java.util.concurrent.Executor;
 /**
  * A {@link ResourceManagerDriver} is responsible for requesting and releasing resources from/to a
  * particular external resource manager.
+ * 资源管理器驱动 驱动就是用来和不同组件交互的
  */
 public interface ResourceManagerDriver<WorkerType extends ResourceIDRetrievable> {
 
@@ -41,7 +42,8 @@ public interface ResourceManagerDriver<WorkerType extends ResourceIDRetrievable>
      * @param resourceEventHandler Handler that handles resource events.
      * @param mainThreadExecutor Rpc main thread executor.
      * @param ioExecutor IO executor.
-     * @param blockedNodeRetriever To retrieve all blocked nodes
+     * @param blockedNodeRetriever To retrieve all blocked nodes  通过该对象可以找到某些被阻塞的节点   在调度模块我们看到 将execution耗时长的节点认为是阻塞节点
+     *                             进行初始化工作
      */
     void initialize(
             ResourceEventHandler<WorkerType> resourceEventHandler,
@@ -50,7 +52,9 @@ public interface ResourceManagerDriver<WorkerType extends ResourceIDRetrievable>
             BlockedNodeRetriever blockedNodeRetriever)
             throws Exception;
 
-    /** Terminate the deployment specific components. */
+    /** Terminate the deployment specific components.
+     * 终止该组件
+     * */
     void terminate() throws Exception;
 
     /**
@@ -61,8 +65,10 @@ public interface ResourceManagerDriver<WorkerType extends ResourceIDRetrievable>
      * returned.
      *
      * @param finalStatus The application status to report.
-     * @param optionalDiagnostics A diagnostics message or {@code null}.
+     * @param optionalDiagnostics A diagnostics message or {@code null}.  提供的诊断消息
      * @throws Exception if the application could not be deregistered.
+     *
+     * 注销部署的应用
      */
     void deregisterApplication(ApplicationStatus finalStatus, @Nullable String optionalDiagnostics)
             throws Exception;
@@ -92,6 +98,7 @@ public interface ResourceManagerDriver<WorkerType extends ResourceIDRetrievable>
      * @param taskExecutorProcessSpec Resource specification of the requested worker.
      * @return Future that wraps worker node of the requested resource, in the deployment specific
      *     type.
+     *     根据描述信息请求资源
      */
     CompletableFuture<WorkerType> requestResource(TaskExecutorProcessSpec taskExecutorProcessSpec);
 
@@ -99,6 +106,7 @@ public interface ResourceManagerDriver<WorkerType extends ResourceIDRetrievable>
      * Release resource to the external resource manager.
      *
      * @param worker Worker node to be released, in the deployment specific type.
+     *               将worker持有的资源归还给外部资源管理器
      */
     void releaseResource(WorkerType worker);
 }

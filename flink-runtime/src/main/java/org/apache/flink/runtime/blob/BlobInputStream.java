@@ -33,6 +33,7 @@ import static org.apache.flink.runtime.blob.BlobUtils.readLength;
 /**
  * The BLOB input stream is a special implementation of an {@link InputStream} to read the results
  * of a GET operation from the BLOB server.
+ * blob客户端在发送报文 建立与服务器的连接后 就可以包装套接字输入流 变成该对象 用于与服务器交互
  */
 final class BlobInputStream extends InputStream {
 
@@ -79,13 +80,15 @@ final class BlobInputStream extends InputStream {
      *     server
      */
     BlobInputStream(
-            final InputStream wrappedInputStream,
-            final BlobKey blobKey,
+            final InputStream wrappedInputStream,  // 套接字输入流
+            final BlobKey blobKey,  // 标识blob的key
             OutputStream wrappedOutputStream)
             throws IOException {
         this.wrappedInputStream = wrappedInputStream;
         this.blobKey = blobKey;
         this.wrappedOutputStream = wrappedOutputStream;
+
+        // 前4个字节 表示长度
         this.bytesToReceive = readLength(wrappedInputStream);
         if (this.bytesToReceive < 0) {
             throw new FileNotFoundException();
@@ -109,6 +112,7 @@ final class BlobInputStream extends InputStream {
 
     @Override
     public int read() throws IOException {
+        // 代表数据都已经被读取完毕了
         if (this.bytesReceived == this.bytesToReceive) {
             return -1;
         }
@@ -128,6 +132,7 @@ final class BlobInputStream extends InputStream {
                     this.wrappedOutputStream.write(RETURN_ERROR);
                     throw new IOException("Detected data corruption during transfer");
                 }
+                // 返回一个表示读完的标记
                 this.wrappedOutputStream.write(RETURN_OKAY);
             }
         }

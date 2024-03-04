@@ -41,6 +41,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * types need to serialize/deserialize fast in between network streams (byte buffers) and barriers.
  * We may ultimately add some more typing if we simply keep the byte buffers for the checkpoint
  * barriers and forward them, thus saving decoding and re-encoding these references repeatedly.
+ * 将路径信息编码
  */
 public class CheckpointStorageLocationReference implements java.io.Serializable {
 

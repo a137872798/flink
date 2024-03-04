@@ -35,6 +35,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * A {@link CheckpointMetadataOutputStream} that writes a specified file and directory, and returns
  * a {@link FsCompletedCheckpointStorageLocation} upon closing.
+ *
+ * 表示维护的是检查点元数据
  */
 public final class FsCheckpointMetadataOutputStream extends CheckpointMetadataOutputStream {
 
@@ -43,8 +45,14 @@ public final class FsCheckpointMetadataOutputStream extends CheckpointMetadataOu
 
     // ------------------------------------------------------------------------
 
+    /**
+     * 存储元数据的文件路径
+     */
     private final Path metadataFilePath;
 
+    /**
+     * 应该是指存放检查点的目录
+     */
     private final Path exclusiveCheckpointDir;
 
     private final FileSystem fileSystem;
@@ -127,6 +135,7 @@ public final class FsCheckpointMetadataOutputStream extends CheckpointMetadataOu
                     } catch (Exception ignored) {
                     }
 
+                    // 对于可恢复对象来说  此时就是写入生效了
                     outputStreamWrapper.closeForCommit();
 
                     FileStateHandle metaDataHandle = new FileStateHandle(metadataFilePath, size);
@@ -162,6 +171,13 @@ public final class FsCheckpointMetadataOutputStream extends CheckpointMetadataOu
         }
     }
 
+    /**
+     * 包装普通输出流
+     * @param fileSystem
+     * @param metadataFilePath
+     * @return
+     * @throws IOException
+     */
     static MetadataOutputStreamWrapper getOutputStreamWrapper(
             final FileSystem fileSystem, final Path metadataFilePath) throws IOException {
         if (fileSystem.exists(metadataFilePath)) {
@@ -169,6 +185,7 @@ public final class FsCheckpointMetadataOutputStream extends CheckpointMetadataOu
         }
 
         try {
+            // 表示产生一个可以续写的对象 在重启时可以恢复到之前的数据 并进行续写
             RecoverableWriter recoverableWriter = fileSystem.createRecoverableWriter();
             return new RecoverableStreamWrapper(recoverableWriter.open(metadataFilePath));
         } catch (Throwable throwable) {

@@ -39,6 +39,7 @@ import static java.util.stream.Collectors.toConcurrentMap;
  * notify the {@link CheckpointStatsTracker}.
  *
  * <p>The statistics gathered here are all live updated.
+ * 对应一个仍在处理中的检查点
  */
 public class PendingCheckpointStats extends AbstractCheckpointStats {
 
@@ -67,7 +68,7 @@ public class PendingCheckpointStats extends AbstractCheckpointStats {
      * @param checkpointId ID of the checkpoint.
      * @param triggerTimestamp Timestamp when the checkpoint was triggered.
      * @param props Checkpoint properties of the checkpoint.
-     * @param taskStats Task stats for each involved operator.
+     * @param taskStats Task stats for each involved operator.  本次参与的所有job
      */
     PendingCheckpointStats(
             long checkpointId,
@@ -140,6 +141,8 @@ public class PendingCheckpointStats extends AbstractCheckpointStats {
         this.currentNumAcknowledgedSubtasks = acknowledgedSubtaskCount;
     }
 
+    // 父类暴露的接口在这里实现都是  currentXXX
+
     @Override
     public CheckpointStatsStatus getStatus() {
         return CheckpointStatsStatus.IN_PROGRESS;
@@ -190,6 +193,7 @@ public class PendingCheckpointStats extends AbstractCheckpointStats {
      * @param jobVertexId ID of the task/operator the subtask belongs to.
      * @param subtask The statistics for the subtask.
      * @return <code>true</code> if successfully reported or <code>false</code> otherwise.
+     * 每当收到一个子任务的报告时  更新currentXXX
      */
     boolean reportSubtaskStats(JobVertexID jobVertexId, SubtaskStateStats subtask) {
         TaskStateStats taskStateStats = taskStats.get(jobVertexId);
@@ -220,6 +224,8 @@ public class PendingCheckpointStats extends AbstractCheckpointStats {
             return false;
         }
     }
+
+    // 根据执行阶段的变化  可以将自身转换成不同对象
 
     CompletedCheckpointStats toCompletedCheckpointStats(String externalPointer) {
         return new CompletedCheckpointStats(

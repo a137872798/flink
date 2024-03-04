@@ -33,6 +33,7 @@ import java.util.List;
  * @param <K> type of key.
  * @param <N> type of namespace.
  * @param <S> type of state.
+ *           该对象确保产生的 StateMap是CopyOnWriteStateMap
  */
 public class CopyOnWriteStateTable<K, N, S> extends StateTable<K, N, S> {
 
@@ -55,9 +56,14 @@ public class CopyOnWriteStateTable<K, N, S> extends StateTable<K, N, S> {
         return new CopyOnWriteStateMap<>(getStateSerializer());
     }
 
+    /**
+     * 设置kv状态后端的元数据信息
+     * @param metaInfo
+     */
     @Override
     public void setMetaInfo(RegisteredKeyValueStateBackendMetaInfo<N, S> metaInfo) {
         super.setMetaInfo(metaInfo);
+        // 还要挨个设置到stateMap
         for (StateMap<K, N, S> keyGroupedStateMap : keyGroupedStateMaps) {
             ((CopyOnWriteStateMap<K, N, S>) keyGroupedStateMap)
                     .setStateSerializer(metaInfo.getStateSerializer());
@@ -71,6 +77,7 @@ public class CopyOnWriteStateTable<K, N, S> extends StateTable<K, N, S> {
      * Creates a snapshot of this {@link CopyOnWriteStateTable}, to be written in checkpointing.
      *
      * @return a snapshot from this {@link CopyOnWriteStateTable}, for checkpointing.
+     * 该对象也有快照
      */
     @Nonnull
     @Override
@@ -86,6 +93,10 @@ public class CopyOnWriteStateTable<K, N, S> extends StateTable<K, N, S> {
                         .orElse(null));
     }
 
+    /**
+     * StateMap 用于存储数据  为这些map产生快照
+     * @return
+     */
     @SuppressWarnings("unchecked")
     List<CopyOnWriteStateMapSnapshot<K, N, S>> getStateMapSnapshotList() {
         List<CopyOnWriteStateMapSnapshot<K, N, S>> snapshotList =

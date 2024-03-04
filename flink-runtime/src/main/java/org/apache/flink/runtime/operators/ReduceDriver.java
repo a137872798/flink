@@ -40,6 +40,7 @@ import org.slf4j.LoggerFactory;
  * method of the ReduceFunction.
  *
  * @see org.apache.flink.api.common.functions.ReduceFunction
+ * 与ReduceCombineDriver想比 不需要combine 也就不需要排序   combine是针对相同keys的
  */
 public class ReduceDriver<T> implements Driver<ReduceFunction<T>, T> {
 

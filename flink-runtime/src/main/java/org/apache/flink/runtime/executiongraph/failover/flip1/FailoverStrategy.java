@@ -22,15 +22,19 @@ import org.apache.flink.runtime.scheduler.strategy.SchedulingTopology;
 
 import java.util.Set;
 
-/** New interface for failover strategies. */
+/** New interface for failover strategies.
+ * 故障转移策略
+ * */
 public interface FailoverStrategy {
 
     /**
      * Returns a set of IDs corresponding to the set of vertices that should be restarted.
      *
-     * @param executionVertexId ID of the failed task
+     * @param executionVertexId ID of the failed task  标记失败的task   通过顶点id+subtaskIndex定位
      * @param cause cause of the failure
      * @return set of IDs of vertices to restart
+     *
+     * 因为某个顶点的失败  下游一连串的顶点都会受到影响
      */
     Set<ExecutionVertexID> getTasksNeedingRestart(
             ExecutionVertexID executionVertexId, Throwable cause);

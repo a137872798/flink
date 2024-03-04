@@ -184,17 +184,25 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * TaskExecutor implementation. The task executor is responsible for the execution of multiple
  * {@link Task}.
+ * TaskExecutor 其实就是 TM  需要与 RM JM 通信
  */
 public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 
     public static final String TASK_MANAGER_NAME = "taskmanager";
 
-    /** The access to the leader election and retrieval services. */
+    /** The access to the leader election and retrieval services.
+     * 通过该对象可以查询leader
+     * */
     private final HighAvailabilityServices haServices;
 
+    /**
+     * 这里提供了很多组件
+     */
     private final TaskManagerServices taskExecutorServices;
 
-    /** The task manager configuration. */
+    /** The task manager configuration.
+     * 提供配置
+     * */
     private final TaskManagerConfiguration taskManagerConfiguration;
 
     /** The fatal error handler to use in case of a fatal error. */
@@ -209,35 +217,50 @@ public class TaskExecutor extends RpcEndpoint implements TaskExecutorGateway {
 
     // --------- TaskManager services --------
 
-    /** The connection information of this task manager. */
+    /** The connection information of this task manager.
+     * 表示本TM的地址信息
+     * */
     private final UnresolvedTaskManagerLocation unresolvedTaskManagerLocation;
 
     private final TaskManagerMetricGroup taskManagerMetricGroup;
 
-    /** The state manager for this task, providing state managers per slot. */
+    /** The state manager for this task, providing state managers per slot.
+     * 以slot为单位 维护状态
+     * */
     private final TaskExecutorLocalStateStoresManager localStateStoresManager;
 
-    /** The changelog manager for this task, providing changelog storage per job. */
+    /** The changelog manager for this task, providing changelog storage per job.
+     * 维护每个job相关的 变更日志
+     * */
     private final TaskExecutorStateChangelogStoragesManager changelogStoragesManager;
 
     /**
      * The channel state executor factory manager for this task, providing channel state executor
      * factory per job.
+     * 这个是检查点相关的
      */
     private final TaskExecutorChannelStateExecutorFactoryManager channelStateExecutorFactoryManager;
 
-    /** Information provider for external resources. */
+    /** Information provider for external resources.
+     * 可以查看外部资源
+     * */
     private final ExternalResourceInfoProvider externalResourceInfoProvider;
 
-    /** The network component in the task manager. */
+    /** The network component in the task manager.
+     * 辅助洗牌
+     * */
     private final ShuffleEnvironment<?, ?> shuffleEnvironment;
 
-    /** The kvState registration service in the task manager. */
+    /** The kvState registration service in the task manager.
+     * 可以获取Kv相关的组件
+     * */
     private final KvStateService kvStateService;
 
     private final Executor ioExecutor;
 
-    /** {@link MemoryManager} shared across all tasks. */
+    /** {@link MemoryManager} shared across all tasks.
+     * 表示一组被共享的资源
+     * */
     private final SharedResources sharedResources;
 
     // --------- task slot allocation table -----------

@@ -28,6 +28,7 @@ import java.util.Iterator;
 /**
  * This class combines a key-group range with offsets that correspond to the key-groups in the
  * range.
+ * 维护了 keyGroup  与 偏移量的关系
  */
 public class KeyGroupRangeOffsets implements Iterable<Tuple2<Integer, Long>>, Serializable {
 
@@ -42,7 +43,9 @@ public class KeyGroupRangeOffsets implements Iterable<Tuple2<Integer, Long>>, Se
 
     private static final long serialVersionUID = 6595415219136429696L;
 
-    /** the range of key-groups */
+    /** the range of key-groups
+     * 里面包含了一个范围的key  每个key对应下面offsets中的一个元素
+     * */
     private final KeyGroupRange keyGroupRange;
 
     /** the aligned array of offsets for the key-groups */
@@ -91,6 +94,7 @@ public class KeyGroupRangeOffsets implements Iterable<Tuple2<Integer, Long>>, Se
      * @param keyGroupRange The range of key-groups.
      */
     public KeyGroupRangeOffsets(KeyGroupRange keyGroupRange) {
+        // 这时使用的是空数组啊
         this(keyGroupRange, new long[keyGroupRange.getNumberOfKeyGroups()]);
     }
 
@@ -110,6 +114,8 @@ public class KeyGroupRangeOffsets implements Iterable<Tuple2<Integer, Long>>, Se
      *
      * @param keyGroup Key-group for which we set the offset. Must be contained in the range.
      * @param offset Offset for the key-group.
+     *
+     *               设置偏移量
      */
     public void setKeyGroupOffset(int keyGroup, long offset) {
         offsets[computeKeyGroupIndex(keyGroup)] = offset;
@@ -122,14 +128,18 @@ public class KeyGroupRangeOffsets implements Iterable<Tuple2<Integer, Long>>, Se
      * @param keyGroupRange Key-group range to intersect with the internal key-group range.
      * @return The key-group range with offsets for the intersection of the internal key-group range
      *     with the given key-group range.
+     *     仅保留有效的keyGroup
      */
     public KeyGroupRangeOffsets getIntersection(KeyGroupRange keyGroupRange) {
         Preconditions.checkNotNull(keyGroupRange);
         KeyGroupRange intersection = this.keyGroupRange.getIntersection(keyGroupRange);
+
+        // 生成新的offsets
         long[] subOffsets = new long[intersection.getNumberOfKeyGroups()];
         if (subOffsets.length > 0) {
             System.arraycopy(
                     offsets,
+                    // 考虑交集的 startKey
                     computeKeyGroupIndex(intersection.getStartKeyGroup()),
                     subOffsets,
                     0,
@@ -147,6 +157,11 @@ public class KeyGroupRangeOffsets implements Iterable<Tuple2<Integer, Long>>, Se
         return new KeyGroupOffsetsIterator();
     }
 
+    /**
+     * 获取某个keyGroup对应的下标
+     * @param keyGroup
+     * @return
+     */
     private int computeKeyGroupIndex(int keyGroup) {
         int idx = keyGroup - keyGroupRange.getStartKeyGroup();
         if (idx < 0 || idx >= offsets.length) {
@@ -169,6 +184,10 @@ public class KeyGroupRangeOffsets implements Iterable<Tuple2<Integer, Long>>, Se
             return keyGroupIterator.hasNext();
         }
 
+        /**
+         * 返回key和 offset的对应关系
+         * @return
+         */
         @Override
         public Tuple2<Integer, Long> next() {
             Integer currentKeyGroup = keyGroupIterator.next();

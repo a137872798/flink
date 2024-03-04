@@ -26,7 +26,9 @@ import javax.annotation.Nullable;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** The subpartition producer agent for the memory tier. */
+/** The subpartition producer agent for the memory tier.
+ * 针对单个子分区
+ * */
 class MemoryTierSubpartitionProducerAgent {
 
     private final int subpartitionId;
@@ -35,6 +37,7 @@ class MemoryTierSubpartitionProducerAgent {
      * The {@link NettyConnectionWriter} is used to write buffers to the netty connection.
      *
      * <p>Note that this field can be null before the netty connection is established.
+     * 使用该对象可以往内部的manager中追加payload
      */
     @Nullable private volatile NettyConnectionWriter nettyConnectionWriter;
 
@@ -48,6 +51,10 @@ class MemoryTierSubpartitionProducerAgent {
     //  Called by MemoryTierProducerAgent
     // ------------------------------------------------------------------------
 
+    /**
+     * 虚假连接
+     * @param nettyConnectionWriter
+     */
     void connectionEstablished(NettyConnectionWriter nettyConnectionWriter) {
         this.nettyConnectionWriter = nettyConnectionWriter;
     }

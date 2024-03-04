@@ -30,6 +30,7 @@ import javax.annotation.Nonnull;
  * {@link org.apache.flink.runtime.jobmaster.JobMaster} to tell the checkpoint coordinator that a
  * checkpoint request could not be heeded. This can happen if a Task is already in RUNNING state but
  * is internally not yet ready to perform checkpoints.
+ * 表示检查点失败了
  */
 public class DeclineCheckpoint extends AbstractCheckpointMessage implements java.io.Serializable {
 
@@ -38,6 +39,13 @@ public class DeclineCheckpoint extends AbstractCheckpointMessage implements java
     /** The serialized reason why the checkpoint was declined. */
     private final SerializedCheckpointException serializedCheckpointException;
 
+    /**
+     *
+     * @param job
+     * @param taskExecutionId
+     * @param checkpointId
+     * @param checkpointException  表示出现了异常
+     */
     public DeclineCheckpoint(
             JobID job,
             ExecutionAttemptID taskExecutionId,

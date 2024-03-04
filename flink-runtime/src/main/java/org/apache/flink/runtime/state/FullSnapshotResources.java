@@ -30,6 +30,8 @@ import java.util.List;
  * FullSnapshotAsyncWriter}.
  *
  * @param <K> type of the backend keys.
+ *           产生快照时依赖的各种资源
+ *
  */
 @Internal
 public interface FullSnapshotResources<K> extends SnapshotResources {
@@ -37,21 +39,29 @@ public interface FullSnapshotResources<K> extends SnapshotResources {
     /**
      * Returns the list of {@link StateMetaInfoSnapshot meta info snapshots} for this state
      * snapshot.
+     * 有关该状态元数据的快照
      */
     List<StateMetaInfoSnapshot> getMetaInfoSnapshots();
 
     /**
      * Returns a {@link KeyValueStateIterator} for iterating over all key-value states for this
      * snapshot resources.
+     * 获取迭代器 遍历state entry
      */
     KeyValueStateIterator createKVStateIterator() throws IOException;
 
-    /** Returns the {@link KeyGroupRange} of this snapshot. */
+    /** Returns the {@link KeyGroupRange} of this snapshot.
+     * 获取快照 keyGroup
+     * */
     KeyGroupRange getKeyGroupRange();
 
-    /** Returns key {@link TypeSerializer}. */
+    /** Returns key {@link TypeSerializer}.
+     * 包含key 序列化/反序列化逻辑的对象
+     * */
     TypeSerializer<K> getKeySerializer();
 
-    /** Returns the {@link StreamCompressionDecorator} that should be used for writing. */
+    /** Returns the {@link StreamCompressionDecorator} that should be used for writing.
+     * 返回压缩流
+     * */
     StreamCompressionDecorator getStreamCompressionDecorator();
 }

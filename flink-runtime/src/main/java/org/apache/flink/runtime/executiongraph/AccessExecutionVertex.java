@@ -24,12 +24,15 @@ import org.apache.flink.runtime.taskmanager.TaskManagerLocation;
 import java.util.Collection;
 import java.util.Optional;
 
-/** Common interface for the runtime {@link ExecutionVertex} and {@link ArchivedExecutionVertex}. */
+/** Common interface for the runtime {@link ExecutionVertex} and {@link ArchivedExecutionVertex}.
+ * 最低维度的顶点  代表一个subtask
+ * */
 public interface AccessExecutionVertex {
     /**
      * Returns the name of this execution vertex in the format "myTask (2/7)".
      *
      * @return name of this execution vertex
+     * 名字拼接下标
      */
     String getTaskNameWithSubtaskIndex();
 
@@ -37,6 +40,7 @@ public interface AccessExecutionVertex {
      * Returns the subtask index of this execution vertex.
      *
      * @return subtask index of this execution vertex.
+     * 获取当前 subtaskIndex
      */
     int getParallelSubtaskIndex();
 
@@ -44,6 +48,7 @@ public interface AccessExecutionVertex {
      * Returns the current execution for this execution vertex.
      *
      * @return current execution
+     * 获取当前执行的对象
      */
     AccessExecution getCurrentExecutionAttempt();
 
@@ -83,6 +88,7 @@ public interface AccessExecutionVertex {
      * Returns the {@link TaskManagerLocation} for this execution vertex.
      *
      * @return taskmanager location for this execution vertex.
+     * 获取任务管理器的位置
      */
     TaskManagerLocation getCurrentAssignedResourceLocation();
 
@@ -90,6 +96,7 @@ public interface AccessExecutionVertex {
      * Returns the execution history.
      *
      * @return the execution history
+     * 获取执行对象的历史信息
      */
     ExecutionHistory getExecutionHistory();
 }

@@ -34,6 +34,8 @@ package org.apache.flink.runtime.state;
  * SharedStateRegistry}. The composite state handle should only delete all private states in the
  * {@link StateObject#discardState()} method, the {@link SharedStateRegistry} is responsible for
  * deleting shared states after they were registered.
+ *
+ * 状态处理器
  */
 public interface CompositeStateHandle extends StateObject {
 

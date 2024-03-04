@@ -45,6 +45,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * implementation for Zookeeper. It retrieves the current leader which has been elected by the
  * {@link ZooKeeperLeaderElectionDriver}. The leader address as well as the current leader session
  * ID is retrieved from ZooKeeper.
+ * 与ZK交互的驱动对象
  */
 public class ZooKeeperLeaderRetrievalDriver implements LeaderRetrievalDriver {
     private static final Logger LOG = LoggerFactory.getLogger(ZooKeeperLeaderRetrievalDriver.class);
@@ -60,6 +61,9 @@ public class ZooKeeperLeaderRetrievalDriver implements LeaderRetrievalDriver {
     private final ConnectionStateListener connectionStateListener =
             (client, newState) -> handleStateChange(newState);
 
+    /**
+     * 处理leader变化的handler
+     */
     private final LeaderRetrievalEventHandler leaderRetrievalEventHandler;
 
     private final LeaderInformationClearancePolicy leaderInformationClearancePolicy;
@@ -124,6 +128,9 @@ public class ZooKeeperLeaderRetrievalDriver implements LeaderRetrievalDriver {
         cache.close();
     }
 
+    /**
+     * 当监听到节点变化时
+     */
     private void retrieveLeaderInformationFromZooKeeper() {
         try {
             LOG.debug("Leader node has changed.");
@@ -138,6 +145,7 @@ public class ZooKeeperLeaderRetrievalDriver implements LeaderRetrievalDriver {
 
                     final String leaderAddress = ois.readUTF();
                     final UUID leaderSessionID = (UUID) ois.readObject();
+                    // 解析出leader信息 并通知handler
                     leaderRetrievalEventHandler.notifyLeaderAddress(
                             LeaderInformation.known(leaderSessionID, leaderAddress));
                     return;
@@ -166,6 +174,7 @@ public class ZooKeeperLeaderRetrievalDriver implements LeaderRetrievalDriver {
             case RECONNECTED:
                 LOG.info(
                         "Connection to ZooKeeper was reconnected. Leader retrieval can be restarted.");
+                // 重新连接时  根据节点信息判断leader
                 onReconnectedConnectionState();
                 break;
             case LOST:

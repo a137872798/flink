@@ -25,11 +25,16 @@ import org.apache.flink.util.CollectionUtil;
 import java.io.IOException;
 import java.util.Map;
 
-/** Checkpoint output stream that allows to write raw operator state in a partitioned way. */
+/** Checkpoint output stream that allows to write raw operator state in a partitioned way.
+ * */
 @PublicEvolving
 public final class OperatorStateCheckpointOutputStream
         extends NonClosingCheckpointOutputStream<OperatorStateHandle> {
 
+    /**
+     * 表示一个long类型的数组
+     * 存储每个分区的起始偏移量
+     */
     private LongArrayList partitionOffsets;
     private final long initialPosition;
 

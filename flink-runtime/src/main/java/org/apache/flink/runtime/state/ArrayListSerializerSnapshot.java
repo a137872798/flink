@@ -23,7 +23,9 @@ import org.apache.flink.api.common.typeutils.TypeSerializer;
 
 import java.util.ArrayList;
 
-/** Snapshot class for the {@link ArrayListSerializer}. */
+/** Snapshot class for the {@link ArrayListSerializer}.
+ * 序列化对象的快照
+ * */
 public class ArrayListSerializerSnapshot<T>
         extends CompositeTypeSerializerSnapshot<ArrayList<T>, ArrayListSerializer<T>> {
 

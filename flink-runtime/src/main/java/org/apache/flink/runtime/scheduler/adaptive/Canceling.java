@@ -29,7 +29,9 @@ import org.slf4j.Logger;
 
 import java.util.List;
 
-/** State which describes a job which is currently being canceled. */
+/** State which describes a job which is currently being canceled.
+ * 表示任务被取消了
+ * */
 class Canceling extends StateWithExecutionGraph {
 
     private final Context context;

@@ -26,6 +26,7 @@ import java.io.IOException;
 /**
  * @param <PT> probe side type
  * @param <BT> build side type
+ *            用于探测hash数据的
  */
 public abstract class AbstractHashTableProber<PT, BT> {
 

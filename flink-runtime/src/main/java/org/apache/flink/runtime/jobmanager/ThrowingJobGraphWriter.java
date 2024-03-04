@@ -22,7 +22,9 @@ import org.apache.flink.api.common.JobID;
 import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.runtime.jobgraph.JobResourceRequirements;
 
-/** {@link JobGraphWriter} implementation which does not allow to store {@link JobGraph}. */
+/** {@link JobGraphWriter} implementation which does not allow to store {@link JobGraph}.
+ * 该对象不支持任何的写入
+ * */
 public enum ThrowingJobGraphWriter implements JobGraphWriter {
     INSTANCE;
 

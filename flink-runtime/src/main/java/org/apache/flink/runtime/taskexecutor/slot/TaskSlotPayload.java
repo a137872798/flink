@@ -24,7 +24,9 @@ import org.apache.flink.runtime.executiongraph.ExecutionAttemptID;
 
 import java.util.concurrent.CompletableFuture;
 
-/** Payload interface for {@link org.apache.flink.runtime.taskexecutor.slot.TaskSlot}. */
+/** Payload interface for {@link org.apache.flink.runtime.taskexecutor.slot.TaskSlot}.
+ * 表示将slot与task绑定后  该对象会提供一些task相关的信息
+ * */
 public interface TaskSlotPayload {
     JobID getJobID();
 

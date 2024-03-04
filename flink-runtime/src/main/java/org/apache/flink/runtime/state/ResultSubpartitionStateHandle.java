@@ -26,6 +26,7 @@ import java.util.List;
 /**
  * {@link StateObject Handle} to a {@link
  * org.apache.flink.runtime.io.network.partition.ResultSubpartition ResultSubpartition} state.
+ * 同样是指定Info的类型 为ResultSubpartitionInfo
  */
 @Internal
 public class ResultSubpartitionStateHandle

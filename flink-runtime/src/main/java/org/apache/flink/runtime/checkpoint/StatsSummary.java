@@ -28,6 +28,7 @@ import java.io.Serializable;
 /**
  * Aggregated values of some measurement such as min/max/average state size. Used in reporting
  * {@link CompletedCheckpointStatsSummary checkpoint statistics}.
+ * 记录多个值聚合时的信息
  */
 public class StatsSummary implements Serializable {
 

@@ -20,7 +20,9 @@ package org.apache.flink.runtime.executiongraph;
 
 import org.apache.flink.runtime.io.network.partition.ResultPartitionType;
 
-/** This strategy is used to decide whether partition needs to be marked as finished. */
+/** This strategy is used to decide whether partition needs to be marked as finished.
+ * 根据分区类型判断是否需要标记结束了
+ * */
 public interface MarkPartitionFinishedStrategy {
     /**
      * Decide whether partition needs to be marked as finished.

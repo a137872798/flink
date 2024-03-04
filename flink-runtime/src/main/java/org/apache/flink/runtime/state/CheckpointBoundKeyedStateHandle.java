@@ -16,10 +16,14 @@
  */
 package org.apache.flink.runtime.state;
 
-/** {@link KeyedStateHandle} that is bound to a specific checkpoint. */
+/** {@link KeyedStateHandle} that is bound to a specific checkpoint.
+ * 表示是持有一个状态的对象   并且关联到某个特定的检查点
+ * */
 public interface CheckpointBoundKeyedStateHandle extends KeyedStateHandle {
 
-    /** Returns the ID of the checkpoint for which the handle was created or used. */
+    /** Returns the ID of the checkpoint for which the handle was created or used.
+     * 获取绑定的检查点id
+     * */
     long getCheckpointId();
 
     /**
@@ -27,6 +31,7 @@ public interface CheckpointBoundKeyedStateHandle extends KeyedStateHandle {
      * checkpoint id.
      *
      * @param checkpointId rebounded checkpoint id.
+     *                     更换该状态绑定的检查点
      */
     CheckpointBoundKeyedStateHandle rebound(long checkpointId);
 }

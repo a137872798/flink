@@ -54,6 +54,7 @@ import static org.apache.flink.util.StringUtils.isNullOrWhitespaceOnly;
 /**
  * An implementation of the {@link JobResultStore} which persists job result data to an underlying
  * distributed filesystem.
+ * 借助文件系统存储 JobResult
  */
 public class FileSystemJobResultStore extends AbstractThreadsafeJobResultStore {
 
@@ -62,11 +63,21 @@ public class FileSystemJobResultStore extends AbstractThreadsafeJobResultStore {
     @VisibleForTesting static final String FILE_EXTENSION = ".json";
     @VisibleForTesting static final String DIRTY_FILE_EXTENSION = "_DIRTY" + FILE_EXTENSION;
 
+    /**
+     * dirty的结果对应的文件名后特殊后缀 _DIRTY
+     * @param filename
+     * @return
+     */
     @VisibleForTesting
     public static boolean hasValidDirtyJobResultStoreEntryExtension(String filename) {
         return filename.endsWith(DIRTY_FILE_EXTENSION);
     }
 
+    /**
+     * 判断该文件是否有效   就是拓展名是 .json
+     * @param filename
+     * @return
+     */
     @VisibleForTesting
     public static boolean hasValidJobResultStoreEntryExtension(String filename) {
         return filename.endsWith(FILE_EXTENSION);
@@ -74,6 +85,9 @@ public class FileSystemJobResultStore extends AbstractThreadsafeJobResultStore {
 
     private final ObjectMapper mapper = JacksonMapperFactory.createObjectMapper();
 
+    /**
+     * 文件系统可以先不看    就当作一个普通的持久存储
+     */
     private final FileSystem fileSystem;
 
     private volatile boolean basePathCreated;
@@ -82,6 +96,12 @@ public class FileSystemJobResultStore extends AbstractThreadsafeJobResultStore {
 
     private final boolean deleteOnCommit;
 
+    /**
+     * 基于文件系统  需要在初始化时 传入文件系统 以及基础路径
+     * @param fileSystem
+     * @param basePath
+     * @param deleteOnCommit
+     */
     @VisibleForTesting
     FileSystemJobResultStore(FileSystem fileSystem, Path basePath, boolean deleteOnCommit) {
         this.fileSystem = fileSystem;
@@ -117,6 +137,12 @@ public class FileSystemJobResultStore extends AbstractThreadsafeJobResultStore {
         }
     }
 
+    /**
+     * 产生目录
+     * @param baseDir
+     * @param clusterId
+     * @return
+     */
     public static String createDefaultJobResultStorePath(String baseDir, String clusterId) {
         return baseDir + "/job-result-store/" + clusterId;
     }
@@ -127,6 +153,7 @@ public class FileSystemJobResultStore extends AbstractThreadsafeJobResultStore {
      *
      * @param jobId The job ID to construct a dirty entry path from.
      * @return A path for a dirty entry for the given the Job ID.
+     * 生成下级目录 (job级别)
      */
     private Path constructDirtyPath(JobID jobId) {
         return constructEntryPath(jobId.toString() + DIRTY_FILE_EXTENSION);
@@ -138,6 +165,7 @@ public class FileSystemJobResultStore extends AbstractThreadsafeJobResultStore {
      *
      * @param jobId The job ID to construct a clean entry path from.
      * @return A path for a clean entry for the given the Job ID.
+     * 产生存储clean数据的路径
      */
     private Path constructCleanPath(JobID jobId) {
         return constructEntryPath(jobId.toString() + FILE_EXTENSION);
@@ -148,6 +176,11 @@ public class FileSystemJobResultStore extends AbstractThreadsafeJobResultStore {
         return new Path(this.basePath, fileName);
     }
 
+    /**
+     * 将结果写入文件
+     * @param jobResultEntry
+     * @throws IOException
+     */
     @Override
     public void createDirtyResultInternal(JobResultEntry jobResultEntry) throws IOException {
         createBasePathIfNeeded();
@@ -162,6 +195,12 @@ public class FileSystemJobResultStore extends AbstractThreadsafeJobResultStore {
         }
     }
 
+    /**
+     * 标记该脏数据已经被清理  此时一般意味着结果已经提交
+     * @param jobId
+     * @throws IOException
+     * @throws NoSuchElementException
+     */
     @Override
     public void markResultAsCleanInternal(JobID jobId) throws IOException, NoSuchElementException {
         Path dirtyPath = constructDirtyPath(jobId);
@@ -174,8 +213,10 @@ public class FileSystemJobResultStore extends AbstractThreadsafeJobResultStore {
         }
 
         if (deleteOnCommit) {
+            // 表示在提交时删除临时数据
             fileSystem.delete(dirtyPath, false);
         } else {
+            // 将文件改名
             fileSystem.rename(dirtyPath, constructCleanPath(jobId));
         }
     }
@@ -190,6 +231,11 @@ public class FileSystemJobResultStore extends AbstractThreadsafeJobResultStore {
         return fileSystem.exists(constructCleanPath(jobId));
     }
 
+    /**
+     * 获取所有临时数据 也就是JobResult数据
+     * @return
+     * @throws IOException
+     */
     @Override
     public Set<JobResult> getDirtyResultsInternal() throws IOException {
         createBasePathIfNeeded();
@@ -203,6 +249,7 @@ public class FileSystemJobResultStore extends AbstractThreadsafeJobResultStore {
         final Set<JobResult> dirtyResults = new HashSet<>();
         for (FileStatus s : statuses) {
             if (!s.isDir()) {
+                // 找到匹配的文件
                 if (hasValidDirtyJobResultStoreEntryExtension(s.getPath().getName())) {
                     JsonJobResultEntry jre =
                             mapper.readValue(

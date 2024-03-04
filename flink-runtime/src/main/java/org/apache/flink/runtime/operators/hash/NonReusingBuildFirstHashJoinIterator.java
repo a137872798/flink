@@ -38,10 +38,14 @@ import java.util.List;
  * An implementation of the {@link org.apache.flink.runtime.operators.util.JoinTaskIterator} that
  * uses a hybrid-hash-join internally to match the records with equal key. The build side of the
  * hash is the first input of the match. This implementation DOES NOT reuse objects.
+ * NonReusing 表示对象不会被重用
  */
 public class NonReusingBuildFirstHashJoinIterator<V1, V2, O> extends HashJoinIteratorBase
         implements JoinTaskIterator<V1, V2, O> {
 
+    /**
+     * hash桶  分为build阶段和probe阶段
+     */
     protected final MutableHashTable<V1, V2> hashJoin;
 
     protected final TypeSerializer<V2> probeSideSerializer;
@@ -52,6 +56,9 @@ public class NonReusingBuildFirstHashJoinIterator<V1, V2, O> extends HashJoinIte
 
     private final MutableObjectIterator<V2> secondInput;
 
+    /**
+     * 表示join的方式   如果外连接中probe为主  那么匹配不到数据时  使用null进行join
+     */
     private final boolean probeSideOuterJoin;
 
     private final boolean buildSideOuterJoin;
@@ -89,6 +96,7 @@ public class NonReusingBuildFirstHashJoinIterator<V1, V2, O> extends HashJoinIte
         this.probeSideOuterJoin = probeSideOuterJoin;
         this.buildSideOuterJoin = buildSideOuterJoin;
 
+        // 就是产生 MutableHashTable
         this.hashJoin =
                 getHashJoin(
                         serializer1,
@@ -107,12 +115,16 @@ public class NonReusingBuildFirstHashJoinIterator<V1, V2, O> extends HashJoinIte
 
     @Override
     public void open() throws IOException, MemoryAllocationException, InterruptedException {
+        // open 会填充数据 完成build阶段   同时生成探测数据迭代器
         this.hashJoin.open(this.firstInput, this.secondInput, this.buildSideOuterJoin);
     }
 
+    /**
+     * 关闭本对象
+     */
     @Override
     public void close() {
-        // close the join
+        // close the join  会释放各种数据
         this.hashJoin.close();
 
         // free the memory
@@ -120,33 +132,52 @@ public class NonReusingBuildFirstHashJoinIterator<V1, V2, O> extends HashJoinIte
         this.memManager.release(segments);
     }
 
+    /**
+     * 使用 flatJoin函数处理数据 并交给collector
+     * @param matchFunction The match stub containing the match function which is called with the
+     *     keys.
+     * @param collector The collector to pass the match function.
+     * @return
+     * @throws Exception
+     */
     @Override
     public final boolean callWithNextKey(
             FlatJoinFunction<V1, V2, O> matchFunction, Collector<O> collector) throws Exception {
+
+        // 为探测做准备
         if (this.hashJoin.nextRecord()) {
             // we have a next record, get the iterators to the probe and build side values
+            // 这个是利用bucket加速查找  并匹配数据用的  需要比较的数据在nextRecord时已经设置
             final MutableObjectIterator<V1> buildSideIterator =
                     this.hashJoin.getBuildSideIterator();
+
+            // 获取此时使用的探测数据
             final V2 probeRecord = this.hashJoin.getCurrentProbeRecord();
+            // 尝试为探测数据进行匹配
             V1 nextBuildSideRecord = buildSideIterator.next();
 
             // get the first build side value
+            // 表示匹配成功
             if (probeRecord != null && nextBuildSideRecord != null) {
                 V1 tmpRec;
 
                 // check if there is another build-side value
+                // 继续检索 查看是否有 hash和equals相同的数据
                 if ((tmpRec = buildSideIterator.next()) != null) {
                     // more than one build-side value --> copy the probe side
                     V2 probeCopy;
+                    // 这里采用数据拷贝的方式  也就是nonReusing
                     probeCopy = this.probeSideSerializer.copy(probeRecord);
 
                     // call match on the first pair
+                    // 将2个匹配的数据进行合并 然后发送到下游
                     matchFunction.join(nextBuildSideRecord, probeCopy, collector);
 
                     // call match on the second pair
                     probeCopy = this.probeSideSerializer.copy(probeRecord);
                     matchFunction.join(tmpRec, probeCopy, collector);
 
+                    // 直到所有与探测数据匹配的记录 都已经处理完
                     while (this.running
                             && ((nextBuildSideRecord = buildSideIterator.next()) != null)) {
                         // call match on the next pair
@@ -159,6 +190,8 @@ public class NonReusingBuildFirstHashJoinIterator<V1, V2, O> extends HashJoinIte
                     matchFunction.join(nextBuildSideRecord, probeRecord, collector);
                 }
             } else {
+                // 表示匹配失败   这时就要根据左右连接来决定如何触发join了
+
                 // while probe side outer join, join current probe record with null.
                 if (probeSideOuterJoin && probeRecord != null && nextBuildSideRecord == null) {
                     matchFunction.join(null, probeRecord, collector);

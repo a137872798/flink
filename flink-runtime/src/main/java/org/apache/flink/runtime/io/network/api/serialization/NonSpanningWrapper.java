@@ -37,6 +37,9 @@ import static org.apache.flink.runtime.io.network.api.serialization.RecordDeseri
 import static org.apache.flink.runtime.io.network.api.serialization.SpillingAdaptiveSpanningRecordDeserializer.LENGTH_BYTES;
 import static org.apache.flink.runtime.io.network.buffer.Buffer.DataType.DATA_BUFFER;
 
+/**
+ * 数据块的包装对象
+ */
 final class NonSpanningWrapper implements DataInputView {
 
     private static final String BROKEN_SERIALIZATION_ERROR_MESSAGE =
@@ -45,6 +48,9 @@ final class NonSpanningWrapper implements DataInputView {
                     + "(Value or Writable), check their serialization methods. If you are using a "
                     + "Kryo-serialized type, check the corresponding Kryo serializer.";
 
+    /**
+     * 包含数据的内存块
+     */
     private MemorySegment segment;
 
     private int limit;
@@ -54,6 +60,10 @@ final class NonSpanningWrapper implements DataInputView {
     private byte[] utfByteBuffer; // reusable byte buffer for utf-8 decoding
     private char[] utfCharBuffer; // reusable char buffer for utf-8 decoding
 
+    /**
+     * 表示还未读取的数据
+     * @return
+     */
     private int remaining() {
         return this.limit - this.position;
     }
@@ -74,6 +84,8 @@ final class NonSpanningWrapper implements DataInputView {
         if (!hasRemaining()) {
             return CloseableIterator.empty();
         }
+
+        // 将剩余数据拷贝出来
         MemorySegment segment = MemorySegmentFactory.allocateUnpooledSegment(remaining());
         this.segment.copyTo(position, segment, 0, remaining());
         return singleBufferIterator(segment);
@@ -332,6 +344,12 @@ final class NonSpanningWrapper implements DataInputView {
         clear();
     }
 
+    /**
+     *
+     * @param target
+     * @return
+     * @throws IOException
+     */
     DeserializationResult readInto(IOReadableWritable target) throws IOException {
         try {
             target.read(this);
@@ -339,6 +357,7 @@ final class NonSpanningWrapper implements DataInputView {
             throw new IOException(BROKEN_SERIALIZATION_ERROR_MESSAGE, e);
         }
         int remaining = remaining();
+        // 表示数据不够了  也就没有产生完整的记录
         if (remaining < 0) {
             throw new IOException(
                     BROKEN_SERIALIZATION_ERROR_MESSAGE,
@@ -357,6 +376,7 @@ final class NonSpanningWrapper implements DataInputView {
 
     static CloseableIterator<Buffer> singleBufferIterator(MemorySegment target) {
         return CloseableIterator.ofElement(
+                // 将内存块包装成buffer
                 new NetworkBuffer(
                         target, FreeingBufferRecycler.INSTANCE, DATA_BUFFER, target.size()),
                 Buffer::recycleBuffer);

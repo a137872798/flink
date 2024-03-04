@@ -27,6 +27,10 @@ import org.apache.flink.util.MutableObjectIterator;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * 表示一个可变的hash表
+ * @param <T>
+ */
 public abstract class AbstractMutableHashTable<T> {
 
     /** The utilities to serialize the build side data types. */
@@ -60,7 +64,9 @@ public abstract class AbstractMutableHashTable<T> {
 
     // ------------- Life-cycle functions -------------
 
-    /** Initialize the hash table */
+    /** Initialize the hash table
+     * 初始化hash表
+     * */
     public abstract void open();
 
     /**
@@ -74,6 +80,10 @@ public abstract class AbstractMutableHashTable<T> {
 
     public abstract void abort();
 
+    /**
+     * 获取当前空闲内存
+     * @return
+     */
     public abstract List<MemorySegment> getFreeMemory();
 
     // ------------- Modifier -------------
@@ -84,8 +94,19 @@ public abstract class AbstractMutableHashTable<T> {
 
     // ------------- Accessors -------------
 
+    /**
+     * 产生迭代器 用于遍历数据
+     * @return
+     */
     public abstract MutableObjectIterator<T> getEntryIterator();
 
+    /**
+     *
+     * @param probeSideComparator
+     * @param pairComparator
+     * @param <PT>
+     * @return
+     */
     public abstract <PT> AbstractHashTableProber<PT, T> getProber(
             TypeComparator<PT> probeSideComparator, TypePairComparator<PT, T> pairComparator);
 }

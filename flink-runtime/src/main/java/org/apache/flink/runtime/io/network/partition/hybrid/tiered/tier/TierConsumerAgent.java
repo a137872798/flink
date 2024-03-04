@@ -29,6 +29,7 @@ import java.util.Optional;
 /**
  * The {@link TierConsumerAgent} is the consumer agent of each tier in tiered store, which could
  * read data from responding tier.
+ * 消费者探针  应该是通过该对象拉取数据
  */
 public interface TierConsumerAgent {
 

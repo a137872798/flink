@@ -30,7 +30,9 @@ import org.apache.flink.runtime.scheduler.strategy.SchedulingTopology;
 import java.util.Optional;
 import java.util.Set;
 
-/** Context for slot allocation. */
+/** Context for slot allocation.
+ * 在分配slot时使用的上下文对象
+ * */
 interface ExecutionSlotAllocationContext extends InputsLocationsRetriever, StateLocationRetriever {
 
     /**
@@ -38,6 +40,7 @@ interface ExecutionSlotAllocationContext extends InputsLocationsRetriever, State
      *
      * @param executionVertexId id of the execution vertex
      * @return required resources for the given execution vertex
+     * 获取某个execution需要的资源
      */
     ResourceProfile getResourceProfile(ExecutionVertexID executionVertexId);
 
@@ -47,6 +50,7 @@ interface ExecutionSlotAllocationContext extends InputsLocationsRetriever, State
      * @param executionVertexId id of the execution vertex
      * @return prior allocation id for the given execution vertex if it exists; otherwise {@code
      *     Optional.empty()}
+     *     表示优选的slot
      */
     Optional<AllocationID> findPriorAllocationId(ExecutionVertexID executionVertexId);
 
@@ -61,6 +65,7 @@ interface ExecutionSlotAllocationContext extends InputsLocationsRetriever, State
      * Returns all slot sharing groups in the job.
      *
      * @return all slot sharing groups in the job
+     * 获取slot所在的共享组  task级别
      */
     Set<SlotSharingGroup> getLogicalSlotSharingGroups();
 
@@ -68,6 +73,7 @@ interface ExecutionSlotAllocationContext extends InputsLocationsRetriever, State
      * Returns all co-location groups in the job.
      *
      * @return all co-location groups in the job
+     * 相关的job所在的限制组
      */
     Set<CoLocationGroup> getCoLocationGroups();
 

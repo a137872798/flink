@@ -28,6 +28,8 @@ import java.util.concurrent.TimeUnit;
 
 /** Collection of queues that are used for the communication between the threads. */
 final class CircularQueues<E> implements StageRunner.StageMessageDispatcher<E> {
+
+    // 使用队列存储不同stage的 element 触发不同任务 查找不同队列
     private final BlockingQueue<CircularElement<E>> empty;
     private final BlockingQueue<CircularElement<E>> sort;
     private final BlockingQueue<CircularElement<E>> spill;
@@ -68,11 +70,20 @@ final class CircularQueues<E> implements StageRunner.StageMessageDispatcher<E> {
         return iteratorFuture;
     }
 
+    /**
+     * 找到对应的队列 并推送element
+     * @param stage
+     * @param element
+     */
     @Override
     public void send(StageRunner.SortStage stage, CircularElement<E> element) {
         getQueue(stage).add(element);
     }
 
+    /**
+     * 使用结果唤醒future
+     * @param result
+     */
     @Override
     public void sendResult(MutableObjectIterator<E> result) {
         iteratorFuture.complete(result);

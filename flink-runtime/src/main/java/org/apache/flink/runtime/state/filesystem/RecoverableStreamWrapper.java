@@ -27,6 +27,7 @@ import java.io.IOException;
 /**
  * Implementation of {@link MetadataOutputStreamWrapper} encapsulates the {@link
  * RecoverableFsDataOutputStream} for {@link FsCheckpointMetadataOutputStream}.
+ * 表示基于RecoverableFsDataOutputStream
  */
 @Internal
 public class RecoverableStreamWrapper extends MetadataOutputStreamWrapper {

@@ -38,9 +38,13 @@ import static org.apache.flink.util.Preconditions.checkArgument;
  * <p>In this particular implementation, the batch result is written to (and read from) one file per
  * sub-partition. This implementation hence requires at least as many files (file handles) and
  * memory buffers as the parallelism of the target task that the data is shuffled to.
+ * 实现一些父类的抽象方法
  */
 public class BoundedBlockingResultPartition extends BufferWritingResultPartition {
 
+    /**
+     * 确保方法只能触发一次
+     */
     private boolean hasNotifiedEndOfUserRecords;
 
     public BoundedBlockingResultPartition(
@@ -69,6 +73,7 @@ public class BoundedBlockingResultPartition extends BufferWritingResultPartition
     @Override
     public void notifyEndOfData(StopMode mode) throws IOException {
         if (!hasNotifiedEndOfUserRecords) {
+            // 将一个广播数据写入各分区   随着下游不断的消费数据 就会发现该事件
             broadcastEvent(new EndOfData(mode), false);
             hasNotifiedEndOfUserRecords = true;
         }

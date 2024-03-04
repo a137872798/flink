@@ -18,7 +18,8 @@
 
 package org.apache.flink.runtime.io.network.partition.hybrid;
 
-/** Integrate the buffer index and the channel id which it belongs. */
+/** Integrate the buffer index and the channel id which it belongs.
+ * */
 public class BufferIndexAndChannel {
     private final int bufferIndex;
 

@@ -19,7 +19,9 @@ package org.apache.flink.runtime.rpc.pekko;
 
 import org.apache.flink.util.Preconditions;
 
-/** Simple container for host/port information. */
+/** Simple container for host/port information.
+ * 包含主机和端口
+ * */
 class HostAndPort {
     private final String host;
     private final int port;

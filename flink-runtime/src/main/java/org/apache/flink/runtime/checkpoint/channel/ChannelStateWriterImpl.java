@@ -57,6 +57,7 @@ import static org.apache.flink.runtime.checkpoint.channel.ChannelStateWriteReque
  * <p>Thread-safety: this class is thread-safe when used with a thread-safe {@link
  * ChannelStateWriteRequestExecutor executor} (e.g. default {@link
  * ChannelStateWriteRequestExecutorImpl}.
+ * 该对象开放了有关检查点的接口  对应一个子任务 并且应该是支持产生多次检查点的(id不同)
  */
 @Internal
 @ThreadSafe
@@ -73,7 +74,15 @@ public class ChannelStateWriterImpl implements ChannelStateWriter {
 
     private final String taskName;
 
+    /**
+     * 执行器是一个后台线程扫描req并处理的
+     */
     private final ChannelStateWriteRequestExecutor executor;
+
+    /**
+     * 监听子任务检查点的结果
+     * key 代表多个检查点id
+     */
     private final ConcurrentMap<Long, ChannelStateWriteResult> results;
     private final int maxCheckpoints;
 
@@ -145,6 +154,11 @@ public class ChannelStateWriterImpl implements ChannelStateWriter {
         this.executor = executor;
     }
 
+    /**
+     * 开启一个检查点
+     * @param checkpointId
+     * @param checkpointOptions
+     */
     @Override
     public void start(long checkpointId, CheckpointOptions checkpointOptions) {
         LOG.debug("{} starting checkpoint {} ({})", taskName, checkpointId, checkpointOptions);
@@ -164,7 +178,7 @@ public class ChannelStateWriterImpl implements ChannelStateWriter {
                             enqueue(
                                     new CheckpointStartRequest(
                                             jobVertexID,
-                                            subtaskIndex,
+                                            subtaskIndex,  // 携带子任务id
                                             checkpointId,
                                             result,
                                             checkpointOptions.getTargetLocation()),
@@ -176,6 +190,14 @@ public class ChannelStateWriterImpl implements ChannelStateWriter {
                 taskName + " result future already present for checkpoint " + checkpointId);
     }
 
+    /**
+     * 产生写入数据的请求 并且通过 executor执行 (内部要通过dispatcher 并最终到达 checkpointWriter)
+     * @param checkpointId
+     * @param info
+     * @param startSeqNum sequence number of the 1st passed buffer. It is intended to use for
+     *     incremental snapshots. If no data is passed it is ignored.
+     * @param iterator
+     */
     @Override
     public void addInputData(
             long checkpointId,
@@ -246,6 +268,11 @@ public class ChannelStateWriterImpl implements ChannelStateWriter {
         }
     }
 
+    /**
+     * 获取某次检查点的结果
+     * @param checkpointId
+     * @return
+     */
     @Override
     public ChannelStateWriteResult getAndRemoveWriteResult(long checkpointId) {
         LOG.debug("{} requested write result, checkpoint {}", taskName, checkpointId);

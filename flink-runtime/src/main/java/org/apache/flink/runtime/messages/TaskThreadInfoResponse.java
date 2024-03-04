@@ -30,6 +30,9 @@ public class TaskThreadInfoResponse implements Serializable {
 
     private static final long serialVersionUID = -4786454630050578031L;
 
+    /**
+     * 每个 execution对应的线程信息
+     */
     private final Map<ExecutionAttemptID, Collection<ThreadInfoSample>> samples;
 
     /**

@@ -36,6 +36,7 @@ import java.util.Objects;
 /**
  * Snapshot strategy for this backend. This strategy compresses the regular and broadcast operator
  * states if enabled by configuration.
+ * 描述如何生成快照
  */
 class DefaultOperatorStateBackendSnapshotStrategy
         implements SnapshotStrategy<
@@ -44,6 +45,7 @@ class DefaultOperatorStateBackendSnapshotStrategy
                         .DefaultOperatorStateBackendSnapshotResources> {
 
     private final ClassLoader userClassLoader;
+    // 存储 operatorState用到的状态
     private final Map<String, PartitionableListState<?>> registeredOperatorStates;
     private final Map<String, BackendWritableBroadcastState<?, ?>> registeredBroadcastStates;
     private final StreamCompressionDecorator compressionDecorator;
@@ -59,6 +61,11 @@ class DefaultOperatorStateBackendSnapshotStrategy
         this.compressionDecorator = compressionDecorator;
     }
 
+    /**
+     * 转换成生成快照需要的数据
+     * @param checkpointId The ID of the checkpoint.
+     * @return
+     */
     @Override
     public DefaultOperatorStateBackendSnapshotResources syncPrepareResources(long checkpointId) {
         if (registeredOperatorStates.isEmpty() && registeredBroadcastStates.isEmpty()) {
@@ -102,13 +109,23 @@ class DefaultOperatorStateBackendSnapshotStrategy
             Thread.currentThread().setContextClassLoader(snapshotClassLoader);
         }
 
+        // 简单来说就是深拷贝
         return new DefaultOperatorStateBackendSnapshotResources(
                 registeredOperatorStatesDeepCopies, registeredBroadcastStatesDeepCopies);
     }
 
+    /**
+     * 产生快照
+     * @param syncPartResource
+     * @param checkpointId The ID of the checkpoint.
+     * @param timestamp The timestamp of the checkpoint.
+     * @param streamFactory The factory that we can use for writing our state to streams.
+     * @param checkpointOptions Options for how to perform this checkpoint.
+     * @return
+     */
     @Override
     public SnapshotResultSupplier<OperatorStateHandle> asyncSnapshot(
-            DefaultOperatorStateBackendSnapshotResources syncPartResource,
+            DefaultOperatorStateBackendSnapshotResources syncPartResource,  // 需要借助资源提供的数据
             long checkpointId,
             long timestamp,
             @Nonnull CheckpointStreamFactory streamFactory,
@@ -125,6 +142,8 @@ class DefaultOperatorStateBackendSnapshotStrategy
         }
 
         return (snapshotCloseableRegistry) -> {
+
+            // 产生目标输出流
             CheckpointStateOutputStream localOut =
                     streamFactory.createCheckpointStateOutputStream(
                             CheckpointedStateScope.EXCLUSIVE);
@@ -134,6 +153,7 @@ class DefaultOperatorStateBackendSnapshotStrategy
             List<StateMetaInfoSnapshot> operatorMetaInfoSnapshots =
                     new ArrayList<>(registeredOperatorStatesDeepCopies.size());
 
+            // 还要存储每个状态元数据快照
             for (Map.Entry<String, PartitionableListState<?>> entry :
                     registeredOperatorStatesDeepCopies.entrySet()) {
                 operatorMetaInfoSnapshots.add(entry.getValue().getStateMetaInfo().snapshot());
@@ -167,6 +187,8 @@ class DefaultOperatorStateBackendSnapshotStrategy
             int initialMapCapacity =
                     registeredOperatorStatesDeepCopies.size()
                             + registeredBroadcastStatesDeepCopies.size();
+
+            // 存储每个状态的类型 以及在输出流中的offset 在restore阶段使用
             final Map<String, OperatorStateHandle.StateMetaInfo> writtenStatesMetaData =
                     CollectionUtil.newHashMapWithExpectedSize(initialMapCapacity);
 
@@ -211,8 +233,11 @@ class DefaultOperatorStateBackendSnapshotStrategy
             OperatorStateHandle retValue = null;
 
             if (snapshotCloseableRegistry.unregisterCloseable(localOut)) {
+
+                // 关闭输出流 包装成stateHandle
                 StreamStateHandle stateHandle = localOut.closeAndGetHandle();
                 if (stateHandle != null) {
+                    // 多包装一个有关记录偏移量信息的对象
                     retValue = new OperatorStreamStateHandle(writtenStatesMetaData, stateHandle);
                 }
                 return SnapshotResult.of(retValue);
@@ -222,6 +247,9 @@ class DefaultOperatorStateBackendSnapshotStrategy
         };
     }
 
+    /**
+     * 生成快照时  需要在内存中维护的数据  在快照完成后(持久化) 就会释放掉这些资源
+     */
     static class DefaultOperatorStateBackendSnapshotResources implements SnapshotResources {
 
         private final Map<String, PartitionableListState<?>> registeredOperatorStatesDeepCopies;

@@ -31,6 +31,7 @@ import java.util.List;
  * Tuple2 which includes range index and record itself as output.
  *
  * @param <IN> The original data type.
+ *            该对象的作用是为数据分配分区  之后被collector收集
  */
 public class AssignRangeIndex<IN> extends RichMapPartitionFunction<IN, Tuple2<Integer, IN>> {
 
@@ -44,12 +45,14 @@ public class AssignRangeIndex<IN> extends RichMapPartitionFunction<IN, Tuple2<In
     public void mapPartition(Iterable<IN> values, Collector<Tuple2<Integer, IN>> out)
             throws Exception {
 
+        // 从上下文中获取广播变量   (上下文就像一个map 可以存储广播变量)
         List<Object> broadcastVariable =
                 getRuntimeContext().getBroadcastVariable("RangeBoundaries");
         if (broadcastVariable == null || broadcastVariable.size() != 1) {
             throw new RuntimeException(
                     "AssignRangePartition require a single RangeBoundaries as broadcast input.");
         }
+        // 这个bound对象是用来分区的
         Object[][] boundaryObjects = (Object[][]) broadcastVariable.get(0);
         RangeBoundaries rangeBoundaries =
                 new CommonRangeBoundaries(typeComparator.createComparator(), boundaryObjects);

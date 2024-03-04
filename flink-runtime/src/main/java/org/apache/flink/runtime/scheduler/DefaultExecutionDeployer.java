@@ -51,15 +51,26 @@ import java.util.stream.Collectors;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** Default implementation of {@link ExecutionDeployer}. */
+/** Default implementation of {@link ExecutionDeployer}.
+ * 该对象可以为Execution分配 slot   以及部署
+ * */
 public class DefaultExecutionDeployer implements ExecutionDeployer {
 
     private final Logger log;
 
+    /**
+     * 通过该对象可以为 execution分配slot
+     */
     private final ExecutionSlotAllocator executionSlotAllocator;
 
+    /**
+     * 该对象暴露了操作execution的接口
+     */
     private final ExecutionOperations executionOperations;
 
+    /**
+     * 记录每个子任务当前的版本
+     */
     private final ExecutionVertexVersioner executionVertexVersioner;
 
     private final Time partitionRegistrationTimeout;
@@ -90,20 +101,29 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
     public void allocateSlotsAndDeploy(
             final List<Execution> executionsToDeploy,
             final Map<ExecutionVertexID, ExecutionVertexVersion> requiredVersionByVertex) {
+        // 检验 execution 状态
         validateExecutionStates(executionsToDeploy);
 
+        // 调度 也包含了分配slot的过程
         transitionToScheduled(executionsToDeploy);
 
+        // 产生调度结果
         final Map<ExecutionAttemptID, ExecutionSlotAssignment> executionSlotAssignmentMap =
                 allocateSlotsFor(executionsToDeploy);
 
+        // 创建分配处理器
         final List<ExecutionDeploymentHandle> deploymentHandles =
                 createDeploymentHandles(
                         executionsToDeploy, requiredVersionByVertex, executionSlotAssignmentMap);
 
+        // 等待分配结果
         waitForAllSlotsAndDeploy(deploymentHandles);
     }
 
+    /**
+     * 要求execution处于创建状态
+     * @param executionsToDeploy
+     */
     private void validateExecutionStates(final Collection<Execution> executionsToDeploy) {
         executionsToDeploy.forEach(
                 e ->
@@ -114,6 +134,10 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
                                 e.getState()));
     }
 
+    /**
+     * 转换成调度状态
+     * @param executionsToDeploy
+     */
     private void transitionToScheduled(final List<Execution> executionsToDeploy) {
         executionsToDeploy.forEach(e -> e.transitionState(ExecutionState.SCHEDULED));
     }
@@ -127,10 +151,18 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
         return executionSlotAllocator.allocateSlotsFor(executionAttemptIds);
     }
 
+    /**
+     * 产生部署器
+     * @param executionsToDeploy
+     * @param requiredVersionByVertex
+     * @param executionSlotAssignmentMap
+     * @return
+     */
     private List<ExecutionDeploymentHandle> createDeploymentHandles(
             final List<Execution> executionsToDeploy,
             final Map<ExecutionVertexID, ExecutionVertexVersion> requiredVersionByVertex,
             final Map<ExecutionAttemptID, ExecutionSlotAssignment> executionSlotAssignmentMap) {
+
         checkState(executionsToDeploy.size() == executionSlotAssignmentMap.size());
         final List<ExecutionDeploymentHandle> deploymentHandles =
                 new ArrayList<>(executionsToDeploy.size());
@@ -139,6 +171,8 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
                     checkNotNull(executionSlotAssignmentMap.get(execution.getAttemptId()));
 
             final ExecutionVertexID executionVertexId = execution.getVertex().getID();
+
+            // 简单的包装对象
             final ExecutionDeploymentHandle deploymentHandle =
                     new ExecutionDeploymentHandle(
                             execution, assignment, requiredVersionByVertex.get(executionVertexId));
@@ -148,12 +182,21 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
         return deploymentHandles;
     }
 
+    /**
+     * 等待分配结果
+     * @param deploymentHandles
+     */
     private void waitForAllSlotsAndDeploy(final List<ExecutionDeploymentHandle> deploymentHandles) {
         FutureUtils.assertNoException(
-                assignAllResourcesAndRegisterProducedPartitions(deploymentHandles)
-                        .handle(deployAll(deploymentHandles)));
+                assignAllResourcesAndRegisterProducedPartitions(deploymentHandles)  // 先是在slot分配后 指定后续操作
+                        .handle(deployAll(deploymentHandles))); // 之后触发deploy
     }
 
+    /**
+     *
+     * @param deploymentHandles
+     * @return
+     */
     private CompletableFuture<Void> assignAllResourcesAndRegisterProducedPartitions(
             final List<ExecutionDeploymentHandle> deploymentHandles) {
         final List<CompletableFuture<Void>> resultFutures = new ArrayList<>();
@@ -161,8 +204,8 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
             final CompletableFuture<Void> resultFuture =
                     deploymentHandle
                             .getLogicalSlotFuture()
-                            .handle(assignResource(deploymentHandle))
-                            .thenCompose(registerProducedPartitions(deploymentHandle))
+                            .handle(assignResource(deploymentHandle))  // assignResource是处理结果的函数
+                            .thenCompose(registerProducedPartitions(deploymentHandle))  // 将TMLocation注册到execution上
                             .handle(
                                     (ignore, throwable) -> {
                                         if (throwable != null) {
@@ -177,6 +220,11 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
         return FutureUtils.waitForAll(resultFutures);
     }
 
+    /**
+     * 此时已经先分配好slot了
+     * @param deploymentHandles
+     * @return
+     */
     private BiFunction<Void, Throwable, Void> deployAll(
             final List<ExecutionDeploymentHandle> deploymentHandles) {
         return (ignored, throwable) -> {
@@ -187,7 +235,7 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
                 checkState(slotAssigned.isDone());
 
                 FutureUtils.assertNoException(
-                        slotAssigned.handle(deployOrHandleError(deploymentHandle)));
+                        slotAssigned.handle(deployOrHandleError(deploymentHandle))); // 执行后续操作
             }
             return null;
         };
@@ -199,6 +247,11 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
         }
     }
 
+    /**
+     * 返回分配资源的函数
+     * @param deploymentHandle
+     * @return
+     */
     private BiFunction<LogicalSlot, Throwable, LogicalSlot> assignResource(
             final ExecutionDeploymentHandle deploymentHandle) {
 
@@ -207,6 +260,7 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
                     deploymentHandle.getRequiredVertexVersion();
             final Execution execution = deploymentHandle.getExecution();
 
+            // 要求处于调度状态 且版本号没变
             if (execution.getState() != ExecutionState.SCHEDULED
                     || executionVertexVersioner.isModified(requiredVertexVersion)) {
                 if (throwable == null) {
@@ -226,6 +280,7 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
                 throw new CompletionException(maybeWrapWithNoResourceAvailableException(throwable));
             }
 
+            // 如果为execution设置slot失败  抛出异常
             if (!execution.tryAssignResource(logicalSlot)) {
                 throw new IllegalStateException(
                         "Could not assign resource "
@@ -239,6 +294,7 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
             // problems to reserve multiple slots for one execution vertex. Besides that, slot
             // reservation is for local recovery and therefore is only needed by streaming jobs, in
             // which case an execution vertex will have one only current execution.
+            // 当为execution绑定slot时  触发函数
             allocationReservationFunc.accept(
                     execution.getAttemptId().getExecutionVertexId(), logicalSlot.getAllocationId());
 
@@ -264,9 +320,15 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
         }
     }
 
+    /**
+     * 处理结果
+     * @param deploymentHandle
+     * @return
+     */
     private Function<LogicalSlot, CompletableFuture<Void>> registerProducedPartitions(
             final ExecutionDeploymentHandle deploymentHandle) {
 
+        // 此时已经得到slot 以及已经分配给execution了
         return logicalSlot -> {
             // a null logicalSlot means the slot assignment is skipped, in which case
             // the produced partition registration process can be skipped as well
@@ -290,6 +352,11 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
         };
     }
 
+    /**
+     * 这里包含部署逻辑
+     * @param deploymentHandle
+     * @return
+     */
     private BiFunction<Object, Throwable, Void> deployOrHandleError(
             final ExecutionDeploymentHandle deploymentHandle) {
 
@@ -298,6 +365,7 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
                     deploymentHandle.getRequiredVertexVersion();
             final Execution execution = deploymentHandle.getExecution();
 
+            // 要求无变化
             if (execution.getState() != ExecutionState.SCHEDULED
                     || executionVertexVersioner.isModified(requiredVertexVersion)) {
                 if (throwable == null) {
@@ -318,6 +386,10 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
         };
     }
 
+    /**
+     * 转发调用 execution.deploy
+     * @param execution
+     */
     private void deployTaskSafe(final Execution execution) {
         try {
             executionOperations.deploy(execution);
@@ -326,10 +398,18 @@ public class DefaultExecutionDeployer implements ExecutionDeployer {
         }
     }
 
+    /**
+     * 部署失败 标记execution失败
+     * @param execution
+     * @param error
+     */
     private void handleTaskDeploymentFailure(final Execution execution, final Throwable error) {
         executionOperations.markFailed(execution, error);
     }
 
+    /**
+     * 部署处理器 暴露get方法
+     */
     private static class ExecutionDeploymentHandle {
 
         private final Execution execution;

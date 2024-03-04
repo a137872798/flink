@@ -27,6 +27,7 @@ import java.util.List;
  * Simple wrapper list state that exposes empty state properly as an empty list.
  *
  * @param <T> The type of elements in the list state.
+ *           返回空对象作为兜底
  */
 class UserFacingListState<T> implements ListState<T> {
 

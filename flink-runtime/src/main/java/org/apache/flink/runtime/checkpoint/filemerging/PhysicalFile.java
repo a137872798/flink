@@ -33,7 +33,9 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-/** An abstraction of physical files in file-merging checkpoints. */
+/** An abstraction of physical files in file-merging checkpoints.
+ * 物理文件
+ * */
 public class PhysicalFile {
 
     private static final Logger LOG = LoggerFactory.getLogger(PhysicalFile.class);
@@ -48,6 +50,7 @@ public class PhysicalFile {
     /**
      * Output stream to the file, which keeps open for writing. It can be null if the file is
      * closed.
+     * 该文件相关的输出流
      */
     @Nullable private FSDataOutputStream outputStream;
 
@@ -60,9 +63,13 @@ public class PhysicalFile {
     /**
      * Deleter that will be called when delete this physical file. If null, do not delete this
      * physical file.
+     * 清理物理文件
      */
     @Nullable private final PhysicalFileDeleter deleter;
 
+    /**
+     * 文件路径
+     */
     private final Path filePath;
 
     private final CheckpointedStateScope scope;
@@ -121,6 +128,7 @@ public class PhysicalFile {
      * and this physical file is closed (no further writing on it).
      *
      * @throws IOException if anything goes wrong with file system.
+     * 引用计数归0时 触发删除
      */
     public void deleteIfNecessary() throws IOException {
         synchronized (this) {
@@ -155,6 +163,7 @@ public class PhysicalFile {
 
     public void close() throws IOException {
         innerClose();
+        // 尝试删除文件
         deleteIfNecessary();
     }
 

@@ -67,14 +67,30 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-/** Implementation of {@link SlotManager} supporting fine-grained resource management. */
+/** Implementation of {@link SlotManager} supporting fine-grained resource management.
+ * 进行细粒度的资源分配
+ * */
 public class FineGrainedSlotManager implements SlotManager {
     private static final Logger LOG = LoggerFactory.getLogger(FineGrainedSlotManager.class);
 
+    /**
+     * 该对象用于追踪每个TM的资源使用量
+     */
     private final TaskManagerTracker taskManagerTracker;
+
+    /**
+     * 追踪每个job的资源需求量
+     */
     private final ResourceTracker resourceTracker;
+
+    /**
+     * 通过该对象进行资源分配
+     */
     private final ResourceAllocationStrategy resourceAllocationStrategy;
 
+    /**
+     * 该对象负责同步 tracker对象
+     */
     private final SlotStatusSyncer slotStatusSyncer;
 
     /** Scheduled executor for timeouts. */
@@ -103,6 +119,9 @@ public class FineGrainedSlotManager implements SlotManager {
 
     private boolean sendNotEnoughResourceNotifications = true;
 
+    /**
+     * 记录未满足的job
+     */
     private final Set<JobID> unfulfillableJobs = new HashSet<>();
 
     /** ResourceManager's id. */
@@ -111,10 +130,14 @@ public class FineGrainedSlotManager implements SlotManager {
     /** Executor for future callbacks which have to be "synchronized". */
     @Nullable private Executor mainThreadExecutor;
 
-    /** Callbacks for resource (de-)allocations. */
+    /** Callbacks for resource (de-)allocations.
+     * 资源分配器对象  可以通过该对象声明需要的资源
+     * */
     @Nullable private ResourceAllocator resourceAllocator;
 
-    /** Callbacks for resource not enough. */
+    /** Callbacks for resource not enough.
+     * 用于通知job资源不足
+     * */
     @Nullable private ResourceEventListener resourceEventListener;
 
     @Nullable private ScheduledFuture<?> clusterReconciliationCheck;
@@ -123,7 +146,9 @@ public class FineGrainedSlotManager implements SlotManager {
 
     @Nullable private CompletableFuture<Void> declareNeededResourceFuture;
 
-    /** Blocked task manager checker. */
+    /** Blocked task manager checker.
+     * 检查该节点是否繁忙
+     * */
     @Nullable private BlockedTaskManagerChecker blockedTaskManagerChecker;
 
     /** True iff the component has been started. */
@@ -179,12 +204,16 @@ public class FineGrainedSlotManager implements SlotManager {
 
         if (failUnfulfillableRequest && !unfulfillableJobs.isEmpty()) {
             for (JobID jobId : unfulfillableJobs) {
+                // 通知资源不足
                 resourceEventListener.notEnoughResourceAvailable(
                         jobId, resourceTracker.getAcquiredResources(jobId));
             }
         }
     }
 
+    /**
+     * 触发一次资源检查
+     */
     @Override
     public void triggerResourceRequirementsCheck() {
         checkResourceRequirementsWithDelay();
@@ -211,6 +240,7 @@ public class FineGrainedSlotManager implements SlotManager {
             BlockedTaskManagerChecker newBlockedTaskManagerChecker) {
         LOG.info("Starting the slot manager.");
 
+        // 设置各组件
         resourceManagerId = Preconditions.checkNotNull(newResourceManagerId);
         mainThreadExecutor = Preconditions.checkNotNull(newMainThreadExecutor);
         resourceAllocator = Preconditions.checkNotNull(newResourceAllocator);
@@ -221,6 +251,7 @@ public class FineGrainedSlotManager implements SlotManager {
 
         started = true;
 
+        // 支持分配资源 就周期性检查
         if (resourceAllocator.isSupported()) {
             clusterReconciliationCheck =
                     scheduledExecutor.scheduleWithFixedDelay(
@@ -284,14 +315,21 @@ public class FineGrainedSlotManager implements SlotManager {
     // Public API
     // ---------------------------------------------------------------------------------------------
 
+    /**
+     * 清理某个job相关的资源
+     * @param jobId job for which to clear the requirements
+     */
     @Override
     public void clearResourceRequirements(JobID jobId) {
         maybeReclaimInactiveSlots(jobId);
         jobMasterTargetAddresses.remove(jobId);
+        // 将维护的job需要的资源置空
         resourceTracker.notifyResourceRequirements(jobId, Collections.emptyList());
         if (resourceAllocator.isSupported()) {
+            // 将资源归还到 taskManager
             taskManagerTracker.clearPendingAllocationsOfJob(jobId);
             checkResourcesNeedReconcile();
+            // 调配资源
             declareNeededResourcesWithDelay();
         }
     }
@@ -301,10 +339,15 @@ public class FineGrainedSlotManager implements SlotManager {
         // slots early, and rely on task managers to report the slots becoming available later to
         // keep the states consistent.
         if (!resourceTracker.getAcquiredResources(jobId).isEmpty()) {
+            // 内部会通过gateway对象通知
             slotStatusSyncer.freeInactiveSlots(jobId);
         }
     }
 
+    /**
+     * 处理资源的请求
+     * @param resourceRequirements resource requirements of a job
+     */
     @Override
     public void processResourceRequirements(ResourceRequirements resourceRequirements) {
         checkInit();
@@ -325,15 +368,25 @@ public class FineGrainedSlotManager implements SlotManager {
                     "Received resource requirements from job {}: {}",
                     resourceRequirements.getJobId(),
                     resourceRequirements.getResourceRequirements());
+            // 根据请求信息填充job地址
             jobMasterTargetAddresses.put(
                     resourceRequirements.getJobId(), resourceRequirements.getTargetAddress());
         }
 
+        // 记录资源需求
         resourceTracker.notifyResourceRequirements(
                 resourceRequirements.getJobId(), resourceRequirements.getResourceRequirements());
         checkResourceRequirementsWithDelay();
     }
 
+    /**
+     * 当产生了一个TM后  注册到本对象相关的组件
+     * @param taskExecutorConnection for the new task manager
+     * @param initialSlotReport for the new task manager
+     * @param totalResourceProfile for the new task manager
+     * @param defaultSlotResourceProfile for the new task manager
+     * @return
+     */
     @Override
     public RegistrationResult registerTaskManager(
             final TaskExecutorConnection taskExecutorConnection,
@@ -353,6 +406,7 @@ public class FineGrainedSlotManager implements SlotManager {
             LOG.debug(
                     "Task executor {} was already registered.",
                     taskExecutorConnection.getResourceID());
+            // 更新slot状态
             reportSlotStatus(taskExecutorConnection.getInstanceID(), initialSlotReport);
             return RegistrationResult.IGNORED;
         } else {
@@ -373,9 +427,11 @@ public class FineGrainedSlotManager implements SlotManager {
                 return RegistrationResult.REJECTED;
             }
 
+            // 注册该TM
             taskManagerTracker.addTaskManager(
                     taskExecutorConnection, totalResourceProfile, defaultSlotResourceProfile);
 
+            // 表示该TM的一些资源被预先分配了  使用report信息进行同步
             if (initialSlotReport.hasAllocatedSlot()) {
                 slotStatusSyncer.reportSlotStatus(
                         taskExecutorConnection.getInstanceID(), initialSlotReport);
@@ -390,6 +446,7 @@ public class FineGrainedSlotManager implements SlotManager {
                 return RegistrationResult.SUCCESS;
             }
 
+            // 因为新得到了资源 之后可以检查资源是否足够了
             checkResourceRequirementsWithDelay();
             return RegistrationResult.SUCCESS;
         }
@@ -417,10 +474,16 @@ public class FineGrainedSlotManager implements SlotManager {
         }
     }
 
-    /** DO NOT call this method directly. Use {@link #declareNeededResourcesWithDelay()} instead. */
+    /** DO NOT call this method directly. Use {@link #declareNeededResourcesWithDelay()} instead.
+     * 声明此时需要的资源
+     * */
     private void declareNeededResources() {
+
+        // 找到期望回收的TM
         Map<InstanceID, WorkerResourceSpec> unWantedTaskManagers =
                 taskManagerTracker.getUnWantedTaskManager();
+
+        // 按照资源量分组
         Map<WorkerResourceSpec, Set<InstanceID>> unWantedTaskManagerBySpec =
                 unWantedTaskManagers.entrySet().stream()
                         .collect(
@@ -429,6 +492,7 @@ public class FineGrainedSlotManager implements SlotManager {
                                         Collectors.mapping(Map.Entry::getKey, Collectors.toSet())));
 
         // registered TaskManagers except unwanted worker.
+        // 找到当前TM能够提供的资源量
         Stream<WorkerResourceSpec> registeredTaskManagerStream =
                 taskManagerTracker.getRegisteredTaskManagers().stream()
                         .filter(t -> !unWantedTaskManagers.containsKey(t.getInstanceId()))
@@ -437,6 +501,7 @@ public class FineGrainedSlotManager implements SlotManager {
                                         WorkerResourceSpec.fromTotalResourceProfile(
                                                 t.getTotalResource(), t.getDefaultNumSlots()));
         // pending TaskManagers.
+        // 计算pendingTM的资源量
         Stream<WorkerResourceSpec> pendingTaskManagerStream =
                 taskManagerTracker.getPendingTaskManagers().stream()
                         .map(
@@ -444,6 +509,7 @@ public class FineGrainedSlotManager implements SlotManager {
                                         WorkerResourceSpec.fromTotalResourceProfile(
                                                 t.getTotalResourceProfile(), t.getNumSlots()));
 
+        // 这是现在需要的资源量
         Map<WorkerResourceSpec, Integer> requiredWorkers =
                 Stream.concat(registeredTaskManagerStream, pendingTaskManagerStream)
                         .collect(
@@ -453,6 +519,7 @@ public class FineGrainedSlotManager implements SlotManager {
         Set<WorkerResourceSpec> workerResourceSpecs = new HashSet<>(requiredWorkers.keySet());
         workerResourceSpecs.addAll(unWantedTaskManagerBySpec.keySet());
 
+        // 转换成资源声明对象 并通过资源分配器处理
         List<ResourceDeclaration> resourceDeclarations = new ArrayList<>();
         workerResourceSpecs.forEach(
                 spec ->
@@ -466,6 +533,11 @@ public class FineGrainedSlotManager implements SlotManager {
         resourceAllocator.declareResourceNeeded(resourceDeclarations);
     }
 
+    /**
+     * 找到之前预分配的TM
+     * @param pendingTaskManager
+     * @param instanceId
+     */
     private void allocateSlotsForRegisteredPendingTaskManager(
             PendingTaskManager pendingTaskManager, InstanceID instanceId) {
         Map<JobID, Map<InstanceID, ResourceCounter>> allocations =
@@ -477,12 +549,21 @@ public class FineGrainedSlotManager implements SlotManager {
         allocateSlotsAccordingTo(allocations);
     }
 
+    /**
+     * 找到匹配的提前分配的
+     * @param totalResourceProfile
+     * @param defaultSlotResourceProfile
+     * @return
+     */
     private Optional<PendingTaskManager> findMatchingPendingTaskManager(
             ResourceProfile totalResourceProfile, ResourceProfile defaultSlotResourceProfile) {
+
+        // 找到pendingTM
         Collection<PendingTaskManager> matchedPendingTaskManagers =
                 taskManagerTracker.getPendingTaskManagersByTotalAndDefaultSlotResourceProfile(
                         totalResourceProfile, defaultSlotResourceProfile);
 
+        // 找到预先分配过资源的 TM
         Optional<PendingTaskManager> matchedPendingTaskManagerIdsWithAllocatedSlots =
                 matchedPendingTaskManagers.stream()
                         .filter(
@@ -499,6 +580,12 @@ public class FineGrainedSlotManager implements SlotManager {
         }
     }
 
+    /**
+     * 注销某个TM
+     * @param instanceId identifying the task manager to unregister
+     * @param cause for unregistering the TaskManager
+     * @return
+     */
     @Override
     public boolean unregisterTaskManager(InstanceID instanceId, Exception cause) {
         checkInit();
@@ -506,6 +593,7 @@ public class FineGrainedSlotManager implements SlotManager {
         LOG.info("Unregistering task executor {} from the slot manager.", instanceId);
 
         if (taskManagerTracker.getRegisteredTaskManager(instanceId).isPresent()) {
+            // 获取已经分配的slot
             Set<AllocationID> allocatedSlots =
                     new HashSet<>(
                             taskManagerTracker
@@ -612,16 +700,20 @@ public class FineGrainedSlotManager implements SlotManager {
 
     /**
      * DO NOT call this method directly. Use {@link #checkResourceRequirementsWithDelay()} instead.
+     * 检查资源是否足够 并进行分配
      */
     private void checkResourceRequirements() {
         if (!started) {
             return;
         }
+
+        // 获取缺失的资源
         Map<JobID, Collection<ResourceRequirement>> missingResources =
                 resourceTracker.getMissingResources();
         if (missingResources.isEmpty()) {
             if (resourceAllocator.isSupported()
                     && !taskManagerTracker.getPendingTaskManagers().isEmpty()) {
+                // 因为资源足够了  不需要预支
                 taskManagerTracker.replaceAllPendingAllocations(Collections.emptyMap());
                 checkResourcesNeedReconcile();
                 declareNeededResourcesWithDelay();
@@ -629,6 +721,7 @@ public class FineGrainedSlotManager implements SlotManager {
             return;
         }
 
+        // 日志
         logMissingAndAvailableResource(missingResources);
 
         missingResources =
@@ -637,24 +730,29 @@ public class FineGrainedSlotManager implements SlotManager {
                                 Collectors.toMap(
                                         Map.Entry::getKey, e -> new ArrayList<>(e.getValue())));
 
+        // 尝试分配资源
         final ResourceAllocationResult result =
                 resourceAllocationStrategy.tryFulfillRequirements(
                         missingResources, taskManagerTracker, this::isBlockedTaskManager);
 
         // Allocate slots according to the result
+        // 此时产生了分配结果
         allocateSlotsAccordingTo(result.getAllocationsOnRegisteredResources());
 
         final Set<PendingTaskManagerId> failAllocations;
         if (resourceAllocator.isSupported()) {
             // Allocate task managers according to the result
+            // 表示预支了TM
             failAllocations =
                     allocateTaskManagersAccordingTo(result.getPendingTaskManagersToAllocate());
 
             // Record slot allocation of pending task managers
+            // 描述如何分配
             final Map<PendingTaskManagerId, Map<JobID, ResourceCounter>>
                     pendingResourceAllocationResult =
                             new HashMap<>(result.getAllocationsOnPendingResources());
             pendingResourceAllocationResult.keySet().removeAll(failAllocations);
+            // 清理掉失败的
             taskManagerTracker.replaceAllPendingAllocations(pendingResourceAllocationResult);
         } else {
             failAllocations =
@@ -670,6 +768,7 @@ public class FineGrainedSlotManager implements SlotManager {
                     result.getAllocationsOnPendingResources().get(pendingTaskManagerId).keySet());
         }
         // Notify jobs that can not be fulfilled
+        // 通知资源不足
         if (sendNotEnoughResourceNotifications) {
             for (JobID jobId : unfulfillableJobs) {
                 LOG.warn("Could not fulfill resource requirements of job {}.", jobId);
@@ -679,6 +778,7 @@ public class FineGrainedSlotManager implements SlotManager {
         }
 
         if (resourceAllocator.isSupported()) {
+            // 先调整 之后检测资源是否足够
             checkResourcesNeedReconcile();
             declareNeededResourcesWithDelay();
         }
@@ -709,6 +809,10 @@ public class FineGrainedSlotManager implements SlotManager {
         LOG.info(lines.toString());
     }
 
+    /**
+     * 根据结果分配资源
+     * @param result
+     */
     private void allocateSlotsAccordingTo(Map<JobID, Map<InstanceID, ResourceCounter>> result) {
         final List<CompletableFuture<Void>> allocationFutures = new ArrayList<>();
         for (Map.Entry<JobID, Map<InstanceID, ResourceCounter>> jobEntry : result.entrySet()) {
@@ -719,6 +823,7 @@ public class FineGrainedSlotManager implements SlotManager {
                         tmEntry.getValue().getResourcesWithCount()) {
                     for (int i = 0; i < slotEntry.getValue(); ++i) {
                         allocationFutures.add(
+                                // 这里会发起 rpc调用
                                 slotStatusSyncer.allocateSlot(
                                         instanceID,
                                         jobID,
@@ -742,6 +847,7 @@ public class FineGrainedSlotManager implements SlotManager {
     /**
      * Allocate pending task managers, returns the ids of pending task managers that can not be
      * allocated.
+     * 使用 pending TM 分配资源
      */
     private Set<PendingTaskManagerId> allocateTaskManagersAccordingTo(
             List<PendingTaskManager> pendingTaskManagers) {
@@ -819,14 +925,20 @@ public class FineGrainedSlotManager implements SlotManager {
         }
     }
 
+    /**
+     * 检查资源是否需要调整
+     * @return
+     */
     private boolean checkResourcesNeedReconcile() {
         ResourceReconcileResult reconcileResult =
                 resourceAllocationStrategy.tryReconcileClusterResources(taskManagerTracker);
 
+        // 这些是需要释放的TM
         reconcileResult.getPendingTaskManagersToRelease().stream()
                 .map(PendingTaskManager::getPendingTaskManagerId)
                 .forEach(taskManagerTracker::removePendingTaskManager);
 
+        // 需要释放的TM
         for (TaskManagerInfo taskManagerToRelease : reconcileResult.getTaskManagersToRelease()) {
             if (waitResultConsumedBeforeRelease) {
                 releaseIdleTaskExecutorIfPossible(taskManagerToRelease);
@@ -835,11 +947,16 @@ public class FineGrainedSlotManager implements SlotManager {
             }
         }
 
+        // 表示还需要申请的TM
         reconcileResult.getPendingTaskManagersToAllocate().forEach(this::allocateResource);
 
         return reconcileResult.needReconcile();
     }
 
+    /**
+     * 释放TM 先检测能否释放
+     * @param taskManagerInfo
+     */
     private void releaseIdleTaskExecutorIfPossible(TaskManagerInfo taskManagerInfo) {
         final long idleSince = taskManagerInfo.getIdleSince();
         taskManagerInfo
@@ -857,11 +974,20 @@ public class FineGrainedSlotManager implements SlotManager {
                         mainThreadExecutor);
     }
 
+    /**
+     * 释放TM
+     * @param taskManagerToRelease
+     */
     private void releaseIdleTaskExecutor(InstanceID taskManagerToRelease) {
         Preconditions.checkState(resourceAllocator.isSupported());
         taskManagerTracker.addUnWantedTaskManager(taskManagerToRelease);
     }
 
+    /**
+     * 需要再申请TM
+     * @param pendingTaskManager
+     * @return
+     */
     private boolean allocateResource(PendingTaskManager pendingTaskManager) {
         Preconditions.checkState(resourceAllocator.isSupported());
         if (isMaxTotalResourceExceededAfterAdding(pendingTaskManager.getTotalResourceProfile())) {
@@ -897,6 +1023,11 @@ public class FineGrainedSlotManager implements SlotManager {
         Preconditions.checkNotNull(resourceEventListener);
     }
 
+    /**
+     * 申请量不能超过总量
+     * @param newResource
+     * @return
+     */
     private boolean isMaxTotalResourceExceededAfterAdding(ResourceProfile newResource) {
         final ResourceProfile totalResourceAfterAdding =
                 newResource

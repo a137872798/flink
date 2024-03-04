@@ -30,6 +30,7 @@ public interface LogicalVertex
      * Get the input {@link LogicalEdge}s of the vertex.
      *
      * @return the input {@link LogicalEdge}s
+     * 每个顶点 从其他edge接收数据  从edge中可以分析出数据来源的顶点
      */
     Iterable<? extends LogicalEdge> getInputs();
 }

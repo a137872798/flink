@@ -38,9 +38,14 @@ import java.util.Optional;
 
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** The data client is used to fetch data from remote tier. */
+/** The data client is used to fetch data from remote tier.
+ * 进行数据消费
+ * */
 public class RemoteTierConsumerAgent implements TierConsumerAgent {
 
+    /**
+     * 通过该对象定期检测远端最新的seg
+     */
     private final RemoteStorageScanner remoteStorageScanner;
 
     private final PartitionFileReader partitionFileReader;
@@ -67,11 +72,20 @@ public class RemoteTierConsumerAgent implements TierConsumerAgent {
         this.bufferSizeBytes = bufferSizeBytes;
     }
 
+    /**
+     * 启动scanner对象
+     */
     @Override
     public void start() {
         remoteStorageScanner.start();
     }
 
+    /**
+     * @param partitionId the id of partition.
+     * @param subpartitionId the id of subpartition.
+     * @param segmentId the id of segment.
+     * @return
+     */
     @Override
     public Optional<Buffer> getNextBuffer(
             TieredStoragePartitionId partitionId,
@@ -84,6 +98,7 @@ public class RemoteTierConsumerAgent implements TierConsumerAgent {
                         .getOrDefault(subpartitionId, Tuple2.of(0, -1));
         int currentBufferIndex = bufferIndexAndSegmentId.f0;
         int currentSegmentId = bufferIndexAndSegmentId.f1;
+        // 本次读取的seg与之前的不同  监控目标seg   当有数据可用时会触发 notify
         if (segmentId != currentSegmentId) {
             remoteStorageScanner.watchSegment(partitionId, subpartitionId, segmentId);
         }
@@ -92,6 +107,7 @@ public class RemoteTierConsumerAgent implements TierConsumerAgent {
         MemorySegment memorySegment = MemorySegmentFactory.allocateUnpooledSegment(bufferSizeBytes);
         PartitionFileReader.ReadBufferResult readBufferResult = null;
         try {
+            // 这里也是利用reader读取数据
             readBufferResult =
                     partitionFileReader.readBuffer(
                             partitionId,
@@ -107,6 +123,7 @@ public class RemoteTierConsumerAgent implements TierConsumerAgent {
             ExceptionUtils.rethrow(e, "Failed to read buffer from partition file.");
         }
         if (readBufferResult != null && !readBufferResult.getReadBuffers().isEmpty()) {
+            // 期望每次读取一个 并推进index
             List<Buffer> readBuffers = readBufferResult.getReadBuffers();
             checkState(readBuffers.size() == 1);
             Buffer buffer = readBuffers.get(0);

@@ -31,12 +31,15 @@ import java.io.IOException;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** A storage location for checkpoints on a file system. */
+/** A storage location for checkpoints on a file system.
+ * 存储各种路径信息的对象
+ * */
 public class FsCheckpointStorageLocation extends FsCheckpointStreamFactory
         implements CheckpointStorageLocation {
 
     private final FileSystem fileSystem;
 
+    // 各种目录
     private final Path checkpointDirectory;
 
     private final Path sharedStateDirectory;
@@ -45,6 +48,9 @@ public class FsCheckpointStorageLocation extends FsCheckpointStreamFactory
 
     private final Path metadataFilePath;
 
+    /**
+     * 关于检查点的位置信息
+     */
     private final CheckpointStorageLocationReference reference;
 
     private final int fileStateSizeThreshold;
@@ -74,6 +80,7 @@ public class FsCheckpointStorageLocation extends FsCheckpointStreamFactory
         // the metadata file should not have entropy in its path
         Path metadataDir = EntropyInjector.removeEntropyMarkerIfPresent(fileSystem, checkpointDir);
 
+        // 生成元数据文件路径
         this.metadataFilePath =
                 new Path(metadataDir, AbstractFsCheckpointStorageAccess.METADATA_FILE_NAME);
         this.fileStateSizeThreshold = fileStateSizeThreshold;
@@ -104,6 +111,11 @@ public class FsCheckpointStorageLocation extends FsCheckpointStreamFactory
     //  checkpoint metadata
     // ------------------------------------------------------------------------
 
+    /**
+     * 根据元数据文件 生成输出流
+     * @return
+     * @throws IOException
+     */
     @Override
     public CheckpointMetadataOutputStream createMetadataOutputStream() throws IOException {
         return new FsCheckpointMetadataOutputStream(

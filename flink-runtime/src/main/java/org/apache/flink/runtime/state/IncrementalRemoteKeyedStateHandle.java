@@ -56,6 +56,8 @@ import java.util.stream.Collectors;
  * <p>IMPORTANT: This class currently overrides equals and hash code only for testing purposes. They
  * should not be called from production code. This means this class is also not suited to serve as a
  * key, e.g. in hash maps.
+ *
+ * 增量状态对象
  */
 public class IncrementalRemoteKeyedStateHandle implements IncrementalKeyedStateHandle {
 
@@ -69,22 +71,32 @@ public class IncrementalRemoteKeyedStateHandle implements IncrementalKeyedStateH
     /**
      * UUID to identify the backend which created this state handle. This is in creating the key for
      * the {@link SharedStateRegistry}.
+     *
+     * 唯一表示某个状态后端
      */
     private final UUID backendIdentifier;
 
-    /** The key-group range covered by this state handle. */
+    /** The key-group range covered by this state handle.
+     * 这组状态涉及到的key范围
+     * */
     private final KeyGroupRange keyGroupRange;
 
     /** The checkpoint Id. */
     private final long checkpointId;
 
-    /** Shared state in the incremental checkpoint. */
+    /** Shared state in the incremental checkpoint.
+     * 共享状态  就是一堆位置+stateHandle
+     * */
     private final List<HandleAndLocalPath> sharedState;
 
-    /** Private state in the incremental checkpoint. */
+    /** Private state in the incremental checkpoint.
+     * 与共享状态对应的就是私有状态
+     * */
     private final List<HandleAndLocalPath> privateState;
 
-    /** Primary meta data state of the incremental checkpoint. */
+    /** Primary meta data state of the incremental checkpoint.
+     * 用于读取元数据相关的状态
+     * */
     private final StreamStateHandle metaStateHandle;
 
     private final long persistedSizeOfThisCheckpoint;
@@ -97,6 +109,8 @@ public class IncrementalRemoteKeyedStateHandle implements IncrementalKeyedStateH
      * performing the registration, the handle should delete all the shared states created by it.
      *
      * <p>This variable is not null iff the handles was registered.
+     *
+     * 简单看来是注册 StreamStateHandle的容器
      */
     private transient SharedStateRegistry sharedStateRegistry;
 
@@ -162,6 +176,18 @@ public class IncrementalRemoteKeyedStateHandle implements IncrementalKeyedStateH
         this.stateHandleId = stateHandleId;
     }
 
+    /**
+     * 通过已有的属性 还原本对象
+     * @param backendIdentifier
+     * @param keyGroupRange
+     * @param checkpointId
+     * @param sharedState
+     * @param privateState
+     * @param metaStateHandle
+     * @param persistedSizeOfThisCheckpoint
+     * @param stateHandleId
+     * @return
+     */
     public static IncrementalRemoteKeyedStateHandle restore(
             UUID backendIdentifier,
             KeyGroupRange keyGroupRange,
@@ -192,6 +218,11 @@ public class IncrementalRemoteKeyedStateHandle implements IncrementalKeyedStateH
         return checkpointId;
     }
 
+    /**
+     * 更新绑定的检查点
+     * @param checkpointId rebounded checkpoint id.
+     * @return
+     */
     @Override
     public CheckpointBoundKeyedStateHandle rebound(long checkpointId) {
         return new IncrementalRemoteKeyedStateHandle(
@@ -245,6 +276,10 @@ public class IncrementalRemoteKeyedStateHandle implements IncrementalKeyedStateH
         return stateHandleId;
     }
 
+    /**
+     * 丢弃状态对象
+     * @throws Exception
+     */
     @Override
     public void discardState() throws Exception {
 
@@ -264,6 +299,7 @@ public class IncrementalRemoteKeyedStateHandle implements IncrementalKeyedStateH
         }
 
         try {
+            // 丢弃所有状态
             StateUtil.bestEffortDiscardAllStateObjects(
                     privateState.stream()
                             .map(HandleAndLocalPath::getHandle)
@@ -273,6 +309,7 @@ public class IncrementalRemoteKeyedStateHandle implements IncrementalKeyedStateH
         }
 
         // discard only on TM; on JM, shared state is removed on subsumption
+        // 共享状态没有注册的情况 就需要被丢弃 注册了 则生命周期不由本对象控制了
         if (!isRegistered) {
             try {
                 StateUtil.bestEffortDiscardAllStateObjects(
@@ -305,6 +342,11 @@ public class IncrementalRemoteKeyedStateHandle implements IncrementalKeyedStateH
         return persistedSizeOfThisCheckpoint;
     }
 
+    /**
+     * 要为本对象管理 注册对象
+     * @param stateRegistry The registry where shared states are registered.
+     * @param checkpointID
+     */
     @Override
     public void registerSharedStates(SharedStateRegistry stateRegistry, long checkpointID) {
 
@@ -340,6 +382,7 @@ public class IncrementalRemoteKeyedStateHandle implements IncrementalKeyedStateH
             // placeholder state handle with already registered, actual state handles.
             // Because of SharedStateRegistryKey is based on the physical id of the stream handle,
             // no de-duplication will be performed. see FLINK-29913.
+            // 注册后 使用包装过的StreamStateHandle
             handleAndLocalPath.replaceHandle(reference);
         }
     }

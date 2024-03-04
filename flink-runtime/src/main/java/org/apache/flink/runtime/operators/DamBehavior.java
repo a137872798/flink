@@ -23,22 +23,27 @@ package org.apache.flink.runtime.operators;
  * behavior describes whether records pass through the algorithm (no dam), whether all records are
  * collected before the first is returned (full dam) or whether a certain large amount is collected
  * before the algorithm returns records.
+ * 用水坝来描述表现
  */
 public enum DamBehavior {
 
     /**
      * Constant indicating that the algorithm does not come with any form of dam and records pass
      * through in a pipelined fashion.
+     * 没有任何水坝 数据以流水线形式通过
      */
     PIPELINED,
 
     /**
      * Constant indicating that the algorithm materialized (some) records, but may return records
      * before all records are read.
+     * 具体化了某些数据
      */
     MATERIALIZING,
 
-    /** Constant indicating that the algorithm collects all records before returning any. */
+    /** Constant indicating that the algorithm collects all records before returning any.
+     * 在返回前 先收集所有记录
+     * */
     FULL_DAM;
 
     /**

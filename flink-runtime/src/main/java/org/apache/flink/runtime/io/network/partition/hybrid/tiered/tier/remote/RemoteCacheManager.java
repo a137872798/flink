@@ -28,11 +28,18 @@ import java.util.Arrays;
 /**
  * The {@link RemoteCacheManager} is responsible for managing the cached buffers before flush to the
  * remote storage.
+ * 也是先将数据维护在内存中 达到一定量时 刷盘
  */
 class RemoteCacheManager {
 
+    /**
+     * 每个子分区对应一个 SubpartitionRemoteCacheManager
+     */
     private final SubpartitionRemoteCacheManager[] subpartitionCacheDataManagers;
 
+    /**
+     * 每个子分区当前对应的id
+     */
     private final int[] subpartitionSegmentIds;
 
     public RemoteCacheManager(
@@ -59,6 +66,8 @@ class RemoteCacheManager {
         subpartitionCacheDataManagers[subpartitionId].startSegment(segmentId);
         subpartitionSegmentIds[subpartitionId] = segmentId;
     }
+
+    // 主要就是转发
 
     void appendBuffer(Buffer finishedBuffer, int subpartitionId) {
         subpartitionCacheDataManagers[subpartitionId].addBuffer(finishedBuffer);

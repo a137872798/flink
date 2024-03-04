@@ -57,6 +57,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * to get its partition data.
  *
  * <p>Note that one partition file may contain the data of multiple subpartitions.
+ * 与ProducerMergedPartitionFileWriter对应 用于读取数据
  */
 public class ProducerMergedPartitionFileReader implements PartitionFileReader {
 
@@ -78,6 +79,24 @@ public class ProducerMergedPartitionFileReader implements PartitionFileReader {
         this.dataIndex = dataIndex;
     }
 
+    /**
+     * @param partitionId the partition id of the buffer
+     * @param subpartitionId the subpartition id of the buffer
+     * @param segmentId the segment id of the buffer
+     * @param bufferIndex the index of buffer
+     * @param memorySegment the empty buffer to store the read buffer
+     * @param recycler the buffer recycler
+     * @param readProgress the current read progress. The progress comes from the previous
+     *     ReadBufferResult. Note that the read progress should be implemented and provided by
+     *     Flink, and it should be directly tied to the file format. The field can be null if the
+     *     current file reader has no the read progress
+     * @param partialBuffer the previous partial buffer. The partial buffer is not null only when
+     *     the last read has a partial buffer, it will construct a full buffer during the read
+     *     process.
+     * @return
+     * @throws IOException
+     *      读取数据
+     */
     @Override
     public ReadBufferResult readBuffer(
             TieredStoragePartitionId partitionId,
@@ -93,6 +112,7 @@ public class ProducerMergedPartitionFileReader implements PartitionFileReader {
         lazyInitializeFileChannel();
 
         // Get the read offset, including the start offset, the end offset
+        // 获得一个读取的范围
         Tuple2<Long, Long> startAndEndOffset =
                 getReadStartAndEndOffset(subpartitionId, bufferIndex, readProgress, partialBuffer);
         if (startAndEndOffset == null) {
@@ -110,12 +130,15 @@ public class ProducerMergedPartitionFileReader implements PartitionFileReader {
 
         List<Buffer> readBuffers = new LinkedList<>();
         ByteBuffer byteBuffer = memorySegment.wrap(0, numBytesToRead);
+
+        // 定位到start的位置  并开始读取数据
         fileChannel.position(readStartOffset);
         // Read data to the memory segment, note the read size is numBytesToRead
         readFileDataToBuffer(memorySegment, recycler, byteBuffer);
 
         // Slice the read memory segment to multiple small network buffers and add them to
         // readBuffers
+        // t1 读取总大小  t2 本次读出的部分数据需要与下次读取的合并
         Tuple2<Integer, Integer> partial =
                 sliceBuffer(byteBuffer, memorySegment, partialBuffer, recycler, readBuffers);
 
@@ -128,6 +151,18 @@ public class ProducerMergedPartitionFileReader implements PartitionFileReader {
                 partial.f1);
     }
 
+    /**
+     * 获取优先级
+     * @param partitionId the partition id of the buffer
+     * @param subpartitionId the subpartition id of the buffer
+     * @param segmentId the segment id of the buffer
+     * @param bufferIndex the index of buffer
+     * @param readProgress the current read progress. The progress comes from the previous
+     *     ReadBufferResult. Note that the read progress should be implemented and provided by
+     *     Flink, and it should be directly tied to the file format. The field can be null if the
+     *     current file reader has no the read progress
+     * @return
+     */
     @Override
     public long getPriority(
             TieredStoragePartitionId partitionId,
@@ -144,6 +179,7 @@ public class ProducerMergedPartitionFileReader implements PartitionFileReader {
         }
         return dataIndex
                 .getRegion(subpartitionId, bufferIndex)
+                // 否则返回region的起始偏移量
                 .map(ProducerMergedPartitionFileIndex.FixedSizeRegion::getRegionStartOffset)
                 .orElse(Long.MAX_VALUE);
     }
@@ -189,7 +225,7 @@ public class ProducerMergedPartitionFileReader implements PartitionFileReader {
      *     the partial buffer
      */
     private Tuple2<Integer, Integer> sliceBuffer(
-            ByteBuffer byteBuffer,
+            ByteBuffer byteBuffer,  // 包含已经读取的数据
             MemorySegment memorySegment,
             @Nullable CompositeBuffer partialBuffer,
             BufferRecycler bufferRecycler,
@@ -209,6 +245,8 @@ public class ProducerMergedPartitionFileReader implements PartitionFileReader {
                 buffer.retainBuffer();
                 int position = byteBuffer.position() + partialBuffer.missingLength();
                 int numPartialBytes = partialBuffer.missingLength();
+
+                // 先补充缺失的部分  拼成一个完成的记录
                 partialBuffer.addPartialBuffer(
                         buffer.readOnlySlice(byteBuffer.position(), numPartialBytes));
                 numSlicedBytes += numPartialBytes;
@@ -217,22 +255,27 @@ public class ProducerMergedPartitionFileReader implements PartitionFileReader {
             }
 
             partialBuffer = null;
+
+            // 开始处理本次读取到的数据
             while (byteBuffer.hasRemaining()) {
-                // Parse the small buffer's header
+                // Parse the small buffer's header 解析header
                 BufferHeader header = parseBufferHeader(byteBuffer);
                 if (header == null) {
                     // If the remaining data length in the buffer is not enough to construct a new
                     // complete buffer header, drop it directly.
                     break;
                 } else {
+                    // 表示又读取了一个header的长度
                     numSlicedBytes += HEADER_LENGTH;
                 }
 
+                // 表示有足够空间
                 if (header.getLength() <= byteBuffer.remaining()) {
                     // The remaining data length in the buffer is enough to generate a new small
                     // sliced network buffer. The small sliced buffer is not a partial buffer, we
                     // should read the slice of the buffer directly
                     buffer.retainBuffer();
+                    // 生成切片 加入到readBuffers中
                     ReadOnlySlicedNetworkBuffer slicedBuffer =
                             buffer.readOnlySlice(byteBuffer.position(), header.getLength());
                     slicedBuffer.setDataType(header.getDataType());
@@ -244,7 +287,10 @@ public class ProducerMergedPartitionFileReader implements PartitionFileReader {
                     // The remaining data length in the buffer is smaller than the actual length of
                     // the buffer, so we should generate a new partial buffer, allowing for
                     // generating a new complete buffer during the next read operation
+
+                    // 此时数据不足一个完整的记录
                     buffer.retainBuffer();
+                    // 将数据加入 CompositeBuffer
                     int numPartialBytes = byteBuffer.remaining();
                     numSlicedBytes += numPartialBytes;
                     partialBuffer = new CompositeBuffer(header);
@@ -266,6 +312,7 @@ public class ProducerMergedPartitionFileReader implements PartitionFileReader {
     /**
      * Return a tuple of the start and end file offset, or return null if the buffer is not found in
      * the data index.
+     * 根据参数和上下文信息 找到本次要读取的偏移量
      */
     @Nullable
     private Tuple2<Long, Long> getReadStartAndEndOffset(
@@ -276,8 +323,13 @@ public class ProducerMergedPartitionFileReader implements PartitionFileReader {
         ProducerMergedReadProgress readProgress = convertToCurrentReadProgress(currentReadProgress);
         long readStartOffset;
         long readEndOffset;
+
+        //
         if (readProgress == null
+                // 表示该region读完了
                 || readProgress.getCurrentBufferOffset() == readProgress.getEndOfRegionOffset()) {
+
+            // 得到的是bufferIndex所在的region信息
             Optional<ProducerMergedPartitionFileIndex.FixedSizeRegion> regionOpt =
                     dataIndex.getRegion(subpartitionId, bufferIndex);
             if (!regionOpt.isPresent()) {
@@ -286,6 +338,7 @@ public class ProducerMergedPartitionFileReader implements PartitionFileReader {
             readStartOffset = regionOpt.get().getRegionStartOffset();
             readEndOffset = regionOpt.get().getRegionEndOffset();
         } else {
+            // 如果progress有效  可以快速计算startOffset 并且这个应该更精准
             readStartOffset =
                     readProgress.getCurrentBufferOffset()
                             + getPartialBufferReadBytes(partialBuffer);
@@ -296,6 +349,16 @@ public class ProducerMergedPartitionFileReader implements PartitionFileReader {
         return Tuple2.of(readStartOffset, readEndOffset);
     }
 
+    /**
+     * 产生本次读取的结果
+     * @param readBuffers
+     * @param readStartOffset
+     * @param readEndOffset
+     * @param numBytesToRead
+     * @param numBytesRealRead
+     * @param numBytesReadPartialBuffer
+     * @return
+     */
     private static ReadBufferResult getReadBufferResult(
             List<Buffer> readBuffers,
             long readStartOffset,
@@ -303,7 +366,10 @@ public class ProducerMergedPartitionFileReader implements PartitionFileReader {
             int numBytesToRead,
             int numBytesRealRead,
             int numBytesReadPartialBuffer) {
+        // 表示当前region还有数据
         boolean shouldContinueRead = readStartOffset + numBytesRealRead < readEndOffset;
+
+        // 生成progress
         ProducerMergedReadProgress readProgress =
                 new ProducerMergedReadProgress(
                         readStartOffset + numBytesRealRead - numBytesReadPartialBuffer,
@@ -340,6 +406,11 @@ public class ProducerMergedPartitionFileReader implements PartitionFileReader {
         return (ProducerMergedReadProgress) readProgress;
     }
 
+    /**
+     * 从buffer中解析出header
+     * @param buffer
+     * @return
+     */
     private BufferHeader parseBufferHeader(ByteBuffer buffer) {
         checkArgument(reusedHeaderBuffer.position() == 0);
 
@@ -364,6 +435,7 @@ public class ProducerMergedPartitionFileReader implements PartitionFileReader {
     /**
      * The implementation of {@link PartitionFileReader.ReadProgress} mainly includes current
      * reading offset, end of read offset, etc.
+     * 描述读取的进度
      */
     public static class ProducerMergedReadProgress implements PartitionFileReader.ReadProgress {
         /**
@@ -372,7 +444,9 @@ public class ProducerMergedPartitionFileReader implements PartitionFileReader {
          */
         private final long currentBufferOffset;
 
-        /** The end of region file offset. */
+        /** The end of region file offset.
+         * 当前region在哪里结束
+         * */
         private final long endOfRegionOffset;
 
         public ProducerMergedReadProgress(long currentBufferOffset, long endOfRegionOffset) {

@@ -42,6 +42,9 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * @param <R> The type of request (e.g. <tt>ReadRequest</tt> or <tt>WriteRequest</tt> issued by this
  *     access to the I/O threads.
+ *
+ *           AbstractFileIOChannel 提供文件channel的基础功能
+ *           AsynchronousFileIOChannel 表示该channel可以异步的发起一些请求   体现在阻塞队列的解耦
  */
 public abstract class AsynchronousFileIOChannel<T, R extends IORequest>
         extends AbstractFileIOChannel {
@@ -56,13 +59,18 @@ public abstract class AsynchronousFileIOChannel<T, R extends IORequest>
 
     /**
      * A request queue for submitting asynchronous requests to the corresponding IO worker thread.
+     * 存储所有待处理的请求
      */
     protected final RequestQueue<R> requestQueue;
 
-    /** An atomic integer that counts the number of requests that we still wait for to return. */
+    /** An atomic integer that counts the number of requests that we still wait for to return.
+     * 表示待处理的请求数量
+     * */
     protected final AtomicInteger requestsNotReturned = new AtomicInteger(0);
 
-    /** Handler for completed requests */
+    /** Handler for completed requests
+     * 使用回调对象处理结果
+     * */
     protected final RequestDoneCallback<T> resultHandler;
 
     /** An exception that was encountered by the asynchronous request handling thread. */
@@ -71,6 +79,10 @@ public abstract class AsynchronousFileIOChannel<T, R extends IORequest>
     /** Flag marking this channel as closed */
     protected volatile boolean closed;
 
+    /**
+     * 每当队列中的请求被清空时  就会触发一次
+     * 如果在关闭channel后 收到新的请求 也会触发
+     */
     private NotificationListener allRequestsProcessedListener;
 
     // --------------------------------------------------------------------------------------------
@@ -84,7 +96,7 @@ public abstract class AsynchronousFileIOChannel<T, R extends IORequest>
      * @param requestQueue The queue that this channel hands its IO requests to.
      * @param callback The callback to be invoked when a request is done.
      * @param writeEnabled Flag describing whether the channel should be opened in read/write mode,
-     *     rather than in read-only mode.
+     *     rather than in read-only mode.   描述文件是否可写
      * @throws IOException Thrown, if the channel could no be opened.
      */
     protected AsynchronousFileIOChannel(
@@ -133,7 +145,10 @@ public abstract class AsynchronousFileIOChannel<T, R extends IORequest>
                         // we add a timeout here, because it is not guaranteed that the
                         // decrementing during buffer return and the check here are deadlock free.
                         // the deadlock situation is however unlikely and caught by the timeout
+                        // 当发现还有请求未处理时  最多等待1秒
                         this.closeLock.wait(1000);
+
+                        // 检查是否有异常  并抛出
                         checkErroneous();
                     } catch (InterruptedException iex) {
                         throw new IOException(
@@ -192,6 +207,8 @@ public abstract class AsynchronousFileIOChannel<T, R extends IORequest>
      * @param buffer The buffer to be processed.
      * @param ex The exception that occurred in the I/O threads when processing the buffer's
      *     request.
+     *
+     *           在请求已经处理完后  使用存储数据的buffer触发该方法
      */
     protected final void handleProcessedBuffer(T buffer, IOException ex) {
         if (buffer == null) {
@@ -202,8 +219,10 @@ public abstract class AsynchronousFileIOChannel<T, R extends IORequest>
         try {
             if (ex != null && this.exception == null) {
                 this.exception = ex;
+                // 发现了异常  进行处理
                 this.resultHandler.requestFailed(buffer, ex);
             } else {
+                // 成功情况下处理
                 this.resultHandler.requestSuccessful(buffer);
             }
         } finally {
@@ -214,24 +233,33 @@ public abstract class AsynchronousFileIOChannel<T, R extends IORequest>
             synchronized (this.closeLock) {
                 if (this.requestsNotReturned.decrementAndGet() == 0) {
                     if (this.closed) {
+                        // 唤醒等待阻塞的线程
                         this.closeLock.notifyAll();
                     }
 
                     synchronized (listenerLock) {
+                        // 每次触发时 就会重置该字段
                         listener = allRequestsProcessedListener;
                         allRequestsProcessedListener = null;
                     }
                 }
             }
 
+            // 当所有请求都处理完时  触发一次通知
             if (listener != null) {
                 listener.onNotification();
             }
         }
     }
 
+    /**
+     * 将某个请求加入队列
+     * @param request
+     * @throws IOException
+     */
     protected final void addRequest(R request) throws IOException {
         // check the error state of this channel
+        // 先检查是否出现了异常
         checkErroneous();
 
         // write the current buffer and get the next one
@@ -256,6 +284,7 @@ public abstract class AsynchronousFileIOChannel<T, R extends IORequest>
             throw new IOException("I/O channel already closed. Could not fulfill: " + request);
         }
 
+        // 请求加入队列
         this.requestQueue.add(request);
     }
 
@@ -268,6 +297,7 @@ public abstract class AsynchronousFileIOChannel<T, R extends IORequest>
      *
      * <p>Returns <code>true</code>, if the registration was successful. A registration can fail, if
      * there are no outstanding requests when trying to register a listener.
+     * 注册监听器
      */
     protected boolean registerAllRequestsProcessedListener(NotificationListener listener)
             throws IOException {
@@ -276,6 +306,7 @@ public abstract class AsynchronousFileIOChannel<T, R extends IORequest>
         synchronized (listenerLock) {
             if (allRequestsProcessedListener == null) {
                 // There was a race with the processing of the last outstanding request
+                // 此时没有待处理请求 无法注册
                 if (requestsNotReturned.get() == 0) {
                     return false;
                 }
@@ -286,13 +317,16 @@ public abstract class AsynchronousFileIOChannel<T, R extends IORequest>
             }
         }
 
+        // 不允许重复注册
         throw new IllegalStateException("Already subscribed.");
     }
 }
 
 // --------------------------------------------------------------------------------------------
 
-/** Read request that reads an entire memory segment from a block reader. */
+/** Read request that reads an entire memory segment from a block reader.
+ * 将数据读取到内存块
+ * */
 final class SegmentReadRequest implements ReadRequest {
 
     private final AsynchronousFileIOChannel<MemorySegment, ReadRequest> channel;
@@ -322,6 +356,11 @@ final class SegmentReadRequest implements ReadRequest {
         }
     }
 
+    /**
+     * 请求完成时触发回调
+     * @param ioex The exception that occurred while processing the I/O request. Is <tt>null</tt> if
+     *     everything was fine.
+     */
     @Override
     public void requestDone(IOException ioex) {
         this.channel.handleProcessedBuffer(this.segment, ioex);
@@ -330,7 +369,9 @@ final class SegmentReadRequest implements ReadRequest {
 
 // --------------------------------------------------------------------------------------------
 
-/** Write request that writes an entire memory segment to the block writer. */
+/** Write request that writes an entire memory segment to the block writer.
+ * 将内存块数据写入channel
+ * */
 final class SegmentWriteRequest implements WriteRequest {
 
     private final AsynchronousFileIOChannel<MemorySegment, WriteRequest> channel;
@@ -356,12 +397,20 @@ final class SegmentWriteRequest implements WriteRequest {
         }
     }
 
+    /**
+     * 使用装有原始数据的内存块触发回调
+     * @param ioex The exception that occurred while processing the I/O request. Is <tt>null</tt> if
+     *     everything was fine.
+     */
     @Override
     public void requestDone(IOException ioex) {
         this.channel.handleProcessedBuffer(this.segment, ioex);
     }
 }
 
+/**
+ * 使用buffer作为数据来源
+ */
 final class BufferWriteRequest implements WriteRequest {
 
     private final AsynchronousFileIOChannel<Buffer, WriteRequest> channel;
@@ -378,6 +427,7 @@ final class BufferWriteRequest implements WriteRequest {
     public void write() throws IOException {
         ByteBuffer nioBufferReadable = buffer.getNioBufferReadable();
 
+        // 还要写入一个头部信息  以便在读取时使用
         final ByteBuffer header = ByteBuffer.allocateDirect(8);
 
         header.putInt(buffer.isBuffer() ? 1 : 0);
@@ -394,12 +444,18 @@ final class BufferWriteRequest implements WriteRequest {
     }
 }
 
+/**
+ * 使用buffer存储读取的数据
+ */
 final class BufferReadRequest implements ReadRequest {
 
     private final AsynchronousFileIOChannel<Buffer, ReadRequest> channel;
 
     private final Buffer buffer;
 
+    /**
+     * 表示是否读取到末尾
+     */
     private final AtomicBoolean hasReachedEndOfFile;
 
     protected BufferReadRequest(
@@ -416,6 +472,7 @@ final class BufferReadRequest implements ReadRequest {
 
         final FileChannel fileChannel = channel.fileChannel;
 
+        // 表示还有数据未读取
         if (fileChannel.size() - fileChannel.position() > 0) {
             BufferFileChannelReader reader = new BufferFileChannelReader(fileChannel);
             hasReachedEndOfFile.set(reader.readBufferFromFileChannel(buffer));
@@ -430,6 +487,9 @@ final class BufferReadRequest implements ReadRequest {
     }
 }
 
+/**
+ * 数据并没有被读取出来 而是直接使用文件触发回调
+ */
 final class FileSegmentReadRequest implements ReadRequest {
 
     private final AsynchronousFileIOChannel<FileSegment, ReadRequest> channel;
@@ -453,6 +513,7 @@ final class FileSegmentReadRequest implements ReadRequest {
         if (fileChannel.size() - fileChannel.position() > 0) {
             final ByteBuffer header = ByteBuffer.allocateDirect(8);
 
+            // 读取头部
             fileChannel.read(header);
             header.flip();
 
@@ -478,7 +539,9 @@ final class FileSegmentReadRequest implements ReadRequest {
     }
 }
 
-/** Request that seeks the underlying file channel to the given position. */
+/** Request that seeks the underlying file channel to the given position.
+ * 该对象用于定位偏移量
+ * */
 final class SeekRequest implements ReadRequest, WriteRequest {
 
     private final AsynchronousFileIOChannel<?, ?> channel;

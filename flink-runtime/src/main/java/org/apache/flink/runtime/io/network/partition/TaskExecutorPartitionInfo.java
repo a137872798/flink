@@ -26,10 +26,19 @@ import java.util.Objects;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Encapsulates meta-information the TaskExecutor requires to be kept for each partition. */
+/** Encapsulates meta-information the TaskExecutor requires to be kept for each partition.
+ *
+ * */
 public final class TaskExecutorPartitionInfo {
 
+    /**
+     * 一个数据集id 其实关联了很多分区   表示该数据集分散在多个分区上
+     */
     private final IntermediateDataSetID intermediateDataSetId;
+
+    /**
+     * TODO shuffle相关的
+     */
     private final ShuffleDescriptor shuffleDescriptor;
 
     private final int numberOfPartitions;

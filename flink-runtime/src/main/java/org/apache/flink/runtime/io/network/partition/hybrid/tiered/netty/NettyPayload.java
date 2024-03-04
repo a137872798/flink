@@ -31,12 +31,14 @@ import static org.apache.flink.util.Preconditions.checkState;
  * The {@link NettyPayload} represents the payload that will be transferred to netty connection. It
  * could indicate a combination of buffer, buffer index, and its subpartition id, and it could also
  * indicate an error or a segment id.
+ * 表示一个数据包
  */
 public class NettyPayload {
 
     /**
      * The data buffer. If the buffer is not null, bufferIndex and subpartitionId will be
      * non-negative, error will be null, segmentId will be -1;
+     * 数据存储在buffer中
      */
     @Nullable private final Buffer buffer;
 
@@ -49,18 +51,21 @@ public class NettyPayload {
     /**
      * The index of buffer. If the buffer index is non-negative, buffer won't be null, error will be
      * null, subpartitionId will be non-negative, segmentId will be -1.
+     * 该数据包对应的编号
      */
     private final int bufferIndex;
 
     /**
      * The id of subpartition. If the subpartition id is non-negative, buffer won't be null, error
      * will be null, bufferIndex will be non-negative, segmentId will be -1.
+     * 相关的子分区
      */
     private final int subpartitionId;
 
     /**
      * The id of segment. If the segment id is non-negative, buffer and error will be null,
      * bufferIndex and subpartitionId will be -1.
+     * 相关的段
      */
     private final int segmentId;
 

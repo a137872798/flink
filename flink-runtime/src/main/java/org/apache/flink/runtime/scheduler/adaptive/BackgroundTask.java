@@ -37,10 +37,19 @@ import java.util.concurrent.Executor;
  * tasks. This means that a failed task won't stop succeeding tasks from being executed.
  *
  * @param <T> type of the produced result
+ *
+ *           表示一个后台任务
  */
 final class BackgroundTask<T> {
+
+    /**
+     * 表示被终止
+     */
     private final CompletableFuture<Void> terminationFuture;
 
+    /**
+     * 得到后台任务的结果
+     */
     private final CompletableFuture<T> resultFuture;
 
     private volatile boolean isAborted = false;
@@ -50,6 +59,7 @@ final class BackgroundTask<T> {
             SupplierWithException<? extends T, ? extends Exception> task,
             Executor executor) {
         resultFuture =
+                // 当上个终止时 获取下个结果
                 previousTerminationFuture.thenApplyAsync(
                         ignored -> {
                             if (!isAborted) {
@@ -65,6 +75,7 @@ final class BackgroundTask<T> {
                         },
                         executor);
 
+        // 之后给 terminationFuture 设置null
         terminationFuture = resultFuture.handle((ignored, ignoredThrowable) -> null);
     }
 
@@ -99,6 +110,7 @@ final class BackgroundTask<T> {
      * @param executor executor to run the task
      * @param <V> type of the result
      * @return new {@link BackgroundTask} representing the new task to execute
+     * 后台任务本身可以形成一个链式调用
      */
     <V> BackgroundTask<V> runAfter(
             SupplierWithException<? extends V, ? extends Exception> task, Executor executor) {
@@ -110,6 +122,7 @@ final class BackgroundTask<T> {
      *
      * @param <V> type of the background task
      * @return A finished background task
+     * 产生一个空对象
      */
     static <V> BackgroundTask<V> finishedBackgroundTask() {
         return new BackgroundTask<>();
@@ -122,6 +135,7 @@ final class BackgroundTask<T> {
      * @param executor executor to run the task
      * @param <V> type of the result
      * @return initial {@link BackgroundTask} representing the task to execute
+     * 该对象将会立即触发 task
      */
     static <V> BackgroundTask<V> initialBackgroundTask(
             SupplierWithException<? extends V, ? extends Exception> task, Executor executor) {

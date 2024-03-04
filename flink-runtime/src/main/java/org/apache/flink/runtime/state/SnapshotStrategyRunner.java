@@ -34,6 +34,7 @@ import java.util.concurrent.RunnableFuture;
  * asynchronously. It takes care of common logging and resource cleaning.
  *
  * @param <T> type of the snapshot result.
+ *           该对象用于为状态后端产生快照
  */
 public final class SnapshotStrategyRunner<T extends StateObject, SR extends SnapshotResources> {
 
@@ -50,6 +51,9 @@ public final class SnapshotStrategyRunner<T extends StateObject, SR extends Snap
      */
     @Nonnull private final String description;
 
+    /**
+     * 产生快照的逻辑包装在里面
+     */
     @Nonnull private final SnapshotStrategy<T, SR> snapshotStrategy;
     @Nonnull private final CloseableRegistry cancelStreamRegistry;
 
@@ -66,6 +70,15 @@ public final class SnapshotStrategyRunner<T extends StateObject, SR extends Snap
         this.executionType = executionType;
     }
 
+    /**
+     * 调用该方法产生future
+     * @param checkpointId
+     * @param timestamp
+     * @param streamFactory
+     * @param checkpointOptions
+     * @return
+     * @throws Exception
+     */
     @Nonnull
     public final RunnableFuture<SnapshotResult<T>> snapshot(
             long checkpointId,
@@ -74,8 +87,12 @@ public final class SnapshotStrategyRunner<T extends StateObject, SR extends Snap
             @Nonnull CheckpointOptions checkpointOptions)
             throws Exception {
         long startTime = System.currentTimeMillis();
+
+        // 生成快照数据  此时还在内存中
         SR snapshotResources = snapshotStrategy.syncPrepareResources(checkpointId);
         logCompletedInternal(LOG_SYNC_COMPLETED_TEMPLATE, streamFactory, startTime);
+
+        // 执行该函数会触发快照的写入逻辑
         SnapshotStrategy.SnapshotResultSupplier<T> asyncSnapshot =
                 snapshotStrategy.asyncSnapshot(
                         snapshotResources,
@@ -84,6 +101,7 @@ public final class SnapshotStrategyRunner<T extends StateObject, SR extends Snap
                         streamFactory,
                         checkpointOptions);
 
+        // 包装成异步任务
         FutureTask<SnapshotResult<T>> asyncSnapshotTask =
                 new AsyncSnapshotCallable<SnapshotResult<T>>() {
                     @Override
@@ -91,6 +109,9 @@ public final class SnapshotStrategyRunner<T extends StateObject, SR extends Snap
                         return asyncSnapshot.get(snapshotCloseableRegistry);
                     }
 
+                    /**
+                     * 在完成快照后 删除内存数据
+                     */
                     @Override
                     protected void cleanupProvidedResources() {
                         if (snapshotResources != null) {
@@ -105,6 +126,7 @@ public final class SnapshotStrategyRunner<T extends StateObject, SR extends Snap
                     }
                 }.toAsyncSnapshotFutureTask(cancelStreamRegistry);
 
+        // 同步模式下直接执行
         if (executionType == SnapshotExecutionType.SYNCHRONOUS) {
             asyncSnapshotTask.run();
         }

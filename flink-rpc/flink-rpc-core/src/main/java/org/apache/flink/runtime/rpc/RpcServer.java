@@ -20,13 +20,16 @@ package org.apache.flink.runtime.rpc;
 
 import java.util.concurrent.CompletableFuture;
 
-/** Interface for self gateways. */
+/** Interface for self gateways.
+ * 作为服务端 有地址 可以提交任务  以及可以起停
+ * */
 public interface RpcServer extends StartStoppable, MainThreadExecutable, RpcGateway {
 
     /**
      * Return a future which is completed when the rpc endpoint has been terminated.
      *
      * @return Future indicating when the rpc endpoint has been terminated
+     * 获取有关本对象终止的future
      */
     CompletableFuture<Void> getTerminationFuture();
 }

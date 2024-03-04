@@ -36,7 +36,9 @@ import java.util.concurrent.CompletableFuture;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Subpartition data reader for {@link SortMergeResultPartition}. */
+/** Subpartition data reader for {@link SortMergeResultPartition}.
+ * 包装PartitionedFileReader对象 产生一个专门读取某个子分区的reader对象
+ * */
 class SortMergeSubpartitionReader
         implements ResultSubpartitionView, Comparable<SortMergeSubpartitionReader> {
 
@@ -76,10 +78,15 @@ class SortMergeSubpartitionReader
         this.fileReader = checkNotNull(fileReader);
     }
 
+    /**
+     * 作为 ResultSubpartitionView 读取下个数据
+     * @return
+     */
     @Nullable
     @Override
     public BufferAndBacklog getNextBuffer() {
         synchronized (lock) {
+            // 需要有已经准备好数据的buffer
             Buffer buffer = buffersRead.poll();
             if (buffer == null) {
                 return null;
@@ -89,6 +96,7 @@ class SortMergeSubpartitionReader
                 --dataBufferBacklog;
             }
 
+            // 查看下个数据块
             Buffer lookAhead = buffersRead.peek();
             return BufferAndBacklog.fromBufferAndLookahead(
                     buffer,
@@ -98,6 +106,10 @@ class SortMergeSubpartitionReader
         }
     }
 
+    /**
+     * 表示有包含数据的buffer准备好了
+     * @param buffer
+     */
     private void addBuffer(Buffer buffer) {
         boolean notifyAvailable = false;
         boolean needRecycleBuffer = false;
@@ -125,7 +137,9 @@ class SortMergeSubpartitionReader
         }
     }
 
-    /** This method is called by the IO thread of {@link SortMergeResultPartitionReadScheduler}. */
+    /** This method is called by the IO thread of {@link SortMergeResultPartitionReadScheduler}.
+     * 读取数据 并调用addBuffer
+     * */
     boolean readBuffers(Queue<MemorySegment> buffers, BufferRecycler recycler) throws IOException {
         return fileReader.readCurrentRegion(buffers, recycler, this::addBuffer);
     }
@@ -170,6 +184,10 @@ class SortMergeSubpartitionReader
         releaseInternal(null);
     }
 
+    /**
+     * 释放资源
+     * @param throwable
+     */
     private void releaseInternal(@Nullable Throwable throwable) {
         List<Buffer> buffersToRecycle;
         synchronized (lock) {

@@ -36,6 +36,9 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  */
 public class FileChannelOutputView extends AbstractPagedOutputView {
 
+    /**
+     * 使用该对象往channel写入数据
+     */
     private final BlockChannelWriter<MemorySegment> writer; // the writer to the channel
 
     private final MemoryManager memManager;
@@ -96,6 +99,7 @@ public class FileChannelOutputView extends AbstractPagedOutputView {
     private void close(boolean delete) throws IOException {
         try {
             // send off set last segment, if we have not been closed before
+            // 最后发送一个segment
             MemorySegment current = getCurrentSegment();
             if (current != null) {
                 writeSegment(current, getCurrentPositionInSegment());

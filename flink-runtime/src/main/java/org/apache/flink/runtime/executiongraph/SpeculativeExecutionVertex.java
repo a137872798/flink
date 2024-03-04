@@ -40,7 +40,9 @@ import static org.apache.flink.runtime.execution.ExecutionState.FAILED;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** The ExecutionVertex which supports speculative execution. */
+/** The ExecutionVertex which supports speculative execution.
+ * 在SpeculativeScheduler中使用
+ * */
 public class SpeculativeExecutionVertex extends ExecutionVertex {
 
     private final Map<Integer, Execution> currentExecutions;
@@ -76,6 +78,11 @@ public class SpeculativeExecutionVertex extends ExecutionVertex {
         return getJobVertex().getJobVertex().isSupportsConcurrentExecutionAttempts();
     }
 
+    /**
+     * 只有在发现慢任务时 才会调用该方法
+     * @param timestamp
+     * @return
+     */
     public Execution createNewSpeculativeExecution(final long timestamp) {
         final Execution newExecution = createNewExecution(timestamp);
         getExecutionGraphAccessor().registerExecution(newExecution);
@@ -166,6 +173,7 @@ public class SpeculativeExecutionVertex extends ExecutionVertex {
      * possible future speculative executions.
      *
      * @param executionAttemptId attemptID of the execution to be removed
+     *                           当失败时留档
      */
     public void archiveFailedExecution(ExecutionAttemptID executionAttemptId) {
         if (this.currentExecutions.size() <= 1) {

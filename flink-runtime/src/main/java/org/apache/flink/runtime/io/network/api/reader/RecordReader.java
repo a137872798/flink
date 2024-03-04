@@ -27,6 +27,8 @@ import java.io.IOException;
  * Record oriented reader for immutable types.
  *
  * @param <T> Thy type of the records that is read.
+ *
+ *           该对象从输入源读取数据  并且读取到的是T类型
  */
 public class RecordReader<T extends IOReadableWritable> extends AbstractRecordReader<T>
         implements Reader<T> {
@@ -49,11 +51,19 @@ public class RecordReader<T extends IOReadableWritable> extends AbstractRecordRe
         this.recordType = recordType;
     }
 
+    /**
+     * 检查是否有下一条记录
+     * @return
+     * @throws IOException
+     * @throws InterruptedException
+     */
     @Override
     public boolean hasNext() throws IOException, InterruptedException {
+        // 预备先返回这条
         if (currentRecord != null) {
             return true;
         } else {
+            // 实例化对象 然后用读取到的数据去填充对象
             T record = instantiateRecordType();
             if (getNextRecord(record)) {
                 currentRecord = record;
@@ -75,6 +85,9 @@ public class RecordReader<T extends IOReadableWritable> extends AbstractRecordRe
         }
     }
 
+    /**
+     * 清理临时数据
+     */
     @Override
     public void clearBuffers() {
         super.clearBuffers();

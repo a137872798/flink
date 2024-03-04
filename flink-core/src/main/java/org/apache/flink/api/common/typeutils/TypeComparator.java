@@ -209,7 +209,7 @@ public abstract class TypeComparator<T> implements Serializable {
      *
      * @return True, if the comparator supports that specific form of serialization, false if not.
      *
-     * 是否支持将序列化的数据变成规范化的
+     * 表示是否支持在序列化时包含keys数据  对应FixedLengthRecordSorter
      */
     public abstract boolean supportsSerializationWithKeyNormalization();
 

@@ -22,11 +22,15 @@ import org.apache.flink.util.Preconditions;
 
 import java.io.Serializable;
 
-/** Change of state of a keyed operator. Used for generic incremental checkpoints. */
+/** Change of state of a keyed operator. Used for generic incremental checkpoints.
+ * 表示通过key 检索state 并使用change的内容修改它 这也就是 changelog中存储的东西吧
+ * */
 @Internal
 public class StateChange implements Serializable {
 
-    /* For metadata, see FLINK-23035.*/
+    /* For metadata, see FLINK-23035.
+    * 表示元数据的key是特殊值
+    * */
     public static final int META_KEY_GROUP = -1;
 
     private static final long serialVersionUID = 1L;

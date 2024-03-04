@@ -40,11 +40,16 @@ import java.util.OptionalLong;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Helper class for persisting channel state via {@link ChannelStateWriter}. */
+/** Helper class for persisting channel state via {@link ChannelStateWriter}.
+ * 用于持久化channel状态
+ * */
 @NotThreadSafe
 public final class ChannelStatePersister {
     private static final Logger LOG = LoggerFactory.getLogger(ChannelStatePersister.class);
 
+    /**
+     * 该对象仅用于某个channel
+     */
     private final InputChannelInfo channelInfo;
 
     private enum CheckpointStatus {
@@ -53,6 +58,9 @@ public final class ChannelStatePersister {
         BARRIER_RECEIVED
     }
 
+    /**
+     * 检查点生成完毕了
+     */
     private CheckpointStatus checkpointStatus = CheckpointStatus.COMPLETED;
 
     private long lastSeenBarrier = -1L;
@@ -60,17 +68,31 @@ public final class ChannelStatePersister {
     /**
      * Writer must be initialized before usage. {@link #startPersisting(long, List)} enforces this
      * invariant.
+     * 该对象用于写入状态
      */
     private final ChannelStateWriter channelStateWriter;
 
+    /**
+     * 表示针对哪个channel的状态 进行写入
+     * @param channelStateWriter
+     * @param channelInfo
+     */
     ChannelStatePersister(ChannelStateWriter channelStateWriter, InputChannelInfo channelInfo) {
         this.channelStateWriter = checkNotNull(channelStateWriter);
         this.channelInfo = checkNotNull(channelInfo);
     }
 
+    /**
+     * 开始持久化操作
+     * @param barrierId
+     * @param knownBuffers
+     * @throws CheckpointException
+     */
     protected void startPersisting(long barrierId, List<Buffer> knownBuffers)
             throws CheckpointException {
         logEvent("startPersisting", barrierId);
+
+        // 本次请求的检查点太旧了
         if (checkpointStatus == CheckpointStatus.BARRIER_RECEIVED && lastSeenBarrier > barrierId) {
             throw new CheckpointException(
                     String.format(
@@ -79,6 +101,8 @@ public final class ChannelStatePersister {
                     CheckpointFailureReason
                             .CHECKPOINT_SUBSUMED); // currently, at most one active unaligned
         }
+
+        // 等待检查点完成
         if (lastSeenBarrier < barrierId) {
             // Regardless of the current checkpointStatus, if we are notified about a more recent
             // checkpoint then we have seen so far, always mark that this more recent barrier is
@@ -90,6 +114,7 @@ public final class ChannelStatePersister {
             checkpointStatus = CheckpointStatus.BARRIER_PENDING;
             lastSeenBarrier = barrierId;
         }
+        // 如果此时携带了数据   通过writer对象写入
         if (knownBuffers.size() > 0) {
             channelStateWriter.addInputData(
                     barrierId,
@@ -99,6 +124,10 @@ public final class ChannelStatePersister {
         }
     }
 
+    /**
+     * 停止持久化操作  可能是完成也可能是取消
+     * @param id
+     */
     protected void stopPersisting(long id) {
         logEvent("stopPersisting", id);
         if (id >= lastSeenBarrier) {
@@ -107,6 +136,10 @@ public final class ChannelStatePersister {
         }
     }
 
+    /**
+     * 在开启检查点后 每个收到的buffer数据都会通过writer写入
+     * @param buffer
+     */
     protected void maybePersist(Buffer buffer) {
         if (checkpointStatus == CheckpointStatus.BARRIER_PENDING && buffer.isBuffer()) {
             channelStateWriter.addInputData(
@@ -117,6 +150,12 @@ public final class ChannelStatePersister {
         }
     }
 
+    /**
+     * 检查屏障
+     * @param buffer
+     * @return
+     * @throws IOException
+     */
     protected OptionalLong checkForBarrier(Buffer buffer) throws IOException {
         AbstractEvent event = parseEvent(buffer);
         if (event instanceof CheckpointBarrier) {
@@ -175,6 +214,10 @@ public final class ChannelStatePersister {
         }
     }
 
+    /**
+     * 表示收到了屏障数据
+     * @return
+     */
     protected boolean hasBarrierReceived() {
         return checkpointStatus == CheckpointStatus.BARRIER_RECEIVED;
     }

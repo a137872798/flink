@@ -31,23 +31,41 @@ import java.util.Map;
 /**
  * A FineGrainedTaskManagerRegistration represents a TaskManager. It maintains states of the
  * TaskManager needed in {@link FineGrainedSlotManager}.
+ * 描述一个TM的信息  细粒度对象
  */
 public class FineGrainedTaskManagerRegistration implements TaskManagerInfo {
+
+    /**
+     * 通过该对象访问 TaskExecutor
+     */
     private final TaskExecutorConnection taskManagerConnection;
 
+    /**
+     * FineGrainedTaskManagerSlot 就是包装了slot的基本信息
+     */
     private final Map<AllocationID, FineGrainedTaskManagerSlot> slots;
+
+    // 记录了TM的总资源和默认每个slot的分配资源
 
     private final ResourceProfile defaultSlotResourceProfile;
 
     private final ResourceProfile totalResource;
 
+    /**
+     * 默认有多少slot
+     */
     private final int defaultNumSlots;
 
     private ResourceProfile unusedResource;
 
+    /**
+     * 表示正在分配的资源
+     */
     private ResourceProfile pendingResource = ResourceProfile.ZERO;
 
-    /** Timestamp when the last time becoming idle. Otherwise Long.MAX_VALUE. */
+    /** Timestamp when the last time becoming idle. Otherwise Long.MAX_VALUE.
+     * 当没有分配出任何slot时  就认为该对象是空闲的
+     * */
     private long idleSince;
 
     public FineGrainedTaskManagerRegistration(
@@ -117,6 +135,10 @@ public class FineGrainedTaskManagerRegistration implements TaskManagerInfo {
         return idleSince != Long.MAX_VALUE;
     }
 
+    /**
+     * 释放某个slot
+     * @param allocationId
+     */
     public void freeSlot(AllocationID allocationId) {
         Preconditions.checkNotNull(allocationId);
         FineGrainedTaskManagerSlot taskManagerSlot =
@@ -133,6 +155,10 @@ public class FineGrainedTaskManagerRegistration implements TaskManagerInfo {
         }
     }
 
+    /**
+     * 通知某个slot分配完成了
+     * @param allocationId
+     */
     public void notifyAllocationComplete(AllocationID allocationId) {
         Preconditions.checkNotNull(allocationId);
         FineGrainedTaskManagerSlot slot = Preconditions.checkNotNull(slots.get(allocationId));
@@ -142,6 +168,11 @@ public class FineGrainedTaskManagerRegistration implements TaskManagerInfo {
         unusedResource = unusedResource.subtract(slot.getResourceProfile());
     }
 
+    /**
+     * 直接插入一个slot
+     * @param allocationId
+     * @param taskManagerSlot
+     */
     public void notifyAllocation(
             AllocationID allocationId, FineGrainedTaskManagerSlot taskManagerSlot) {
         Preconditions.checkNotNull(allocationId);
@@ -154,6 +185,7 @@ public class FineGrainedTaskManagerRegistration implements TaskManagerInfo {
                 pendingResource = newPendingResource;
                 break;
             case ALLOCATED:
+                // 不经过 pendingResource
                 unusedResource = unusedResource.subtract(taskManagerSlot.getResourceProfile());
                 break;
             default:

@@ -31,6 +31,7 @@ import java.util.NoSuchElementException;
  *
  * @param <E> the type of elements returned by this iterator
  * @see java.util.Iterator
+ * 该迭代器在执行next时可能会抛出异常
  */
 @Internal
 public interface ThrowingIterator<E> extends Closeable {

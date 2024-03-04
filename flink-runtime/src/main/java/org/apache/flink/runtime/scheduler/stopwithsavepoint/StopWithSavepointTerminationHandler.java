@@ -34,6 +34,7 @@ import java.util.concurrent.CompletableFuture;
  *   <li>Creating a savepoint needs to be completed
  *   <li>Waiting for the executions of the underlying job to finish
  * </ol>
+ * 表示因为要生成保存点而停止
  */
 public interface StopWithSavepointTerminationHandler {
 
@@ -43,6 +44,7 @@ public interface StopWithSavepointTerminationHandler {
      *
      * @return the {@code CompletableFuture} containing the path to the created savepoint in case of
      *     success.
+     *     获取保存点路径
      */
     CompletableFuture<String> getSavepointPath();
 
@@ -54,6 +56,7 @@ public interface StopWithSavepointTerminationHandler {
      * @param throwable an error that was caught during savepoint creation
      * @throws IllegalArgumentException if {@code throwable} and {@code completedSavepoint} are set
      * @throws NullPointerException if none of the parameters is set
+     * 当检查点完成时触发    检查点其实也是保存点
      */
     void handleSavepointCreation(
             @Nullable CompletedCheckpoint completedSavepoint, @Nullable Throwable throwable);
@@ -66,6 +69,7 @@ public interface StopWithSavepointTerminationHandler {
      * @param terminatedExecutionStates The terminated {@code ExecutionStates} of the underlying
      *     job.
      * @throws NullPointerException if {@code null} is passed.
+     * 处理一组Execution的终止状态
      */
     void handleExecutionsTermination(Collection<ExecutionState> terminatedExecutionStates);
 }

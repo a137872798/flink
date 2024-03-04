@@ -23,6 +23,7 @@ import org.apache.flink.runtime.jobmaster.SlotContext;
 /**
  * The context of an {@link AllocatedSlot}. This represent an interface to classes outside the slot
  * pool to interact with allocated slots.
+ * 增加额外的api
  */
 public interface PhysicalSlot extends SlotContext {
 
@@ -32,10 +33,13 @@ public interface PhysicalSlot extends SlotContext {
      *
      * @param payload to assign to this slot
      * @return true if the payload could be assigned, otherwise false
+     * 表示在slot上分配一个payload
      */
     boolean tryAssignPayload(Payload payload);
 
-    /** Payload which can be assigned to an {@link AllocatedSlot}. */
+    /** Payload which can be assigned to an {@link AllocatedSlot}.
+     * 负载对象 可以分配到slot上
+     * */
     interface Payload {
 
         /**
@@ -49,6 +53,7 @@ public interface PhysicalSlot extends SlotContext {
          * Returns whether the payload will occupy a physical slot indefinitely.
          *
          * @return true if the payload will occupy a physical slot indefinitely, otherwise false
+         * 是否会出现无期限的占用slot
          */
         boolean willOccupySlotIndefinitely();
     }

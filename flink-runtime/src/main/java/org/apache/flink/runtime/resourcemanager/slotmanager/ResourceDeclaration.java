@@ -25,14 +25,21 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
 
-/** ResourceDeclaration for {@link ResourceAllocator}. */
+/** ResourceDeclaration for {@link ResourceAllocator}.
+ * 表示一个资源声明
+ * */
 public class ResourceDeclaration {
+
+    /**
+     * WorkerResourceSpec 理解为一个资源的规格
+     */
     private final WorkerResourceSpec spec;
     private final int numNeeded;
 
     /**
      * workers that {@link SlotManager} does not wanted. This is just a hint for {@link
      * ResourceAllocator} to decide which worker should be release.
+     * 不期望被选择的实例
      */
     private final Collection<InstanceID> unwantedWorkers;
 

@@ -20,7 +20,9 @@ package org.apache.flink.runtime.jobmaster.slotpool;
 
 import java.util.Collection;
 
-/** Strategy to match slot requests to slots. */
+/** Strategy to match slot requests to slots.
+ * 为请求匹配slot
+ * */
 public interface RequestSlotMatchingStrategy {
 
     /**
@@ -29,11 +31,14 @@ public interface RequestSlotMatchingStrategy {
      * @param slots slots to match
      * @param pendingRequests slot requests to match
      * @return resulting matches of this operation
+     * 为这组req选择合适的slot 并包装成结果(match对象)
      */
     Collection<RequestSlotMatch> matchRequestsAndSlots(
             Collection<? extends PhysicalSlot> slots, Collection<PendingRequest> pendingRequests);
 
-    /** Result class representing matches. */
+    /** Result class representing matches.
+     * 表示匹配结果
+     * */
     final class RequestSlotMatch {
         private final PendingRequest pendingRequest;
         private final PhysicalSlot matchedSlot;

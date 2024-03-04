@@ -24,7 +24,9 @@ import org.apache.flink.util.FlinkRuntimeException;
 
 import java.util.Map;
 
-/** Collects and fulfills the finished state for the subtasks or operators. */
+/** Collects and fulfills the finished state for the subtasks or operators.
+ * 可以上报完成的任务 以及通过完成的任务填充 Map<OperatorID, OperatorState>
+ * */
 public interface FinishedTaskStateProvider {
 
     /** Reports the {@code task} is finished on restoring. */

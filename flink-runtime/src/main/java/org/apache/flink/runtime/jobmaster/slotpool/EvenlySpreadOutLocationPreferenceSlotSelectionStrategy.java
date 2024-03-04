@@ -28,6 +28,9 @@ import java.util.Comparator;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+/**
+ * 均匀展开
+ */
 class EvenlySpreadOutLocationPreferenceSlotSelectionStrategy
         extends LocationPreferenceSlotSelectionStrategy {
     @Nonnull
@@ -40,11 +43,13 @@ class EvenlySpreadOutLocationPreferenceSlotSelectionStrategy
                 .filter(slotInfo -> slotInfo.getResourceProfile().isMatching(resourceProfile))
                 // calculate utilization first to avoid duplicated calculation in min()
                 .map(
+                        // 在完成资源匹配后
                         slot ->
                                 new Tuple2<>(
                                         slot, freeSlotInfoTracker.getTaskExecutorUtilization(slot)))
                 .min(Comparator.comparingDouble(tuple -> tuple.f1))
                 .map(
+                        // 将利用率最小的放在前面
                         slotInfoWithTaskExecutorUtilization ->
                                 SlotInfoAndLocality.of(
                                         slotInfoWithTaskExecutorUtilization.f0,

@@ -56,30 +56,58 @@ import static org.apache.flink.util.CloseableIterator.empty;
 import static org.apache.flink.util.FileUtils.writeCompletely;
 import static org.apache.flink.util.IOUtils.closeQuietly;
 
+/**
+ * NonSpanningWrapper 表示所有数据都平铺在一个内存块中
+ * 该对象表示数据分布在多个数据源中
+ */
 final class SpanningWrapper {
 
     private static final Logger LOG = LoggerFactory.getLogger(SpanningWrapper.class);
 
     private final byte[] initialBuffer = new byte[1024];
 
+    /**
+     * 本次扫描的所有目录
+     */
     private String[] tempDirs;
 
     private final Random rnd = new Random();
 
+    /**
+     * 提供api读取数据
+     */
     private final DataInputDeserializer serializationReadBuffer;
 
+    /**
+     * 该容器存储最近一条记录的长度信息
+     */
     final ByteBuffer lengthBuffer;
 
+    /**
+     * 表示单次加载的量
+     */
     private final int fileBufferSize;
 
+    /**
+     * 数据过多时使用的临时文件
+     */
     private FileChannel spillingChannel;
 
     private byte[] buffer;
 
+    /**
+     * 下条记录的长度信息
+     */
     private int recordLength;
 
+    /**
+     * 此时未使用过的数据
+     */
     private int accumulatedRecordBytes;
 
+    /**
+     * 表示在追加数据时 超过一条record的部分
+     */
     private MemorySegment leftOverData;
 
     private int leftOverStart;
@@ -103,7 +131,9 @@ final class SpanningWrapper {
         this.fileBufferSize = fileBufferSize;
     }
 
-    /** Copies the data and transfers the "ownership" (i.e. clears the passed wrapper). */
+    /** Copies the data and transfers the "ownership" (i.e. clears the passed wrapper).
+     * 将partial的数据转移过来
+     * */
     void transferFrom(NonSpanningWrapper partial, int nextRecordLength) throws IOException {
         updateLength(nextRecordLength);
         accumulatedRecordBytes =
@@ -111,24 +141,39 @@ final class SpanningWrapper {
         partial.clear();
     }
 
+    /**
+     * 当该条记录的长度超过一定值时  采用spill的方式
+     * @return
+     */
     private boolean isAboveSpillingThreshold() {
         return recordLength > thresholdForSpilling;
     }
 
+    /**
+     * 追加数据
+     * @param segment
+     * @param offset
+     * @param numBytes
+     * @throws IOException
+     */
     void addNextChunkFromMemorySegment(MemorySegment segment, int offset, int numBytes)
             throws IOException {
         int limit = offset + numBytes;
         int numBytesRead = isReadingLength() ? readLength(segment, offset, numBytes) : 0;
         offset += numBytesRead;
         numBytes -= numBytesRead;
+
+        // 表示为了补充长度信息 已经用完了
         if (numBytes == 0) {
             return;
         }
 
+        // 表示还需要读取的数据
         int toCopy = min(recordLength - accumulatedRecordBytes, numBytes);
         if (toCopy > 0) {
             copyFromSegment(segment, offset, toCopy);
         }
+        // 表示多出的数据
         if (numBytes > toCopy) {
             leftOverData = segment;
             leftOverStart = offset + toCopy;
@@ -140,15 +185,26 @@ final class SpanningWrapper {
         if (spillingChannel == null) {
             copyIntoBuffer(segment, offset, length);
         } else {
+            // 数据过多  加入临时文件
             copyIntoFile(segment, offset, length);
         }
     }
 
+    /**
+     * 将数据读取到文件中
+     * @param segment
+     * @param offset
+     * @param length
+     * @throws IOException
+     */
     private void copyIntoFile(MemorySegment segment, int offset, int length) throws IOException {
+        // 将数据都写入文件
         writeCompletely(spillingChannel, segment.wrap(offset, length));
         accumulatedRecordBytes += length;
         if (hasFullRecord()) {
             spillingChannel.close();
+
+            // 将底层文件和缓冲buffer包装在一起
             spillFileReader =
                     new DataInputViewStreamWrapper(
                             new BufferedInputStream(
@@ -164,19 +220,35 @@ final class SpanningWrapper {
         }
     }
 
+    /**
+     * 可能长度信息还不完整  尝试继续读取数据
+     * @param segment
+     * @param segmentPosition
+     * @param segmentRemaining
+     * @return
+     * @throws IOException
+     */
     private int readLength(MemorySegment segment, int segmentPosition, int segmentRemaining)
             throws IOException {
         int bytesToRead = min(lengthBuffer.remaining(), segmentRemaining);
         segment.get(segmentPosition, lengthBuffer, bytesToRead);
         if (!lengthBuffer.hasRemaining()) {
+            // 此时lengthBuffer才是完整的   重新获取length
             updateLength(lengthBuffer.getInt(0));
         }
         return bytesToRead;
     }
 
+    /**
+     * 更新下条记录的长度信息
+     * @param length
+     * @throws IOException
+     */
     private void updateLength(int length) throws IOException {
         lengthBuffer.clear();
         recordLength = length;
+
+        // 该记录太长  要分出新的channel
         if (isAboveSpillingThreshold()) {
             spillingChannel = createSpillingChannel();
         } else {
@@ -184,7 +256,13 @@ final class SpanningWrapper {
         }
     }
 
+    /**
+     * 将未消费完的数据返回
+     * @return
+     * @throws IOException
+     */
     CloseableIterator<Buffer> getUnconsumedSegment() throws IOException {
+        // 表示长度还未读取完
         if (isReadingLength()) {
             return singleBufferIterator(wrapCopy(lengthBuffer.array(), 0, lengthBuffer.position()));
         } else if (isAboveSpillingThreshold()) {
@@ -192,6 +270,7 @@ final class SpanningWrapper {
         } else if (recordLength == -1) {
             return empty(); // no remaining partial length or data
         } else {
+            // 表示数据都在内存里
             return singleBufferIterator(copyDataBuffer());
         }
     }
@@ -207,6 +286,7 @@ final class SpanningWrapper {
                         spillFile, min(accumulatedRecordBytes, recordLength), fileBufferSize),
                 leftOverData == null
                         ? empty()
+                        // 剩余数据也会返回
                         : toSingleBufferIterator(
                                 wrapCopy(leftOverData.getArray(), leftOverStart, leftOverLimit)));
     }
@@ -215,6 +295,8 @@ final class SpanningWrapper {
         int leftOverSize = leftOverLimit - leftOverStart;
         int unconsumedSize = LENGTH_BYTES + accumulatedRecordBytes + leftOverSize;
         DataOutputSerializer serializer = new DataOutputSerializer(unconsumedSize);
+
+        // 长度信息也要包括
         serializer.writeInt(recordLength);
         serializer.write(buffer, 0, accumulatedRecordBytes);
         if (leftOverData != null) {
@@ -225,7 +307,9 @@ final class SpanningWrapper {
         return segment;
     }
 
-    /** Copies the leftover data and transfers the "ownership" (i.e. clears this wrapper). */
+    /** Copies the leftover data and transfers the "ownership" (i.e. clears this wrapper).
+     * 将剩下的数据转移到 nonSpanningWrapper 中
+     * */
     void transferLeftOverTo(NonSpanningWrapper nonSpanningWrapper) {
         nonSpanningWrapper.clear();
         if (leftOverData != null) {
@@ -235,10 +319,18 @@ final class SpanningWrapper {
         clear();
     }
 
+    /**
+     * 表示此时读取的数据已经囊括了下条记录
+     * @return
+     */
     boolean hasFullRecord() {
         return recordLength >= 0 && accumulatedRecordBytes >= recordLength;
     }
 
+    /**
+     * 表示还有数据未消耗
+     * @return
+     */
     int getNumGatheredBytes() {
         return accumulatedRecordBytes
                 + (recordLength >= 0 ? LENGTH_BYTES : lengthBuffer.position());
@@ -283,6 +375,11 @@ final class SpanningWrapper {
         }
     }
 
+    /**
+     * 产生一个临时channel 用于存储超出部分的数据
+     * @return
+     * @throws IOException
+     */
     @SuppressWarnings("resource")
     private FileChannel createSpillingChannel() throws IOException {
         if (spillFile != null) {
@@ -328,6 +425,12 @@ final class SpanningWrapper {
         return StringUtils.byteToHexString(bytes);
     }
 
+    /**
+     * 将数据转移到文件中
+     * @param partial
+     * @return
+     * @throws IOException
+     */
     private int spill(NonSpanningWrapper partial) throws IOException {
         ByteBuffer buffer = partial.wrapIntoByteBuffer();
         int length = buffer.remaining();

@@ -35,6 +35,7 @@ import java.util.List;
 public class OutputCollector<T> implements Collector<T> {
 
     // list of writers
+    // 一组writer对象 负责写入数据   数据会进入 ResultPartition中
     private final RecordWriter<SerializationDelegate<T>>[] writers;
 
     private final SerializationDelegate<T> delegate;
@@ -55,12 +56,15 @@ public class OutputCollector<T> implements Collector<T> {
                         writers.toArray(new RecordWriter[writers.size()]);
     }
 
-    /** Collects a record and emits it to all writers. */
+    /** Collects a record and emits it to all writers.
+     * collect 采集  实际上也就是采集数据并写到下游
+     * */
     @Override
     public void collect(T record) {
         if (record != null) {
             this.delegate.setInstance(record);
             try {
+                // 使用每个writer处理  处理前会进行序列化
                 for (RecordWriter<SerializationDelegate<T>> writer : writers) {
                     writer.emit(this.delegate);
                 }
@@ -75,6 +79,9 @@ public class OutputCollector<T> implements Collector<T> {
         }
     }
 
+    /**
+     * 关闭所有写对象 并触发刷盘
+     */
     @Override
     public void close() {
         for (RecordWriter<?> writer : writers) {

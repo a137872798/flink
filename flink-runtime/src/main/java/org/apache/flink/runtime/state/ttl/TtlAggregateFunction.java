@@ -31,6 +31,8 @@ import org.apache.flink.util.function.ThrowingRunnable;
  * @param <IN> The type of the values that are aggregated (input values)
  * @param <ACC> The type of the accumulator (intermediate aggregate state).
  * @param <OUT> The type of the aggregated result
+ *
+ *             包装聚合函数
  */
 class TtlAggregateFunction<IN, ACC, OUT>
         extends AbstractTtlDecorator<AggregateFunction<IN, ACC, OUT>>
@@ -45,6 +47,10 @@ class TtlAggregateFunction<IN, ACC, OUT>
         super(aggFunction, config, timeProvider);
     }
 
+    /**
+     * createAccumulator 会产生一个基础值
+     * @return
+     */
     @Override
     public TtlValue<ACC> createAccumulator() {
         return wrapWithTs(original.createAccumulator());
@@ -54,6 +60,7 @@ class TtlAggregateFunction<IN, ACC, OUT>
     public TtlValue<ACC> add(IN value, TtlValue<ACC> accumulator) {
         ACC userAcc = getUnexpired(accumulator);
         userAcc = userAcc == null ? original.createAccumulator() : userAcc;
+        // 包装累加后的结果
         return wrapWithTs(original.add(value, userAcc));
     }
 

@@ -39,16 +39,28 @@ import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** ZooKeeper based {@link LeaderElectionDriver} implementation. */
+/** ZooKeeper based {@link LeaderElectionDriver} implementation.
+ * 作为驱动 与 zk通信以获得选举能力
+ * */
 public class ZooKeeperLeaderElectionDriver implements LeaderElectionDriver, LeaderLatchListener {
 
     private static final Logger LOG = LoggerFactory.getLogger(ZooKeeperLeaderElectionDriver.class);
 
+    /**
+     * zk客户端
+     */
     private final CuratorFramework curatorFramework;
 
+    /**
+     * 监听选举关系的变化
+     */
     private final LeaderElectionDriver.Listener leaderElectionListener;
 
     private final String leaderLatchPath;
+
+    /**
+     * 这个是封装好的选举对象
+     */
     private final LeaderLatch leaderLatch;
 
     private final TreeCache treeCache;
@@ -64,8 +76,11 @@ public class ZooKeeperLeaderElectionDriver implements LeaderElectionDriver, Lead
         this.curatorFramework = Preconditions.checkNotNull(curatorFramework);
         this.leaderElectionListener = Preconditions.checkNotNull(leaderElectionListener);
 
+        // 创建维护选举信息相关的路径
         this.leaderLatchPath =
                 ZooKeeperUtils.generateLeaderLatchPath(curatorFramework.getNamespace());
+
+        // 封装选举对象
         this.leaderLatch = new LeaderLatch(curatorFramework, ZooKeeperUtils.getLeaderLatchPath());
         this.treeCache =
                 ZooKeeperUtils.createTreeCache(
@@ -79,6 +94,7 @@ public class ZooKeeperLeaderElectionDriver implements LeaderElectionDriver, Lead
                         (client, event) -> {
                             switch (event.getType()) {
                                 case NODE_ADDED:
+                                    // 监听路径下数据的变化或者删除
                                 case NODE_UPDATED:
                                     Preconditions.checkNotNull(
                                             event.getData(),
@@ -130,10 +146,16 @@ public class ZooKeeperLeaderElectionDriver implements LeaderElectionDriver, Lead
         return leaderLatch.hasLeadership();
     }
 
+    /**
+     * 作为领导可以推送信息  其实该节点相关的所有组件都自动变成领导了
+     * @param componentId identifying the component for which to publish the leader information
+     * @param leaderInformation leader information of the respective component
+     */
     @Override
     public void publishLeaderInformation(String componentId, LeaderInformation leaderInformation) {
         Preconditions.checkState(running.get());
 
+        // 此时不是leader 无法发布消息
         if (!leaderLatch.hasLeadership()) {
             return;
         }
@@ -149,6 +171,7 @@ public class ZooKeeperLeaderElectionDriver implements LeaderElectionDriver, Lead
                         curatorFramework.getNamespace(), connectionInformationPath));
 
         try {
+            // 将信息写入指定路径
             ZooKeeperUtils.writeLeaderInformationToZooKeeper(
                     leaderInformation,
                     curatorFramework,
@@ -159,6 +182,10 @@ public class ZooKeeperLeaderElectionDriver implements LeaderElectionDriver, Lead
         }
     }
 
+    /**
+     * 作为leader 删除发布的消息
+     * @param componentId identifying the component for which to delete the leader information
+     */
     @Override
     public void deleteLeaderInformation(String componentId) {
         try {
@@ -193,17 +220,21 @@ public class ZooKeeperLeaderElectionDriver implements LeaderElectionDriver, Lead
     public void isLeader() {
         final UUID leaderSessionID = UUID.randomUUID();
         LOG.debug("{} obtained the leadership with session ID {}.", this, leaderSessionID);
+        // 表示此时成为leader
         leaderElectionListener.onGrantLeadership(leaderSessionID);
     }
 
     @Override
     public void notLeader() {
         LOG.debug("{} lost the leadership.", this);
+        // 此时不再是leader
         leaderElectionListener.onRevokeLeadership();
     }
 
     private void handleChangedLeaderInformation(ChildData childData) {
+        // 当leader写入的信息发生变化
         if (shouldHandleLeaderInformationEvent(childData.getPath())) {
+            // 获取此时leader对应的组件id
             final String componentId = extractComponentId(childData.getPath());
 
             final LeaderInformation leaderInformation =
@@ -229,6 +260,7 @@ public class ZooKeeperLeaderElectionDriver implements LeaderElectionDriver, Lead
         if (shouldHandleLeaderInformationEvent(removedNodePath)) {
             final String leaderName = extractComponentId(removedNodePath);
 
+            // 表示leader上的信息变化
             leaderElectionListener.onLeaderInformationChange(leaderName, LeaderInformation.empty());
         }
     }

@@ -22,13 +22,16 @@ import org.apache.flink.runtime.clusterframework.types.AllocationID;
 
 import java.util.UUID;
 
-/** Interface to trigger slot actions from within the {@link TaskSlotTable}. */
+/** Interface to trigger slot actions from within the {@link TaskSlotTable}.
+ * 提供分配的接口
+ * */
 public interface SlotActions {
 
     /**
      * Free the task slot with the given allocation id.
      *
      * @param allocationId to identify the slot to be freed
+     *                     释放一个已经分配的slot
      */
     void freeSlot(AllocationID allocationId);
 

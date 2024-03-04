@@ -38,6 +38,10 @@ public class JobGraphJobInformation implements JobInformation {
     private final JobGraph jobGraph;
     private final JobID jobID;
     private final String name;
+
+    /**
+     * 存储顶点信息
+     */
     private final VertexParallelismStore vertexParallelismStore;
 
     public JobGraphJobInformation(

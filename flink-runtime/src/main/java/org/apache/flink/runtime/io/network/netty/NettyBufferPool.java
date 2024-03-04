@@ -33,12 +33,16 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 /**
  * Extends around Netty's {@link PooledByteBufAllocator} with strict control over the number of
  * created arenas.
+ * 内存分配对象
  */
 public class NettyBufferPool extends PooledByteBufAllocator {
 
     private static final Logger LOG = LoggerFactory.getLogger(NettyBufferPool.class);
 
-    /** <tt>PoolArena&lt;ByteBuffer&gt;[]</tt> via Reflection. */
+    /** <tt>PoolArena&lt;ByteBuffer&gt;[]</tt> via Reflection.
+     * 该对象用于分配内存
+     * 多个arena是针对多线程的   减少线程间的竞争 提高内存分配效率
+     * */
     private final Object[] directArenas;
 
     /** Configured number of arenas. */
@@ -143,6 +147,7 @@ public class NettyBufferPool extends PooledByteBufAllocator {
      *     version stays the same).
      * @throws IllegalAccessException Error getting the statistics (should not happen when the Netty
      *     version stays the same).
+     *     获取每个chunk的字节数  得到总字节
      */
     public Optional<Long> getNumberOfAllocatedBytes()
             throws NoSuchFieldException, IllegalAccessException {

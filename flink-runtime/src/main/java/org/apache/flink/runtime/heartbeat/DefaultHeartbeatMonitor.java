@@ -35,20 +35,29 @@ import java.util.concurrent.atomic.AtomicReference;
  * The default implementation of {@link HeartbeatMonitor}.
  *
  * @param <O> Type of the payload being sent to the associated heartbeat target
+ *           这是一个心跳监控器   配合HeartbeatTarget使用
+ *           HeartbeatTarget只是提供了接收和发送心跳包的逻辑
+ *           Monitor用于检测心跳是否超时
  */
 public class DefaultHeartbeatMonitor<O> implements HeartbeatMonitor<O>, Runnable {
 
     private static final Logger LOG = LoggerFactory.getLogger(DefaultHeartbeatMonitor.class);
 
-    /** Resource ID of the monitored heartbeat target. */
+    /** Resource ID of the monitored heartbeat target.
+     * HeartbeatTarget 也有自己的资源id
+     * */
     private final ResourceID resourceID;
 
-    /** Associated heartbeat target. */
+    /** Associated heartbeat target.
+     * 被监控的 HeartbeatTarget 对象
+     * */
     private final HeartbeatTarget<O> heartbeatTarget;
 
     private final ScheduledExecutor scheduledExecutor;
 
-    /** Listener which is notified about heartbeat timeouts. */
+    /** Listener which is notified about heartbeat timeouts.
+     * 通过监听器 将处理心跳相关事件的逻辑解偶
+     * */
     private final HeartbeatListener<?, ?> heartbeatListener;
 
     /** Maximum heartbeat timeout interval. */
@@ -62,6 +71,9 @@ public class DefaultHeartbeatMonitor<O> implements HeartbeatMonitor<O>, Runnable
 
     private final AtomicInteger numberFailedRpcRequestsSinceLastSuccess = new AtomicInteger(0);
 
+    /**
+     * 最近一次心跳的时间
+     */
     private volatile long lastHeartbeat;
 
     DefaultHeartbeatMonitor(
@@ -91,6 +103,7 @@ public class DefaultHeartbeatMonitor<O> implements HeartbeatMonitor<O>, Runnable
 
         lastHeartbeat = 0L;
 
+        // 重置心跳超时时间
         resetHeartbeatTimeout(heartbeatTimeoutIntervalMs);
     }
 
@@ -111,9 +124,11 @@ public class DefaultHeartbeatMonitor<O> implements HeartbeatMonitor<O>, Runnable
 
     @Override
     public void reportHeartbeatRpcFailure() {
+        // 增加失败次数
         final int failedRpcRequestsSinceLastSuccess =
                 numberFailedRpcRequestsSinceLastSuccess.incrementAndGet();
 
+        // 表示失败次数超过上限   此时认为目的地不可达
         if (isHeartbeatRpcFailureDetectionEnabled()
                 && failedRpcRequestsSinceLastSuccess >= failedRpcRequestsUntilUnreachable) {
             if (state.compareAndSet(State.RUNNING, State.UNREACHABLE)) {
@@ -132,11 +147,17 @@ public class DefaultHeartbeatMonitor<O> implements HeartbeatMonitor<O>, Runnable
         return failedRpcRequestsUntilUnreachable > 0;
     }
 
+    /**
+     * 心跳包发送成功  重置计数
+     */
     @Override
     public void reportHeartbeatRpcSuccess() {
         numberFailedRpcRequestsSinceLastSuccess.set(0);
     }
 
+    /**
+     * 心跳包发送成功 更新下次超时时间
+     */
     @Override
     public void reportHeartbeat() {
         lastHeartbeat = System.currentTimeMillis();
@@ -154,6 +175,7 @@ public class DefaultHeartbeatMonitor<O> implements HeartbeatMonitor<O>, Runnable
     @Override
     public void run() {
         // The heartbeat has timed out if we're in state running
+        // 触发超时行为
         if (state.compareAndSet(State.RUNNING, State.TIMEOUT)) {
             heartbeatListener.notifyHeartbeatTimeout(resourceID);
         }
@@ -163,10 +185,15 @@ public class DefaultHeartbeatMonitor<O> implements HeartbeatMonitor<O>, Runnable
         return state.get() == State.CANCELED;
     }
 
+    /**
+     * 重置心跳超时时间
+     * @param heartbeatTimeout
+     */
     void resetHeartbeatTimeout(long heartbeatTimeout) {
         if (state.get() == State.RUNNING) {
             cancelTimeout();
 
+            // 重开心跳任务
             futureTimeout =
                     scheduledExecutor.schedule(this, heartbeatTimeout, TimeUnit.MILLISECONDS);
 
@@ -177,6 +204,9 @@ public class DefaultHeartbeatMonitor<O> implements HeartbeatMonitor<O>, Runnable
         }
     }
 
+    /**
+     * 关闭上次的心跳任务
+     */
     private void cancelTimeout() {
         if (futureTimeout != null) {
             futureTimeout.cancel(true);

@@ -66,6 +66,11 @@ import static org.apache.flink.util.Preconditions.checkState;
  * <p>Explicit calls to {@link #flush()} will force this {@link
  * PipelinedSubpartitionView#notifyDataAvailable() notification} for any {@link BufferConsumer}
  * present in the queue.
+ *
+ * 表示使用管道模式消费的子分区   猜测应该是一边产生数据 一边消费  而不用等到所有数据都产生完毕
+ * ChannelStateHolder 表示该对象可以维护一个writer对象 用于持久化状态
+ *
+ * 该对象不同与 blocking对象  没有借助BoundedData
  */
 public class PipelinedSubpartition extends ResultSubpartition implements ChannelStateHolder {
 
@@ -78,23 +83,37 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
     /**
      * Number of exclusive credits per input channel at the downstream tasks configured by {@link
      * org.apache.flink.configuration.NettyShuffleEnvironmentOptions#NETWORK_BUFFERS_PER_CHANNEL}.
+     * 每个channel允许存在多少个独占的buffer
      */
     private final int receiverExclusiveBuffersPerChannel;
 
-    /** All buffers of this subpartition. Access to the buffers is synchronized on this object. */
+    /** All buffers of this subpartition. Access to the buffers is synchronized on this object.
+     * 当前子分区的所有buffer
+     * PrioritizedDeque 队列前面的对象都是高优先级的
+     * */
     final PrioritizedDeque<BufferConsumerWithPartialRecordLength> buffers =
             new PrioritizedDeque<>();
 
-    /** The number of non-event buffers currently in this subpartition. */
+    /** The number of non-event buffers currently in this subpartition.
+     * 当前有多少 data buffer
+     * */
     @GuardedBy("buffers")
     private int buffersInBacklog;
 
-    /** The read view to consume this subpartition. */
+    /** The read view to consume this subpartition.
+     * 使用该对象读取数据  该对象不同于 blocking对象 只能维护一个reader对象
+     * 该对象的大部分方法都是转发给本对象
+     * */
     PipelinedSubpartitionView readView;
 
-    /** Flag indicating whether the subpartition has been finished. */
+    /** Flag indicating whether the subpartition has been finished.
+     * 表示数据生成完毕了
+     * */
     private boolean isFinished;
 
+    /**
+     * 表示需要刷盘
+     */
     @GuardedBy("buffers")
     private boolean flushRequested;
 
@@ -107,18 +126,24 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
     /** The total number of bytes (both data and event buffers). */
     private long totalNumberOfBytes;
 
-    /** Writes in-flight data. */
+    /** Writes in-flight data.
+     * 该对象用于写入状态
+     * */
     private ChannelStateWriter channelStateWriter;
 
     private int bufferSize = Integer.MAX_VALUE;
 
-    /** The channelState Future of unaligned checkpoint. */
+    /** The channelState Future of unaligned checkpoint.
+     * buffer中存储的是状态数据
+     * */
     @GuardedBy("buffers")
     private CompletableFuture<List<Buffer>> channelStateFuture;
 
     /**
      * It is the checkpointId corresponding to channelStateFuture. And It should be always update
      * with {@link #channelStateFuture}.
+     *
+     * channelStateFuture 对应的检查点id
      */
     @GuardedBy("buffers")
     private long channelStateCheckpointId;
@@ -126,6 +151,7 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
     /**
      * Whether this subpartition is blocked (e.g. by exactly once checkpoint) and is waiting for
      * resumption.
+     * 表示子分区此时处于被阻塞状态
      */
     @GuardedBy("buffers")
     boolean isBlocked = false;
@@ -134,6 +160,12 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
 
     // ------------------------------------------------------------------------
 
+    /**
+     * 通过index parent 可以定位到子分区
+     * @param index
+     * @param receiverExclusiveBuffersPerChannel
+     * @param parent
+     */
     PipelinedSubpartition(
             int index, int receiverExclusiveBuffersPerChannel, ResultPartition parent) {
         super(index, parent);
@@ -144,23 +176,45 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         this.receiverExclusiveBuffersPerChannel = receiverExclusiveBuffersPerChannel;
     }
 
+    /**
+     *
+     * @param channelStateWriter  该对象用于写入状态
+     */
     @Override
     public void setChannelStateWriter(ChannelStateWriter channelStateWriter) {
         checkState(this.channelStateWriter == null, "Already initialized");
         this.channelStateWriter = checkNotNull(channelStateWriter);
     }
 
+    /**
+     * 添加一块数据  作为数据的生产方需要一个往子分区加入数据的入口
+     * @param bufferConsumer the buffer to add (transferring ownership to this writer)
+     * @param partialRecordLength the length of bytes to skip in order to start with a complete
+     *     record, from position index 0 of the underlying {@cite MemorySegment}.
+     * @return
+     */
     @Override
     public int add(BufferConsumer bufferConsumer, int partialRecordLength) {
         return add(bufferConsumer, partialRecordLength, false);
     }
 
+
+    /**
+     * 支持状态恢复
+     * @return
+     */
     public boolean isSupportChannelStateRecover() {
         return true;
     }
 
+    /**
+     * 表示子分区的数据已经产生完毕了
+     * @return
+     * @throws IOException
+     */
     @Override
     public int finish() throws IOException {
+        // 加入一条表示结束的数据
         BufferConsumer eventBufferConsumer =
                 EventSerializer.toBufferConsumer(EndOfPartitionEvent.INSTANCE, false);
         add(eventBufferConsumer, 0, true);
@@ -168,6 +222,13 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         return eventBufferConsumer.getWrittenBytes();
     }
 
+    /**
+     * 添加一条数据
+     * @param bufferConsumer
+     * @param partialRecordLength
+     * @param finish  表示是否是结束消息
+     * @return
+     */
     private int add(BufferConsumer bufferConsumer, int partialRecordLength, boolean finish) {
         checkNotNull(bufferConsumer);
 
@@ -175,15 +236,18 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         int prioritySequenceNumber = DEFAULT_PRIORITY_SEQUENCE_NUMBER;
         int newBufferSize;
         synchronized (buffers) {
+            // 已经拒绝增加数据了
             if (isFinished || isReleased) {
                 bufferConsumer.close();
                 return ADD_BUFFER_ERROR_CODE;
             }
 
             // Add the bufferConsumer and update the stats
+            // true表示要发起通知    当优先事件数量为1时 走这个分支
             if (addBuffer(bufferConsumer, partialRecordLength)) {
                 prioritySequenceNumber = sequenceNumber;
             }
+            // 更新一些指标
             updateStatistics(bufferConsumer);
             increaseBuffersInBacklog(bufferConsumer);
             notifyDataAvailable = finish || shouldNotifyDataAvailable();
@@ -192,6 +256,7 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
             newBufferSize = bufferSize;
         }
 
+        // 通知优先事件的序号
         notifyPriorityEvent(prioritySequenceNumber);
         if (notifyDataAvailable) {
             notifyDataAvailable();
@@ -200,31 +265,56 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         return newBufferSize;
     }
 
+    /**
+     * 追加一个buffer
+     * @param bufferConsumer
+     * @param partialRecordLength
+     * @return
+     */
     @GuardedBy("buffers")
     private boolean addBuffer(BufferConsumer bufferConsumer, int partialRecordLength) {
         assert Thread.holdsLock(buffers);
+
+        // 检查数据是否是优先数据
         if (bufferConsumer.getDataType().hasPriority()) {
             return processPriorityBuffer(bufferConsumer, partialRecordLength);
+            // 收到屏障超时的数据
         } else if (Buffer.DataType.TIMEOUTABLE_ALIGNED_CHECKPOINT_BARRIER
                 == bufferConsumer.getDataType()) {
+            // 没有存储数据 而是利用writer发送future对象
             processTimeoutableCheckpointBarrier(bufferConsumer);
         }
+
+        // 存储数据 这个是普通数据
         buffers.add(new BufferConsumerWithPartialRecordLength(bufferConsumer, partialRecordLength));
         return false;
     }
 
+    /**
+     * 将数据存入优先队列中
+     * @param bufferConsumer
+     * @param partialRecordLength
+     * @return
+     */
     @GuardedBy("buffers")
     private boolean processPriorityBuffer(BufferConsumer bufferConsumer, int partialRecordLength) {
         buffers.addPriorityElement(
                 new BufferConsumerWithPartialRecordLength(bufferConsumer, partialRecordLength));
+
+        // 返回此时的优先元素数量
         final int numPriorityElements = buffers.getNumPriorityElements();
 
+        // 检查发现是 屏障事件
         CheckpointBarrier barrier = parseCheckpointBarrier(bufferConsumer);
+
+        // 表示本次加入的是一个屏障
         if (barrier != null) {
             checkState(
                     barrier.getCheckpointOptions().isUnalignedCheckpoint(),
                     "Only unaligned checkpoints should be priority events");
             final Iterator<BufferConsumerWithPartialRecordLength> iterator = buffers.iterator();
+
+            // 跳过优先数据
             Iterators.advance(iterator, numPriorityElements);
             List<Buffer> inflightBuffers = new ArrayList<>();
             while (iterator.hasNext()) {
@@ -237,6 +327,7 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
                 }
             }
             if (!inflightBuffers.isEmpty()) {
+                // 通过channelStateWriter 写入剩下的数据  要关联一个屏障id
                 channelStateWriter.addOutputData(
                         barrier.getId(),
                         subpartitionInfo,
@@ -255,9 +346,14 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         return buffers.getNumPriorityElements() == 1 && !isBlocked;
     }
 
+    /**
+     * 处理屏障超时的数据
+     * @param bufferConsumer
+     */
     @GuardedBy("buffers")
     private void processTimeoutableCheckpointBarrier(BufferConsumer bufferConsumer) {
         CheckpointBarrier barrier = parseAndCheckTimeoutableCheckpointBarrier(bufferConsumer);
+        // 通过writer对象写入future
         channelStateWriter.addOutputDataFuture(
                 barrier.getId(),
                 subpartitionInfo,
@@ -265,9 +361,16 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
                 createChannelStateFuture(barrier.getId()));
     }
 
+    /**
+     * 将future关联上本次检查点
+     * @param checkpointId
+     * @return
+     */
     @GuardedBy("buffers")
     private CompletableFuture<List<Buffer>> createChannelStateFuture(long checkpointId) {
         assert Thread.holdsLock(buffers);
+
+        // 先结束之前的future
         if (channelStateFuture != null) {
             completeChannelStateFuture(
                     null,
@@ -283,6 +386,11 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         return channelStateFuture;
     }
 
+    /**
+     * 结束掉之前的future
+     * @param channelResult  如果传入null就代表强制结束的
+     * @param e
+     */
     @GuardedBy("buffers")
     private void completeChannelStateFuture(List<Buffer> channelResult, Throwable e) {
         assert Thread.holdsLock(buffers);
@@ -294,14 +402,25 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         channelStateFuture = null;
     }
 
+    /**
+     * 查看检查点id与future是否匹配
+     * @param checkpointId
+     * @return
+     */
     @GuardedBy("buffers")
     private boolean isChannelStateFutureAvailable(long checkpointId) {
         assert Thread.holdsLock(buffers);
         return channelStateFuture != null && channelStateCheckpointId == checkpointId;
     }
 
+    /**
+     *
+     * @param bufferConsumer
+     * @return
+     */
     private CheckpointBarrier parseAndCheckTimeoutableCheckpointBarrier(
             BufferConsumer bufferConsumer) {
+        // 解析出屏障数据
         CheckpointBarrier barrier = parseCheckpointBarrier(bufferConsumer);
         checkArgument(barrier != null, "Parse the timeoutable Checkpoint Barrier failed.");
         checkState(
@@ -311,11 +430,17 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         return barrier;
     }
 
+    /**
+     * 表示某个检查点超时了
+     * @param checkpointId
+     * @throws IOException
+     */
     @Override
     public void alignedBarrierTimeout(long checkpointId) throws IOException {
         int prioritySequenceNumber = DEFAULT_PRIORITY_SEQUENCE_NUMBER;
         synchronized (buffers) {
             // The checkpoint barrier has sent to downstream, so nothing to do.
+            // 如果future已经不对应该检查点了  不需要处理
             if (!isChannelStateFutureAvailable(checkpointId)) {
                 return;
             }
@@ -323,6 +448,7 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
             // 1. find inflightBuffers and timeout the aligned barrier to unaligned barrier
             List<Buffer> inflightBuffers = new ArrayList<>();
             try {
+                // 找到之后的数据
                 if (findInflightBuffersAndMakeBarrierToPriority(checkpointId, inflightBuffers)) {
                     prioritySequenceNumber = sequenceNumber;
                 }
@@ -333,6 +459,7 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
             }
 
             // 2. complete the channelStateFuture
+            // 通过这组对象去完成future
             completeChannelStateFuture(inflightBuffers, null);
         }
 
@@ -341,6 +468,11 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         notifyPriorityEvent(prioritySequenceNumber);
     }
 
+    /**
+     * 使用null设置future
+     * @param checkpointId
+     * @param cause
+     */
     @Override
     public void abortCheckpoint(long checkpointId, CheckpointException cause) {
         synchronized (buffers) {
@@ -350,11 +482,19 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         }
     }
 
+    /**
+     * 找到被屏障处理的数据
+     * @param checkpointId
+     * @param inflightBuffers
+     * @return
+     * @throws IOException
+     */
     @GuardedBy("buffers")
     private boolean findInflightBuffersAndMakeBarrierToPriority(
             long checkpointId, List<Buffer> inflightBuffers) throws IOException {
         // 1. record the buffers before barrier as inflightBuffers
         final int numPriorityElements = buffers.getNumPriorityElements();
+        // 跳过高优先级数据
         final Iterator<BufferConsumerWithPartialRecordLength> iterator = buffers.iterator();
         Iterators.advance(iterator, numPriorityElements);
 
@@ -364,13 +504,15 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
             BufferConsumerWithPartialRecordLength next = iterator.next();
             BufferConsumer bufferConsumer = next.getBufferConsumer();
 
+            // 发现了超时对象
             if (Buffer.DataType.TIMEOUTABLE_ALIGNED_CHECKPOINT_BARRIER
                     == bufferConsumer.getDataType()) {
                 barrier = parseAndCheckTimeoutableCheckpointBarrier(bufferConsumer);
-                // It may be an aborted barrier
+                // It may be an aborted barrier   id不同忽略
                 if (barrier.getId() != checkpointId) {
                     continue;
                 }
+                // 提前退出  这里认为是一定会出现的
                 element = next;
                 break;
             } else if (bufferConsumer.isBuffer()) {
@@ -383,6 +525,8 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         // 2. Make the barrier to be priority
         checkNotNull(
                 element, "The checkpoint barrier=%d don't find in %s.", checkpointId, toString());
+
+        // 将数据变成高优先级的
         makeBarrierToPriority(element, barrier);
 
         return needNotifyPriorityEvent();
@@ -397,10 +541,16 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
                         EventSerializer.toBufferConsumer(barrier.asUnaligned(), true), 0));
     }
 
+    /**
+     * 查看内部是否有一个  barrier事件
+     * @param bufferConsumer
+     * @return
+     */
     @Nullable
     private CheckpointBarrier parseCheckpointBarrier(BufferConsumer bufferConsumer) {
         CheckpointBarrier barrier;
         try (BufferConsumer bc = bufferConsumer.copy()) {
+            // 抽出内部数据
             Buffer buffer = bc.build();
             try {
                 final AbstractEvent event =
@@ -416,6 +566,9 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         return barrier;
     }
 
+    /**
+     * 释放本对象
+     */
     @Override
     public void release() {
         // view reference accessible outside the lock, but assigned inside the locked scope
@@ -432,6 +585,7 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
             }
             buffers.clear();
 
+            // 使用null结束future
             if (channelStateFuture != null) {
                 IllegalStateException exception =
                         new IllegalStateException("The PipelinedSubpartition is released");
@@ -452,9 +606,14 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         }
     }
 
+    /**
+     * 拉取下一个buffer
+     * @return
+     */
     @Nullable
     BufferAndBacklog pollBuffer() {
         synchronized (buffers) {
+            // 此时暂停消费
             if (isBlocked) {
                 return null;
             }
@@ -470,10 +629,14 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
                         buffers.peek();
                 BufferConsumer bufferConsumer =
                         bufferConsumerWithPartialRecordLength.getBufferConsumer();
+
+                // 发现下个是屏障消息 这个就代表超时了
                 if (Buffer.DataType.TIMEOUTABLE_ALIGNED_CHECKPOINT_BARRIER
                         == bufferConsumer.getDataType()) {
                     completeTimeoutableCheckpointBarrier(bufferConsumer);
                 }
+
+                // 生成数据分片
                 buffer = buildSliceBuffer(bufferConsumerWithPartialRecordLength);
 
                 checkState(
@@ -485,7 +648,9 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
                     flushRequested = false;
                 }
 
+                // 因为有可能该数据还未完成
                 if (bufferConsumer.isFinished()) {
+                    // 完成的情况下 减少backlog
                     requireNonNull(buffers.poll()).getBufferConsumer().close();
                     decreaseBuffersInBacklogUnsafe(bufferConsumer.isBuffer());
                 }
@@ -496,6 +661,8 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
                 // 1. all data of a buffer builder has been read and after that the buffer builder
                 // is finished
                 // 2. in approximate recovery mode, a partial record takes a whole buffer builder
+
+                // 表示已经找到数据了
                 if (receiverExclusiveBuffersPerChannel == 0 && bufferConsumer.isFinished()) {
                     break;
                 }
@@ -514,6 +681,7 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
                 return null;
             }
 
+            // 表示要阻塞当前分区  就无法继续获得数据了
             if (buffer.getDataType().isBlockingUpstream()) {
                 isBlocked = true;
             }
@@ -537,6 +705,10 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         }
     }
 
+    /**
+     * 表示超时了  也就是该屏障记录被正常拉取到了
+     * @param bufferConsumer
+     */
     @GuardedBy("buffers")
     private void completeTimeoutableCheckpointBarrier(BufferConsumer bufferConsumer) {
         CheckpointBarrier barrier = parseAndCheckTimeoutableCheckpointBarrier(bufferConsumer);
@@ -547,6 +719,9 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         completeChannelStateFuture(Collections.emptyList(), null);
     }
 
+    /**
+     * 针对之前被阻塞的情况   使得可以继续消费
+     */
     void resumeConsumption() {
         synchronized (buffers) {
             checkState(isBlocked, "Should be blocked by checkpoint.");
@@ -555,6 +730,9 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         }
     }
 
+    /**
+     * 表示所有数据都消费完了
+     */
     public void acknowledgeAllDataProcessed() {
         parent.onSubpartitionAllDataProcessed(subpartitionInfo.getSubPartitionIdx());
     }
@@ -564,6 +742,11 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         return isReleased;
     }
 
+    /**
+     * 创建读取该管道子分区的reader对象
+     * @param availabilityListener
+     * @return
+     */
     @Override
     public PipelinedSubpartitionView createReadView(
             BufferAvailabilityListener availabilityListener) {
@@ -588,6 +771,11 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         return readView;
     }
 
+    /**
+     * 获取可用状态
+     * @param numCreditsAvailable
+     * @return
+     */
     public ResultSubpartitionView.AvailabilityWithBacklog getAvailabilityAndBacklog(
             int numCreditsAvailable) {
         synchronized (buffers) {
@@ -668,18 +856,25 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         return Math.max(buffers.size(), 0);
     }
 
+    /**
+     *
+     */
     @Override
     public void flush() {
         final boolean notifyDataAvailable;
         synchronized (buffers) {
+            // 避免重复刷盘
             if (buffers.isEmpty() || flushRequested) {
                 return;
             }
             // if there is more than 1 buffer, we already notified the reader
             // (at the latest when adding the second buffer)
+            // 仅一个buffer 并且还有数据未读取
             boolean isDataAvailableInUnfinishedBuffer =
                     buffers.size() == 1 && buffers.peek().getBufferConsumer().isDataAvailable();
+            // 表示有数据可读
             notifyDataAvailable = !isBlocked && isDataAvailableInUnfinishedBuffer;
+            // 表示被请求过一次flush
             flushRequested = buffers.size() > 1 || isDataAvailableInUnfinishedBuffer;
         }
         if (notifyDataAvailable) {
@@ -747,6 +942,10 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         }
     }
 
+    /**
+     * 表示需要通知有数据可用
+     * @return
+     */
     @GuardedBy("buffers")
     private boolean shouldNotifyDataAvailable() {
         // Notify only when we added first finished buffer.
@@ -763,6 +962,10 @@ public class PipelinedSubpartition extends ResultSubpartition implements Channel
         }
     }
 
+    /**
+     * 通知优先事件的序号
+     * @param prioritySequenceNumber
+     */
     private void notifyPriorityEvent(int prioritySequenceNumber) {
         final PipelinedSubpartitionView readView = this.readView;
         if (readView != null && prioritySequenceNumber != DEFAULT_PRIORITY_SEQUENCE_NUMBER) {

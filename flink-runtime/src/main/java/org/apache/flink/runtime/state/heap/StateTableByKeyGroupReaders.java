@@ -35,6 +35,7 @@ import java.io.IOException;
  * StateSnapshotKeyGroupReader} depending on the provided serialization format version.
  *
  * <p>The implementations are also located here as inner classes.
+ * 该对象在恢复state数据时使用 加载state的entry
  */
 @Internal
 public class StateTableByKeyGroupReaders {
@@ -49,10 +50,12 @@ public class StateTableByKeyGroupReaders {
      * @param stateTable the {@link StateTable} into which de-serialized mappings are inserted.
      * @param version version for the de-serialization algorithm.
      * @return the appropriate reader.
+     *
      */
     public static <K, N, S> StateSnapshotKeyGroupReader readerForVersion(
             StateTable<K, N, S> stateTable, int version) {
         switch (version) {
+            // 实际上只有2个版本
             case 1:
                 return new StateTableByKeyGroupReaderV1<>(stateTable);
             case 2:
@@ -94,6 +97,12 @@ public class StateTableByKeyGroupReaders {
             this.keySerializer = stateTable.keySerializer;
         }
 
+        /**
+         * 从输入流中还原state数据
+         * @param inView
+         * @param keyGroupId the key-group to write
+         * @throws IOException
+         */
         @Override
         public void readMappingsInKeyGroup(
                 @Nonnull DataInputView inView, @Nonnegative int keyGroupId) throws IOException {
@@ -107,10 +116,12 @@ public class StateTableByKeyGroupReaders {
 
             // V1 uses kind of namespace compressing format
             int numNamespaces = inView.readInt();
+            // 遍历ns
             for (int k = 0; k < numNamespaces; k++) {
                 N namespace = namespaceSerializer.deserialize(inView);
                 int numEntries = inView.readInt();
                 for (int l = 0; l < numEntries; l++) {
+                    // 读取 key/value
                     K key = keySerializer.deserialize(inView);
                     S state = stateSerializer.deserialize(inView);
                     stateTable.put(key, keyGroupId, namespace, state);

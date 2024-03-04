@@ -33,15 +33,19 @@ import java.util.Map;
 /**
  * Generalized snapshot for meta information about one state in a state backend (e.g. {@link
  * RegisteredKeyValueStateBackendMetaInfo}).
+ *
+ * 关于状态元数据的快照
  */
 public class StateMetaInfoSnapshot {
 
-    /** Enum that defines the different types of state that live in Flink backends. */
+    /** Enum that defines the different types of state that live in Flink backends.
+     * 表示状态存储的形式
+     * */
     public enum BackendStateType {
-        KEY_VALUE(0),
+        KEY_VALUE(0),  // 外层是个大Map
         OPERATOR(1),
         BROADCAST(2),
-        PRIORITY_QUEUE(3);
+        PRIORITY_QUEUE(3);  // 外层是个优先队列
         private final byte code;
 
         BackendStateType(int code) {
@@ -80,20 +84,31 @@ public class StateMetaInfoSnapshot {
         VALUE_SERIALIZER
     }
 
-    /** The name of the state. */
+    /** The name of the state.
+     * 状态名字
+     * */
     @Nonnull private final String name;
 
+    /**
+     * 使用的状态后端的类型
+     */
     @Nonnull private final BackendStateType backendStateType;
 
-    /** Map of options (encoded as strings) for the state. */
+    /** Map of options (encoded as strings) for the state.
+     * 该状态使用的选项
+     * */
     @Nonnull private final Map<String, String> options;
 
-    /** The configurations of all the type serializers used with the state. */
+    /** The configurations of all the type serializers used with the state.
+     * 需要制作快照的内容 以及包含逻辑的快照对象
+     * */
     @Nonnull private final Map<String, TypeSerializerSnapshot<?>> serializerSnapshots;
 
     // TODO this will go away once all serializers have the restoreSerializer() factory method
     // properly implemented.
-    /** The serializers used by the state. */
+    /** The serializers used by the state.
+     * 该状态可能需要的各个字段 以及序列化对象   状态可能是个复杂对象
+     * */
     @Nonnull private final Map<String, TypeSerializer<?>> serializers;
 
     public StateMetaInfoSnapshot(

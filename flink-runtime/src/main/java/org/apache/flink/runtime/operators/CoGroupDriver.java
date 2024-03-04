@@ -45,6 +45,7 @@ import org.slf4j.LoggerFactory;
  * </code> method of the CoGroupFunction.
  *
  * @see org.apache.flink.api.common.functions.CoGroupFunction
+ * 将2个迭代器的数据进行聚合 后下发
  */
 public class CoGroupDriver<IT1, IT2, OT> implements Driver<CoGroupFunction<IT1, IT2, OT>, OT> {
 
@@ -163,6 +164,10 @@ public class CoGroupDriver<IT1, IT2, OT> implements Driver<CoGroupFunction<IT1, 
         }
     }
 
+    /**
+     * 在初始化完迭代器后 通过该方法处理数据
+     * @throws Exception
+     */
     @Override
     public void run() throws Exception {
         final Counter numRecordsOut =
@@ -173,6 +178,7 @@ public class CoGroupDriver<IT1, IT2, OT> implements Driver<CoGroupFunction<IT1, 
                 new CountingCollector<>(this.taskContext.getOutputCollector(), numRecordsOut);
         final CoGroupTaskIterator<IT1, IT2> coGroupIterator = this.coGroupIterator;
 
+        // coGroup  先是将2个流相同keys的匹配上 然后再分别获取2个keys对应的values 然后进行合并
         while (this.running && coGroupIterator.next()) {
             coGroupStub.coGroup(
                     coGroupIterator.getValues1(), coGroupIterator.getValues2(), collector);

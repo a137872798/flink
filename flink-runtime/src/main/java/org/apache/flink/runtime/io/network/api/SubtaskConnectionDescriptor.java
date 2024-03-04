@@ -30,6 +30,8 @@ import java.util.Objects;
  * may not be available anymore for restoring the data. In that case, the data of several old
  * channels is sent over the same new channel through multiplexing. Each buffer is following this
  * {@code SubtaskConnectionDescriptor} such that the receiver can demultiplex them.
+ *
+ * 表示上游的某个channel连接到下游的某个channel
  */
 public final class SubtaskConnectionDescriptor extends RuntimeEvent {
 

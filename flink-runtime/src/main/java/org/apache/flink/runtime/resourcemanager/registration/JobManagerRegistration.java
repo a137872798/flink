@@ -32,6 +32,9 @@ public class JobManagerRegistration {
 
     private final ResourceID jobManagerResourceID;
 
+    /**
+     * 通过该对象与 JobMaster交互
+     */
     private final JobMasterGateway jobManagerGateway;
 
     public JobManagerRegistration(

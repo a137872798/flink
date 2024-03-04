@@ -24,7 +24,9 @@ import org.apache.flink.runtime.resourcemanager.ResourceManagerGateway;
 
 import javax.annotation.Nonnull;
 
-/** Container for the resource manager connection instances used by the {@link TaskExecutor}. */
+/** Container for the resource manager connection instances used by the {@link TaskExecutor}.
+ * 通往RM的连接
+ * */
 class EstablishedResourceManagerConnection {
 
     @Nonnull private final ResourceManagerGateway resourceManagerGateway;

@@ -33,13 +33,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/** {@link TieredStorageConsumerClient} is used to read buffer from tiered store. */
+/** {@link TieredStorageConsumerClient} is used to read buffer from tiered store.
+ * 消费数据的客户端
+ * */
 public class TieredStorageConsumerClient {
 
     private final List<TierFactory> tierFactories;
 
+    /**
+     * 这个对象只是管理了一些reader/writer
+     */
     private final TieredStorageNettyService nettyService;
 
+    /**
+     * agent包含拉取数据的api
+     */
     private final List<TierConsumerAgent> tierConsumerAgents;
 
     /**
@@ -58,28 +66,45 @@ public class TieredStorageConsumerClient {
             TieredStorageNettyService nettyService) {
         this.tierFactories = tierFactories;
         this.nettyService = nettyService;
+        // 每个工厂生成一个agent
         this.tierConsumerAgents = createTierConsumerAgents(tieredStorageConsumerSpecs);
     }
 
+    /**
+     * 用这个对象统一管理所有探针
+     */
     public void start() {
         for (TierConsumerAgent tierConsumerAgent : tierConsumerAgents) {
             tierConsumerAgent.start();
         }
     }
 
+    /**
+     *
+     * @param partitionId
+     * @param subpartitionId
+     * @return
+     */
     public Optional<Buffer> getNextBuffer(
             TieredStoragePartitionId partitionId, TieredStorageSubpartitionId subpartitionId) {
+
+        // 找到该子分区相关的 consumerAgent
         Tuple2<TierConsumerAgent, Integer> currentConsumerAgentAndSegmentId =
                 currentConsumerAgentAndSegmentIds
                         .computeIfAbsent(partitionId, ignore -> new HashMap<>())
                         .getOrDefault(subpartitionId, Tuple2.of(null, 0));
         Optional<Buffer> buffer = Optional.empty();
         if (currentConsumerAgentAndSegmentId.f0 == null) {
+
+            // 尝试用任意一个agent消费
             for (TierConsumerAgent tierConsumerAgent : tierConsumerAgents) {
                 buffer =
                         tierConsumerAgent.getNextBuffer(
                                 partitionId, subpartitionId, currentConsumerAgentAndSegmentId.f1);
+
+                // 只要一个有数据就可以了
                 if (buffer.isPresent()) {
+                    // 采集到结果就可以加入list了
                     currentConsumerAgentAndSegmentIds
                             .get(partitionId)
                             .put(
@@ -91,19 +116,24 @@ public class TieredStorageConsumerClient {
                 }
             }
         } else {
+            // 已经存在就继续用该对象读取
             buffer =
                     currentConsumerAgentAndSegmentId.f0.getNextBuffer(
                             partitionId, subpartitionId, currentConsumerAgentAndSegmentId.f1);
         }
+
+        // 表示已经没数据了
         if (!buffer.isPresent()) {
             return Optional.empty();
         }
         Buffer bufferData = buffer.get();
+        // 表示数据读完了
         if (bufferData.getDataType() == Buffer.DataType.END_OF_SEGMENT) {
             currentConsumerAgentAndSegmentIds
                     .get(partitionId)
                     .put(subpartitionId, Tuple2.of(null, currentConsumerAgentAndSegmentId.f1 + 1));
             bufferData.recycleBuffer();
+            // 这里会使用下个agent
             return getNextBuffer(partitionId, subpartitionId);
         }
         return Optional.of(bufferData);
@@ -125,9 +155,15 @@ public class TieredStorageConsumerClient {
     //  Internal methods
     // --------------------------------------------------------------------------------------------
 
+    /**
+     *
+     * @param tieredStorageConsumerSpecs
+     * @return
+     */
     private List<TierConsumerAgent> createTierConsumerAgents(
             List<TieredStorageConsumerSpec> tieredStorageConsumerSpecs) {
         ArrayList<TierConsumerAgent> tierConsumerAgents = new ArrayList<>();
+        // 每个工厂都要创建agent对象
         for (TierFactory tierFactory : tierFactories) {
             tierConsumerAgents.add(
                     tierFactory.createConsumerAgent(tieredStorageConsumerSpecs, nettyService));

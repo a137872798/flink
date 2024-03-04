@@ -40,6 +40,7 @@ import java.util.List;
  *
  * @param <T> Type of state
  * @param <R> Type of {@link ResourceVersion}
+ *           该对象是给状态加锁的
  */
 public interface StateHandleStore<T extends Serializable, R extends ResourceVersion<R>> {
 
@@ -112,6 +113,7 @@ public interface StateHandleStore<T extends Serializable, R extends ResourceVers
      * @return List of valid state handle name. The name is key name in ConfigMap or child path name
      *     in ZooKeeper.
      * @throws Exception if get handle operation failed
+     * 取出被管理的所有name
      */
     Collection<String> getAllHandles() throws Exception;
 

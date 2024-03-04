@@ -162,9 +162,10 @@ import java.util.stream.Collectors;
  *
  * <p>2) Context methods, which are called by states, to either transition into another state or
  * access functionality of some component in the scheduler.
+ * 自适应调度器
  */
 public class AdaptiveScheduler
-        implements SchedulerNG,
+        implements SchedulerNG,   // 具备各种功能 包括调度
                 Created.Context,
                 WaitingForResources.Context,
                 CreatingExecutionGraph.Context,
@@ -172,13 +173,23 @@ public class AdaptiveScheduler
                 Restarting.Context,
                 Failing.Context,
                 Finished.Context,
-                StopWithSavepoint.Context {
+                StopWithSavepoint.Context {  // 实现各种上下文 可以进行状态间的切换
 
     private static final Logger LOG = LoggerFactory.getLogger(AdaptiveScheduler.class);
 
+    /**
+     * 这是job的图对象 内部还包含了顶点 以及各个子任务
+     */
     private final JobGraph jobGraph;
+
+    /**
+     * 该对象维护该job下各顶点的并行度
+     */
     private final VertexParallelismStore initialParallelismStore;
 
+    /**
+     * 通过该对象可以申请slot
+     */
     private final DeclarativeSlotPool declarativeSlotPool;
 
     private final long initializationTimestamp;
@@ -186,49 +197,101 @@ public class AdaptiveScheduler
     private final Executor ioExecutor;
     private final ClassLoader userCodeClassLoader;
 
+    /**
+     * 该对象可以清理检查点
+     */
     private final CheckpointsCleaner checkpointsCleaner;
+
+    /**
+     * 存储检查点数据的仓库
+     */
     private final CompletedCheckpointStore completedCheckpointStore;
+
+    /**
+     * ID生成器
+     */
     private final CheckpointIDCounter checkpointIdCounter;
 
     private final CompletableFuture<JobStatus> jobTerminationFuture = new CompletableFuture<>();
 
+    /**
+     * 计算重启的延迟时间
+     */
     private final RestartBackoffTimeStrategy restartBackoffTimeStrategy;
 
     private final ComponentMainThreadExecutor componentMainThreadExecutor;
     private final FatalErrorHandler fatalErrorHandler;
+
+    /**
+     * 该对象可以丰富失败信息
+     */
     private final Collection<FailureEnricher> failureEnrichers;
 
+    /**
+     * 监听job状态变化
+     */
     private final Collection<JobStatusListener> jobStatusListeners;
 
+    /**
+     * 该对象可以计算slot的需求量 以及分配
+     */
     private final SlotAllocator slotAllocator;
 
+    /**
+     * 判断是否需要重新调度
+     */
     private final RescalingController rescalingController;
 
     private final Duration initialResourceAllocationTimeout;
 
     private final Duration resourceStabilizationTimeout;
 
+    /**
+     * 用于产生执行图
+     */
     private final ExecutionGraphFactory executionGraphFactory;
 
+    /**
+     * 一开始处于创建状态  该对象就是一个状态机
+     */
     private State state = new Created(this, LOG);
 
     private boolean isTransitioningState = false;
 
     private int numRestarts = 0;
 
+    /**
+     * 该对象维护了各子任务的attemptNumber
+     */
     private final MutableVertexAttemptNumberStore vertexAttemptNumberStore =
             new DefaultVertexAttemptNumberStore();
 
+    /**
+     * 用于执行后台任务
+     */
     private BackgroundTask<ExecutionGraph> backgroundTask = BackgroundTask.finishedBackgroundTask();
 
     private final SchedulerExecutionMode executionMode;
 
+    /**
+     * TODO
+     */
     private final DeploymentStateTimeMetrics deploymentTimeMetrics;
 
+    /**
+     * 表示长度有限的队列
+     */
     private final BoundedFIFOQueue<RootExceptionHistoryEntry> exceptionHistory;
     private JobGraphJobInformation jobInformation;
+
+    /**
+     * 记录资源的需求
+     */
     private ResourceCounter desiredResources = ResourceCounter.empty();
 
+    /**
+     * TODO
+     */
     private final JobManagerJobMetricGroup jobManagerJobMetricGroup;
 
     private final Duration slotIdleTimeout;
@@ -260,9 +323,11 @@ public class AdaptiveScheduler
         this.jobGraph = jobGraph;
         this.executionMode = configuration.get(JobManagerOptions.SCHEDULER_MODE);
 
+        // 根据job图信息 填充并行度
         VertexParallelismStore vertexParallelismStore =
                 computeVertexParallelismStore(jobGraph, executionMode);
         if (jobResourceRequirements != null) {
+            // 基于 Requirements 信息产生新的store
             vertexParallelismStore =
                     DefaultVertexParallelismStore.applyJobResourceRequirements(
                                     vertexParallelismStore, jobResourceRequirements)
@@ -279,6 +344,8 @@ public class AdaptiveScheduler
         this.restartBackoffTimeStrategy = restartBackoffTimeStrategy;
         this.fatalErrorHandler = fatalErrorHandler;
         this.checkpointsCleaner = checkpointsCleaner;
+
+        // 创建存储检查点的仓库
         this.completedCheckpointStore =
                 SchedulerUtils.createCompletedCheckpointStoreIfCheckpointingIsEnabled(
                         jobGraph, configuration, checkpointRecoveryFactory, ioExecutor, LOG);
@@ -288,10 +355,12 @@ public class AdaptiveScheduler
 
         this.slotAllocator = slotAllocator;
 
+        // 给slot池注册监听器
         declarativeSlotPool.registerNewSlotsListener(this::newResourcesAvailable);
 
         this.componentMainThreadExecutor = mainThreadExecutor;
 
+        // 控制是否伸缩
         this.rescalingController = new EnforceMinimalIncreaseRescalingController(configuration);
 
         this.initialResourceAllocationTimeout = initialResourceAllocationTimeout;
@@ -300,11 +369,13 @@ public class AdaptiveScheduler
 
         this.executionGraphFactory = executionGraphFactory;
 
+        // 记录job切换到不同状态的时间点
         final JobStatusStore jobStatusStore = new JobStatusStore(initializationTimestamp);
         final Collection<JobStatusListener> tmpJobStatusListeners = new ArrayList<>();
         tmpJobStatusListeners.add(Preconditions.checkNotNull(jobStatusListener));
         tmpJobStatusListeners.add(jobStatusStore);
 
+        // TODO 统计的先忽略
         final MetricOptions.JobStatusMetricsSettings jobStatusMetricsSettings =
                 MetricOptions.JobStatusMetricsSettings.fromConfiguration(configuration);
 
@@ -322,6 +393,8 @@ public class AdaptiveScheduler
 
         jobStatusListeners = Collections.unmodifiableCollection(tmpJobStatusListeners);
         this.failureEnrichers = failureEnrichers;
+
+        // 存储错误信息
         this.exceptionHistory =
                 new BoundedFIFOQueue<>(
                         configuration.getInteger(WebOptions.MAX_EXCEPTION_HISTORY_SIZE));
@@ -330,12 +403,18 @@ public class AdaptiveScheduler
                 Duration.ofMillis(configuration.get(JobManagerOptions.SLOT_IDLE_TIMEOUT));
     }
 
+    /**
+     * 检查前置条件
+     * @param jobGraph
+     * @throws RuntimeException
+     */
     private static void assertPreconditions(JobGraph jobGraph) throws RuntimeException {
         Preconditions.checkState(
                 jobGraph.getJobType() == JobType.STREAMING,
                 "The adaptive scheduler only supports streaming jobs.");
 
         for (JobVertex vertex : jobGraph.getVertices()) {
+            // 顶点必须设置并行度
             Preconditions.checkState(
                     vertex.getParallelism() > 0,
                     "The adaptive scheduler expects the parallelism being set for each JobVertex (violated JobVertex: %s).",
@@ -360,11 +439,12 @@ public class AdaptiveScheduler
      * <p>We need to set parallelism to the max possible value when requesting resources, but when
      * executing the graph we should respect what we are actually given.
      *
-     * @param vertices The vertices to store parallelism information for
-     * @param adjustParallelism Whether to adjust the parallelism
+     * @param vertices The vertices to store parallelism information for   出现的顶点
+     * @param adjustParallelism Whether to adjust the parallelism   表示是否要调整并行度
      * @param defaultMaxParallelismFunc a function for computing a default max parallelism if none
-     *     is specified on a given vertex
+     *     is specified on a given vertex   最大并行度
      * @return The parallelism store.
+     * 计算自适应模式下的并行度
      */
     @VisibleForTesting
     static VertexParallelismStore computeReactiveModeVertexParallelismStore(
@@ -377,12 +457,13 @@ public class AdaptiveScheduler
             // if no max parallelism was configured by the user, we calculate and set a default
             final int maxParallelism =
                     vertex.getMaxParallelism() == JobVertex.MAX_PARALLELISM_DEFAULT
-                            ? defaultMaxParallelismFunc.apply(vertex)
+                            ? defaultMaxParallelismFunc.apply(vertex)  // 通过该函数计算最大并行度 (按照公式计算 会很大 )
                             : vertex.getMaxParallelism();
             // If the parallelism has already been adjusted, respect what has been configured in the
             // vertex. Otherwise, scale it to the max parallelism to attempt to be "as parallel as
             // possible"
             final int parallelism;
+            // 将当前并行度调整为最大并行度
             if (adjustParallelism) {
                 parallelism = maxParallelism;
             } else {
@@ -416,6 +497,7 @@ public class AdaptiveScheduler
      * @param jobGraph The job graph for execution.
      * @param executionMode The mode of scheduler execution.
      * @return The parallelism store.
+     * 计算并行度
      */
     private static VertexParallelismStore computeVertexParallelismStore(
             JobGraph jobGraph, SchedulerExecutionMode executionMode) {
@@ -423,6 +505,7 @@ public class AdaptiveScheduler
             return computeReactiveModeVertexParallelismStore(
                     jobGraph.getVertices(), SchedulerBase::getDefaultMaxParallelism, true);
         }
+        // 表示mode为空
         return SchedulerBase.computeVertexParallelismStore(jobGraph);
     }
 
@@ -435,6 +518,7 @@ public class AdaptiveScheduler
      * @param defaultMaxParallelismFunc a function for computing a default max parallelism if none
      *     is specified on a given vertex
      * @return The parallelism store.
+     * 计算并行度
      */
     @VisibleForTesting
     static VertexParallelismStore computeVertexParallelismStoreForExecution(
@@ -449,28 +533,42 @@ public class AdaptiveScheduler
                 jobGraph.getVertices(), defaultMaxParallelismFunc);
     }
 
+    /**
+     * 当发现有新的slot可用时触发该方法
+     * @param physicalSlots
+     */
     private void newResourcesAvailable(Collection<? extends PhysicalSlot> physicalSlots) {
         state.tryRun(
                 ResourceListener.class,
-                ResourceListener::onNewResourcesAvailable,
+                ResourceListener::onNewResourcesAvailable,  // 将当前状态转换后执行监听方法
                 "newResourcesAvailable");
     }
 
+    /**
+     * 开始调度
+     */
     @Override
     public void startScheduling() {
+        // 周期性检查是否有空闲的slot 并释放
         checkIdleSlotTimeout();
         state.as(Created.class)
                 .orElseThrow(
                         () ->
                                 new IllegalStateException(
                                         "Can only start scheduling when being in Created state."))
+                // 会转到goToWaitingForResources
                 .startScheduling();
     }
 
+    /**
+     * 关闭本对象
+     * @return
+     */
     @Override
     public CompletableFuture<Void> closeAsync() {
         LOG.debug("Closing the AdaptiveScheduler. Trying to suspend the current job execution.");
 
+        // 会进入finish状态
         state.suspend(new FlinkException("AdaptiveScheduler is being stopped."));
 
         Preconditions.checkState(
@@ -487,6 +585,10 @@ public class AdaptiveScheduler
                 checkpointsCleaner::closeAsync);
     }
 
+    /**
+     * 停止检查点
+     * @param terminalState
+     */
     private void stopCheckpointServicesSafely(JobStatus terminalState) {
         LOG.debug("Stopping the checkpoint services with state {}.", terminalState);
 
@@ -509,6 +611,9 @@ public class AdaptiveScheduler
         }
     }
 
+    /**
+     * 进入finished状态
+     */
     @Override
     public void cancel() {
         state.cancel();
@@ -519,6 +624,10 @@ public class AdaptiveScheduler
         return jobTerminationFuture;
     }
 
+    /**
+     * 也是进入finished状态
+     * @param cause A cause that describes the global failure.
+     */
     @Override
     public void handleGlobalFailure(Throwable cause) {
         final FailureEnricher.Context ctx =
@@ -552,17 +661,30 @@ public class AdaptiveScheduler
         return FailureEnricherUtils.EMPTY_FAILURE_LABELS;
     }
 
+    /**
+     * 更新任务状态
+     * @param taskExecutionState
+     * @return
+     */
     @Override
     public boolean updateTaskExecutionState(TaskExecutionStateTransition taskExecutionState) {
         return state.tryCall(
                         StateWithExecutionGraph.class,
                         stateWithExecutionGraph ->
+                                // 这会获取执行图 并更新状态
                                 stateWithExecutionGraph.updateTaskExecutionState(
                                         taskExecutionState, labelFailure(taskExecutionState)),
                         "updateTaskExecutionState")
                 .orElse(false);
     }
 
+    /**
+     * 请求下一个输入流 转发给执行图 最终转发给Execution
+     * @param vertexID
+     * @param executionAttempt
+     * @return
+     * @throws IOException
+     */
     @Override
     public SerializedInputSplit requestNextInputSplit(
             JobVertexID vertexID, ExecutionAttemptID executionAttempt) throws IOException {
@@ -576,6 +698,13 @@ public class AdaptiveScheduler
                         () -> new IOException("Scheduler is currently not executing the job."));
     }
 
+    /**
+     * 请求分区状态 也是转发
+     * @param intermediateResultId
+     * @param resultPartitionId
+     * @return
+     * @throws PartitionProducerDisposedException
+     */
     @Override
     public ExecutionState requestPartitionState(
             IntermediateDataSetID intermediateResultId, ResultPartitionID resultPartitionId)
@@ -589,6 +718,10 @@ public class AdaptiveScheduler
                 .orElseThrow(() -> new PartitionProducerDisposedException(resultPartitionId));
     }
 
+    /**
+     * 将归档图和错误信息合并成 ExecutionGraphInfo
+     * @return
+     */
     @Override
     public ExecutionGraphInfo requestJob() {
         return new ExecutionGraphInfo(state.getJob(), exceptionHistory.toArrayList());
@@ -614,6 +747,16 @@ public class AdaptiveScheduler
         return JobDetails.createDetailsForJob(state.getJob());
     }
 
+    // 下面多个方法都是转发
+
+    /**
+     * 获取KvState的位置
+     * @param jobId
+     * @param registrationName
+     * @return
+     * @throws UnknownKvStateLocation
+     * @throws FlinkJobNotFoundException
+     */
     @Override
     public KvStateLocation requestKvStateLocation(JobID jobId, String registrationName)
             throws UnknownKvStateLocation, FlinkJobNotFoundException {
@@ -621,6 +764,7 @@ public class AdaptiveScheduler
                 state.as(StateWithExecutionGraph.class);
 
         if (asOptional.isPresent()) {
+            // 也是转发
             return asOptional.get().requestKvStateLocation(jobId, registrationName);
         } else {
             throw new UnknownKvStateLocation(registrationName);
@@ -753,6 +897,13 @@ public class AdaptiveScheduler
                 "declineCheckpoint");
     }
 
+    /**
+     * 这里会间接调用 goToStopWithSavepoint
+     * @param targetDirectory
+     * @param terminate
+     * @param formatType
+     * @return
+     */
     @Override
     public CompletableFuture<String> stopWithSavepoint(
             @Nullable String targetDirectory, boolean terminate, SavepointFormatType formatType) {
@@ -800,6 +951,10 @@ public class AdaptiveScheduler
                                                         + " does not exist")));
     }
 
+    /**
+     * 获取资源的需求量
+     * @return
+     */
     @Override
     public JobResourceRequirements requestJobResourceRequirements() {
         final JobResourceRequirements.Builder builder = JobResourceRequirements.newBuilder();
@@ -810,22 +965,28 @@ public class AdaptiveScheduler
         return builder.build();
     }
 
+    /**
+     * 更新资源消耗
+     * @param jobResourceRequirements new resource requirements
+     */
     @Override
     public void updateJobResourceRequirements(JobResourceRequirements jobResourceRequirements) {
         if (executionMode == SchedulerExecutionMode.REACTIVE) {
             throw new UnsupportedOperationException(
                     "Cannot change the parallelism of a job running in reactive mode.");
         }
+        // 更新store的数据
         final Optional<VertexParallelismStore> maybeUpdateVertexParallelismStore =
                 DefaultVertexParallelismStore.applyJobResourceRequirements(
                         jobInformation.getVertexParallelismStore(), jobResourceRequirements);
         if (maybeUpdateVertexParallelismStore.isPresent()) {
+            // 更新job信息
             this.jobInformation =
                     new JobGraphJobInformation(jobGraph, maybeUpdateVertexParallelismStore.get());
             declareDesiredResources();
             state.tryRun(
                     ResourceListener.class,
-                    ResourceListener::onNewResourceRequirements,
+                    ResourceListener::onNewResourceRequirements,  // 如果发现需要重新调度  进入restart状态
                     "Current state does not react to desired parallelism changes.");
         }
     }
@@ -839,6 +1000,12 @@ public class AdaptiveScheduler
         return hasDesiredResources(desiredResources, freeSlots);
     }
 
+    /**
+     * 判断slot资源是否足够
+     * @param desiredResources
+     * @param freeSlots
+     * @return
+     */
     @VisibleForTesting
     static boolean hasDesiredResources(
             ResourceCounter desiredResources, Collection<? extends SlotInfo> freeSlots) {
@@ -856,9 +1023,14 @@ public class AdaptiveScheduler
             }
         }
 
+        // 为空 就代表slot足够
         return outstandingResources.isEmpty();
     }
 
+    /**
+     * 判断slot是否满足最小需求
+     * @return
+     */
     @Override
     public boolean hasSufficientResources() {
         return slotAllocator
@@ -866,6 +1038,13 @@ public class AdaptiveScheduler
                 .isPresent();
     }
 
+    /**
+     * 产生分配计划
+     * @param slotAllocator
+     * @param previousExecutionGraph
+     * @return
+     * @throws NoResourceAvailableException
+     */
     private JobSchedulingPlan determineParallelism(
             SlotAllocator slotAllocator, @Nullable ExecutionGraph previousExecutionGraph)
             throws NoResourceAvailableException {
@@ -881,6 +1060,12 @@ public class AdaptiveScheduler
                                         "Not enough resources available for scheduling."));
     }
 
+    /**
+     * 产生归档对象
+     * @param jobStatus jobStatus to initialize the {@link ArchivedExecutionGraph} with
+     * @param cause cause describing a failure cause; {@code null} if there is none
+     * @return
+     */
     @Override
     public ArchivedExecutionGraph getArchivedExecutionGraph(
             JobStatus jobStatus, @Nullable Throwable cause) {
@@ -895,11 +1080,16 @@ public class AdaptiveScheduler
                 initialParallelismStore);
     }
 
+    /**
+     * 开始等待资源
+     * @param previousExecutionGraph
+     */
     @Override
     public void goToWaitingForResources(@Nullable ExecutionGraph previousExecutionGraph) {
         declareDesiredResources();
 
         transitionToState(
+                // 切换到等待资源的状态
                 new WaitingForResources.Factory(
                         this,
                         LOG,
@@ -908,15 +1098,24 @@ public class AdaptiveScheduler
                         previousExecutionGraph));
     }
 
+    /**
+     * 检测当前资源是否充足
+     */
     private void declareDesiredResources() {
         final ResourceCounter newDesiredResources = calculateDesiredResources();
 
+        // 表示需要的资源量发生了变化
         if (!newDesiredResources.equals(this.desiredResources)) {
             this.desiredResources = newDesiredResources;
+            // 先设置需求量 这样才能从外部offsetSlot
             declarativeSlotPool.setResourceRequirements(this.desiredResources);
         }
     }
 
+    /**
+     * 计算需要的资源
+     * @return
+     */
     private ResourceCounter calculateDesiredResources() {
         return slotAllocator.calculateRequiredSlots(jobInformation.getVertices());
     }
@@ -968,6 +1167,7 @@ public class AdaptiveScheduler
             final int attemptNumber =
                     executionVertex.getCurrentExecutionAttempt().getAttemptNumber();
 
+            // 因为重启了 更新attemptNumber
             this.vertexAttemptNumberStore.setAttemptCount(
                     executionVertex.getJobvertexId(),
                     executionVertex.getParallelSubtaskIndex(),
@@ -1041,6 +1241,7 @@ public class AdaptiveScheduler
                 executionGraphWithAvailableResourcesFuture =
                         createExecutionGraphWithAvailableResourcesAsync(previousExecutionGraph);
         transitionToState(
+                // 切换到创建执行图状态
                 new CreatingExecutionGraph.Factory(
                         this,
                         executionGraphWithAvailableResourcesFuture,
@@ -1048,6 +1249,11 @@ public class AdaptiveScheduler
                         previousExecutionGraph));
     }
 
+    /**
+     * 根据资源图 创建并行度对象
+     * @param previousExecutionGraph
+     * @return
+     */
     private CompletableFuture<CreatingExecutionGraph.ExecutionGraphWithVertexParallelism>
             createExecutionGraphWithAvailableResourcesAsync(
                     @Nullable ExecutionGraph previousExecutionGraph) {
@@ -1063,16 +1269,19 @@ public class AdaptiveScheduler
 
                 // use the determined "available parallelism" to use
                 // the resources we have access to
+                // 根据计划调整并行度  计划的并行度是由当前可分配slot决定的
                 vertex.setParallelism(schedulingPlan.getVertexParallelism().getParallelism(id));
             }
 
             // use the originally configured max parallelism
             // as the default for consistent runs
+            // 基于新的图创建 store
             adjustedParallelismStore =
                     computeVertexParallelismStoreForExecution(
                             adjustedJobGraph,
                             executionMode,
                             (vertex) -> {
+                                // 获取之前的并行度
                                 VertexParallelismInformation vertexParallelismInfo =
                                         initialParallelismStore.getParallelismInfo(vertex.getID());
                                 return vertexParallelismInfo.getMaxParallelism();
@@ -1081,6 +1290,7 @@ public class AdaptiveScheduler
             return FutureUtils.completedExceptionally(exception);
         }
 
+        // 产生结果
         return createExecutionGraphAndRestoreStateAsync(adjustedParallelismStore)
                 .thenApply(
                         executionGraph ->
@@ -1088,6 +1298,12 @@ public class AdaptiveScheduler
                                         executionGraph, schedulingPlan));
     }
 
+    /**
+     * 尝试分配slot
+     * @param executionGraphWithVertexParallelism executionGraphWithVertexParallelism to assign
+     *     slots to resources
+     * @return
+     */
     @Override
     public CreatingExecutionGraph.AssignmentResult tryToAssignSlots(
             CreatingExecutionGraph.ExecutionGraphWithVertexParallelism
@@ -1095,14 +1311,18 @@ public class AdaptiveScheduler
         final ExecutionGraph executionGraph =
                 executionGraphWithVertexParallelism.getExecutionGraph();
 
+        // 通过执行图启动任务
         executionGraph.start(componentMainThreadExecutor);
         executionGraph.transitionToRunning();
 
+        // 监听任务执行状态
         executionGraph.setInternalTaskFailuresListener(
                 new UpdateSchedulerNgOnInternalFailuresListener(this));
 
         final JobSchedulingPlan jobSchedulingPlan =
                 executionGraphWithVertexParallelism.getJobSchedulingPlan();
+
+        // 进行资源分配
         return slotAllocator
                 .tryReserveResources(jobSchedulingPlan)
                 .map(reservedSlots -> assignSlotsToExecutionGraph(executionGraph, reservedSlots))
@@ -1110,10 +1330,17 @@ public class AdaptiveScheduler
                 .orElseGet(CreatingExecutionGraph.AssignmentResult::notPossible);
     }
 
+    /**
+     * 保存分配结果
+     * @param executionGraph
+     * @param reservedSlots  分配结果
+     * @return
+     */
     @Nonnull
     private ExecutionGraph assignSlotsToExecutionGraph(
             ExecutionGraph executionGraph, ReservedSlots reservedSlots) {
         for (ExecutionVertex executionVertex : executionGraph.getAllExecutionVertices()) {
+            // 获取分配给该子任务的slot
             final LogicalSlot assignedSlot = reservedSlots.getSlotFor(executionVertex.getID());
             final CompletableFuture<Void> registrationFuture =
                     executionVertex
@@ -1129,6 +1356,11 @@ public class AdaptiveScheduler
         return executionGraph;
     }
 
+    /**
+     * 使用新的 adjustedParallelismStore 创建执行图
+     * @param adjustedParallelismStore
+     * @return
+     */
     private CompletableFuture<ExecutionGraph> createExecutionGraphAndRestoreStateAsync(
             VertexParallelismStore adjustedParallelismStore) {
         backgroundTask.abort();
@@ -1142,6 +1374,12 @@ public class AdaptiveScheduler
                 backgroundTask.getResultFuture(), getMainThreadExecutor());
     }
 
+    /**
+     * 使用新的store创建执行图
+     * @param adjustedParallelismStore
+     * @return
+     * @throws Exception
+     */
     @Nonnull
     private ExecutionGraph createExecutionGraphAndRestoreState(
             VertexParallelismStore adjustedParallelismStore) throws Exception {
@@ -1162,11 +1400,17 @@ public class AdaptiveScheduler
                 LOG);
     }
 
+    /**
+     *
+     * @param executionGraph executionGraph for making the scaling decision.
+     * @return
+     */
     @Override
     public boolean shouldRescale(ExecutionGraph executionGraph) {
         final Optional<VertexParallelism> maybeNewParallelism =
                 slotAllocator.determineParallelism(
                         jobInformation, declarativeSlotPool.getAllSlotsInformation());
+        // 并行度变化是否需要重新调度
         return maybeNewParallelism
                 .filter(
                         vertexParallelism ->
@@ -1184,6 +1428,10 @@ public class AdaptiveScheduler
                                         ExecutionJobVertex::getParallelism)));
     }
 
+    /**
+     * 进入结束状态时会触发该方法
+     * @param archivedExecutionGraph archivedExecutionGraph represents the final state of the
+     */
     @Override
     public void onFinished(ArchivedExecutionGraph archivedExecutionGraph) {
 
@@ -1201,6 +1449,11 @@ public class AdaptiveScheduler
         jobTerminationFuture.complete(archivedExecutionGraph.getState());
     }
 
+    /**
+     * 出现异常时触发该方法
+     * @param failure failure describing the failure cause
+     * @return
+     */
     @Override
     public FailureResult howToHandleFailure(Throwable failure) {
         if (ExecutionFailureHandler.isUnrecoverableError(failure)) {
@@ -1271,6 +1524,7 @@ public class AdaptiveScheduler
      * @param targetState State to transition to
      * @param <T> Type of the target state
      * @return A target state instance
+     * 转换到另一个状态
      */
     @VisibleForTesting
     <T extends State> T transitionToState(StateFactory<T> targetState) {
@@ -1291,6 +1545,7 @@ public class AdaptiveScheduler
 
             final JobStatus previousJobStatus = state.getJobStatus();
 
+            // 表示进入另一种状态
             state.onLeave(targetState.getStateClass());
             T targetStateInstance = targetState.getState();
             state = targetStateInstance;
@@ -1301,6 +1556,7 @@ public class AdaptiveScheduler
                 final long timestamp = System.currentTimeMillis();
                 jobStatusListeners.forEach(
                         listener ->
+                                // 通知监听器
                                 listener.jobStatusChanges(
                                         jobInformation.getJobID(), newJobStatus, timestamp));
             }
@@ -1319,12 +1575,15 @@ public class AdaptiveScheduler
     /**
      * Check for slots that are idle for more than {@link JobManagerOptions#SLOT_IDLE_TIMEOUT} and
      * release them back to the ResourceManager.
+     * 检查是否获取slot超时
      */
     private void checkIdleSlotTimeout() {
+        // 表示终止了
         if (getState().getJobStatus().isGloballyTerminalState()) {
             // Job has reached the terminal state, so we can return all slots to the ResourceManager
             // to speed things up because we no longer need them. This optimization lets us skip
             // waiting for the slot pool service to close.
+            // 归还所有slot
             for (SlotInfo slotInfo : declarativeSlotPool.getAllSlotsInformation()) {
                 declarativeSlotPool.releaseSlot(
                         slotInfo.getAllocationId(),
@@ -1339,10 +1598,11 @@ public class AdaptiveScheduler
             // it re-acquires leadership
             return;
         }
+        // 将长时间闲置的slot释放
         declarativeSlotPool.releaseIdleSlots(System.currentTimeMillis());
         getMainThreadExecutor()
                 .schedule(
-                        this::checkIdleSlotTimeout,
+                        this::checkIdleSlotTimeout,  // 周期性检查
                         slotIdleTimeout.toMillis(),
                         TimeUnit.MILLISECONDS);
     }

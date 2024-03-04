@@ -28,7 +28,9 @@ import java.util.concurrent.CompletableFuture;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** The specific delegate implementation for the multiple outputs case. */
+/** The specific delegate implementation for the multiple outputs case.
+ * 内部包含多个RecordWriter
+ * */
 public class MultipleRecordWriters<T extends IOReadableWritable>
         implements RecordWriterDelegate<T> {
 
@@ -46,6 +48,11 @@ public class MultipleRecordWriters<T extends IOReadableWritable>
         this.futures = new CompletableFuture[recordWriters.size()];
     }
 
+    /**
+     * 一次性触发所有writer的broadcastEvent
+     * @param event the event to be emitted to all the output channels.
+     * @throws IOException
+     */
     @Override
     public void broadcastEvent(AbstractEvent event) throws IOException {
         IOException exception = null;

@@ -24,11 +24,20 @@ import org.apache.flink.util.Preconditions;
 import java.io.Serializable;
 import java.util.UUID;
 
-/** DTO for TaskManager registration information. */
+/** DTO for TaskManager registration information.
+ * 包含 TaskManager的注册信息
+ * */
 public class TaskManagerRegistrationInformation implements Serializable {
     private static final long serialVersionUID = 1767026305134276540L;
 
+    /**
+     * 这里包含了TaskManager的通信地址  JobMaster与其他TaskManager之间可以通过rpc通信
+     */
     private final String taskManagerRpcAddress;
+
+    /**
+     * 表示一个未解析的位置对象
+     */
     private final UnresolvedTaskManagerLocation unresolvedTaskManagerLocation;
     private final UUID taskManagerSession;
 

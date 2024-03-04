@@ -74,30 +74,43 @@ public class CheckpointStatsTracker {
      */
     private final ReentrantLock statsReadWriteLock = new ReentrantLock();
 
-    /** Checkpoint counts. */
+    /** Checkpoint counts.
+     * 该对象维护 检查点相关的计数值
+     * */
     private final CheckpointStatsCounts counts = new CheckpointStatsCounts();
 
-    /** A summary of the completed checkpoint stats. */
+    /** A summary of the completed checkpoint stats.
+     * 维护统计数据
+     * */
     private final CompletedCheckpointStatsSummary summary = new CompletedCheckpointStatsSummary();
 
-    /** History of checkpoints. */
+    /** History of checkpoints.
+     * 可以理解为维护检查点统计数据的一个快照  (多个检查点)
+     * */
     private final CheckpointStatsHistory history;
 
     private final JobID jobID;
 
-    /** The latest restored checkpoint. */
+    /** The latest restored checkpoint.
+     * 最近恢复的检查点信息
+     * */
     @Nullable private RestoredCheckpointStats latestRestoredCheckpoint;
 
-    /** Latest created snapshot. */
+    /** Latest created snapshot.
+     * 基于统计数据 生成的快照   注意这是快照  需要定期更新
+     * */
     private volatile CheckpointStatsSnapshot latestSnapshot;
 
     /**
      * Flag indicating whether a new snapshot needs to be created. This is true if a new checkpoint
      * was triggered or updated (completed successfully or failed).
+     * 用于标识 是否应当创建一个新的快照
      */
     private volatile boolean dirty;
 
-    /** The latest completed checkpoint. Used by the latest completed checkpoint metrics. */
+    /** The latest completed checkpoint. Used by the latest completed checkpoint metrics.
+     * 有关最近一个完成的检查点统计数据
+     * */
     @Nullable private volatile CompletedCheckpointStats latestCompletedCheckpoint;
 
     /**
@@ -138,12 +151,14 @@ public class CheckpointStatsTracker {
      * Creates a new snapshot of the available stats.
      *
      * @return The latest statistics snapshot.
+     * 需要生成一个新的快照
      */
     public CheckpointStatsSnapshot createSnapshot() {
         CheckpointStatsSnapshot snapshot = latestSnapshot;
 
         // Only create a new snapshot if dirty and no update in progress,
         // because we don't want to block the coordinator.
+        // 要求提前被设置了 dirty标记
         if (dirty && statsReadWriteLock.tryLock()) {
             try {
                 // Create a new snapshot
@@ -177,6 +192,7 @@ public class CheckpointStatsTracker {
      * @param props The checkpoint properties.
      * @param vertexToDop mapping of {@link JobVertexID} to DOP
      * @return Tracker for statistics gathering.
+     * 根据信息产生一个 进行中的检查点对象 并更新统计数据
      */
     PendingCheckpointStats reportPendingCheckpoint(
             long checkpointId,
@@ -184,6 +200,7 @@ public class CheckpointStatsTracker {
             CheckpointProperties props,
             Map<JobVertexID, Integer> vertexToDop) {
 
+        // 将信息包装成 stats
         PendingCheckpointStats pending =
                 new PendingCheckpointStats(checkpointId, triggerTimestamp, props, vertexToDop);
 
@@ -192,6 +209,7 @@ public class CheckpointStatsTracker {
             counts.incrementInProgressCheckpoints();
             history.addInProgressCheckpoint(pending);
 
+            // 因为多了检查点  变成了dirty 提示需要更新快照
             dirty = true;
         } finally {
             statsReadWriteLock.unlock();
@@ -204,6 +222,7 @@ public class CheckpointStatsTracker {
      * Callback when a checkpoint is restored.
      *
      * @param restored The restored checkpoint stats.
+     *                 更新最近恢复的检查点
      */
     void reportRestoredCheckpoint(RestoredCheckpointStats restored) {
         checkNotNull(restored, "Restored checkpoint");
@@ -281,6 +300,7 @@ public class CheckpointStatsTracker {
     /**
      * Callback when a checkpoint failure without in progress checkpoint. For example, it should be
      * callback when triggering checkpoint failure before creating PendingCheckpoint.
+     * 直接增加失败检查点数量 而不是通过修改pending
      */
     public void reportFailedCheckpointsWithoutInProgress() {
         statsReadWriteLock.lock();
@@ -293,6 +313,11 @@ public class CheckpointStatsTracker {
         }
     }
 
+    /**
+     * 查询某个进行中的检查点
+     * @param checkpointId
+     * @return
+     */
     public PendingCheckpointStats getPendingCheckpointStats(long checkpointId) {
         statsReadWriteLock.lock();
         try {
@@ -303,6 +328,12 @@ public class CheckpointStatsTracker {
         }
     }
 
+    /**
+     * 针对某个未完成的检查点   上报某个子任务的各种信息
+     * @param checkpointId
+     * @param attemptId
+     * @param metrics
+     */
     public void reportIncompleteStats(
             long checkpointId, ExecutionAttemptID attemptId, CheckpointMetrics metrics) {
         statsReadWriteLock.lock();
@@ -325,6 +356,8 @@ public class CheckpointStatsTracker {
                                         metrics.getCheckpointStartDelayNanos() / 1_000_000,
                                         metrics.getUnalignedCheckpoint(),
                                         false));
+
+                // 信息得到更新 就需要更新快照
                 dirty = true;
             }
         } finally {
@@ -335,6 +368,8 @@ public class CheckpointStatsTracker {
     // ------------------------------------------------------------------------
     // Metrics
     // ------------------------------------------------------------------------
+
+    // TODO 有关统计模块的先忽略
 
     @VisibleForTesting
     static final String NUMBER_OF_CHECKPOINTS_METRIC = "totalNumberOfCheckpoints";

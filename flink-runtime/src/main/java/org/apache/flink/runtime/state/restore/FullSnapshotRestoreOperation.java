@@ -117,7 +117,14 @@ public class FullSnapshotRestoreOperation<K>
 
     private final KeyGroupRange keyGroupRange;
     private final ClassLoader userCodeClassLoader;
+
+    /**
+     * 从这些handle中加载state数据
+     */
     private final Collection<KeyedStateHandle> restoreStateHandles;
+    /**
+     * 用于状态的序列化
+     */
     private final StateSerializerProvider<K> keySerializerProvider;
 
     private boolean isKeySerializerCompatibilityChecked;
@@ -154,6 +161,7 @@ public class FullSnapshotRestoreOperation<K>
                     throw unexpectedStateHandleException(
                             KeyGroupsStateHandle.class, keyedStateHandle.getClass());
                 }
+                // 一次消耗一个handle恢复数据
                 KeyGroupsStateHandle groupsStateHandle = (KeyGroupsStateHandle) keyedStateHandle;
                 return restoreKeyGroupsInStateHandle(groupsStateHandle);
             }
@@ -163,12 +171,23 @@ public class FullSnapshotRestoreOperation<K>
         };
     }
 
+    /**
+     * 从某个stateHandle 恢复数据
+     * @param keyedStateHandle
+     * @return
+     * @throws IOException
+     * @throws StateMigrationException
+     */
     private SavepointRestoreResult restoreKeyGroupsInStateHandle(
             @Nonnull KeyGroupsStateHandle keyedStateHandle)
             throws IOException, StateMigrationException {
         FSDataInputStream currentStateHandleInStream = keyedStateHandle.openInputStream();
+
+        // 该对象用于读取元数据
         KeyedBackendSerializationProxy<K> serializationProxy =
                 readMetaData(new DataInputViewStreamWrapper(currentStateHandleInStream));
+
+        // 将数据包装成 KeyGroupsIterator
         KeyGroupsIterator groupsIterator =
                 new KeyGroupsIterator(
                         keyGroupRange,
@@ -217,11 +236,22 @@ public class FullSnapshotRestoreOperation<K>
         return serializationProxy;
     }
 
+    /**
+     * 该对象用于遍历 keyGroup的key
+     */
     private static class KeyGroupsIterator implements ThrowingIterator<KeyGroup> {
         @Nonnull private final KeyGroupRange keyGroupRange;
+
+        /**
+         * 记录每个key开始的偏移量
+         */
         @Nonnull private final Iterator<Tuple2<Integer, Long>> keyGroups;
         @Nonnull private final FSDataInputStream currentStateHandleInStream;
         @Nonnull private final StreamCompressionDecorator keygroupStreamCompressionDecorator;
+
+        /**
+         * 可以产生输入流的handle
+         */
         @Nonnull private final KeyGroupsStateHandle currentKeyGroupsStateHandle;
 
         private KeyGroupsIterator(
@@ -241,6 +271,11 @@ public class FullSnapshotRestoreOperation<K>
             return keyGroups.hasNext();
         }
 
+        /**
+         * 每次读取一个key 每个key下有很多的kv数据 此key非彼k
+         * @return
+         * @throws IOException
+         */
         public KeyGroup next() throws IOException {
             Tuple2<Integer, Long> keyGroupOffset = keyGroups.next();
             int keyGroup = keyGroupOffset.f0;
@@ -257,6 +292,8 @@ public class FullSnapshotRestoreOperation<K>
                                 currentStateHandleInStream);
                 DataInputViewStreamWrapper compressedKgInputView =
                         new DataInputViewStreamWrapper(compressedKgIn);
+
+                // 传入key编号 和包含entry的数据流
                 return new KeyGroup(keyGroup, new KeyGroupEntriesIterator(compressedKgInputView));
             } else {
                 return new KeyGroup(keyGroup, new KeyGroupEntriesIterator());
@@ -270,9 +307,14 @@ public class FullSnapshotRestoreOperation<K>
         }
     }
 
+    /**
+     * 用于遍历同一个key下的所有stateEntry
+     */
     private static class KeyGroupEntriesIterator implements ThrowingIterator<KeyGroupEntry> {
         private final DataInputViewStreamWrapper kgInputView;
         private Integer currentKvStateId;
+
+        // savepoint的存储格式可能不同  目前看来每个key下对应一个state?
 
         private KeyGroupEntriesIterator(@Nonnull DataInputViewStreamWrapper kgInputView)
                 throws IOException {
@@ -295,9 +337,12 @@ public class FullSnapshotRestoreOperation<K>
                 throw new NoSuchElementException();
             }
 
+            // 使用通用的序列化对象处理
             byte[] key = BytePrimitiveArraySerializer.INSTANCE.deserialize(kgInputView);
             byte[] value = BytePrimitiveArraySerializer.INSTANCE.deserialize(kgInputView);
             final int entryStateId = currentKvStateId;
+
+            // TODO
             if (hasMetaDataFollowsFlag(key)) {
                 // clear the signal bit in the key to make it ready for insertion
                 // again

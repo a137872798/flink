@@ -36,16 +36,23 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * The reader (read view) of a BoundedBlockingSubpartition based on {@link
  * org.apache.flink.shaded.netty4.io.netty.channel.FileRegion}.
+ * 也是用于读取子分区数据的
  */
 public class BoundedBlockingSubpartitionDirectTransferReader implements ResultSubpartitionView {
 
-    /** The result subpartition that we read. */
+    /** The result subpartition that we read.
+     * 该reader读取的子分区
+     * */
     private final BoundedBlockingSubpartition parent;
 
-    /** The reader/decoder to the file region with the data we currently read from. */
+    /** The reader/decoder to the file region with the data we currently read from.
+     * 读取子分区数据的reader
+     * */
     private final BoundedData.Reader dataReader;
 
-    /** The remaining number of data buffers (not events) in the result. */
+    /** The remaining number of data buffers (not events) in the result.
+     * 剩余多少 data buffer
+     * */
     private int numDataBuffers;
 
     /** The remaining number of data buffers and events in the result. */
@@ -71,6 +78,8 @@ public class BoundedBlockingSubpartitionDirectTransferReader implements ResultSu
         this.parent = checkNotNull(parent);
 
         checkNotNull(filePath);
+
+        // 直接从文件读取数据的reader对象
         this.dataReader = new FileRegionReader(filePath);
 
         checkArgument(numDataBuffers >= 0);
@@ -80,6 +89,11 @@ public class BoundedBlockingSubpartitionDirectTransferReader implements ResultSu
         this.numDataAndEventBuffers = numDataAndEventBuffers;
     }
 
+    /**
+     * 获取下个数据块 (其实就是一条记录)
+     * @return
+     * @throws IOException
+     */
     @Nullable
     @Override
     public BufferAndBacklog getNextBuffer() throws IOException {
@@ -94,10 +108,12 @@ public class BoundedBlockingSubpartitionDirectTransferReader implements ResultSu
             return null;
         }
 
+        // 更新统计信息  就是更新data buffer数量
         updateStatistics(current);
 
         // We simply assume all the data except for the last one (EndOfPartitionEvent)
         // are non-events for batch jobs to avoid pre-fetching the next header
+        // 使用猜测的方式 ?
         Buffer.DataType nextDataType = Buffer.DataType.NONE;
         if (numDataBuffers > 0) {
             nextDataType = Buffer.DataType.DATA_BUFFER;
@@ -124,6 +140,10 @@ public class BoundedBlockingSubpartitionDirectTransferReader implements ResultSu
                 numDataBuffers);
     }
 
+    /**
+     * 释放相关资源
+     * @throws IOException
+     */
     @Override
     public void releaseAllResources() throws IOException {
         // it is not a problem if this method executes multiple times
@@ -189,6 +209,7 @@ public class BoundedBlockingSubpartitionDirectTransferReader implements ResultSu
     /**
      * The reader to read from {@link BoundedBlockingSubpartition} and return the wrapped {@link
      * org.apache.flink.shaded.netty4.io.netty.channel.FileRegion} based buffer.
+     * 直接从文件读取数据
      */
     static final class FileRegionReader implements BoundedData.Reader {
 

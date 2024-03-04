@@ -34,7 +34,9 @@ public class SlotID implements ResourceIDRetrievable, Serializable {
 
     private static final long serialVersionUID = -6399206032549807771L;
 
-    /** The resource id which this slot located */
+    /** The resource id which this slot located
+     * 表示该Slot所在的TM
+     * */
     private final ResourceID resourceId;
 
     /** The numeric id for single slot */

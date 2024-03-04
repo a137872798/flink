@@ -27,11 +27,19 @@ import org.apache.flink.annotation.Internal;
  * synchronous writing.
  *
  * @param <K> type of the backend keys.
+ *           表示保存点资源
  */
 @Internal
 public class SavepointResources<K> {
 
+    /**
+     * 产生快照需要用的所有资源
+     */
     private final FullSnapshotResources<K> snapshotResources;
+
+    /**
+     * 表示快照的生成方式 同步/异步
+     */
     private final SnapshotExecutionType preferredSnapshotExecutionType;
 
     public SavepointResources(

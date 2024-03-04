@@ -34,11 +34,18 @@ import java.util.function.Consumer;
 /**
  * An OperatorEventSender that calls the RPC gateway {@link JobMasterOperatorEventGateway} to send
  * the messages to the coordinator.
+ * 该网关对象实际上就是做了一层转发
  */
 public class RpcTaskOperatorEventGateway implements TaskOperatorEventGateway {
 
+    /**
+     * 通过该对象与JM交互
+     */
     private final JobMasterOperatorEventGateway rpcGateway;
 
+    /**
+     * 该对象是针对某个execution 创建的
+     */
     private final ExecutionAttemptID taskExecutionId;
 
     private final Consumer<Throwable> errorHandler;
@@ -52,6 +59,8 @@ public class RpcTaskOperatorEventGateway implements TaskOperatorEventGateway {
         this.taskExecutionId = taskExecutionId;
         this.errorHandler = errorHandler;
     }
+
+    // 都是转发
 
     @Override
     public void sendOperatorEventToCoordinator(

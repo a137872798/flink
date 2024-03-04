@@ -81,22 +81,28 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * This class implements the BLOB server. The BLOB server is responsible for listening for incoming
  * requests and spawning threads to handle these requests. Furthermore, it takes care of creating
  * the directory structure to store the BLOBs or temporarily cache them.
+ *
+ * 开启一个服务器 监听blobClient的连接请求
  */
 public class BlobServer extends Thread
         implements BlobService,
                 BlobWriter,
                 PermanentBlobService,
                 TransientBlobService,
-                LocallyCleanableResource,
+                LocallyCleanableResource,  // 这2个接口表示可以指定jobId 并进行清理
                 GloballyCleanableResource {
 
     /** The log object used for debugging. */
     private static final Logger LOG = LoggerFactory.getLogger(BlobServer.class);
 
-    /** Counter to generate unique names for temporary files. */
+    /** Counter to generate unique names for temporary files.
+     * 用于产生唯一id
+     * */
     private final AtomicLong tempFileCounter = new AtomicLong(0);
 
-    /** The server socket listening for incoming connections. */
+    /** The server socket listening for incoming connections.
+     * 服务端套接字
+     * */
     private final ServerSocket serverSocket;
 
     /** Blob Server configuration. */
@@ -105,19 +111,29 @@ public class BlobServer extends Thread
     /** Indicates whether a shutdown of server component has been requested. */
     private final AtomicBoolean shutdownRequested = new AtomicBoolean();
 
-    /** Root directory for local file storage. */
+    /** Root directory for local file storage.
+     * 存储blob的目录
+     * */
     private final Reference<File> storageDir;
 
-    /** Blob store for distributed file storage, e.g. in HA. */
+    /** Blob store for distributed file storage, e.g. in HA.
+     * 通过仓库存储 blob文件   目前只有基于FileSystem的一种实现  可以是本地文件系统 也可以是分布式文件系统
+     * */
     private final BlobStore blobStore;
 
-    /** Set of currently running threads. */
+    /** Set of currently running threads.
+     * 维护与各种client的连接
+     * */
     private final Set<BlobServerConnection> activeConnections = new HashSet<>();
 
-    /** The maximum number of concurrent connections. */
+    /** The maximum number of concurrent connections.
+     * 允许的最大连接数
+     * */
     private final int maxConnections;
 
-    /** Lock guarding concurrent file accesses. */
+    /** Lock guarding concurrent file accesses.
+     * 全局读写锁
+     * */
     private final ReadWriteLock readWriteLock;
 
     /** Shutdown hook thread to ensure deletion of the local storage directory. */
@@ -128,6 +144,7 @@ public class BlobServer extends Thread
     /**
      * Map to store the TTL of each element stored in the local storage, i.e. via one of the {@link
      * #getFile} methods.
+     * 维护临时blob的过期时间
      */
     private final ConcurrentHashMap<Tuple2<JobID, TransientBlobKey>, Long> blobExpiryTimes =
             new ConcurrentHashMap<>();
@@ -189,6 +206,8 @@ public class BlobServer extends Thread
         this.cleanupTimer = new Timer(true);
 
         this.cleanupInterval = config.getLong(BlobServerOptions.CLEANUP_INTERVAL) * 1000;
+
+        // 临时blob在 blobServer上也是要定期删除
         this.cleanupTimer.schedule(
                 new TransientBlobCleanupTask(blobExpiryTimes, this::deleteInternal, LOG),
                 cleanupInterval,
@@ -243,6 +262,7 @@ public class BlobServer extends Thread
                     backlog);
         }
 
+        // 启动时删除本地损坏的文件
         checkStoredBlobsForCorruption();
         registerBlobExpiryTimes();
     }
@@ -303,11 +323,16 @@ public class BlobServer extends Thread
                 String.format("temp-%08d", tempFileCounter.getAndIncrement()));
     }
 
-    /** Returns the lock used to guard file accesses. */
+    /** Returns the lock used to guard file accesses.
+     * 这个锁被所有连接共享
+     * */
     ReadWriteLock getReadWriteLock() {
         return readWriteLock;
     }
 
+    /**
+     * 接收客户端连接 并产生 Connection对象
+     */
     @Override
     public void run() {
         try {
@@ -319,6 +344,7 @@ public class BlobServer extends Thread
                         while (activeConnections.size() >= maxConnections) {
                             activeConnections.wait(2000);
                         }
+                        // 直到连接数降下去 然后 加入到set中
                         activeConnections.add(conn);
                     }
 
@@ -346,7 +372,9 @@ public class BlobServer extends Thread
         }
     }
 
-    /** Shuts down the BLOB server. */
+    /** Shuts down the BLOB server.
+     * 关闭服务器对象
+     * */
     @Override
     public void close() throws IOException {
         cleanupTimer.cancel();
@@ -361,6 +389,7 @@ public class BlobServer extends Thread
             }
 
             // wake the thread up, in case it is waiting on some operation
+            // 外部线程等待本线程结束啊
             interrupt();
 
             try {
@@ -382,6 +411,7 @@ public class BlobServer extends Thread
             }
 
             // Clean up the storage directory if it is owned
+            // 停止时 删除blob文件
             try {
                 storageDir
                         .owned()
@@ -500,6 +530,8 @@ public class BlobServer extends Thread
      * @param blobKey blob key associated with the requested file
      * @throws IOException Thrown if the file retrieval failed.
      * @return the retrieved local blob file
+     *
+     * 加载文件
      */
     File getFileInternal(@Nullable JobID jobId, BlobKey blobKey) throws IOException {
         // assume readWriteLock.readLock() was already locked (cannot really check that)
@@ -517,6 +549,8 @@ public class BlobServer extends Thread
                         System.currentTimeMillis() + cleanupInterval);
             }
             return localFile;
+
+            // 本地没有的情况下  如果是持久blob 应该是会同步在store上的  从store加载
         } else if (blobKey instanceof PermanentBlobKey) {
             // Try the HA blob store
             // first we have to release the read lock in order to acquire the write lock
@@ -710,6 +744,7 @@ public class BlobServer extends Thread
      * @return unique BLOB key that identifies the BLOB on the server
      * @throws IOException thrown if an I/O error occurs while moving the file or uploading it to
      *     the HA store
+     *     将临时文件的数据写入到 server的目录下
      */
     BlobKey moveTempFileToStore(
             File incomingFile, @Nullable JobID jobId, byte[] digest, BlobKey.BlobType blobType)
@@ -733,8 +768,10 @@ public class BlobServer extends Thread
                             blobKey,
                             storageFile,
                             LOG,
+                            // 持久文件 同时存入store
                             blobKey instanceof PermanentBlobKey ? blobStore : null);
                     // add TTL for transient BLOBs:
+                    // 一旦产生瞬时文件 就开始记录ttl
                     if (blobKey instanceof TransientBlobKey) {
                         // must be inside read or write lock to add a TTL
                         blobExpiryTimes.put(
@@ -856,6 +893,7 @@ public class BlobServer extends Thread
                 deleteLocally = false;
             }
             // this needs to happen inside the write lock in case of concurrent getFile() calls
+            // 双写删除
             boolean deleteHA = blobStore.delete(jobId, key);
             return deleteLocally && deleteHA;
         } finally {
@@ -884,9 +922,15 @@ public class BlobServer extends Thread
     public CompletableFuture<Void> localCleanupAsync(JobID jobId, Executor cleanupExecutor) {
         checkNotNull(jobId);
 
+        // 持有写锁的情况下清理 因为每个connection可能会访问目录
         return runAsyncWithWriteLock(() -> internalLocalCleanup(jobId), cleanupExecutor);
     }
 
+    /**
+     * 只删除server本地的
+     * @param jobId
+     * @throws IOException
+     */
     @GuardedBy("readWriteLock")
     private void internalLocalCleanup(JobID jobId) throws IOException {
         final File jobDir =
@@ -920,6 +964,7 @@ public class BlobServer extends Thread
                         exception = e;
                     }
 
+                    // 删除本地和 store上的
                     if (!blobStore.deleteAll(jobId)) {
                         exception =
                                 ExceptionUtils.firstOrSuppressed(
@@ -952,6 +997,12 @@ public class BlobServer extends Thread
                 executor);
     }
 
+    /**
+     * 只保留部分job
+     * @param jobsToRetain
+     * @param ioExecutor
+     * @throws IOException
+     */
     public void retainJobs(Collection<JobID> jobsToRetain, Executor ioExecutor) throws IOException {
         if (storageDir.deref().exists()) {
             final Set<JobID> jobsToRemove = BlobUtils.listExistingJobs(storageDir.deref().toPath());
@@ -961,6 +1012,7 @@ public class BlobServer extends Thread
             final Collection<CompletableFuture<Void>> cleanupResultFutures =
                     new ArrayList<>(jobsToRemove.size());
             for (JobID jobToRemove : jobsToRemove) {
+                // 注意是全局删除
                 cleanupResultFutures.add(globalCleanupAsync(jobToRemove, ioExecutor));
             }
 
@@ -1026,6 +1078,10 @@ public class BlobServer extends Thread
         return this.serverSocket;
     }
 
+    /**
+     * 有连接被移除了 立即唤醒阻塞的线程
+     * @param conn
+     */
     void unregisterConnection(BlobServerConnection conn) {
         synchronized (activeConnections) {
             activeConnections.remove(conn);

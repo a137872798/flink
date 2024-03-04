@@ -28,6 +28,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * The {@link PartitionFileWriter} interface defines the write logic for different types of shuffle
  * files.
+ * 表示往存储分区的文件中写入数据
  */
 public interface PartitionFileWriter {
 
@@ -48,13 +49,18 @@ public interface PartitionFileWriter {
 
     /**
      * The {@link SubpartitionBufferContext} contains all the buffers belonging to one subpartition.
+     * 子分区级别的上下文
      */
     class SubpartitionBufferContext {
 
-        /** The subpartition id. */
+        /** The subpartition id.
+         * 当前查看的子分区
+         * */
         private final int subpartitionId;
 
-        /** The {@link SegmentBufferContext}s belonging to the subpartition. */
+        /** The {@link SegmentBufferContext}s belonging to the subpartition.
+         * 该分区下每个seg以及buffer信息
+         * */
         private final List<SegmentBufferContext> segmentBufferContexts;
 
         public SubpartitionBufferContext(
@@ -76,13 +82,18 @@ public interface PartitionFileWriter {
      * The {@link SegmentBufferContext} contains all the buffers belonging to the segment. Note that
      * when this indicates whether the segment is finished, the field {@code bufferWithIndexes}
      * should be empty.
+     * 记录当前扫描到的seg和buffer
      */
     class SegmentBufferContext {
 
-        /** The segment id. */
+        /** The segment id.
+         * 该段的id
+         * */
         private final int segmentId;
 
-        /** All the buffers belonging to the segment. */
+        /** All the buffers belonging to the segment.
+         * 属于该seg的所有buffer
+         * */
         private final List<Tuple2<Buffer, Integer>> bufferAndIndexes;
 
         /** Whether it is necessary to finish the segment. */

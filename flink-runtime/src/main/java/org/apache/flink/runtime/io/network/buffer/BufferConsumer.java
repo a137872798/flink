@@ -37,9 +37,14 @@ import static org.apache.flink.util.Preconditions.checkState;
  * only by one single thread, this thread can be different than the thread using/writing to {@link
  * BufferBuilder}. Pattern here is simple: one thread writes data to {@link BufferBuilder} and there
  * can be a different thread reading from it using {@link BufferConsumer}.
+ * 对buffer做一层包装 主要是多了一组pos
  */
 @NotThreadSafe
 public class BufferConsumer implements Closeable {
+
+    /**
+     * 存储数据的容器
+     */
     private final Buffer buffer;
 
     private final CachedPositionMarker writerPosition;
@@ -190,6 +195,7 @@ public class BufferConsumer implements Closeable {
      * <p>Writer ({@link BufferBuilder}) and reader ({@link BufferConsumer}) caches must be
      * implemented independently of one another - so that the cached values can not accidentally
      * leak from one to another.
+     * 这里又缓存一层
      */
     private static class CachedPositionMarker {
         private final PositionMarker positionMarker;

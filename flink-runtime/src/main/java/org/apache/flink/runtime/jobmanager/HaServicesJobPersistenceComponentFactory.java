@@ -26,6 +26,8 @@ import org.apache.flink.util.function.SupplierWithException;
 /**
  * {@link JobPersistenceComponentFactory} implementation which creates a {@link JobGraphStore} using
  * the provided {@link HighAvailabilityServices}.
+ *
+ * 表示双写服务
  */
 public class HaServicesJobPersistenceComponentFactory implements JobPersistenceComponentFactory {
     private final HighAvailabilityServices highAvailabilityServices;

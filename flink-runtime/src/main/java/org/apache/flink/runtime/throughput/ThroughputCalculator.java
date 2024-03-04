@@ -22,7 +22,9 @@ import org.apache.flink.util.clock.Clock;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
 
-/** Class for measuring the throughput based on incoming data size and measurement period. */
+/** Class for measuring the throughput based on incoming data size and measurement period.
+ * 计算吞吐量的对象
+ * */
 public class ThroughputCalculator {
     private static final long NOT_TRACKED = -1;
     private final Clock clock;

@@ -21,6 +21,10 @@ package org.apache.flink.runtime.util;
 import java.io.IOException;
 import java.util.Iterator;
 
+/**
+ * 将value 按照key 划分  相同key的数据被称为一个keyGroup
+ * @param <E>
+ */
 public interface KeyGroupedIterator<E> {
 
     boolean nextKey() throws IOException;

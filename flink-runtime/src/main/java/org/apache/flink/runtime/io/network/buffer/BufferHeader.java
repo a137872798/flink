@@ -18,7 +18,9 @@
 
 package org.apache.flink.runtime.io.network.buffer;
 
-/** Header fields of a {@link org.apache.flink.runtime.io.network.buffer.Buffer}. */
+/** Header fields of a {@link org.apache.flink.runtime.io.network.buffer.Buffer}.
+ * 存储buffer的元数据信息  也是一个头部信息
+ * */
 public class BufferHeader {
 
     /** Whether the target buffer is compressed or not. */

@@ -36,6 +36,8 @@ import static org.apache.flink.util.Preconditions.checkState;
  * <p>The {@link CheckpointProperties} are related and cover properties that are only relevant at
  * the {@link CheckpointCoordinator}. These options are relevant at the {@link AbstractInvokable}
  * instances running on task managers.
+ *
+ * 检查点的一些选项
  */
 public class CheckpointOptions implements Serializable {
 

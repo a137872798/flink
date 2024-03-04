@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 
 /**
  * Utility for tracking partitions and issuing release calls to task executors and shuffle masters.
+ * 获取分区对象
  */
 public interface JobMasterPartitionTracker
         extends PartitionTracker<ResourceID, ResultPartitionDeploymentDescriptor> {

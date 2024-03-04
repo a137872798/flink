@@ -39,6 +39,7 @@ import org.slf4j.LoggerFactory;
  * and sorting. May emit partially reduced results.
  *
  * @see GroupCombineFunction
+ * GroupCombineFunction 函数  合并一组values 并发送到下游
  */
 public class AllGroupCombineDriver<IN, OUT> implements Driver<GroupCombineFunction<IN, OUT>, OUT> {
 
@@ -73,6 +74,10 @@ public class AllGroupCombineDriver<IN, OUT> implements Driver<GroupCombineFuncti
         return 0;
     }
 
+    /**
+     * 设置一些属性
+     * @throws Exception
+     */
     @Override
     public void prepare() throws Exception {
         final DriverStrategy driverStrategy = this.taskContext.getTaskConfig().getDriverStrategy();

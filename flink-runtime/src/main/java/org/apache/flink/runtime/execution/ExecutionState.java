@@ -44,10 +44,14 @@ package org.apache.flink.runtime.execution;
  *
  * <p>The states {@code FINISHED}, {@code CANCELED}, and {@code FAILED} are considered terminal
  * states.
+ * 表示某个 execution 此时的状态
  */
 public enum ExecutionState {
     CREATED,
 
+    /**
+     * 调度就代表在集群中寻找合适的节点
+     */
     SCHEDULED,
 
     DEPLOYING,

@@ -23,18 +23,32 @@ import org.apache.flink.runtime.util.event.EventListener;
 
 import java.io.IOException;
 
-/** The basic API for every reader. */
+/** The basic API for every reader.
+ * flink reader的基础接口
+ * */
 public interface ReaderBase {
 
-    /** Returns whether the reader has consumed the input. */
+    /** Returns whether the reader has consumed the input.
+     * 判断input的数据是否已经被读完
+     * */
     boolean isFinished();
 
     // ------------------------------------------------------------------------
     // Task events
     // ------------------------------------------------------------------------
 
+    /**
+     * 产生一个事件 通知监听器
+     * @param event
+     * @throws IOException
+     */
     void sendTaskEvent(TaskEvent event) throws IOException;
 
+    /**
+     * 注册事件监听器
+     * @param listener
+     * @param eventType
+     */
     void registerTaskEventListener(
             EventListener<TaskEvent> listener, Class<? extends TaskEvent> eventType);
 
@@ -42,6 +56,9 @@ public interface ReaderBase {
     // Iterations
     // ------------------------------------------------------------------------
 
+    /**
+     * 设置可迭代的reader对象
+     */
     void setIterativeReader();
 
     void startNextSuperstep();

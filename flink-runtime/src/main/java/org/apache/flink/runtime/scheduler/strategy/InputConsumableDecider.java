@@ -25,6 +25,7 @@ import java.util.function.Function;
 /**
  * {@link InputConsumableDecider} is responsible for determining whether the input of an
  * executionVertex or a consumed partition group is consumable.
+ * 用于判断是否可以消费的对象
  */
 public interface InputConsumableDecider {
     /**
@@ -35,21 +36,25 @@ public interface InputConsumableDecider {
      *     scheduled.
      * @param consumableStatusCache a cache for {@link ConsumedPartitionGroup} consumable status.
      *     This is to avoid repetitive computation.
+     *                              表示该顶点需要的上游数据(input) 是否可以消费了
      */
     boolean isInputConsumable(
-            SchedulingExecutionVertex executionVertex,
-            Set<ExecutionVertexID> verticesToSchedule,
-            Map<ConsumedPartitionGroup, Boolean> consumableStatusCache);
+            SchedulingExecutionVertex executionVertex,   // 本次被考察的节点
+            Set<ExecutionVertexID> verticesToSchedule,   // 表示还未调度  但是即将被调度的
+            Map<ConsumedPartitionGroup, Boolean> consumableStatusCache);  // 缓存了executionVertex中某些消费组是否已经finish
 
     /**
      * Determining whether the consumed partition group is consumable based on finished producers.
      *
      * @param consumedPartitionGroup to be determined whether it is consumable.
+     * 根据生产者是否结束来判断 数据能否消费
      */
     boolean isConsumableBasedOnFinishedProducers(
             final ConsumedPartitionGroup consumedPartitionGroup);
 
-    /** Factory for {@link InputConsumableDecider}. */
+    /** Factory for {@link InputConsumableDecider}.
+     * 该工厂根据相关信息可以产生 decider对象
+     * */
     interface Factory {
         InputConsumableDecider createInstance(
                 SchedulingTopology schedulingTopology,

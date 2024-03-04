@@ -33,13 +33,19 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** A version of the {@link IOManager} that uses asynchronous I/O. */
+/** A version of the {@link IOManager} that uses asynchronous I/O.
+ *
+ * */
 public class IOManagerAsync extends IOManager implements UncaughtExceptionHandler {
 
-    /** The writer threads used for asynchronous block oriented channel writing. */
+    /** The writer threads used for asynchronous block oriented channel writing.
+     * 多个写入线程
+     * */
     private final WriterThread[] writers;
 
-    /** The reader threads used for asynchronous block oriented channel reading. */
+    /** The reader threads used for asynchronous block oriented channel reading.
+     * 多个读取线程
+     * */
     private final ReaderThread[] readers;
 
     /** Flag to signify that the IOManager has been shut down already */
@@ -76,6 +82,7 @@ public class IOManagerAsync extends IOManager implements UncaughtExceptionHandle
         super(tempDirs);
 
         // start a write worker thread for each directory
+        // 根据目录数量创建等量的writer/reader
         this.writers = new WriterThread[tempDirs.length];
         for (int i = 0; i < this.writers.length; i++) {
             final WriterThread t = new WriterThread();
@@ -134,6 +141,7 @@ public class IOManagerAsync extends IOManager implements UncaughtExceptionHandle
             closeables.add(getReaderThreadCloser(rt));
         }
 
+        // 等待所有关闭
         closeables.add(
                 () -> {
                     try {
@@ -175,6 +183,11 @@ public class IOManagerAsync extends IOManager implements UncaughtExceptionHandle
         };
     }
 
+    /**
+     * 当出现异常时 关闭所有读写对象
+     * @param t
+     * @param e
+     */
     @Override
     public void uncaughtException(Thread t, Throwable e) {
         LOG.error(
@@ -193,6 +206,13 @@ public class IOManagerAsync extends IOManager implements UncaughtExceptionHandle
     //                        Reader / Writer instantiations
     // ------------------------------------------------------------------------
 
+    /**
+     * 找到对应的请求队列
+     * @param channelID The descriptor for the channel to write to.
+     * @param returnQueue The queue to put the written buffers into.
+     * @return
+     * @throws IOException
+     */
     @Override
     public BlockChannelWriter<MemorySegment> createBlockChannelWriter(
             FileIOChannel.ID channelID, LinkedBlockingQueue<MemorySegment> returnQueue)
@@ -300,7 +320,9 @@ public class IOManagerAsync extends IOManager implements UncaughtExceptionHandle
     //                           I/O Worker Threads
     // -------------------------------------------------------------------------
 
-    /** A worker thread for asynchronous reads. */
+    /** A worker thread for asynchronous reads.
+     * 该线程用于读取数据
+     * */
     private static final class ReaderThread extends Thread {
 
         protected final RequestQueue<ReadRequest> requestQueue;
@@ -338,6 +360,7 @@ public class IOManagerAsync extends IOManager implements UncaughtExceptionHandle
                 // notify all pending write requests that the thread has been shut down
                 IOException ioex = new IOException("IO-Manager has been closed.");
 
+                // 优雅关闭
                 while (!this.requestQueue.isEmpty()) {
                     ReadRequest request = this.requestQueue.poll();
                     if (request != null) {
@@ -369,6 +392,7 @@ public class IOManagerAsync extends IOManager implements UncaughtExceptionHandle
                 ReadRequest request = null;
                 while (alive && request == null) {
                     try {
+                        // 读取待处理的请求
                         request = this.requestQueue.take();
                     } catch (InterruptedException e) {
                         if (!this.alive) {
@@ -384,7 +408,7 @@ public class IOManagerAsync extends IOManager implements UncaughtExceptionHandle
                 IOException ioex = null;
 
                 try {
-                    // read buffer from the specified channel
+                    // read buffer from the specified channel   触发读取操作
                     request.read();
                 } catch (IOException e) {
                     ioex = e;
@@ -397,6 +421,7 @@ public class IOManagerAsync extends IOManager implements UncaughtExceptionHandle
                 }
 
                 // invoke the processed buffer handler of the request issuing reader object
+                // 此时读取已经完成
                 try {
                     request.requestDone(ioex);
                 } catch (Throwable t) {
@@ -409,7 +434,9 @@ public class IOManagerAsync extends IOManager implements UncaughtExceptionHandle
         }
     } // end reading thread
 
-    /** A worker thread that asynchronously writes the buffers to disk. */
+    /** A worker thread that asynchronously writes the buffers to disk.
+     * 写入线程 会不断读取队列中的请求
+     * */
     private static final class WriterThread extends Thread {
 
         protected final RequestQueue<WriteRequest> requestQueue;

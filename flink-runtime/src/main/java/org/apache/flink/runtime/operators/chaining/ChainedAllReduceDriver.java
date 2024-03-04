@@ -29,11 +29,23 @@ import org.apache.flink.runtime.operators.BatchTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * 实现了一些关键方法
+ * all reduce 就体现在 只有在close时才将合并的最终结果发往下游
+ * @param <IT>
+ */
 public class ChainedAllReduceDriver<IT> extends ChainedDriver<IT, IT> {
     private static final Logger LOG = LoggerFactory.getLogger(ChainedAllReduceDriver.class);
 
     // --------------------------------------------------------------------------------------------
+
+    /**
+     * 将2个值合并成1个
+     */
     private ReduceFunction<IT> reducer;
+    /**
+     * IT相关的序列化对象
+     */
     private TypeSerializer<IT> serializer;
 
     private IT base;
@@ -41,12 +53,17 @@ public class ChainedAllReduceDriver<IT> extends ChainedDriver<IT, IT> {
     // --------------------------------------------------------------------------------------------
     @Override
     public void setup(AbstractInvokable parent) {
+
+        // 从配置中读取了用户定义函数
         final ReduceFunction<IT> red =
                 BatchTask.instantiateUserCode(
                         this.config, userCodeClassLoader, ReduceFunction.class);
         this.reducer = red;
+
+        // 如果udf是 RichFunction 就设置上下文
         FunctionUtils.setFunctionRuntimeContext(red, getUdfRuntimeContext());
 
+        // 获取序列化对象   每个task有自己的config对象  config中会存储正确的序列化对象/函数
         TypeSerializerFactory<IT> serializerFactory =
                 this.config.getInputSerializer(0, userCodeClassLoader);
         this.serializer = serializerFactory.getSerializer();
@@ -58,6 +75,8 @@ public class ChainedAllReduceDriver<IT> extends ChainedDriver<IT, IT> {
                             + ".");
         }
     }
+
+    // 以下3个函数  当fun是 RichFunction时 分别触发相关钩子
 
     @Override
     public void openTask() throws Exception {
@@ -91,10 +110,13 @@ public class ChainedAllReduceDriver<IT> extends ChainedDriver<IT, IT> {
     }
 
     // --------------------------------------------------------------------------------------------
+
+    // 每当触发一次采集时  就是通过reduce函数处理数据
     @Override
     public void collect(IT record) {
         numRecordsIn.inc();
         try {
+            // 第一条记录将作为初始值
             if (base == null) {
                 base = serializer.copy(record);
             } else {
@@ -112,6 +134,7 @@ public class ChainedAllReduceDriver<IT> extends ChainedDriver<IT, IT> {
     public void close() {
         try {
             if (base != null) {
+                // 在关闭时才写出
                 this.outputCollector.collect(base);
                 base = null;
             }

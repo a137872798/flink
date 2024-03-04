@@ -45,6 +45,7 @@ import java.util.Optional;
  * <p>In order to clean up a {@link Job} one first needs to disconnect from the leading JobManager.
  * In order to completely remove the {@link Job} from the {@link JobTable}, one needs to call {@link
  * Job#close} which also closes the associated {@link JobTable.JobServices} instance.
+ * 维护多个job
  */
 public interface JobTable extends AutoCloseable {
 
@@ -56,6 +57,7 @@ public interface JobTable extends AutoCloseable {
      *     new job needs to be created
      * @return the current job (existing or created) registered under jobId
      * @throws E if the job services could not be created
+     * 通过id 查询job  没有则创建
      */
     <E extends Exception> Job getOrCreateJob(
             JobID jobId,
@@ -78,6 +80,7 @@ public interface JobTable extends AutoCloseable {
      * @return an {@code Optional} containing the {@link Connection} registered under jobId, or an
      *     empty {@code Optional} if no connection has been registered (this could also mean that a
      *     job which has not been connected exists)
+     *     获取job相关的连接
      */
     Optional<Connection> getConnection(JobID jobId);
 
@@ -111,6 +114,7 @@ public interface JobTable extends AutoCloseable {
      *
      * <p>Accessing any methods after a job has been closed will throw an {@link
      * IllegalStateException}.
+     * 表示一个job对象
      */
     interface Job {
 
@@ -118,6 +122,7 @@ public interface JobTable extends AutoCloseable {
          * Returns {@code true} if the job is connected to a JobManager.
          *
          * @return {@code true} if the job is connected to a JobManager, otherwise {@code false}
+         * 描述该job是否已经连接上JM
          */
         boolean isConnected();
 
@@ -134,6 +139,7 @@ public interface JobTable extends AutoCloseable {
          * @return an {@code Optional} containing the associated {@link Connection} instance if the
          *     job is connected to a leading JobManager, or an empty {@code Optional} if the job is
          *     not connected
+         *     获取连接对象
          */
         Optional<Connection> asConnection();
 
@@ -151,6 +157,7 @@ public interface JobTable extends AutoCloseable {
          * @param partitionStateChecker partitionStateChecker associated with this connection
          * @return the established {@link Connection}
          * @throws IllegalStateException if the job is already connected
+         * 尝试与某个JM连接
          */
         Connection connect(
                 ResourceID resourceId,
@@ -173,6 +180,7 @@ public interface JobTable extends AutoCloseable {
      *
      * <p>Accessing any methods after a connection has been disconnected will throw an {@link
      * IllegalStateException}.
+     * 与JM连接有关的组件
      */
     interface Connection {
 
@@ -207,6 +215,7 @@ public interface JobTable extends AutoCloseable {
      * Services associated with a job. The services need to provide a {@link
      * LibraryCacheManager.ClassLoaderHandle} and will be closed once the associated {@link
      * JobTable.Job} is being closed.
+     * 可以获取某个job相关的类加载器
      */
     interface JobServices {
 

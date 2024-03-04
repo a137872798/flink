@@ -30,6 +30,7 @@ import java.io.Serializable;
 /**
  * Implementations of this interface decorate streams with a compression scheme. Subclasses should
  * be stateless.
+ * 包装一层压缩流
  */
 @Internal
 public abstract class StreamCompressionDecorator implements Serializable {

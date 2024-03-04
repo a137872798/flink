@@ -47,6 +47,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * resources that have been passed into the snapshot from the synchronous part of the snapshot.
  *
  * @param <T> type of the result.
+ *
+ *           表示异步执行快照持久化任务
  */
 public abstract class AsyncSnapshotCallable<T> implements Callable<T> {
 
@@ -75,6 +77,7 @@ public abstract class AsyncSnapshotCallable<T> implements Callable<T> {
 
         if (resourceCleanupOwnershipTaken.compareAndSet(false, true)) {
             try {
+                // 完成快照任务
                 T result = callInternal();
                 logAsyncSnapshotComplete(startTime);
                 return result;
@@ -83,7 +86,9 @@ public abstract class AsyncSnapshotCallable<T> implements Callable<T> {
                     throw ex;
                 }
             } finally {
+                // 关闭流
                 closeSnapshotIO();
+                // 清理相关资源
                 cleanup();
             }
         }
@@ -163,6 +168,9 @@ public abstract class AsyncSnapshotCallable<T> implements Callable<T> {
         cleanupProvidedResources();
     }
 
+    /**
+     * 关闭中间用到的各种流
+     */
     private void closeSnapshotIO() {
         try {
             snapshotCloseableRegistry.close();

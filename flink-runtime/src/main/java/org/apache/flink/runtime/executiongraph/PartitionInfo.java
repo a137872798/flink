@@ -26,11 +26,16 @@ import java.io.Serializable;
 /**
  * Contains information where to find a partition. The partition is defined by the {@link
  * IntermediateDataSetID} and the partition is specified by {@link ShuffleDescriptor}.
+ *
+ * 表示分区信息
  */
 public class PartitionInfo implements Serializable {
 
     private static final long serialVersionUID = 1724490660830968430L;
 
+    /**
+     * 中间结果集id
+     */
     private final IntermediateDataSetID intermediateDataSetID;
 
     private final ShuffleDescriptor shuffleDescriptor;

@@ -54,6 +54,7 @@ import static org.apache.flink.util.Preconditions.checkArgument;
  * errored). Once all consumers have disconnected (released the subpartition, notified via the call
  * {@link #onConsumedSubpartition(int)}) then the partition as a whole is disposed and all buffers
  * are freed.
+ * 表示使用了管道模式
  */
 public class PipelinedResultPartition extends BufferWritingResultPartition
         implements CheckpointedResultPartition, ChannelStateHolder {
@@ -68,6 +69,7 @@ public class PipelinedResultPartition extends BufferWritingResultPartition
     /**
      * A flag for each subpartition indicating whether the downstream task has processed all the
      * user records.
+     * 是否所有子分区数据都处理完毕
      */
     @GuardedBy("lock")
     private final boolean[] allRecordsProcessedSubpartitions;
@@ -134,6 +136,10 @@ public class PipelinedResultPartition extends BufferWritingResultPartition
         this.numberOfUsers = subpartitions.length + 1;
     }
 
+    /**
+     * 给所有子分区设置对象
+     * @param channelStateWriter
+     */
     @Override
     public void setChannelStateWriter(ChannelStateWriter channelStateWriter) {
         for (final ResultSubpartition subpartition : subpartitions) {
@@ -146,12 +152,17 @@ public class PipelinedResultPartition extends BufferWritingResultPartition
     /**
      * The pipelined partition releases automatically once all subpartition readers are released.
      * That is because pipelined partitions cannot be consumed multiple times, or reconnect.
+     * 表示该子分区已经被释放了
      */
     @Override
     void onConsumedSubpartition(int subpartitionIndex) {
         decrementNumberOfUsers(subpartitionIndex);
     }
 
+    /**
+     * 将对应的 consumedSubpartitions 标记成true
+     * @param subpartitionIndex
+     */
     private void decrementNumberOfUsers(int subpartitionIndex) {
         if (isReleased()) {
             return;
@@ -176,6 +187,7 @@ public class PipelinedResultPartition extends BufferWritingResultPartition
         LOG.debug(
                 "{}: Received consumed notification for subpartition {}.", this, subpartitionIndex);
 
+        // 表示所有子分区都被消费了    在管理器上注销本对象
         if (remainingUnconsumed == 0) {
             partitionManager.onConsumedPartition(this);
         } else if (remainingUnconsumed < 0) {
@@ -199,6 +211,11 @@ public class PipelinedResultPartition extends BufferWritingResultPartition
         flushSubpartition(targetSubpartition, false);
     }
 
+    /**
+     * 仅能触发一次   广播所有消费者
+     * @param mode
+     * @throws IOException
+     */
     @Override
     public void notifyEndOfData(StopMode mode) throws IOException {
         synchronized (lock) {
@@ -214,6 +231,10 @@ public class PipelinedResultPartition extends BufferWritingResultPartition
         return allRecordsProcessedFuture;
     }
 
+    /**
+     * 该方法修改的是另一个数组
+     * @param subpartition The index of the subpartition sending the notification.
+     */
     @Override
     public void onSubpartitionAllDataProcessed(int subpartition) {
         synchronized (lock) {
@@ -225,6 +246,7 @@ public class PipelinedResultPartition extends BufferWritingResultPartition
             numNotAllRecordsProcessedSubpartitions--;
 
             if (numNotAllRecordsProcessedSubpartitions == 0) {
+                // 唤醒阻塞线程
                 allRecordsProcessedFuture.complete(null);
             }
         }
@@ -248,6 +270,11 @@ public class PipelinedResultPartition extends BufferWritingResultPartition
     //   miscellaneous utils
     // ------------------------------------------------------------------------
 
+    /**
+     * 表示该对象支持处理的结果集类型
+     * @param type
+     * @return
+     */
     private static ResultPartitionType checkResultPartitionType(ResultPartitionType type) {
         checkArgument(
                 type == ResultPartitionType.PIPELINED
@@ -261,6 +288,7 @@ public class PipelinedResultPartition extends BufferWritingResultPartition
         if (!notifyAndBlockOnCompletion) {
             return;
         }
+        // 往所有子分区发送相关事件
         try (BufferConsumer eventBufferConsumer =
                 EventSerializer.toBufferConsumer(EndOfChannelStateEvent.INSTANCE, false)) {
             for (int i = 0; i < subpartitions.length; i++) {

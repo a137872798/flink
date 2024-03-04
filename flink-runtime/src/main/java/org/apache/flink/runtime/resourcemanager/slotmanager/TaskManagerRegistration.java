@@ -92,6 +92,7 @@ public class TaskManagerRegistration {
                 "The number of free slots cannot exceed the number of registered slots. This indicates a bug.");
         numberFreeSlots++;
 
+        // slot都被释放了
         if (numberFreeSlots == getNumberRegisteredSlots() && idleSince == Long.MAX_VALUE) {
             idleSince = System.currentTimeMillis();
         }

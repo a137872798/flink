@@ -41,9 +41,13 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * A container for {@link InputFormat InputFormats} and {@link OutputFormat OutputFormats}, along
  * with their {@link Configuration}.
+ * 存储输入输出格式的容器
  */
 public class InputOutputFormatContainer {
 
+    /**
+     * 该对象就体现了容器的职能 内部分别维护了 input/output format对象
+     */
     private final FormatUserCodeTable formats;
 
     private final Configuration parameters;
@@ -56,10 +60,16 @@ public class InputOutputFormatContainer {
         this.userCodeClassLoader = checkNotNull(classLoader);
     }
 
+    /**
+     *
+     * @param config  里面包含了各种配置
+     * @param classLoader
+     */
     public InputOutputFormatContainer(TaskConfig config, ClassLoader classLoader) {
         checkNotNull(config);
         this.userCodeClassLoader = checkNotNull(classLoader);
 
+        // 反序列化出某个对象
         final UserCodeWrapper<FormatUserCodeTable> wrapper;
 
         try {
@@ -75,6 +85,7 @@ public class InputOutputFormatContainer {
         }
 
         try {
+            // 实例化 容器对象
             this.formats = wrapper.getUserCodeObject(FormatUserCodeTable.class, classLoader);
         } catch (Throwable t) {
             throw new RuntimeException(
@@ -83,6 +94,8 @@ public class InputOutputFormatContainer {
 
         this.parameters = new Configuration();
         Configuration stubParameters = config.getStubParameters();
+
+        // 将具有指定前缀的配置读取出来
         for (String key :
                 stubParameters.keySet()) { // copy only the parameters of input/output formats
             parameters.setString(key, stubParameters.getString(key, null));
@@ -97,21 +110,34 @@ public class InputOutputFormatContainer {
         return formats.getOutputFormats();
     }
 
+    /**
+     * 获取唯一的输出格式对象
+     * @param <OT>
+     * @param <T>
+     * @return
+     */
     @SuppressWarnings("unchecked")
     public <OT, T extends InputSplit> Pair<OperatorID, InputFormat<OT, T>> getUniqueInputFormat() {
         Map<OperatorID, UserCodeWrapper<? extends InputFormat<?, ?>>> inputFormats =
                 formats.getInputFormats();
+        // 确保长度为1
         Preconditions.checkState(inputFormats.size() == 1);
 
         Map.Entry<OperatorID, UserCodeWrapper<? extends InputFormat<?, ?>>> entry =
                 inputFormats.entrySet().iterator().next();
 
+        // 实例化formatter对象 并生成pair
         return new ImmutablePair<>(
                 entry.getKey(),
                 (InputFormat<OT, T>)
                         entry.getValue().getUserCodeObject(InputFormat.class, userCodeClassLoader));
     }
 
+    /**
+     * 同上
+     * @param <IT>
+     * @return
+     */
     @SuppressWarnings("unchecked")
     public <IT> Pair<OperatorID, OutputFormat<IT>> getUniqueOutputFormat() {
         Map<OperatorID, UserCodeWrapper<? extends OutputFormat<?>>> outputFormats =
@@ -152,6 +178,11 @@ public class InputOutputFormatContainer {
         return this;
     }
 
+    /**
+     * 包装后的config对象 仅会返回该operatorid相关的数据
+     * @param operatorId
+     * @return
+     */
     public Configuration getParameters(OperatorID operatorId) {
         return new DelegatingConfiguration(parameters, getParamKeyPrefix(operatorId));
     }
@@ -170,6 +201,10 @@ public class InputOutputFormatContainer {
         return this;
     }
 
+    /**
+     * 将format信息 以及参数信息写入config
+     * @param config
+     */
     public void write(TaskConfig config) {
         config.setStubWrapper(new UserCodeObjectWrapper<>(formats));
         config.setStubParameters(parameters);
@@ -181,6 +216,8 @@ public class InputOutputFormatContainer {
 
     /**
      * Container for multiple wrappers containing {@link InputFormat} and {@link OutputFormat} code.
+     *
+     * 表示一个容器对象  用于存储输入/输出格式对象
      */
     public static class FormatUserCodeTable implements Serializable {
 
@@ -194,6 +231,11 @@ public class InputOutputFormatContainer {
             this.outputFormats = new HashMap<>();
         }
 
+        /**
+         * 每个format对象 会对应一个operatorId
+         * @param operatorId
+         * @param wrapper
+         */
         public void addInputFormat(
                 OperatorID operatorId, UserCodeWrapper<? extends InputFormat<?, ?>> wrapper) {
             if (inputFormats.containsKey(checkNotNull(operatorId))) {

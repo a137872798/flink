@@ -42,6 +42,7 @@ import org.slf4j.LoggerFactory;
  * null depending on the outer join type.
  *
  * @see FlatJoinFunction
+ * 使用外连接
  */
 public abstract class AbstractOuterJoinDriver<IT1, IT2, OT>
         implements Driver<FlatJoinFunction<IT1, IT2, OT>, OT> {
@@ -175,6 +176,7 @@ public abstract class AbstractOuterJoinDriver<IT1, IT2, OT>
                 new CountingCollector<>(this.taskContext.getOutputCollector(), numRecordsOut);
         final JoinTaskIterator<IT1, IT2, OT> outerJoinIterator = this.outerJoinIterator;
 
+        // 也是不断调用join
         while (this.running && outerJoinIterator.callWithNextKey(joinStub, collector)) {}
     }
 

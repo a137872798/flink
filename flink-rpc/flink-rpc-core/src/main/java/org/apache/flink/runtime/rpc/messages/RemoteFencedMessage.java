@@ -30,6 +30,7 @@ import java.io.Serializable;
  *
  * @param <F> type of the fencing token
  * @param <P> type of the payload
+ *
  */
 public class RemoteFencedMessage<F extends Serializable, P extends Serializable>
         implements FencedMessage<F, P>, Serializable {

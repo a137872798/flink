@@ -20,7 +20,9 @@ package org.apache.flink.runtime.scheduler;
 
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 
-/** Mutability extension to the {@link VertexParallelismStore}. */
+/** Mutability extension to the {@link VertexParallelismStore}.
+ * 可以设置顶点的并行度
+ * */
 public interface MutableVertexParallelismStore extends VertexParallelismStore {
     /**
      * Sets the parallelism properties for the given vertex.

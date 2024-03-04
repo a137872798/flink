@@ -56,6 +56,7 @@ import java.util.List;
  *
  * @param <IN> The data type consumed by the combiner.
  * @param <OUT> The data type produced by the combiner.
+ *             将相同keys的values合并后下发
  */
 public class GroupReduceCombineDriver<IN, OUT>
         implements Driver<GroupCombineFunction<IN, OUT>, OUT> {
@@ -176,11 +177,13 @@ public class GroupReduceCombineDriver<IN, OUT>
 
             while (running && (value = in.next(value)) != null) {
                 // try writing to the sorter first
+                // 先写入数据
                 if (this.sorter.write(value)) {
                     continue;
                 }
 
                 // do the actual sorting, combining, and data writing
+                // 当数据无法写入也就是内存不足时 先排序合并 然后重复操作
                 sortAndCombineAndRetryWrite(value);
             }
         } else {
@@ -217,6 +220,7 @@ public class GroupReduceCombineDriver<IN, OUT>
             final ReusingKeyGroupedIterator<IN> keyIter =
                     new ReusingKeyGroupedIterator<IN>(
                             sorter.getIterator(), this.serializer, this.groupingComparator);
+            // 合并后下发
             while (this.running && keyIter.nextKey()) {
                 combiner.combine(keyIter.getValues(), output);
             }
@@ -231,6 +235,7 @@ public class GroupReduceCombineDriver<IN, OUT>
     }
 
     private void sortAndCombineAndRetryWrite(IN value) throws Exception {
+        // 排序后聚合
         sortAndCombine();
         this.sorter.reset();
 
@@ -246,6 +251,7 @@ public class GroupReduceCombineDriver<IN, OUT>
             // simply forward the record. We need to pass it through the combine function to convert
             // it
             Iterable<IN> input = Collections.singleton(value);
+            // 写入不了 直接下发
             this.combiner.combine(input, this.output);
             this.sorter.reset();
         }

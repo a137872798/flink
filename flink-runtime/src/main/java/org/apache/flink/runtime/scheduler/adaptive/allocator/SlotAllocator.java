@@ -24,7 +24,9 @@ import org.apache.flink.runtime.util.ResourceCounter;
 import java.util.Collection;
 import java.util.Optional;
 
-/** Component for calculating the slot requirements and mapping of vertices to slots. */
+/** Component for calculating the slot requirements and mapping of vertices to slots.
+ * slot的分配器
+ * */
 public interface SlotAllocator {
 
     /**
@@ -32,6 +34,7 @@ public interface SlotAllocator {
      *
      * @param vertices vertices to schedule
      * @return required resources
+     * 基于一组顶点 计算他们的资源需求
      */
     ResourceCounter calculateRequiredSlots(Iterable<JobInformation.VertexInformation> vertices);
 
@@ -51,6 +54,7 @@ public interface SlotAllocator {
      * @return potential parallelism for all vertices and implementation-specific information for
      *     how the vertices could be assigned to slots, if all vertices could be run with the given
      *     slots
+     *     确认并行度
      */
     Optional<VertexParallelism> determineParallelism(
             JobInformation jobInformation, Collection<? extends SlotInfo> slots);
@@ -72,6 +76,7 @@ public interface SlotAllocator {
      * @param jobSchedulingPlan information on how slots should be assigned to the slots
      * @return Set of reserved slots if the reservation was successful; otherwise {@link
      *     Optional#empty()}
+     *     根据调度计划 分配资源
      */
     Optional<ReservedSlots> tryReserveResources(JobSchedulingPlan jobSchedulingPlan);
 }

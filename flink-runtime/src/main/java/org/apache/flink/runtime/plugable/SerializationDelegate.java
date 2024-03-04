@@ -30,6 +30,7 @@ import java.io.IOException;
  * serialization, with the help of a type serializer.
  *
  * @param <T> The type to be represented as an IOReadableWritable.
+ *           在写入输出前 进行序列化处理
  */
 public class SerializationDelegate<T> implements IOReadableWritable {
 

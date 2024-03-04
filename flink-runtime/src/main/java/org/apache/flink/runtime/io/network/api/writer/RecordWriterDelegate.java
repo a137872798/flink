@@ -28,6 +28,7 @@ import java.io.IOException;
  * The record writer delegate provides the availability function for task processor, and it might
  * represent a single {@link RecordWriter} or multiple {@link RecordWriter} instances in specific
  * implementations.
+ * 表示RecordWriter的包装对象
  */
 public interface RecordWriterDelegate<T extends IOReadableWritable>
         extends AvailabilityProvider, AutoCloseable {

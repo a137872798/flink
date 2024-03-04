@@ -30,6 +30,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * The report of currently allocated slots from a given TaskExecutor by a JobMaster. This report is
  * sent periodically to the TaskExecutor in order to reconcile the internal state of slot
  * allocations.
+ * 描述 slotPool中slot信息的报告对象
  */
 public class AllocatedSlotReport implements Serializable {
 
@@ -37,7 +38,9 @@ public class AllocatedSlotReport implements Serializable {
 
     private final JobID jobId;
 
-    /** The allocated slots in slot pool. */
+    /** The allocated slots in slot pool.
+     * pool中的所有slot
+     * */
     private final Collection<AllocatedSlotInfo> allocatedSlotInfos;
 
     public AllocatedSlotReport(JobID jobId, Collection<AllocatedSlotInfo> allocatedSlotInfos) {

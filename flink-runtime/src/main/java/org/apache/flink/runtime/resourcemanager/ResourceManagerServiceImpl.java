@@ -48,14 +48,26 @@ import java.util.concurrent.Executors;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Default implementation of {@link ResourceManagerService}. */
+/** Default implementation of {@link ResourceManagerService}.
+ * 维护ResourceManagerService的生命周期
+ * */
 public class ResourceManagerServiceImpl implements ResourceManagerService, LeaderContender {
 
     private static final Logger LOG = LoggerFactory.getLogger(ResourceManagerServiceImpl.class);
 
+    /**
+     * 通过该对象产生资源管理器
+     */
     private final ResourceManagerFactory<?> resourceManagerFactory;
+
+    /**
+     * 就是包含各种组件
+     */
     private final ResourceManagerProcessContext rmProcessContext;
 
+    /**
+     * 通过该对象获得选举能力
+     */
     private final LeaderElection leaderElection;
 
     private final FatalErrorHandler fatalErrorHandler;
@@ -125,12 +137,19 @@ public class ResourceManagerServiceImpl implements ResourceManagerService, Leade
         return serviceTerminationFuture;
     }
 
+    /**
+     *
+     * @param applicationStatus to terminate the application with
+     * @param diagnostics additional information about the shut down, can be {@code null}
+     * @return
+     */
     @Override
     public CompletableFuture<Void> deregisterApplication(
             final ApplicationStatus applicationStatus, final @Nullable String diagnostics) {
 
         synchronized (lock) {
             if (!running || leaderResourceManager == null) {
+                // 本对象不是leader时 无法注销应用
                 return deregisterWithoutLeaderRm();
             }
 
@@ -140,6 +159,7 @@ public class ResourceManagerServiceImpl implements ResourceManagerService, Leade
                     .thenCompose(
                             ignore -> {
                                 synchronized (lock) {
+                                    // 因为是异步 要确保此时还是leader
                                     if (isLeader(currentLeaderRM)) {
                                         return currentLeaderRM
                                                 .getSelfGateway(ResourceManagerGateway.class)
@@ -183,6 +203,10 @@ public class ResourceManagerServiceImpl implements ResourceManagerService, Leade
     //  LeaderContender
     // ------------------------------------------------------------------------
 
+    /**
+     * 本对象成为leader
+     * @param newLeaderSessionID
+     */
     @Override
     public void grantLeadership(UUID newLeaderSessionID) {
         handleLeaderEventExecutor.execute(
@@ -245,11 +269,18 @@ public class ResourceManagerServiceImpl implements ResourceManagerService, Leade
     //  Internal
     // ------------------------------------------------------------------------
 
+    /**
+     * 通知本对象成为leader
+     * @param newLeaderSessionID
+     * @throws Exception
+     */
     @GuardedBy("lock")
     private void startNewLeaderResourceManager(UUID newLeaderSessionID) throws Exception {
         stopLeaderResourceManager();
 
         this.leaderSessionID = newLeaderSessionID;
+
+        // 只有leader才维护 RM  和JobMaster一样
         this.leaderResourceManager =
                 resourceManagerFactory.createResourceManager(rmProcessContext, newLeaderSessionID);
 
@@ -266,6 +297,7 @@ public class ResourceManagerServiceImpl implements ResourceManagerService, Leade
                 .thenAcceptAsync(
                         (isStillLeader) -> {
                             if (isStillLeader) {
+                                // 将自己发布到zk节点 估计是让其他节点知道当前leaderId?
                                 leaderElection.confirmLeadership(
                                         newLeaderSessionID, newLeaderResourceManager.getAddress());
                             }
@@ -280,7 +312,10 @@ public class ResourceManagerServiceImpl implements ResourceManagerService, Leade
     @GuardedBy("lock")
     private CompletableFuture<Boolean> startResourceManagerIfIsLeader(
             ResourceManager<?> resourceManager) {
+
+        // 异步 需要确保还是leader
         if (isLeader(resourceManager)) {
+            // 启动服务
             resourceManager.start();
             forwardTerminationFuture(resourceManager);
             return resourceManager.getStartedFuture().thenApply(ignore -> true);
@@ -311,6 +346,9 @@ public class ResourceManagerServiceImpl implements ResourceManagerService, Leade
         return running && this.leaderResourceManager == resourceManager;
     }
 
+    /**
+     * 一旦本对象不再是leader  就注销RM
+     */
     @GuardedBy("lock")
     private void stopLeaderResourceManager() {
         if (leaderResourceManager != null) {

@@ -33,6 +33,10 @@ public class InMemoryStateChangelogStorage
         return new InMemoryStateChangelogWriter(keyGroupRange);
     }
 
+    /**
+     * 表示如果存储在内存中  直接返回持有的changes即可
+     * @return
+     */
     @Override
     public StateChangelogHandleReader<InMemoryChangelogStateHandle> createReader() {
         return handle -> CloseableIterator.fromList(handle.getChanges(), change -> {});

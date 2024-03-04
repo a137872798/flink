@@ -29,9 +29,14 @@ import org.apache.flink.runtime.state.PriorityQueueSetFactory;
 import javax.annotation.Nonnegative;
 import javax.annotation.Nonnull;
 
-/** Factory for {@link HeapPriorityQueueSet}. */
+/** Factory for {@link HeapPriorityQueueSet}.
+ * 工厂用于创建优先队列
+ * */
 public class HeapPriorityQueueSetFactory implements PriorityQueueSetFactory {
 
+    /**
+     * 创建的优先队列与这些key是绑定的
+     */
     @Nonnull private final KeyGroupRange keyGroupRange;
 
     @Nonnegative private final int totalKeyGroups;
@@ -55,6 +60,7 @@ public class HeapPriorityQueueSetFactory implements PriorityQueueSetFactory {
                     @Nonnull String stateName,
                     @Nonnull TypeSerializer<T> byteOrderedElementSerializer) {
 
+        // 成员全上 就产生了
         return new HeapPriorityQueueSet<>(
                 PriorityComparator.forPriorityComparableObjects(),
                 KeyExtractorFunction.forKeyedObjects(),

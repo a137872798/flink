@@ -32,12 +32,14 @@ import java.util.Set;
  *
  * <p>NOTE: It only contains {@link SchedulingPipelinedRegion}s that have {@link
  * ConsumedPartitionGroup}s.
+ * 表示视图的维护对象
  */
 class ConsumerRegionGroupExecutionViewMaintainer {
 
     /**
      * The set of {@link ConsumerRegionGroupExecutionView}s that a SchedulingPipelinedRegion belongs
      * to.
+     * 每个流水线可能属于多个视图
      */
     private final Map<SchedulingPipelinedRegion, Set<ConsumerRegionGroupExecutionView>>
             executionViewByRegion = new HashMap<>();
@@ -46,6 +48,7 @@ class ConsumerRegionGroupExecutionViewMaintainer {
             Iterable<ConsumerRegionGroupExecutionView> executionViews) {
         for (ConsumerRegionGroupExecutionView executionView : executionViews) {
             for (SchedulingPipelinedRegion region : executionView) {
+                // 建立倒排索引
                 executionViewByRegion
                         .computeIfAbsent(
                                 region, r -> Collections.newSetFromMap(new IdentityHashMap<>()))
@@ -53,6 +56,8 @@ class ConsumerRegionGroupExecutionViewMaintainer {
             }
         }
     }
+
+    // 作用到所有关联的view上
 
     void regionFinished(SchedulingPipelinedRegion region) {
         for (ConsumerRegionGroupExecutionView executionView :

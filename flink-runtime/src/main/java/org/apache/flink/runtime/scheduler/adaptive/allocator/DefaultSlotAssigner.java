@@ -34,36 +34,64 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/** Simple {@link SlotAssigner} that treats all slots and slot sharing groups equally. */
+/** Simple {@link SlotAssigner} that treats all slots and slot sharing groups equally.
+ * 默认的slot分配对象   slot表示资源
+ * */
 public class DefaultSlotAssigner implements SlotAssigner {
 
+    /**
+     * 将一组slot分配给job
+     * @param jobInformation
+     * @param freeSlots  表示此时还空闲的slot
+     * @param vertexParallelism    该job下各顶点的并行度
+     * @param previousAllocations
+     * @return
+     */
     @Override
     public Collection<SlotAssignment> assignSlots(
             JobInformation jobInformation,
             Collection<? extends SlotInfo> freeSlots,
             VertexParallelism vertexParallelism,
             JobAllocationsInformation previousAllocations) {
+
+        // 将共享资源的组 按照subtaskIndex 进一步划分
         List<ExecutionSlotSharingGroup> allGroups = new ArrayList<>();
+        // 该job相关的多个slot共享组
         for (SlotSharingGroup slotSharingGroup : jobInformation.getSlotSharingGroups()) {
             allGroups.addAll(createExecutionSlotSharingGroups(vertexParallelism, slotSharingGroup));
         }
 
         Iterator<? extends SlotInfo> iterator = freeSlots.iterator();
+
+        // 记录slot的分配结果
         Collection<SlotAssignment> assignments = new ArrayList<>();
+
+        // 把slot平均分配给每个group  默认情况下最多只会分配与group等量的slot
         for (ExecutionSlotSharingGroup group : allGroups) {
             assignments.add(new SlotAssignment(iterator.next(), group));
         }
         return assignments;
     }
 
+    /**
+     *
+     * @param vertexParallelism  记录多个顶点的并行度    并行度决定了该task会有多少subtask
+     * @param slotSharingGroup  记录共享该资源的一组顶点 或者说task
+     * @return
+     */
     static List<ExecutionSlotSharingGroup> createExecutionSlotSharingGroups(
             VertexParallelism vertexParallelism, SlotSharingGroup slotSharingGroup) {
+
+        // 以子任务下标为key value存储相关的顶点
         final Map<Integer, Set<ExecutionVertexID>> sharedSlotToVertexAssignment = new HashMap<>();
         slotSharingGroup
                 .getJobVertexIds()
                 .forEach(
                         jobVertexId -> {
+                            // 获取该顶点的并行度
                             int parallelism = vertexParallelism.getParallelism(jobVertexId);
+
+                            // 按照并行度 遍历子任务
                             for (int subtaskIdx = 0; subtaskIdx < parallelism; subtaskIdx++) {
                                 sharedSlotToVertexAssignment
                                         .computeIfAbsent(subtaskIdx, ignored -> new HashSet<>())

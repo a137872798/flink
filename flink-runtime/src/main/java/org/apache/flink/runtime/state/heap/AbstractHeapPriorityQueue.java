@@ -37,11 +37,14 @@ import static org.apache.flink.util.CollectionUtil.MAX_ARRAY_SIZE;
  * support for fast deletes via {@link HeapPriorityQueueElement}.
  *
  * @param <T> type of the elements contained in the priority queue.
+ *           优先队列骨架类
  */
 public abstract class AbstractHeapPriorityQueue<T extends HeapPriorityQueueElement>
         implements InternalPriorityQueue<T> {
 
-    /** The array that represents the heap-organized priority queue. */
+    /** The array that represents the heap-organized priority queue.
+     * 存储可比较大小的元素
+     * */
     @Nonnull protected T[] queue;
 
     /** The current size of the priority queue. */
@@ -53,12 +56,20 @@ public abstract class AbstractHeapPriorityQueue<T extends HeapPriorityQueueEleme
         this.size = 0;
     }
 
+    /**
+     * 按顺序移除掉第一个元素
+     * @return
+     */
     @Override
     @Nullable
     public T poll() {
         return size() > 0 ? removeInternal(getHeadElementIndex()) : null;
     }
 
+    /**
+     * 返回第一个元素  核心方法都是看 getHeadElementIndex
+     * @return
+     */
     @Override
     @Nullable
     public T peek() {
@@ -96,6 +107,7 @@ public abstract class AbstractHeapPriorityQueue<T extends HeapPriorityQueueEleme
             return;
         }
 
+        // 尝试扩容 并插入元素
         resizeForBulkLoad(toAdd.size());
 
         for (T element : toAdd) {
@@ -171,6 +183,7 @@ public abstract class AbstractHeapPriorityQueue<T extends HeapPriorityQueueEleme
      *
      * @param elementIndex the index to remove.
      * @return the removed element.
+     * 移除掉某个元素
      */
     protected abstract T removeInternal(@Nonnegative int elementIndex);
 
@@ -178,10 +191,13 @@ public abstract class AbstractHeapPriorityQueue<T extends HeapPriorityQueueEleme
      * Implements how to add an element to the queue.
      *
      * @param toAdd the element to add.
+     *              往数组中追加一个元素
      */
     protected abstract void addInternal(@Nonnull T toAdd);
 
-    /** Returns the start index of the queue elements in the array. */
+    /** Returns the start index of the queue elements in the array.
+     * 返回此时第一个元素的下标
+     * */
     protected abstract int getHeadElementIndex();
 
     private static boolean isValidArraySize(int size) {
@@ -191,6 +207,7 @@ public abstract class AbstractHeapPriorityQueue<T extends HeapPriorityQueueEleme
     /**
      * {@link Iterator} implementation for {@link HeapPriorityQueue}. {@link Iterator#remove()} is
      * not supported.
+     * 默认从第一个元素开始  到最后一个  并且元素应该是连续的
      */
     private final class HeapIterator implements CloseableIterator<T> {
 

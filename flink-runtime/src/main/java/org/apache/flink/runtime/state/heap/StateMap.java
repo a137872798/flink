@@ -33,6 +33,8 @@ import java.util.stream.Stream;
  * @param <K> type of key
  * @param <N> type of namespace
  * @param <S> type of state
+ *
+ *           使用map来维护state
  */
 public abstract class StateMap<K, N, S> implements Iterable<StateEntry<K, N, S>> {
 
@@ -62,6 +64,7 @@ public abstract class StateMap<K, N, S> implements Iterable<StateEntry<K, N, S>>
      * @param namespace the namespace. Not null.
      * @return the state of the mapping with the specified key/namespace composite key, or {@code
      *     null} if no mapping for the specified key is found.
+     *     通过二元组定位 state
      */
     public abstract S get(K key, N namespace);
 
@@ -72,6 +75,7 @@ public abstract class StateMap<K, N, S> implements Iterable<StateEntry<K, N, S>>
      * @param namespace the namespace in the composite key to search for. Not null.
      * @return {@code true} if this map contains the specified key/namespace composite key, {@code
      *     false} otherwise.
+     *     同样二元组定位
      */
     public abstract boolean containsKey(K key, N namespace);
 
@@ -83,6 +87,7 @@ public abstract class StateMap<K, N, S> implements Iterable<StateEntry<K, N, S>>
      * @param key the key. Not null.
      * @param namespace the namespace. Not null.
      * @param state the state. Can be null.
+     *              将状态存储到map
      */
     public abstract void put(K key, N namespace, S state);
 
@@ -116,6 +121,7 @@ public abstract class StateMap<K, N, S> implements Iterable<StateEntry<K, N, S>>
      * @param namespace the namespace of the mapping to remove. Not null.
      * @return the state of the removed mapping or {@code null} if no mapping for the specified key
      *     was found.
+     *     移除map的数据
      */
     public abstract S removeAndGetOld(K key, N namespace);
 
@@ -130,6 +136,7 @@ public abstract class StateMap<K, N, S> implements Iterable<StateEntry<K, N, S>>
      * @param value the value to use in transforming the state. Can be null.
      * @param transformation the transformation function.
      * @throws Exception if some exception happens in the transformation function.
+     * 找到state后 使用转换函数处理 (配合T)
      */
     public abstract <T> void transform(
             K key, N namespace, T value, StateTransformationFunction<S, T> transformation)
@@ -137,8 +144,18 @@ public abstract class StateMap<K, N, S> implements Iterable<StateEntry<K, N, S>>
 
     // For queryable state ------------------------------------------------------------------------
 
+    /**
+     * 获取某命名空间下所有key
+     * @param namespace
+     * @return
+     */
     public abstract Stream<K> getKeys(N namespace);
 
+    /**
+     * 返回一个 visitor对象 可以检索一些记录
+     * @param recommendedMaxNumberOfReturnedRecords
+     * @return
+     */
     public abstract InternalKvState.StateIncrementalVisitor<K, N, S> getStateIncrementalVisitor(
             int recommendedMaxNumberOfReturnedRecords);
 
@@ -147,6 +164,7 @@ public abstract class StateMap<K, N, S> implements Iterable<StateEntry<K, N, S>>
      * call {@link #releaseSnapshot(StateMapSnapshot)} after using the returned object.
      *
      * @return a snapshot from this {@link StateMap}, for checkpointing.
+     * 为map对象生成快照
      */
     @Nonnull
     public abstract StateMapSnapshot<K, N, S, ? extends StateMap<K, N, S>> stateSnapshot();
@@ -157,6 +175,7 @@ public abstract class StateMap<K, N, S> implements Iterable<StateEntry<K, N, S>>
      *
      * @param snapshotToRelease the snapshot to release, which was previously created by this state
      *     map.
+     *                         释放快照
      */
     public void releaseSnapshot(
             StateMapSnapshot<K, N, S, ? extends StateMap<K, N, S>> snapshotToRelease) {}

@@ -26,6 +26,10 @@ import java.util.List;
 
 /** A report about the current values of all accumulators of the TaskExecutor for a given job. */
 public class AccumulatorReport implements Serializable {
+
+    /**
+     * 记录每个task产生的累加数据
+     */
     private final Collection<AccumulatorSnapshot> accumulatorSnapshots;
 
     public AccumulatorReport(List<AccumulatorSnapshot> accumulatorSnapshots) {

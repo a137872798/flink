@@ -28,6 +28,7 @@ import java.util.concurrent.CompletableFuture;
  * {@link ServiceConnectionManager} for declaring resource requirements.
  *
  * <p>In practice the backing service will be the ResourceManager.
+ * 表示内部包含的服务可以声明自己的资源开销
  */
 public interface DeclareResourceRequirementServiceConnectionManager
         extends ServiceConnectionManager<

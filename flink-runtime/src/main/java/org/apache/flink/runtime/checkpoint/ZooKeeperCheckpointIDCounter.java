@@ -62,20 +62,30 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>The checkpoints IDs are required to be ascending (per job). In order to guarantee this in case
  * of job manager failures we use ZooKeeper to have a shared counter across job manager instances.
+ * 利用zk实现高可用
  */
 public class ZooKeeperCheckpointIDCounter implements CheckpointIDCounter {
 
     private static final Logger LOG = LoggerFactory.getLogger(ZooKeeperCheckpointIDCounter.class);
 
-    /** Curator ZooKeeper client. */
+    /** Curator ZooKeeper client.
+     * 与zk交互的客户端
+     * */
     private final CuratorFramework client;
 
-    /** Path of the shared count. */
+    /** Path of the shared count.
+     * 存储计数器的路径
+     * */
     private final String counterPath;
 
-    /** Curator recipe for shared counts. */
+    /** Curator recipe for shared counts.
+     * 该对象应该是封装了计数能力  不细看
+     * */
     private final SharedCount sharedCount;
 
+    /**
+     * 通过该对象可以获得最新的连接状态
+     */
     private final LastStateConnectionStateListener connectionStateListener;
 
     private final Object startStopLock = new Object();
@@ -115,6 +125,7 @@ public class ZooKeeperCheckpointIDCounter implements CheckpointIDCounter {
             if (isStarted) {
                 LOG.info("Shutting down.");
                 try {
+                    // 将本地的counter
                     sharedCount.close();
                 } catch (IOException e) {
                     return FutureUtils.completedExceptionally(e);
@@ -122,10 +133,12 @@ public class ZooKeeperCheckpointIDCounter implements CheckpointIDCounter {
 
                 client.getConnectionStateListenable().removeListener(connectionStateListener);
 
+                // 表示如果是全局关闭
                 if (jobStatus.isGloballyTerminalState()) {
                     LOG.info("Removing {} from ZooKeeper", counterPath);
                     try {
                         final CompletableFuture<Void> deletionFuture = new CompletableFuture<>();
+                        // 则调用client 删除计数值
                         client.delete()
                                 .inBackground(
                                         (curatorFramework, curatorEvent) ->
@@ -145,6 +158,11 @@ public class ZooKeeperCheckpointIDCounter implements CheckpointIDCounter {
         return FutureUtils.completedVoidFuture();
     }
 
+    /**
+     * 处理zk的响应结果
+     * @param curatorEvent
+     * @param deletionFuture
+     */
     private void handleDeletionOfCounterPath(
             CuratorEvent curatorEvent, CompletableFuture<Void> deletionFuture) {
         Preconditions.checkArgument(
@@ -154,14 +172,18 @@ public class ZooKeeperCheckpointIDCounter implements CheckpointIDCounter {
                 counterPath.endsWith(curatorEvent.getPath()),
                 "An unexpected path was selected for deletion: " + curatorEvent.getPath());
 
+        // 获取结果码
         final KeeperException.Code eventCode =
                 KeeperException.Code.get(curatorEvent.getResultCode());
+
+        // 表示成功
         if (Sets.immutableEnumSet(KeeperException.Code.OK, KeeperException.Code.NONODE)
                 .contains(eventCode)) {
             deletionFuture.complete(null);
         } else {
             final String namespacedCounterPath =
                     ZooKeeperUtils.generateZookeeperPath(client.getNamespace(), counterPath);
+            // 以异常形式结束future
             deletionFuture.completeExceptionally(
                     new FlinkException(
                             String.format(
@@ -174,6 +196,7 @@ public class ZooKeeperCheckpointIDCounter implements CheckpointIDCounter {
     @Override
     public long getAndIncrement() throws Exception {
         while (true) {
+            // 检查连接状态是否有效
             checkConnectionState();
 
             VersionedValue<Integer> current = sharedCount.getVersionedValue();
@@ -187,6 +210,7 @@ public class ZooKeeperCheckpointIDCounter implements CheckpointIDCounter {
                                 + Integer.MAX_VALUE);
             }
 
+            // 更新计数值
             if (sharedCount.trySetCount(current, newCount)) {
                 return current.getValue();
             }

@@ -23,7 +23,9 @@ import org.apache.flink.api.common.JobID;
 import java.io.File;
 import java.io.IOException;
 
-/** View on blobs stored in a {@link BlobStore}. */
+/** View on blobs stored in a {@link BlobStore}.
+ * 简单理解为存储blob的容器
+ * */
 public interface BlobView {
 
     /**
@@ -34,6 +36,7 @@ public interface BlobView {
      * @param localFile The local file to copy to
      * @return whether the file was copied (<tt>true</tt>) or not (<tt>false</tt>)
      * @throws IOException If the copy fails
+     * 将数据读取到本地文件
      */
     boolean get(JobID jobId, BlobKey blobKey, File localFile) throws IOException;
 }

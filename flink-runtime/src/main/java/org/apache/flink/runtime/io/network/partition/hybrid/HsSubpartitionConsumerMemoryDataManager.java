@@ -37,6 +37,10 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * This class is responsible for managing the data of a single consumer. {@link
  * HsSubpartitionMemoryDataManager} will create a new {@link
  * HsSubpartitionConsumerMemoryDataManager} when a consumer is registered.
+ * HsDataView 提供了消费buffer的api
+ * 但是该对象内部的数据要由别的对象插入
+ *
+ * 每个对象对应一个消费者
  */
 public class HsSubpartitionConsumerMemoryDataManager implements HsDataView {
 
@@ -53,6 +57,9 @@ public class HsSubpartitionConsumerMemoryDataManager implements HsDataView {
 
     private final HsMemoryDataManagerOperation memoryDataManagerOperation;
 
+    /**
+     * 记录囤积的buffer数量
+     */
     @GuardedBy("consumerLock")
     private int backlog = 0;
 
@@ -69,6 +76,10 @@ public class HsSubpartitionConsumerMemoryDataManager implements HsDataView {
         this.memoryDataManagerOperation = memoryDataManagerOperation;
     }
 
+    /**
+     * 添加一些处于初始状态的buffer
+     * @param buffers
+     */
     @GuardedBy("consumerLock")
     // this method only called from subpartitionMemoryDataManager with write lock.
     public void addInitialBuffers(Deque<HsBufferContext> buffers) {
@@ -83,6 +94,7 @@ public class HsSubpartitionConsumerMemoryDataManager implements HsDataView {
     public boolean addBuffer(HsBufferContext bufferContext) {
         tryIncreaseBacklog(bufferContext.getBuffer());
         unConsumedBuffers.add(bufferContext);
+        // 移除标记为release的buffer
         trimHeadingReleasedBuffers();
         return unConsumedBuffers.size() <= 1;
     }
@@ -95,6 +107,7 @@ public class HsSubpartitionConsumerMemoryDataManager implements HsDataView {
      * @param buffersToRecycle buffers to recycle if needed.
      * @return If the head of {@link #unConsumedBuffers} is target, return optional of the buffer
      *     and backlog. Otherwise, return {@link Optional#empty()}.
+     *     开始消费内部数据
      */
     @SuppressWarnings("FieldAccessNotGuarded")
     // Note that: callWithLock ensure that code block guarded by resultPartitionReadLock and
@@ -105,14 +118,18 @@ public class HsSubpartitionConsumerMemoryDataManager implements HsDataView {
         Optional<Tuple2<HsBufferContext, Buffer.DataType>> bufferAndNextDataType =
                 callWithLock(
                         () -> {
+                            // 当前消费的偏移量不匹配
                             if (!checkFirstUnConsumedBufferIndex(toConsumeIndex)) {
                                 return Optional.empty();
                             }
 
                             HsBufferContext bufferContext =
                                     checkNotNull(unConsumedBuffers.pollFirst());
+                            // 因为该buffer被消费  所有减少 backlog
                             tryDecreaseBacklog(bufferContext.getBuffer());
+                            // 标识该buffer已经被本对象消费过了
                             bufferContext.consumed(consumerId);
+                            // 查看下个buffer的数据类型
                             Buffer.DataType nextDataType =
                                     peekNextToConsumeDataTypeInternal(toConsumeIndex + 1);
                             return Optional.of(Tuple2.of(bufferContext, nextDataType));
@@ -139,6 +156,7 @@ public class HsSubpartitionConsumerMemoryDataManager implements HsDataView {
      * @param buffersToRecycle buffers to recycle if needed.
      * @return If the head of {@link #unConsumedBuffers} is target, return the buffer's data type.
      *     Otherwise, return {@link Buffer.DataType#NONE}.
+     *     查看下个buffer的类型
      */
     @SuppressWarnings("FieldAccessNotGuarded")
     // Note that: callWithLock ensure that code block guarded by resultPartitionReadLock and
@@ -156,6 +174,11 @@ public class HsSubpartitionConsumerMemoryDataManager implements HsDataView {
                 : Buffer.DataType.NONE;
     }
 
+    /**
+     * 检查当前第一个未消费的buffer是否与传入的一致
+     * @param expectedBufferIndex
+     * @return
+     */
     @GuardedBy("consumerLock")
     private boolean checkFirstUnConsumedBufferIndex(int expectedBufferIndex) {
         trimHeadingReleasedBuffers();
@@ -173,11 +196,17 @@ public class HsSubpartitionConsumerMemoryDataManager implements HsDataView {
         return backlog;
     }
 
+    /**
+     * 触发钩子 (消费者本身被释放)
+     */
     @Override
     public void releaseDataView() {
         memoryDataManagerOperation.onConsumerReleased(subpartitionId, consumerId);
     }
 
+    /**
+     * 查看是否有被标记为 released的buffer 并进行移除
+     */
     @GuardedBy("consumerLock")
     private void trimHeadingReleasedBuffers() {
         while (!unConsumedBuffers.isEmpty() && unConsumedBuffers.peekFirst().isReleased()) {

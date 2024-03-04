@@ -27,13 +27,16 @@ import javax.annotation.Nullable;
 
 import java.util.Collection;
 
-/** Tracks slots and their {@link SlotState}. */
+/** Tracks slots and their {@link SlotState}.
+ *
+ * */
 interface SlotTracker {
 
     /**
      * Registers the given listener with this tracker.
      *
      * @param slotStatusUpdateListener listener to register
+     *                                 注册监听器
      */
     void registerSlotStatusUpdateListener(SlotStatusUpdateListener slotStatusUpdateListener);
 
@@ -46,6 +49,7 @@ interface SlotTracker {
      * @param resourceProfile resource of the slot
      * @param taskManagerConnection connection to the hosting task executor
      * @param initialJob job that the slot is allocated for, or null if it is free
+     *                   追加一个维护信息 表示某TaskExecutor拥有这个slot
      */
     void addSlot(
             SlotID slotId,
@@ -58,6 +62,7 @@ interface SlotTracker {
      * time of removal, then this method will automatically transition the slot to a free state.
      *
      * @param slotsToRemove identifying the slots to remove from the slot manager
+     *                      不再维护这组slot
      */
     void removeSlots(Iterable<SlotID> slotsToRemove);
 
@@ -66,6 +71,7 @@ interface SlotTracker {
      *
      * @param slotId slot being allocated
      * @param jobId job for which the slot is being allocated
+     *              通知开始将 slot 分配给job了
      */
     void notifyAllocationStart(SlotID slotId, JobID jobId);
 
@@ -75,6 +81,7 @@ interface SlotTracker {
      *
      * @param slotId slot being allocated
      * @param jobId job for which the slot is being allocated
+     *              通知分配结束
      */
     void notifyAllocationComplete(SlotID slotId, JobID jobId);
 
@@ -82,6 +89,7 @@ interface SlotTracker {
      * Notifies the tracker that the given slot was freed.
      *
      * @param slotId slot being freed
+     *               通知释放slot
      */
     void notifyFree(SlotID slotId);
 
@@ -90,6 +98,7 @@ interface SlotTracker {
      *
      * @param slotStatuses slot statues
      * @return whether any slot status has changed
+     * 通知此时一组slot的状态
      */
     boolean notifySlotStatus(Iterable<SlotStatus> slotStatuses);
 
@@ -98,6 +107,7 @@ interface SlotTracker {
      * reflects changes to the set of free slots.
      *
      * @return free slots
+     * 获取空闲的slot
      */
     Collection<TaskManagerSlotInformation> getFreeSlots();
 
@@ -107,6 +117,7 @@ interface SlotTracker {
      *
      * @param jobId the job for which the task executors must have a slot
      * @return task executors with at least 1 slot for the job
+     * 先通过job 找到分配给job的所有slot  然后再转变成查询slot相关的所有TaskExecutor连接
      */
     Collection<TaskExecutorConnection> getTaskExecutorsWithAllocatedSlotsForJob(JobID jobId);
 }

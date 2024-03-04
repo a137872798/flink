@@ -36,7 +36,9 @@ import java.util.concurrent.Executor;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** The connection between a TaskExecutor and the ResourceManager. */
+/** The connection between a TaskExecutor and the ResourceManager.
+ * 表示 TM将自己注册到RM上     除此之外还可以发现 TM需要将自己注册到JM上
+ * */
 public class TaskExecutorToResourceManagerConnection
         extends RegisteredRpcConnection<
                 ResourceManagerId,
@@ -94,6 +96,8 @@ public class TaskExecutorToResourceManagerConnection
                 taskExecutorRegistration);
     }
 
+    // 三种情况 触发监听器的不同逻辑
+
     @Override
     protected void onRegistrationSuccess(TaskExecutorRegistrationSuccess success) {
         log.info(
@@ -120,6 +124,9 @@ public class TaskExecutorToResourceManagerConnection
     //  Utilities
     // ------------------------------------------------------------------------
 
+    /**
+     * 这里包含注册逻辑
+     */
     private static class ResourceManagerRegistration
             extends RetryingRegistration<
                     ResourceManagerId,
@@ -156,6 +163,7 @@ public class TaskExecutorToResourceManagerConnection
                 throws Exception {
 
             Time timeout = Time.milliseconds(timeoutMillis);
+            // 调用网关api 将TM注册上去
             return resourceManager.registerTaskExecutor(taskExecutorRegistration, timeout);
         }
     }

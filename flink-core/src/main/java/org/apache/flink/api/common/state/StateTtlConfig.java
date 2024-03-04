@@ -430,7 +430,7 @@ public class StateTtlConfig implements Serializable {
     }
 
     /** Configuration of cleanup strategy while taking the full snapshot.
-     * 增量清理策略？  flink的这些类 都只是包含了一些相关属性 并没有什么核心逻辑
+     * 增量操作清理策略  也就是惰性清理策略  只有当state被读写时才会检查
      * */
     public static class IncrementalCleanupStrategy implements CleanupStrategies.CleanupStrategy {
         private static final long serialVersionUID = 3109278696501988780L;

@@ -37,6 +37,7 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * The partition file with segment file mode. In this mode, each segment of one subpartition is
  * written to an independent file.
+ * 表示存储分区数据的文件
  */
 public class SegmentPartitionFile {
 
@@ -47,6 +48,9 @@ public class SegmentPartitionFile {
     static final String SEGMENT_FILE_PREFIX = "seg-";
 
     static final String SEGMENT_FINISH_DIR_NAME = "FINISH";
+
+
+    // 指定文件路径产生writer/reader
 
     public static SegmentPartitionFileWriter createPartitionFileWriter(
             String dataFilePath, int numSubpartitions) {
@@ -60,6 +64,8 @@ public class SegmentPartitionFile {
     // ------------------------------------------------------------------------
     //  File-related utilities
     // ------------------------------------------------------------------------
+
+    // 提供几个转换路径的方法
 
     public static String getTieredStoragePath(String basePath) {
         return String.format("%s/%s", basePath, TIERED_STORAGE_DIR);
@@ -101,6 +107,13 @@ public class SegmentPartitionFile {
         return new Path(subpartitionPath, SEGMENT_FINISH_DIR_NAME);
     }
 
+    /**
+     * 将数据写入channel
+     * @param writeChannel
+     * @param expectedBytes
+     * @param bufferWithHeaders
+     * @throws IOException
+     */
     public static void writeBuffers(
             WritableByteChannel writeChannel, long expectedBytes, ByteBuffer[] bufferWithHeaders)
             throws IOException {
@@ -111,6 +124,14 @@ public class SegmentPartitionFile {
         checkState(writeSize == expectedBytes, "Wong number of written bytes.");
     }
 
+    /**
+     *
+     * @param basePath
+     * @param partitionId
+     * @param subpartitionId
+     * @param segmentId
+     * @throws IOException
+     */
     public static void writeSegmentFinishFile(
             String basePath,
             TieredStoragePartitionId partitionId,
@@ -120,6 +141,7 @@ public class SegmentPartitionFile {
         Path segmentFinishDir = getSegmentFinishDirPath(basePath, partitionId, subpartitionId);
         FileSystem fs = segmentFinishDir.getFileSystem();
         Path segmentFinishFile = new Path(segmentFinishDir, String.valueOf(segmentId));
+        // 目录不存在的情况下 创建目录及文件
         if (!fs.exists(segmentFinishDir)) {
             fs.mkdirs(segmentFinishDir);
             OutputStream outputStream =
@@ -129,6 +151,7 @@ public class SegmentPartitionFile {
         }
 
         FileStatus[] files = fs.listStatus(segmentFinishDir);
+        // 创建文件
         if (files.length == 0) {
             OutputStream outputStream =
                     fs.create(segmentFinishFile, FileSystem.WriteMode.OVERWRITE);
@@ -140,6 +163,7 @@ public class SegmentPartitionFile {
             // Note that this check requires the file system to ensure that only one file is in the
             // directory can be accessed when renaming a file.
             checkState(files.length == 1, "Wong number of segment-finish files.");
+            // 文件改名
             fs.rename(files[0].getPath(), segmentFinishFile);
         }
     }

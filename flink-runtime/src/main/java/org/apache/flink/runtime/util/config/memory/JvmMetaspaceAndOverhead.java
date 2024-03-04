@@ -29,6 +29,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 public class JvmMetaspaceAndOverhead implements Serializable {
     private static final long serialVersionUID = 1L;
 
+    // 分别表示元空间和顶部的内存占用量
     private final MemorySize metaspace;
     private final MemorySize overhead;
 

@@ -26,6 +26,7 @@ import javax.annotation.Nullable;
  * {@link NettyConnectionWriter} is used by {@link TierProducerAgent} to write buffers to netty
  * connection. Buffers in the writer will be written to a queue structure and netty server will send
  * buffers from it.
+ * 向conn写入数据
  */
 public interface NettyConnectionWriter {
     /**
@@ -39,16 +40,20 @@ public interface NettyConnectionWriter {
      * Get the id of connection in the writer.
      *
      * @return the id of connection.
+     * 针对的writer
      */
     NettyConnectionId getNettyConnectionId();
 
-    /** Notify the buffer is available in writer. */
+    /** Notify the buffer is available in writer.
+     * 通知当前有buffer可用
+     * */
     void notifyAvailable();
 
     /**
      * Get the number of written but unsent netty payloads.
      *
      * @return the buffer number.
+     * 此时已经在队列中 还未发送的数据包
      */
     int numQueuedPayloads();
 
@@ -56,6 +61,7 @@ public interface NettyConnectionWriter {
      * Get the number of written but unsent buffer netty payloads.
      *
      * @return the buffer number.
+     * 未发送的buffer
      */
     int numQueuedBufferPayloads();
 

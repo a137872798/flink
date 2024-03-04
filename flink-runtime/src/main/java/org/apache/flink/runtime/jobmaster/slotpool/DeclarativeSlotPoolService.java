@@ -51,21 +51,32 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/** {@link SlotPoolService} implementation for the {@link DeclarativeSlotPool}. */
+/** {@link SlotPoolService} implementation for the {@link DeclarativeSlotPool}.
+ * 为slot池开放一些服务接口
+ * */
 public class DeclarativeSlotPoolService implements SlotPoolService {
 
     private final JobID jobId;
 
     private final Time rpcTimeout;
 
+    /**
+     * 这个是slot池
+     */
     private final DeclarativeSlotPool declarativeSlotPool;
 
     private final Clock clock;
 
+    /**
+     * 每个slot 通过ResourceID 关联一个 TaskManager
+     */
     private final Set<ResourceID> registeredTaskManagers;
 
     protected final Logger log = LoggerFactory.getLogger(getClass());
 
+    /**
+     * 该对象可以为设置的服务声明资源开销
+     */
     private DeclareResourceRequirementServiceConnectionManager
             resourceRequirementServiceConnectionManager =
                     NoOpDeclareResourceRequirementServiceConnectionManager.INSTANCE;
@@ -109,6 +120,13 @@ public class DeclarativeSlotPoolService implements SlotPoolService {
         return Optional.empty();
     }
 
+    /**
+     * 根据启动的参数  初始化 jobMasterId/jobManagerAddress
+     * @param jobMasterId jobMasterId to start the service with
+     * @param address address of the owner
+     * @param mainThreadExecutor mainThreadExecutor to run actions in the main thread  可以简单看作一个线程池
+     * @throws Exception
+     */
     @Override
     public final void start(
             JobMasterId jobMasterId, String address, ComponentMainThreadExecutor mainThreadExecutor)
@@ -145,8 +163,10 @@ public class DeclarativeSlotPoolService implements SlotPoolService {
     public final void close() {
         if (state != State.CLOSED) {
 
+            // 触发关闭钩子
             onClose();
 
+            // 这里会将service置空
             resourceRequirementServiceConnectionManager.close();
             resourceRequirementServiceConnectionManager =
                     NoOpDeclareResourceRequirementServiceConnectionManager.INSTANCE;
@@ -164,6 +184,13 @@ public class DeclarativeSlotPoolService implements SlotPoolService {
      */
     protected void onClose() {}
 
+    /**
+     * 往pool中添加slot
+     * @param taskManagerLocation from which the slot offers originate  表示slot的来源
+     * @param taskManagerGateway to talk to the slot offerer   用于与slot的提供者 TaskManager通讯
+     * @param offers slot offers which are offered to the {@link SlotPoolService}
+     * @return
+     */
     @Override
     public Collection<SlotOffer> offerSlots(
             TaskManagerLocation taskManagerLocation,
@@ -171,6 +198,7 @@ public class DeclarativeSlotPoolService implements SlotPoolService {
             Collection<SlotOffer> offers) {
         assertHasBeenStarted();
 
+        // 要求该taskManager提前注册
         if (!isTaskManagerRegistered(taskManagerLocation.getResourceID())) {
             log.debug(
                     "Ignoring offered slots from unknown task manager {}.",
@@ -186,6 +214,14 @@ public class DeclarativeSlotPoolService implements SlotPoolService {
         return registeredTaskManagers.contains(taskManagerId);
     }
 
+    /**
+     * 释放掉某个slot
+     * @param taskManagerId taskManagerId is non-null if the signal comes from a TaskManager; if the
+     *     signal comes from the ResourceManager, then it is null
+     * @param allocationId allocationId identifies which allocation to fail
+     * @param cause cause why the allocation failed
+     * @return
+     */
     @Override
     public Optional<ResourceID> failAllocation(
             @Nullable ResourceID taskManagerId, AllocationID allocationId, Exception cause) {
@@ -195,11 +231,14 @@ public class DeclarativeSlotPoolService implements SlotPoolService {
                 taskManagerId,
                 "This slot pool only supports failAllocation calls coming from the TaskExecutor.");
 
+        // 释放slot
         final ResourceCounter previouslyFulfilledRequirements =
                 declarativeSlotPool.releaseSlot(allocationId, cause);
 
+        // previouslyFulfilledRequirements 表示被释放掉的资源 (原本正在被使用中)
         onFailAllocation(previouslyFulfilledRequirements);
 
+        // 当该taskManager相关的所有slot都被释放时 返回taskManagerId
         if (declarativeSlotPool.containsSlots(taskManagerId)) {
             return Optional.empty();
         } else {
@@ -228,6 +267,7 @@ public class DeclarativeSlotPoolService implements SlotPoolService {
         assertHasBeenStarted();
 
         if (registeredTaskManagers.remove(taskManagerId)) {
+            // 释放taskManager相关的所有slot
             internalReleaseTaskManager(taskManagerId, cause);
             return true;
         }
@@ -235,12 +275,18 @@ public class DeclarativeSlotPoolService implements SlotPoolService {
         return false;
     }
 
+    /**
+     *
+     * @param taskManagerId identifying the TaskExecutor
+     * @param cause cause for failing the slots
+     */
     @Override
     public void releaseFreeSlotsOnTaskManager(ResourceID taskManagerId, Exception cause) {
         assertHasBeenStarted();
         if (isTaskManagerRegistered(taskManagerId)) {
 
             Collection<AllocationID> freeSlots =
+                    // 找到匹配的所有slot
                     declarativeSlotPool.getFreeSlotInfoTracker().getFreeSlotsInformation().stream()
                             .filter(
                                     slotInfo ->
@@ -251,15 +297,21 @@ public class DeclarativeSlotPoolService implements SlotPoolService {
                             .collect(Collectors.toSet());
 
             for (AllocationID allocationId : freeSlots) {
+                // 释放slot
                 final ResourceCounter previouslyFulfilledRequirement =
                         declarativeSlotPool.releaseSlot(allocationId, cause);
                 // release free slots, previously fulfilled requirement should be empty.
+                // 这表明之前slot应当的资源应当未被使用  只是回收slot而没有回收slot的资源
                 Preconditions.checkState(
                         previouslyFulfilledRequirement.equals(ResourceCounter.empty()));
             }
         }
     }
 
+    /**
+     * 释放所有的taskManager
+     * @param cause
+     */
     private void releaseAllTaskManagers(Exception cause) {
         for (ResourceID registeredTaskManager : registeredTaskManagers) {
             internalReleaseTaskManager(registeredTaskManager, cause);
@@ -268,9 +320,15 @@ public class DeclarativeSlotPoolService implements SlotPoolService {
         registeredTaskManagers.clear();
     }
 
+    /**
+     * 释放taskManager
+     * @param taskManagerId
+     * @param cause
+     */
     private void internalReleaseTaskManager(ResourceID taskManagerId, Exception cause) {
         assertHasBeenStarted();
 
+        // 释放taskManager相关的所有slot   返回的是被释放的总资源
         final ResourceCounter previouslyFulfilledRequirement =
                 declarativeSlotPool.releaseSlots(taskManagerId, cause);
 
@@ -282,6 +340,7 @@ public class DeclarativeSlotPoolService implements SlotPoolService {
      *
      * @param previouslyFulfilledRequirement previouslyFulfilledRequirement by the released
      *     TaskManager
+     *                                       当taskManager关联的资源被释放时
      */
     protected void onReleaseTaskManager(ResourceCounter previouslyFulfilledRequirement) {}
 
@@ -290,13 +349,20 @@ public class DeclarativeSlotPoolService implements SlotPoolService {
         assertHasBeenStarted();
 
         resourceRequirementServiceConnectionManager.connect(
+                // 表示该服务可以声明资源开销
                 resourceRequirements ->
+                        // 此时通过网关告知resourceManager资源开销
                         resourceManagerGateway.declareRequiredResources(
                                 jobMasterId, resourceRequirements, rpcTimeout));
 
+        // 立即触发 声明资源开销的api
         declareResourceRequirements(declarativeSlotPool.getResourceRequirements());
     }
 
+    /**
+     * 每当声明的资源开销发生变化时  触发该方法
+     * @param resourceRequirements
+     */
     private void declareResourceRequirements(Collection<ResourceRequirement> resourceRequirements) {
         assertHasBeenStarted();
 
@@ -311,6 +377,11 @@ public class DeclarativeSlotPoolService implements SlotPoolService {
         resourceRequirementServiceConnectionManager.disconnect();
     }
 
+    /**
+     * 将该taskManager相关的slot信息返回
+     * @param taskManagerId identifies the task manager
+     * @return
+     */
     @Override
     public AllocatedSlotReport createAllocatedSlotReport(ResourceID taskManagerId) {
         assertHasBeenStarted();

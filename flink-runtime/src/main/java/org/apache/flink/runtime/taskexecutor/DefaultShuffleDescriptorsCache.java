@@ -36,9 +36,19 @@ import java.util.Set;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Default implement of {@link ShuffleDescriptorsCache}. Entries will be expired after timeout. */
+/** Default implement of {@link ShuffleDescriptorsCache}. Entries will be expired after timeout.
+ * 就是一个缓存对象
+ * */
 public class DefaultShuffleDescriptorsCache implements ShuffleDescriptorsCache {
+
+    /**
+     * 缓存 blobKey 与 JobId，ShuffleDescriptorGroup 的关系
+     */
     private final Cache<PermanentBlobKey, ShuffleDescriptorCacheEntry> shuffleDescriptorsCache;
+
+    /**
+     * 每个ShuffleDescriptor对应一个分区结果  一个job会有多个这个对象
+     */
     private final Map<JobID, Set<PermanentBlobKey>> cachedBlobKeysPerJob;
 
     private DefaultShuffleDescriptorsCache(
@@ -63,6 +73,7 @@ public class DefaultShuffleDescriptorsCache implements ShuffleDescriptorsCache {
     @Override
     public ShuffleDescriptorGroup get(PermanentBlobKey blobKey) {
         ShuffleDescriptorCacheEntry entry = shuffleDescriptorsCache.getIfPresent(blobKey);
+        // 获取维护的group
         return entry == null ? null : entry.getShuffleDescriptorGroup();
     }
 
@@ -86,6 +97,7 @@ public class DefaultShuffleDescriptorsCache implements ShuffleDescriptorsCache {
      * Removal listener that remove the index of serializedShuffleDescriptorsPerJob .
      *
      * @param removalNotification of removed element.
+     *                            当缓存数据移除时 触发
      */
     private void onCacheRemoval(
             RemovalNotification<PermanentBlobKey, ShuffleDescriptorCacheEntry>
@@ -93,6 +105,7 @@ public class DefaultShuffleDescriptorsCache implements ShuffleDescriptorsCache {
         PermanentBlobKey blobKey = removalNotification.getKey();
         ShuffleDescriptorCacheEntry entry = removalNotification.getValue();
         if (blobKey != null && entry != null) {
+            // 同步移除 cachedBlobKeysPerJob
             cachedBlobKeysPerJob.computeIfPresent(
                     entry.getJobId(),
                     (jobID, permanentBlobKeys) -> {
@@ -107,7 +120,15 @@ public class DefaultShuffleDescriptorsCache implements ShuffleDescriptorsCache {
     }
 
     private static class ShuffleDescriptorCacheEntry {
+
+        /**
+         * 包含多个 ShuffleDescriptor  并且他们会携带 index
+         */
         private final ShuffleDescriptorGroup shuffleDescriptorGroup;
+
+        /**
+         * 相关的job
+         */
         private final JobID jobId;
 
         public ShuffleDescriptorCacheEntry(

@@ -24,7 +24,9 @@ import org.apache.flink.runtime.clusterframework.types.ResourceProfile;
 import java.util.Collection;
 import java.util.Set;
 
-/** Represents a bulk of physical slot requests. */
+/** Represents a bulk of physical slot requests.
+ * 表示请求大量的 physical slot
+ * */
 public interface PhysicalSlotRequestBulk {
     /**
      * Returns {@link ResourceProfile}s of pending physical slot requests.

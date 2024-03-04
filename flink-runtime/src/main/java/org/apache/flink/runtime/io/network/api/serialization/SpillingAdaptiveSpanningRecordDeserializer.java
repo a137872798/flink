@@ -31,7 +31,9 @@ import static org.apache.flink.runtime.io.network.api.serialization.RecordDeseri
 import static org.apache.flink.runtime.io.network.api.serialization.RecordDeserializer.DeserializationResult.LAST_RECORD_FROM_BUFFER;
 import static org.apache.flink.runtime.io.network.api.serialization.RecordDeserializer.DeserializationResult.PARTIAL_RECORD;
 
-/** @param <T> The type of the record to be deserialized. */
+/** @param <T> The type of the record to be deserialized.
+ * 该对象用于将记录反序列化
+ * */
 public class SpillingAdaptiveSpanningRecordDeserializer<T extends IOReadableWritable>
         implements RecordDeserializer<T> {
     public static final int DEFAULT_THRESHOLD_FOR_SPILLING = 5 * 1024 * 1024; // 5 MiBytes
@@ -45,12 +47,21 @@ public class SpillingAdaptiveSpanningRecordDeserializer<T extends IOReadableWrit
 
     private final SpanningWrapper spanningWrapper;
 
+    /**
+     * 存储读取出来的一批数据
+     */
     @Nullable private Buffer currentBuffer;
 
     public SpillingAdaptiveSpanningRecordDeserializer(String[] tmpDirectories) {
         this(tmpDirectories, DEFAULT_THRESHOLD_FOR_SPILLING, DEFAULT_FILE_BUFFER_SIZE);
     }
 
+    /**
+     *
+     * @param tmpDirectories  存储数据使用的一组临时目录
+     * @param thresholdForSpilling
+     * @param fileBufferSize
+     */
     public SpillingAdaptiveSpanningRecordDeserializer(
             String[] tmpDirectories, int thresholdForSpilling, int fileBufferSize) {
         nonSpanningWrapper = new NonSpanningWrapper();
@@ -61,22 +72,37 @@ public class SpillingAdaptiveSpanningRecordDeserializer<T extends IOReadableWrit
                         Math.max(fileBufferSize, MIN_FILE_BUFFER_SIZE));
     }
 
+    /**
+     * 补充下个要读取的数据
+     * @param buffer
+     * @throws IOException
+     */
     @Override
     public void setNextBuffer(Buffer buffer) throws IOException {
         currentBuffer = buffer;
 
         int offset = buffer.getMemorySegmentOffset();
+        // 包含数据的内存块
         MemorySegment segment = buffer.getMemorySegment();
         int numBytes = buffer.getSize();
 
+
         // check if some spanning record deserialization is pending
+        // 表示还有数据未消耗
         if (spanningWrapper.getNumGatheredBytes() > 0) {
+            // 追加数据
             spanningWrapper.addNextChunkFromMemorySegment(segment, offset, numBytes);
         } else {
+            // 更新内部的指针/内存块 等信息
             nonSpanningWrapper.initializeFromMemorySegment(segment, offset, numBytes + offset);
         }
     }
 
+    /**
+     * 返回还未被读取的数据
+     * @return
+     * @throws IOException
+     */
     @Override
     public CloseableIterator<Buffer> getUnconsumedBuffer() throws IOException {
         return nonSpanningWrapper.hasRemaining()
@@ -84,6 +110,12 @@ public class SpillingAdaptiveSpanningRecordDeserializer<T extends IOReadableWrit
                 : spanningWrapper.getUnconsumedSegment();
     }
 
+    /**
+     *
+     * @param target
+     * @return
+     * @throws IOException
+     */
     @Override
     public DeserializationResult getNextRecord(T target) throws IOException {
         // always check the non-spanning wrapper first.
@@ -91,6 +123,8 @@ public class SpillingAdaptiveSpanningRecordDeserializer<T extends IOReadableWrit
         // for large records, this portion of the work is very small in comparison anyways
 
         final DeserializationResult result = readNextRecord(target);
+
+        // buffer被使用完了  进行回收
         if (result.isBufferConsumed()) {
             currentBuffer.recycleBuffer();
             currentBuffer = null;
@@ -98,43 +132,72 @@ public class SpillingAdaptiveSpanningRecordDeserializer<T extends IOReadableWrit
         return result;
     }
 
+    /**
+     * 读取数据并填充target
+     * @param target
+     * @return
+     * @throws IOException
+     */
     private DeserializationResult readNextRecord(T target) throws IOException {
+
+        // 优先读取nonSpanningWrapper中的数据
+        // hasCompleteLength 表示至少还能读取到长度信息
         if (nonSpanningWrapper.hasCompleteLength()) {
             return readNonSpanningRecord(target);
 
+            // 剩余的数据甚至不足一个length  全部转移到spanningWrapper的 lengthBuffer中
         } else if (nonSpanningWrapper.hasRemaining()) {
             nonSpanningWrapper.transferTo(spanningWrapper.lengthBuffer);
             return PARTIAL_RECORD;
 
+            // 另一个容器有完整的数据
         } else if (spanningWrapper.hasFullRecord()) {
+            // 使用target读取数据
             target.read(spanningWrapper.getInputView());
+
+            // 将剩余数据转移到nonSpanningWrapper
             spanningWrapper.transferLeftOverTo(nonSpanningWrapper);
             return nonSpanningWrapper.hasRemaining()
                     ? INTERMEDIATE_RECORD_FROM_BUFFER
-                    : LAST_RECORD_FROM_BUFFER;
+                    : LAST_RECORD_FROM_BUFFER;  // 刚好全部消耗完  就是2个true
 
         } else {
+            // 本次数据不足
             return PARTIAL_RECORD;
         }
     }
 
+    /**
+     * 从nonSpanningWrapper中读取数据
+     * @param target
+     * @return
+     * @throws IOException
+     */
     private DeserializationResult readNonSpanningRecord(T target) throws IOException {
         // following three calls to nonSpanningWrapper from object oriented design would be better
         // to encapsulate inside nonSpanningWrapper, but then nonSpanningWrapper.readInto equivalent
         // would have to return a tuple of DeserializationResult and recordLen, which would affect
         // performance too much
+
+        // 如果是按一定规则读取的话 那么首4个字节一定是长度
         int recordLen = nonSpanningWrapper.readInt();
         if (nonSpanningWrapper.canReadRecord(recordLen)) {
+            // target具备读取逻辑  会从nonSpanningWrapper中读取数据
             return nonSpanningWrapper.readInto(target);
         } else {
+            // 将剩余数据移动到spanningWrapper
             spanningWrapper.transferFrom(nonSpanningWrapper, recordLen);
             return PARTIAL_RECORD;
         }
     }
 
+    /**
+     * 清空数据
+     */
     @Override
     public void clear() {
         if (currentBuffer != null && !currentBuffer.isRecycled()) {
+            // 回收buffer
             currentBuffer.recycleBuffer();
             currentBuffer = null;
         }

@@ -36,7 +36,9 @@ import javax.annotation.Nullable;
 
 import java.util.Optional;
 
-/** This class contains utility methods to load checkpoint storage from configurations. */
+/** This class contains utility methods to load checkpoint storage from configurations.
+ * 用于加载检查点存储对象
+ * */
 @Internal
 public class CheckpointStorageLoader {
 
@@ -67,6 +69,8 @@ public class CheckpointStorageLoader {
      *     the factory class was not found or the factory could not be instantiated
      * @throws IllegalConfigurationException May be thrown by the CheckpointStorageFactory when
      *     creating / configuring the checkpoint storage in the factory
+     *
+     *     通过读取配置信息  生成storage
      */
     public static Optional<CheckpointStorage> fromConfig(
             ReadableConfig config, ClassLoader classLoader, @Nullable Logger logger)
@@ -90,6 +94,8 @@ public class CheckpointStorageLoader {
         }
 
         switch (storageName.toLowerCase()) {
+
+            // 根据不同名字 产生不同对象
             case JOB_MANAGER_STORAGE_NAME:
                 return Optional.of(createJobManagerCheckpointStorage(config, classLoader, logger));
 
@@ -101,6 +107,7 @@ public class CheckpointStorageLoader {
                     logger.info("Loading state backend via factory '{}'", storageName);
                 }
 
+                // 支持使用自定义对象
                 CheckpointStorageFactory<?> factory;
                 try {
                     @SuppressWarnings("rawtypes")

@@ -40,6 +40,7 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * The {@link SubpartitionDiskCacheManager} is responsible to manage the cached buffers in a single
  * subpartition.
+ * 先是子分区磁盘缓存
  */
 class SubpartitionDiskCacheManager {
 
@@ -58,6 +59,7 @@ class SubpartitionDiskCacheManager {
      *
      * <p>Note that when flushing buffers, this can be touched by task thread or the flushing
      * thread, so the thread safety should be ensured.
+     * 当前正在写入的seg
      */
     @GuardedBy("allBuffers")
     private int segmentId;
@@ -75,6 +77,10 @@ class SubpartitionDiskCacheManager {
     //  Called by DiskCacheManager
     // ------------------------------------------------------------------------
 
+    /**
+     * 开启一个新段
+     * @param segmentId
+     */
     void startSegment(int segmentId) {
         synchronized (allBuffers) {
             this.segmentId = segmentId;
@@ -85,11 +91,17 @@ class SubpartitionDiskCacheManager {
         addBuffer(buffer);
     }
 
+    /**
+     * 添加事件 表示该seg已经写完了
+     * @param record
+     */
     void appendEndOfSegmentEvent(ByteBuffer record) {
         writeEvent(record, DataType.END_OF_SEGMENT);
     }
 
-    /** Note that allBuffers can be touched by multiple threads. */
+    /** Note that allBuffers can be touched by multiple threads.
+     * 移除所有buffer信息
+     * */
     List<Tuple2<Buffer, Integer>> removeAllBuffers() {
         synchronized (allBuffers) {
             List<Tuple2<Buffer, Integer>> targetBuffers = new ArrayList<>(allBuffers);
@@ -118,6 +130,11 @@ class SubpartitionDiskCacheManager {
     //  Internal Methods
     // ------------------------------------------------------------------------
 
+    /**
+     * 该buffer中维护的是一个事件
+     * @param event
+     * @param dataType
+     */
     private void writeEvent(ByteBuffer event, DataType dataType) {
         checkArgument(dataType.isEvent());
 
@@ -125,7 +142,9 @@ class SubpartitionDiskCacheManager {
         addBuffer(new NetworkBuffer(data, FreeingBufferRecycler.INSTANCE, dataType, data.size()));
     }
 
-    /** This method is only called by the task thread. */
+    /** This method is only called by the task thread.
+     * 维护buffer和编号关系
+     * */
     private void addBuffer(Buffer buffer) {
         synchronized (allBuffers) {
             allBuffers.add(new Tuple2<>(buffer, bufferIndex));

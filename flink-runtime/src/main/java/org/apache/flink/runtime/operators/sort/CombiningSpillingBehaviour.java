@@ -36,9 +36,14 @@ import java.io.IOException;
 /**
  * A {@link SpillingThread.SpillingBehaviour} which spills & merges results of applying a {@link
  * GroupCombineFunction}.
+ * 在SpillThread中 会使用到SpillingBehaviour  存在2个核心方法 一个是用于倾泻数据  一个用于数据合并
  */
 final class CombiningSpillingBehaviour<R> implements SpillingThread.SpillingBehaviour<R> {
     private static final Logger LOG = LoggerFactory.getLogger(CombiningSpillingBehaviour.class);
+
+    /**
+     * 以组为单位合并数据 并下发
+     */
     private final GroupCombineFunction<R, R> combineFunction;
     private final TypeSerializer<R> serializer;
     private final TypeComparator<R> comparator;
@@ -78,6 +83,13 @@ final class CombiningSpillingBehaviour<R> implements SpillingThread.SpillingBeha
         }
     }
 
+    /**
+     * 将数据从内存倾泻到磁盘
+     * @param element
+     * @param output
+     * @param largeRecordHandler 在数据倾泻时调用
+     * @throws IOException
+     */
     @Override
     public void spillBuffer(
             CircularElement<R> element,
@@ -108,9 +120,11 @@ final class CombiningSpillingBehaviour<R> implements SpillingThread.SpillingBeha
                     // no duplicate key, no need to combine. simply copy
                     buffer.writeToOutput(output, seqStart, 1);
                 } else {
+                    // 表示发现了几个相等的值
                     // get the iterator over the values
                     iter.set(seqStart, i);
                     // call the combiner to combine
+                    // set后 迭代器只能读取部分值了  然后会将这些值合并 并被collector接收
                     combineFunction.combine(iter, collector);
                 }
                 i++;
@@ -128,6 +142,12 @@ final class CombiningSpillingBehaviour<R> implements SpillingThread.SpillingBeha
         LOG.debug("Combined and spilled buffer {}.", element.getId());
     }
 
+    /**
+     * 在将多个数据合并时调用
+     * @param mergeIterator  在数据合并时调用
+     * @param output
+     * @throws IOException
+     */
     @Override
     public void mergeRecords(MergeIterator<R> mergeIterator, ChannelWriterOutputView output)
             throws IOException {

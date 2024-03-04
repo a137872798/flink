@@ -33,13 +33,19 @@ import java.util.List;
  * Implementation of operator list state.
  *
  * @param <S> the type of an operator state partition.
+ *
+ *           表示一个可以分区的  ListState
  */
 public final class PartitionableListState<S> implements ListState<S> {
 
-    /** Meta information of the state, including state name, assignment mode, and typeSerializer */
+    /** Meta information of the state, including state name, assignment mode, and typeSerializer
+     * 这种状态是  OperatorState      包含相关的元数据
+     * */
     private RegisteredOperatorStateBackendMetaInfo<S> stateMetaInfo;
 
-    /** The internal list the holds the elements of the state */
+    /** The internal list the holds the elements of the state
+     * 使用list存储 state中的元素
+     * */
     private final ArrayList<S> internalList;
 
     /** A typeSerializer that allows to perform deep copies of internalList */
@@ -54,6 +60,8 @@ public final class PartitionableListState<S> implements ListState<S> {
 
         this.stateMetaInfo = Preconditions.checkNotNull(stateMetaInfo);
         this.internalList = Preconditions.checkNotNull(internalList);
+
+        // 设置内部element的序列化对象
         this.internalListCopySerializer =
                 new ArrayListSerializer<>(stateMetaInfo.getPartitionStateSerializer());
     }
@@ -84,11 +92,19 @@ public final class PartitionableListState<S> implements ListState<S> {
         internalList.clear();
     }
 
+    /**
+     * 获取内部的状态
+     * @return
+     */
     @Override
     public Iterable<S> get() {
         return internalList;
     }
 
+    /**
+     * 追加一个值
+     * @param value The new value for the state.
+     */
     @Override
     public void add(S value) {
         Preconditions.checkNotNull(value, "You cannot add null to a ListState.");
@@ -111,6 +127,7 @@ public final class PartitionableListState<S> implements ListState<S> {
 
         DataOutputView dov = new DataOutputViewStreamWrapper(out);
 
+        // 写位置 再写序列化数据
         for (int i = 0; i < internalList.size(); ++i) {
             S element = internalList.get(i);
             partitionOffsets[i] = out.getPos();
@@ -120,6 +137,10 @@ public final class PartitionableListState<S> implements ListState<S> {
         return partitionOffsets;
     }
 
+    /**
+     * 更新ListState内的数据
+     * @param values The new values for the state.
+     */
     @Override
     public void update(List<S> values) {
         internalList.clear();

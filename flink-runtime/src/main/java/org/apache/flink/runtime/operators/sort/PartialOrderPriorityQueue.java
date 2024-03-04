@@ -33,6 +33,7 @@ import java.util.Queue;
  * This class implements a priority-queue, which maintains a partial ordering of its elements such
  * that the least element can always be found in constant time. Put()'s and pop()'s require
  * log(size) time.
+ * 这个就是基于heap的优先队列
  */
 public class PartialOrderPriorityQueue<T> extends AbstractQueue<T> implements Queue<T> {
     /** The heap, organized as an array. */

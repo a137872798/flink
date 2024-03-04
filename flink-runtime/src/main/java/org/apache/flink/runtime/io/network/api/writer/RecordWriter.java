@@ -47,6 +47,9 @@ import static org.apache.flink.util.Preconditions.checkArgument;
  * selection and serializing records into bytes.
  *
  * @param <T> the type of the record that can be emitted with this record writer
+ *
+ *           AvailabilityProvider 提供了一些评估是否可用的api
+ *           该对象用于将record写入channel
  */
 public abstract class RecordWriter<T extends IOReadableWritable> implements AvailabilityProvider {
 
@@ -56,17 +59,31 @@ public abstract class RecordWriter<T extends IOReadableWritable> implements Avai
 
     private static final Logger LOG = LoggerFactory.getLogger(RecordWriter.class);
 
+    /**
+     * 可以向分区写入数据
+     */
     protected final ResultPartitionWriter targetPartition;
 
+    /**
+     * 表示有多少channel  这些channel属于某个分区下
+     */
     protected final int numberOfChannels;
 
+    /**
+     * 将数据序列化
+     */
     protected final DataOutputSerializer serializer;
 
     protected final Random rng = new XORShiftRandom();
 
+    /**
+     * 为true 就是在每次写入flush
+     */
     protected final boolean flushAlways;
 
-    /** The thread that periodically flushes the output, to give an upper latency bound. */
+    /** The thread that periodically flushes the output, to give an upper latency bound.
+     * 该线程会周期性触发flush
+     * */
     @Nullable private final OutputFlusher outputFlusher;
 
     /**
@@ -91,6 +108,8 @@ public abstract class RecordWriter<T extends IOReadableWritable> implements Avai
                 || timeout == ExecutionOptions.FLUSH_AFTER_EVERY_RECORD) {
             outputFlusher = null;
         } else {
+
+            // flushAlways 为false的情况 创建刷盘线程
             String threadName =
                     taskName == null
                             ? DEFAULT_OUTPUT_FLUSH_THREAD_NAME
@@ -101,9 +120,16 @@ public abstract class RecordWriter<T extends IOReadableWritable> implements Avai
         }
     }
 
+    /**
+     * 写入(发出)一条记录
+     * @param record
+     * @param targetSubpartition
+     * @throws IOException
+     */
     protected void emit(T record, int targetSubpartition) throws IOException {
         checkErroneous();
 
+        // 将数据序列化后写入
         targetPartition.emitRecord(serializeRecord(serializer, record), targetSubpartition);
 
         if (flushAlways) {
@@ -123,6 +149,11 @@ public abstract class RecordWriter<T extends IOReadableWritable> implements Avai
         }
     }
 
+    /**
+     * 表示某个屏障因超时变成非对齐状态
+     * @param checkpointId
+     * @throws IOException
+     */
     public void alignedBarrierTimeout(long checkpointId) throws IOException {
         targetPartition.alignedBarrierTimeout(checkpointId);
     }
@@ -160,10 +191,14 @@ public abstract class RecordWriter<T extends IOReadableWritable> implements Avai
         return targetPartition.getAvailableFuture();
     }
 
-    /** This is used to send regular records. */
+    /** This is used to send regular records.
+     * 按照规律写入  比如轮询策略
+     * */
     public abstract void emit(T record) throws IOException;
 
-    /** This is used to send LatencyMarks to a random target channel. */
+    /** This is used to send LatencyMarks to a random target channel.
+     * 随机写入一个channel
+     * */
     public void randomEmit(T record) throws IOException {
         checkErroneous();
 
@@ -171,7 +206,9 @@ public abstract class RecordWriter<T extends IOReadableWritable> implements Avai
         emit(record, targetSubpartition);
     }
 
-    /** This is used to broadcast streaming Watermarks in-band with records. */
+    /** This is used to broadcast streaming Watermarks in-band with records.
+     * 写入所有channel
+     * */
     public abstract void broadcastEmit(T record) throws IOException;
 
     /** Closes the writer. This stops the flushing thread (if there is one). */
@@ -228,6 +265,8 @@ public abstract class RecordWriter<T extends IOReadableWritable> implements Avai
      * A dedicated thread that periodically flushes the output buffers, to set upper latency bounds.
      *
      * <p>The thread is daemonic, because it is only a utility thread.
+     *
+     * 后台线程 周期性触发flush
      */
     private class OutputFlusher extends Thread {
 
@@ -243,6 +282,7 @@ public abstract class RecordWriter<T extends IOReadableWritable> implements Avai
 
         public void terminate() {
             running = false;
+            // 唤醒阻塞线程
             interrupt();
         }
 
@@ -262,6 +302,7 @@ public abstract class RecordWriter<T extends IOReadableWritable> implements Avai
 
                     // any errors here should let the thread come to a halt and be
                     // recognized by the writer
+                    // 周期性触发flush
                     flushAll();
                 }
             } catch (Throwable t) {

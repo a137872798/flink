@@ -42,15 +42,19 @@ import static org.apache.flink.util.Preconditions.checkState;
  * An implementation of a checkpoint storage for the {@link MemoryStateBackend}. Depending on
  * whether this is created with a checkpoint location, the setup supports durable checkpoints
  * (durable metadata) or not.
+ * 提供一些路径信息
  */
 public class MemoryBackendCheckpointStorageAccess extends AbstractFsCheckpointStorageAccess {
 
-    /** The target directory for checkpoints (here metadata files only). Null, if not configured. */
+    /** The target directory for checkpoints (here metadata files only). Null, if not configured.
+     * 存储检查点的目录
+     * */
     @Nullable private final Path checkpointsDirectory;
 
     /**
      * The file system to persist the checkpoints to. Null if this does not durably persist
      * checkpoints.
+     * 利用文件系统持久化数据
      */
     @Nullable private final FileSystem fileSystem;
 
@@ -70,7 +74,7 @@ public class MemoryBackendCheckpointStorageAccess extends AbstractFsCheckpointSt
      */
     public MemoryBackendCheckpointStorageAccess(
             JobID jobId,
-            @Nullable Path checkpointsBaseDirectory,
+            @Nullable Path checkpointsBaseDirectory,  // 2个目录分别存储检查点和保存点  检查点避免丢失数据 保存点用于随时还原数据
             @Nullable Path defaultSavepointLocation,
             int maxStateSize)
             throws IOException {
@@ -136,10 +140,12 @@ public class MemoryBackendCheckpointStorageAccess extends AbstractFsCheckpointSt
             // create the checkpoint exclusive directory
             fileSystem.mkdirs(checkpointDir);
 
+            // 产生一个位置信息
             return new PersistentMetadataCheckpointStorageLocation(
                     fileSystem, checkpointDir, maxStateSize);
         } else {
             // no durable metadata - typical in IDE or test setup case
+            // 表示仅测试
             return new NonPersistentMetadataCheckpointStorageLocation(maxStateSize);
         }
     }

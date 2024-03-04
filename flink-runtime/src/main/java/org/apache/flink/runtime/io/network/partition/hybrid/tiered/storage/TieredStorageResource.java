@@ -18,7 +18,9 @@
 
 package org.apache.flink.runtime.io.network.partition.hybrid.tiered.storage;
 
-/** The resource (e.g., local files, remote storage files, etc.) for the Tiered Storage. */
+/** The resource (e.g., local files, remote storage files, etc.) for the Tiered Storage.
+ * 表示分层存储使用的资源
+ * */
 public interface TieredStorageResource {
 
     /** Release all the resources, e.g. delete the files, recycle the occupied memory, etc. */

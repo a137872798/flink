@@ -39,7 +39,9 @@ import java.util.ServiceLoader;
 
 import static org.apache.flink.shaded.guava31.com.google.common.collect.Iterators.concat;
 
-/** A thin wrapper around {@link PluginManager} to load {@link StateChangelogStorage}. */
+/** A thin wrapper around {@link PluginManager} to load {@link StateChangelogStorage}.
+ * 该对象用于从PluginManager 加载StateChangelogStorage
+ * */
 @Internal
 public class StateChangelogStorageLoader {
 
@@ -48,6 +50,7 @@ public class StateChangelogStorageLoader {
     /**
      * Mapping of state changelog storage identifier to the corresponding storage factories,
      * populated in {@link StateChangelogStorageLoader#initialize(PluginManager)}.
+     * 这里是所有可用的工厂对象
      */
     private static final HashMap<String, StateChangelogStorageFactory>
             STATE_CHANGELOG_STORAGE_FACTORIES = new HashMap<>();
@@ -61,6 +64,7 @@ public class StateChangelogStorageLoader {
         STATE_CHANGELOG_STORAGE_FACTORIES.clear();
         Iterator<StateChangelogStorageFactory> iterator =
                 pluginManager == null
+                        // 默认使用SPI机制
                         ? ServiceLoader.load(StateChangelogStorageFactory.class).iterator()
                         : concat(
                                 pluginManager.load(StateChangelogStorageFactory.class),

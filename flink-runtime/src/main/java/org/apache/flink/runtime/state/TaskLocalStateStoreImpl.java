@@ -58,7 +58,9 @@ import java.util.concurrent.Executor;
 import java.util.function.LongPredicate;
 import java.util.stream.Collectors;
 
-/** Main implementation of a {@link TaskLocalStateStore}. */
+/** Main implementation of a {@link TaskLocalStateStore}.
+ * 任务快照的存储对象
+ * */
 public class TaskLocalStateStoreImpl implements OwnedTaskLocalStateStore {
 
     /** Logger for this class. */
@@ -69,7 +71,9 @@ public class TaskLocalStateStoreImpl implements OwnedTaskLocalStateStore {
 
     public static final String TASK_STATE_SNAPSHOT_FILENAME = "_task_state_snapshot";
 
-    /** JobID from the owning subtask. */
+    /** JobID from the owning subtask.
+     * 该子任务相关的job
+     * */
     @Nonnull protected final JobID jobID;
 
     /** AllocationID of the owning slot. */
@@ -81,20 +85,28 @@ public class TaskLocalStateStoreImpl implements OwnedTaskLocalStateStore {
     /** Subtask index of the owning subtask. */
     @Nonnegative protected final int subtaskIndex;
 
-    /** The configured mode for local recovery. */
+    /** The configured mode for local recovery.
+     * 提供一些目录信息
+     * */
     @Nonnull protected final LocalRecoveryConfig localRecoveryConfig;
 
-    /** Executor that runs the discarding of released state objects. */
+    /** Executor that runs the discarding of released state objects.
+     * 通过该执行器 进行丢弃操作
+     * */
     @Nonnull protected final Executor discardExecutor;
 
     /** Lock for synchronisation on the storage map and the discarded status. */
     @Nonnull protected final Object lock = new Object();
 
-    /** Status flag if this store was already discarded. */
+    /** Status flag if this store was already discarded.
+     * 表示是否已经丢弃过
+     * */
     @GuardedBy("lock")
     protected boolean disposed;
 
-    /** Maps checkpoint ids to local TaskStateSnapshots. */
+    /** Maps checkpoint ids to local TaskStateSnapshots.
+     * 按照检查点id 存储快照数据
+     * */
     @Nonnull
     @GuardedBy("lock")
     protected final SortedMap<Long, TaskStateSnapshot> storedTaskStateByCheckpointID;
@@ -117,6 +129,11 @@ public class TaskLocalStateStoreImpl implements OwnedTaskLocalStateStore {
         this.disposed = false;
     }
 
+    /**
+     * 添加一个检查点快照
+     * @param checkpointId id for the checkpoint that created the local state that will be stored.
+     * @param localState the local state to store.
+     */
     @Override
     public void storeLocalState(
             @Nonnegative long checkpointId, @Nullable TaskStateSnapshot localState) {
@@ -145,12 +162,14 @@ public class TaskLocalStateStoreImpl implements OwnedTaskLocalStateStore {
         Tuple2<Long, TaskStateSnapshot> toDiscard = null;
 
         synchronized (lock) {
+            // 标记为true之后 插入的数据会被直接丢弃
             if (disposed) {
                 // we ignore late stores and simply discard the state.
                 toDiscard = Tuple2.of(checkpointId, localState);
             } else {
                 TaskStateSnapshot previous =
                         storedTaskStateByCheckpointID.put(checkpointId, localState);
+                // 对数据进行持久化
                 persistLocalStateMetadata(checkpointId, localState);
 
                 if (previous != null) {
@@ -169,12 +188,16 @@ public class TaskLocalStateStoreImpl implements OwnedTaskLocalStateStore {
      *
      * @param checkpointId identifying the checkpoint
      * @param localState task state snapshot that will be persisted
+     *                   持久化快照文件
      */
     private void persistLocalStateMetadata(long checkpointId, TaskStateSnapshot localState) {
         createFolderOrFail(getCheckpointDirectory(checkpointId));
+
+        // 快照数据存储在专门的文件中
         final File taskStateSnapshotFile = getTaskStateSnapshotFile(checkpointId);
         try (ObjectOutputStream oos =
                 new ObjectOutputStream(new FileOutputStream(taskStateSnapshotFile))) {
+            // 写入快照数据
             oos.writeObject(localState);
 
             LOG.debug(
@@ -195,6 +218,10 @@ public class TaskLocalStateStoreImpl implements OwnedTaskLocalStateStore {
         return getLocalRecoveryDirectoryProvider().subtaskSpecificCheckpointDirectory(checkpointId);
     }
 
+    /**
+     * 创建目录
+     * @param checkpointDirectory
+     */
     private void createFolderOrFail(File checkpointDirectory) {
         if (!checkpointDirectory.exists() && !checkpointDirectory.mkdirs()) {
             throw new FlinkRuntimeException(
@@ -209,6 +236,11 @@ public class TaskLocalStateStoreImpl implements OwnedTaskLocalStateStore {
                 .orElseThrow(() -> new IllegalStateException("Local recovery must be enabled."));
     }
 
+    /**
+     * 查询快照数据
+     * @param checkpointID the checkpoint id by which we search for local state.
+     * @return
+     */
     @Override
     @Nullable
     public TaskStateSnapshot retrieveLocalState(long checkpointID) {
@@ -239,6 +271,11 @@ public class TaskLocalStateStoreImpl implements OwnedTaskLocalStateStore {
         return (snapshot != NULL_DUMMY) ? snapshot : null;
     }
 
+    /**
+     * 从磁盘加载到内存
+     * @param checkpointID
+     * @return
+     */
     @GuardedBy("lock")
     @Nullable
     private TaskStateSnapshot loadTaskStateSnapshot(long checkpointID) {
@@ -253,6 +290,7 @@ public class TaskLocalStateStoreImpl implements OwnedTaskLocalStateStore {
 
         if (taskStateSnapshotFile.exists()) {
             TaskStateSnapshot taskStateSnapshot = null;
+            // 包装成对象流  并进行数据读取
             try (ObjectInputStream ois =
                     new ObjectInputStream(new FileInputStream(taskStateSnapshotFile))) {
                 taskStateSnapshot = (TaskStateSnapshot) ois.readObject();
@@ -291,6 +329,7 @@ public class TaskLocalStateStoreImpl implements OwnedTaskLocalStateStore {
                 jobVertexID,
                 subtaskIndex);
 
+        // 本次检查点生成完毕  清理旧数据
         pruneCheckpoints(
                 (snapshotCheckpointId) -> snapshotCheckpointId < confirmedCheckpointId, true);
     }
@@ -305,6 +344,7 @@ public class TaskLocalStateStoreImpl implements OwnedTaskLocalStateStore {
                 jobVertexID,
                 subtaskIndex);
 
+        // 删除本次检查点相关数据
         pruneCheckpoints(
                 snapshotCheckpointId -> snapshotCheckpointId == abortedCheckpointId, false);
     }
@@ -315,7 +355,9 @@ public class TaskLocalStateStoreImpl implements OwnedTaskLocalStateStore {
         pruneCheckpoints(matcher, false);
     }
 
-    /** Disposes the state of all local snapshots managed by this object. */
+    /** Disposes the state of all local snapshots managed by this object.
+     * 丢弃内部数据
+     * */
     @Override
     public CompletableFuture<Void> dispose() {
 
@@ -332,7 +374,7 @@ public class TaskLocalStateStoreImpl implements OwnedTaskLocalStateStore {
 
         return CompletableFuture.runAsync(
                 () -> {
-                    // discard all remaining state objects.
+                    // discard all remaining state objects.  清理这些数据
                     syncDiscardLocalStateForCollection(statesCopy);
 
                     // delete the local state subdirectory that belong to this subtask.
@@ -342,6 +384,7 @@ public class TaskLocalStateStoreImpl implements OwnedTaskLocalStateStore {
                         File subtaskBaseDirectory =
                                 getLocalRecoveryDirectoryProvider().selectSubtaskBaseDirectory(i);
                         try {
+                            // 删除目录
                             deleteDirectory(subtaskBaseDirectory);
                         } catch (IOException e) {
                             LOG.warn(
@@ -357,6 +400,10 @@ public class TaskLocalStateStoreImpl implements OwnedTaskLocalStateStore {
                 discardExecutor);
     }
 
+    /**
+     * 后台执行丢弃任务
+     * @param toDiscard
+     */
     private void asyncDiscardLocalStateForCollection(
             Collection<Tuple2<Long, TaskStateSnapshot>> toDiscard) {
         if (!toDiscard.isEmpty()) {
@@ -373,6 +420,7 @@ public class TaskLocalStateStoreImpl implements OwnedTaskLocalStateStore {
 
     /**
      * Helper method that discards state objects with an executor and reports exceptions to the log.
+     * 丢弃检查点数据
      */
     private void discardLocalStateForCheckpoint(long checkpointID, Optional<TaskStateSnapshot> o) {
 
@@ -394,6 +442,7 @@ public class TaskLocalStateStoreImpl implements OwnedTaskLocalStateStore {
         }
 
         o.ifPresent(
+                // 先在内存中丢弃数据
                 taskStateSnapshot -> {
                     try {
                         taskStateSnapshot.discardState();
@@ -408,6 +457,7 @@ public class TaskLocalStateStoreImpl implements OwnedTaskLocalStateStore {
                     }
                 });
 
+        // 删除目录
         File checkpointDir = getCheckpointDirectory(checkpointID);
 
         LOG.debug(
@@ -440,7 +490,9 @@ public class TaskLocalStateStoreImpl implements OwnedTaskLocalStateStore {
         }
     }
 
-    /** Pruning the useless checkpoints, it should be called only when holding the {@link #lock}. */
+    /** Pruning the useless checkpoints, it should be called only when holding the {@link #lock}.
+     * 淘汰满足条件的检查点数据
+     * */
     protected void pruneCheckpoints(LongPredicate pruningChecker, boolean breakOnceCheckerFalse) {
         final List<Tuple2<Long, TaskStateSnapshot>> toRemove = new ArrayList<>();
 

@@ -33,6 +33,8 @@ import java.util.Collection;
  * @param <IN> Type of the value added to the state
  * @param <ACC> The type of the accumulator (intermediate aggregate state).
  * @param <OUT> Type of the value extracted from the state
+ *
+ *             针对 aggr类型的state
  */
 class TtlAggregatingState<K, N, IN, ACC, OUT>
         extends AbstractTtlState<

@@ -33,12 +33,23 @@ import java.io.IOException;
  *
  * <p>The reader supports reading objects with possible reuse of mutable types, and without reuse of
  * mutable types.
+ * 迭代reader内的数据 同时该数据是可变的
  */
 public class ReaderIterator<T> implements MutableObjectIterator<T> {
 
+    /**
+     * 提供数据
+     */
     private final MutableReader<DeserializationDelegate<T>> reader; // the source
 
+    /**
+     * 读取输入源 并产生实例的同时 会尽量复用实例
+     */
     private final ReusingDeserializationDelegate<T> reusingDelegate;
+
+    /**
+     * 不会复用实例
+     */
     private final NonReusingDeserializationDelegate<T> nonReusingDelegate;
 
     /**
@@ -67,6 +78,11 @@ public class ReaderIterator<T> implements MutableObjectIterator<T> {
         }
     }
 
+    /**
+     * 使用非复用的方法
+     * @return
+     * @throws IOException
+     */
     @Override
     public T next() throws IOException {
         try {

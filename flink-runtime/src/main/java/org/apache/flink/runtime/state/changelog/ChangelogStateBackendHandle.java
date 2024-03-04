@@ -56,15 +56,36 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 @Internal
 public interface ChangelogStateBackendHandle
         extends KeyedStateHandle, CheckpointBoundKeyedStateHandle {
+
+    /**
+     * 获取所有被物化状态 关联的状态管理器
+     * @return
+     */
     List<KeyedStateHandle> getMaterializedStateHandles();
 
+    /**
+     * 获取未物化状态管理器
+     * @return
+     */
     List<ChangelogStateHandle> getNonMaterializedStateHandles();
 
+    /**
+     * 这个物化id 应该关联其他物化状态
+     * @return
+     */
     long getMaterializationID();
 
+    /**
+     * 更换state相关的检查点后  重新产生该对象
+     * @param checkpointId rebounded checkpoint id.
+     * @return
+     */
     @Override
     ChangelogStateBackendHandle rebound(long checkpointId);
 
+    /**
+     * 这个对象其实寓意着 remote
+     */
     class ChangelogStateBackendHandleImpl implements ChangelogStateBackendHandle {
         private static final long serialVersionUID = 1L;
 
@@ -75,6 +96,10 @@ public interface ChangelogStateBackendHandle
         private final long materializationID;
         private final long checkpointId;
         private final long persistedSizeOfThisCheckpoint;
+
+        /**
+         * 这个id是专门指代ChangelogStateBackendHandle的
+         */
         private final StateHandleID stateHandleID;
 
         public ChangelogStateBackendHandleImpl(
@@ -112,6 +137,18 @@ public interface ChangelogStateBackendHandle
             this.stateHandleID = stateHandleId;
         }
 
+
+        /**
+         * 通过之前维护的信息 还原ChangelogStateBackendHandleImpl
+         * @param materialized
+         * @param nonMaterialized
+         * @param keyGroupRange
+         * @param checkpointId
+         * @param materializationID
+         * @param persistedSizeOfThisCheckpoint
+         * @param stateHandleId
+         * @return
+         */
         public static ChangelogStateBackendHandleImpl restore(
                 List<KeyedStateHandle> materialized,
                 List<ChangelogStateHandle> nonMaterialized,
@@ -130,6 +167,11 @@ public interface ChangelogStateBackendHandle
                     stateHandleId);
         }
 
+        /**
+         * 将传入的handle对象 转换成ChangelogStateBackendHandle
+         * @param originKeyedStateHandle
+         * @return
+         */
         public static ChangelogStateBackendHandle getChangelogStateBackendHandle(
                 KeyedStateHandle originKeyedStateHandle) {
             if (originKeyedStateHandle instanceof ChangelogStateBackendHandle) {
@@ -139,6 +181,7 @@ public interface ChangelogStateBackendHandle
                         singletonList(castToAbsolutePath(originKeyedStateHandle)),
                         emptyList(),
                         originKeyedStateHandle.getKeyGroupRange(),
+                        // 类型不对 就没有检查点id
                         originKeyedStateHandle instanceof CheckpointBoundKeyedStateHandle
                                 ? ((CheckpointBoundKeyedStateHandle) originKeyedStateHandle)
                                         .getCheckpointId()
@@ -148,6 +191,11 @@ public interface ChangelogStateBackendHandle
             }
         }
 
+        /**
+         * 转换成绝对路径
+         * @param originKeyedStateHandle
+         * @return
+         */
         private static KeyedStateHandle castToAbsolutePath(
                 KeyedStateHandle originKeyedStateHandle) {
             // For KeyedStateHandle, only KeyGroupsStateHandle and IncrementalKeyedStateHandle
@@ -156,11 +204,15 @@ public interface ChangelogStateBackendHandle
             if (originKeyedStateHandle instanceof KeyGroupsSavepointStateHandle) {
                 return originKeyedStateHandle;
             }
+
+            // KeyGroupsStateHandle 跟 KeyGroupsSavepointStateHandle 类似  keyGroup关联offset 可以从stream中检索state
             if (originKeyedStateHandle instanceof KeyGroupsStateHandle) {
                 StreamStateHandle streamStateHandle =
                         ((KeyGroupsStateHandle) originKeyedStateHandle).getDelegateStateHandle();
 
+                // 因为是stream handle 所以有一个产生流的地方  如果是文件类型的
                 if (streamStateHandle instanceof FileStateHandle) {
+                    // 重新生成 FileStateHandle 时  使用了绝对路径
                     StreamStateHandle fileStateHandle = restoreFileStateHandle(streamStateHandle);
                     return KeyGroupsStateHandle.restore(
                             ((KeyGroupsStateHandle) originKeyedStateHandle).getGroupRangeOffsets(),
@@ -168,9 +220,13 @@ public interface ChangelogStateBackendHandle
                             originKeyedStateHandle.getStateHandleId());
                 }
             }
+
+            // IncrementalRemoteKeyedStateHandle 该对象包含了很多 stateHandle
             if (originKeyedStateHandle instanceof IncrementalRemoteKeyedStateHandle) {
                 IncrementalRemoteKeyedStateHandle incrementalRemoteKeyedStateHandle =
                         (IncrementalRemoteKeyedStateHandle) originKeyedStateHandle;
+
+                // 也没看出做了什么手脚
 
                 StreamStateHandle castMetaStateHandle =
                         restoreFileStateHandle(
@@ -208,6 +264,7 @@ public interface ChangelogStateBackendHandle
 
         private static StreamStateHandle restoreFileStateHandle(
                 StreamStateHandle streamStateHandle) {
+            // 产生新的实例
             if (streamStateHandle instanceof FileStateHandle) {
                 return new FileStateHandle(
                         ((FileStateHandle) streamStateHandle).getFilePath(),
@@ -216,18 +273,27 @@ public interface ChangelogStateBackendHandle
             return streamStateHandle;
         }
 
+
+        /**
+         * 将当前所有物化状态注册
+         * @param stateRegistry The registry where shared states are registered.
+         * @param checkpointID
+         */
         @Override
         public void registerSharedStates(SharedStateRegistry stateRegistry, long checkpointID) {
+
             for (KeyedStateHandle keyedStateHandle : materialized) {
                 // Use the unique and invariant UUID as the state registry key for a specific keyed
                 // state handle. To avoid unexpected unregister, this registry key would not change
                 // even rescaled.
+                // 这里应该是基于key进行存储
                 stateRegistry.registerReference(
                         new SharedStateRegistryKey(keyedStateHandle.getStateHandleId().toString()),
                         new StreamStateHandleWrapper(keyedStateHandle),
                         checkpointID,
                         true);
             }
+            // 下面应该是更直接的存储  可能在stateRegistry的不同容器中
             stateRegistry.registerAll(materialized, checkpointID);
             stateRegistry.registerAll(nonMaterialized, checkpointID);
         }
@@ -253,6 +319,7 @@ public interface ChangelogStateBackendHandle
             if (intersection.getNumberOfKeyGroups() == 0) {
                 return null;
             }
+            // 物化/非物化 都取交集后 重新产生ChangelogStateBackendHandleImpl
             List<KeyedStateHandle> basePart =
                     this.materialized.stream()
                             .map(entry -> entry.getIntersection(keyGroupRange))
@@ -318,6 +385,11 @@ public interface ChangelogStateBackendHandle
             return checkpointId;
         }
 
+        /**
+         * 更换检查点id
+         * @param checkpointId rebounded checkpoint id.
+         * @return
+         */
         @Override
         public ChangelogStateBackendHandleImpl rebound(long checkpointId) {
             List<KeyedStateHandle> reboundedMaterialized =
@@ -345,6 +417,8 @@ public interface ChangelogStateBackendHandle
         /**
          * This wrapper class is introduced as current {@link SharedStateRegistry} only accept
          * StreamStateHandle to register, remove it once FLINK-25862 is resolved.
+         *
+         * 生成一个包装对象
          */
         private static class StreamStateHandleWrapper implements StreamStateHandle {
             private static final long serialVersionUID = 1L;

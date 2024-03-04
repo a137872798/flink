@@ -25,6 +25,7 @@ import java.io.IOException;
 /**
  * An asynchronous implementation of the {@link BlockChannelWriterWithCallback} that queues I/O
  * requests and calls a callback once they have been handled.
+ * 提交写请求  并且使用MemorySegment的数据
  */
 public class AsynchronousBlockWriterWithCallback
         extends AsynchronousFileIOChannel<MemorySegment, WriteRequest>

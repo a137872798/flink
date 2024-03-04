@@ -32,6 +32,11 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * 针对广播类型状态的元数据
+ * @param <K>
+ * @param <V>
+ */
 public class RegisteredBroadcastStateBackendMetaInfo<K, V> extends RegisteredStateMetaInfoBase {
 
     /** The mode how elements in this state are assigned to tasks during restore. */

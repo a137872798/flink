@@ -31,6 +31,8 @@ import java.util.concurrent.LinkedBlockingQueue;
  * BlockChannelWriter}, making it effectively a data output stream. The view writes its data in
  * blocks to the underlying channel, adding a minimal header to each block. The data can be re-read
  * by a {@link ChannelReaderInputView}, if it uses the same block size.
+ *
+ * 这个对象的内存块实际上应该是没有数据的   而是借由AbstractPagedOutputView暴露出的接口来写入数据
  */
 public final class ChannelWriterOutputView extends AbstractPagedOutputView {
 
@@ -51,8 +53,14 @@ public final class ChannelWriterOutputView extends AbstractPagedOutputView {
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 通过该对象写入数据
+     */
     private final BlockChannelWriter<MemorySegment> writer; // the writer to the channel
 
+    /**
+     * 记录当前已经写入的数据
+     */
     private long
             bytesBeforeSegment; // the number of bytes written before the current memory segment
 
@@ -70,7 +78,7 @@ public final class ChannelWriterOutputView extends AbstractPagedOutputView {
      *
      * @param writer The writer to write to.
      * @param memory The memory used to buffer data, or null, to utilize solely the return queue.
-     * @param segmentSize The size of the memory segments.
+     * @param segmentSize The size of the memory segments.   一开始设定了每个块的大小
      */
     public ChannelWriterOutputView(
             BlockChannelWriter<MemorySegment> writer, List<MemorySegment> memory, int segmentSize) {
@@ -187,23 +195,43 @@ public final class ChannelWriterOutputView extends AbstractPagedOutputView {
     //                                      Page Management
     // --------------------------------------------------------------------------------------------
 
+
+    /**
+     * 切换到一个空的内存块
+     * @param current The current memory segment
+     * @param posInSegment
+     * @return
+     * @throws IOException
+     */
     protected final MemorySegment nextSegment(MemorySegment current, int posInSegment)
             throws IOException {
+        // 为当前内存块补充头部信息
         if (current != null) {
             writeSegment(current, posInSegment, false);
         }
 
+        // 第一次调用 此时current为null   得到第一个数据块
         final MemorySegment next = this.writer.getNextReturnedBlock();
         this.blockCount++;
         return next;
     }
 
+    /**
+     *
+     * @param segment   这个数据块是要被writer使用的
+     * @param writePosition  这个是当前写入的偏移量
+     * @param lastSegment
+     * @throws IOException
+     */
     private void writeSegment(MemorySegment segment, int writePosition, boolean lastSegment)
             throws IOException {
+
+        // 因为一开始8字节是空出来的  现在可以写入
         segment.putShort(0, HEADER_MAGIC_NUMBER);
         segment.putShort(HEADER_FLAGS_OFFSET, lastSegment ? FLAG_LAST_BLOCK : 0);
         segment.putInt(HEAD_BLOCK_LENGTH_OFFSET, writePosition);
 
+        // 然后通过writer对象写到底层的channel
         this.writer.writeBlock(segment);
         this.bytesBeforeSegment += writePosition - HEADER_LENGTH;
     }

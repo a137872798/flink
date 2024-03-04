@@ -18,5 +18,7 @@
 
 package org.apache.flink.runtime.state;
 
-/** A {@link KeyedStateHandle} that points to a savepoint taken in the unified format. */
+/** A {@link KeyedStateHandle} that points to a savepoint taken in the unified format.
+ * savepoint使用不同的格式保存
+ * */
 public interface SavepointKeyedStateHandle extends KeyedStateHandle {}

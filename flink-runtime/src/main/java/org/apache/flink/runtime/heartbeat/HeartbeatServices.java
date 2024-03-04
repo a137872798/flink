@@ -28,6 +28,7 @@ import org.slf4j.Logger;
 /**
  * HeartbeatServices gives access to all services needed for heartbeating. This includes the
  * creation of heartbeat receivers and heartbeat senders.
+ * 表示心跳服务
  */
 public interface HeartbeatServices {
 

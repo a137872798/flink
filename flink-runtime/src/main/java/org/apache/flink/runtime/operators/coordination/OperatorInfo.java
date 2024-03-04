@@ -23,11 +23,21 @@ import org.apache.flink.runtime.jobgraph.OperatorID;
 import java.util.Collection;
 import java.util.stream.Collectors;
 
-/** An interface to access basic properties of an operator in the context of its coordinator. */
+/** An interface to access basic properties of an operator in the context of its coordinator.
+ * 描述操作信息
+ * */
 public interface OperatorInfo {
 
+    /**
+     * 每个操作 或者说算子  有一个id
+     * @return
+     */
     OperatorID operatorId();
 
+    /**
+     * 该算子允许的最大并行数  也是子任务数量
+     * @return
+     */
     int maxParallelism();
 
     int currentParallelism();

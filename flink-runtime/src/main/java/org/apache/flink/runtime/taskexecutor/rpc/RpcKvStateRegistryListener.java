@@ -31,7 +31,14 @@ import java.net.InetSocketAddress;
 /** {@link KvStateRegistryListener} implementation for the new RPC service. */
 public class RpcKvStateRegistryListener implements KvStateRegistryListener {
 
+    /**
+     * 实际上也是通过rpc访问 JM
+     */
     private final KvStateRegistryGateway kvStateRegistryGateway;
+
+    /**
+     * 存储KvState数据的节点
+     */
     private final InetSocketAddress kvStateServerAddress;
 
     public RpcKvStateRegistryListener(

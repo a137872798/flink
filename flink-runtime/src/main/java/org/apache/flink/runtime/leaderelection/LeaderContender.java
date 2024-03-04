@@ -23,6 +23,7 @@ import java.util.UUID;
 /**
  * Interface which has to be implemented to take part in the leader election process of the {@link
  * LeaderElectionService}.
+ * 表示一个可以成为leader的竞争者
  */
 public interface LeaderContender {
 
@@ -31,6 +32,7 @@ public interface LeaderContender {
      * instance as the new leader. The method is called with the new leader session ID.
      *
      * @param leaderSessionID New leader session ID
+     *                        本对象此时成为leader
      */
     void grantLeadership(UUID leaderSessionID);
 
@@ -38,6 +40,7 @@ public interface LeaderContender {
      * Callback method which is called by the {@link LeaderElectionService} upon revoking the
      * leadership of a former leader. This might happen in case that multiple contenders have been
      * granted leadership.
+     * 表示此时不再是leader
      */
     void revokeLeadership();
 
@@ -46,6 +49,7 @@ public interface LeaderContender {
      * service thread.
      *
      * @param exception Caught exception
+     *                  处理异常
      */
     void handleError(Exception exception);
 }

@@ -23,7 +23,9 @@ import org.apache.flink.runtime.io.network.partition.hybrid.tiered.tier.TierMast
 
 import java.util.List;
 
-/** Client of the Tiered Storage used by the master. */
+/** Client of the Tiered Storage used by the master.
+ * 通过一组agent来初始化
+ * */
 public class TieredStorageMasterClient {
 
     private final List<TierMasterAgent> tiers;
@@ -31,6 +33,8 @@ public class TieredStorageMasterClient {
     public TieredStorageMasterClient(List<TierMasterAgent> tiers) {
         this.tiers = tiers;
     }
+
+    // 下面的api作用到每个分区上
 
     public void addPartition(TieredStoragePartitionId partitionId) {
         tiers.forEach(tierMasterAgent -> tierMasterAgent.addPartition(partitionId));

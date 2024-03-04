@@ -23,6 +23,7 @@ import java.util.concurrent.CompletableFuture;
  * Abstracts the notification of the availability futures of {@link InputGate}s.
  *
  * <p>Should be created and closed outside of the lock.
+ * 监控gate是否可用
  */
 class GateNotificationHelper implements AutoCloseable {
     private final InputGate inputGate;
@@ -36,6 +37,9 @@ class GateNotificationHelper implements AutoCloseable {
         this.availabilityMonitor = availabilityMonitor;
     }
 
+    /**
+     * 在关闭时会唤醒阻塞线程
+     */
     @Override
     public void close() {
         if (toNotifyPriority != null) {

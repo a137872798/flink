@@ -25,10 +25,13 @@ import javax.annotation.Nullable;
 /**
  * Base for the handles of the checkpointed states in keyed streams. When recovering from failures,
  * the handle will be passed to all tasks whose key group ranges overlap with it.
+ *
  */
 public interface KeyedStateHandle extends CompositeStateHandle {
 
-    /** Returns the range of the key groups contained in the state. */
+    /** Returns the range of the key groups contained in the state.
+     * 表示一个范围 内部每个元素都是一个数字
+     * */
     KeyGroupRange getKeyGroupRange();
 
     /**
@@ -37,6 +40,7 @@ public interface KeyedStateHandle extends CompositeStateHandle {
      *
      * @param keyGroupRange The key group range to intersect with, will return null if the
      *     intersection of this handle's key-group and the provided key-group is empty.
+     *                      使用交集的keyGroup产生新的KeyedStateHandle
      */
     @Nullable
     KeyedStateHandle getIntersection(KeyGroupRange keyGroupRange);
@@ -49,6 +53,7 @@ public interface KeyedStateHandle extends CompositeStateHandle {
      * checkpoint and deserialize it back to ensure the state handle id is constant.
      *
      * @return A unique state handle id.
+     * 获取id
      */
     StateHandleID getStateHandleId();
 }

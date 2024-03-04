@@ -22,10 +22,15 @@ package org.apache.flink.runtime.scheduler.slowtaskdetector;
 import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
 import org.apache.flink.runtime.executiongraph.ExecutionGraph;
 
-/** Component responsible for detecting slow tasks. */
+/** Component responsible for detecting slow tasks.
+ * 该对象可以检测慢任务
+ * */
 public interface SlowTaskDetector {
 
-    /** Start detecting slow tasks periodically. */
+    /**
+     * Start detecting slow tasks periodically.
+     * @param listener 当发现慢任务时 会进行通知
+     * */
     void start(
             ExecutionGraph executionGraph,
             SlowTaskDetectorListener listener,

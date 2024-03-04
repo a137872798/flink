@@ -29,11 +29,18 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
  * Default implementation of {@link LogicalResult}. It is an adapter of {@link IntermediateDataSet}.
+ * 作为result 可以获取结果类型 并且提供对应的生产数据
  */
 public class DefaultLogicalResult implements LogicalResult {
 
+    /**
+     * 中间结果集 存储了数据
+     */
     private final IntermediateDataSet intermediateDataSet;
 
+    /**
+     * 传入顶点id   返回顶点对象
+     */
     private final Function<JobVertexID, DefaultLogicalVertex> vertexRetriever;
 
     DefaultLogicalResult(
@@ -43,6 +50,8 @@ public class DefaultLogicalResult implements LogicalResult {
         this.intermediateDataSet = checkNotNull(intermediateDataSet);
         this.vertexRetriever = checkNotNull(vertexRetriever);
     }
+
+    // 可以发现相关数据其实都存储与 中间结果集对象
 
     @Override
     public IntermediateDataSetID getId() {

@@ -35,7 +35,8 @@ import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Optional;
 
-/** Service used by the {@link JobMaster} to manage a slot pool. */
+/** Service used by the {@link JobMaster} to manage a slot pool.
+ * */
 public interface SlotPoolService extends AutoCloseable {
 
     /**
@@ -59,8 +60,9 @@ public interface SlotPoolService extends AutoCloseable {
      *
      * @param jobMasterId jobMasterId to start the service with
      * @param address address of the owner
-     * @param mainThreadExecutor mainThreadExecutor to run actions in the main thread
+     * @param mainThreadExecutor mainThreadExecutor to run actions in the main thread  可以简单看作一个线程池
      * @throws Exception if the service cannot be started
+     * 启动池化对象
      */
     void start(
             JobMasterId jobMasterId, String address, ComponentMainThreadExecutor mainThreadExecutor)
@@ -78,6 +80,7 @@ public interface SlotPoolService extends AutoCloseable {
      * @param offers slot offers which are offered to the {@link SlotPoolService}
      * @return A collection of accepted slot offers. The remaining slot offers are implicitly
      *     rejected.
+     *     往池化对象中追加一些slot
      */
     Collection<SlotOffer> offerSlots(
             TaskManagerLocation taskManagerLocation,
@@ -92,6 +95,7 @@ public interface SlotPoolService extends AutoCloseable {
      * @param allocationId allocationId identifies which allocation to fail
      * @param cause cause why the allocation failed
      * @return Optional task executor if it has no more slots registered
+     * 表示某个 slot 分配失败了   allocationId 能够对应到一个 slot
      */
     Optional<ResourceID> failAllocation(
             @Nullable ResourceID taskManagerId, AllocationID allocationId, Exception cause);
@@ -99,7 +103,7 @@ public interface SlotPoolService extends AutoCloseable {
     /**
      * Registers a TaskExecutor with the given {@link ResourceID} at {@link SlotPoolService}.
      *
-     * @param taskManagerId identifying the TaskExecutor to register
+     * @param taskManagerId identifying the TaskExecutor to register  资源id 用于标识一个 TaskManager
      * @return true iff a new resource id was registered
      */
     boolean registerTaskManager(ResourceID taskManagerId);
@@ -126,6 +130,7 @@ public interface SlotPoolService extends AutoCloseable {
      * will be able to request resources from the given ResourceManager.
      *
      * @param resourceManagerGateway The RPC gateway for the resource manager.
+     *                               将池连接到资源管理器
      */
     void connectToResourceManager(ResourceManagerGateway resourceManagerGateway);
 
@@ -135,6 +140,7 @@ public interface SlotPoolService extends AutoCloseable {
      * requests to the resource manager will be canceled.
      *
      * <p>The slot pool will still be able to serve slots from its internal pool.
+     * 断开与资源管理器的连接
      */
     void disconnectResourceManager();
 
@@ -143,6 +149,7 @@ public interface SlotPoolService extends AutoCloseable {
      *
      * @param taskManagerId identifies the task manager
      * @return the allocated slots on the task manager
+     * 产生一个报告对象
      */
     AllocatedSlotReport createAllocatedSlotReport(ResourceID taskManagerId);
 
@@ -150,6 +157,7 @@ public interface SlotPoolService extends AutoCloseable {
      * Notifies that not enough resources are available to fulfill the resource requirements.
      *
      * @param acquiredResources the resources that have been acquired
+     *                          通知当前没有足够的资源
      */
     default void notifyNotEnoughResourcesAvailable(
             Collection<ResourceRequirement> acquiredResources) {}

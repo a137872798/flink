@@ -18,5 +18,7 @@
 
 package org.apache.flink.runtime.topology;
 
-/** ID of a {@link Result}. */
+/** ID of a {@link Result}.
+ * 表示一个结果的标识符
+ * */
 public interface ResultID extends java.io.Serializable {}

@@ -21,7 +21,9 @@ package org.apache.flink.runtime.io.network.partition.hybrid.tiered.netty;
 import java.util.Objects;
 import java.util.Random;
 
-/** {@link NettyConnectionId} indicates the unique id of netty connection. */
+/** {@link NettyConnectionId} indicates the unique id of netty connection.
+ * 标记netty的一条连接 分为上下2部分
+ * */
 public class NettyConnectionId {
 
     private static final Random RANDOM_SEED = new Random();

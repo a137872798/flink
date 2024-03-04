@@ -56,6 +56,7 @@ import static org.apache.flink.runtime.checkpoint.InflightDataRescalingDescripto
  *
  * <p>This class should be called TaskState once the old class with this name that we keep for
  * backwards compatibility goes away.
+ * 表示某个task 在某个时刻的状态快照
  */
 public class TaskStateSnapshot implements CompositeStateHandle {
 
@@ -64,7 +65,9 @@ public class TaskStateSnapshot implements CompositeStateHandle {
     public static final TaskStateSnapshot FINISHED_ON_RESTORE =
             new TaskStateSnapshot(new HashMap<>(), true, true);
 
-    /** Mapping from an operator id to the state of one subtask of this operator. */
+    /** Mapping from an operator id to the state of one subtask of this operator.
+     * 每个OperatorSubtaskState 内部都是该subtask相关的各种state  以及还有关于input/output的重映射对象
+     * */
     private final Map<OperatorID, OperatorSubtaskState> subtaskStatesByOperatorID;
 
     private final boolean isTaskDeployedAsFinished;
@@ -102,7 +105,9 @@ public class TaskStateSnapshot implements CompositeStateHandle {
         return isTaskFinished;
     }
 
-    /** Returns the subtask state for the given operator id (or null if not contained). */
+    /** Returns the subtask state for the given operator id (or null if not contained).
+     * 通过operatorId 找到子任务状态
+     * */
     @Nullable
     public OperatorSubtaskState getSubtaskStateByOperatorID(OperatorID operatorID) {
         return subtaskStatesByOperatorID.get(operatorID);
@@ -183,6 +188,11 @@ public class TaskStateSnapshot implements CompositeStateHandle {
         return size;
     }
 
+    /**
+     * 将所有状态作为共享状态注册到 SharedStateRegistry 上
+     * @param stateRegistry The registry where shared states are registered.
+     * @param checkpointID
+     */
     @Override
     public void registerSharedStates(SharedStateRegistry stateRegistry, long checkpointID) {
         for (OperatorSubtaskState operatorSubtaskState : subtaskStatesByOperatorID.values()) {

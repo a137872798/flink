@@ -24,13 +24,17 @@ import org.apache.flink.runtime.jobmaster.SlotInfo;
 import java.util.Collection;
 import java.util.Set;
 
-/** Track all free slots, support bookkeeping slot for {@link SlotSelectionStrategy}. */
+/** Track all free slots, support bookkeeping slot for {@link SlotSelectionStrategy}.
+ * 通过该对象跟踪所有的slot
+ * */
 public interface FreeSlotInfoTracker {
 
     /**
      * Get allocation id of all available slots.
      *
      * @return allocation id of available slots
+     * 获取所有可用的槽
+     * 每个AllocationID 标识一个槽
      */
     Set<AllocationID> getAvailableSlots();
 
@@ -39,6 +43,7 @@ public interface FreeSlotInfoTracker {
      *
      * @param allocationId to get SlotInfo
      * @return slot info for the allocation id
+     * 通过id查询某个槽的信息
      */
     SlotInfo getSlotInfo(AllocationID allocationId);
 
@@ -48,6 +53,7 @@ public interface FreeSlotInfoTracker {
      *
      * @return a list of {@link AllocatedSlotPool.FreeSlotInfo} objects about all slots with slot
      *     idle since that are currently available in the slot pool.
+     *     获取所有空闲的slot
      */
     Collection<AllocatedSlotPool.FreeSlotInfo> getFreeSlotsWithIdleSinceInformation();
 
@@ -57,6 +63,7 @@ public interface FreeSlotInfoTracker {
      *
      * @return a list of {@link SlotInfo} objects about all slots that are currently available in
      *     the slot pool.
+     *     获取所有空闲的slot
      */
     Collection<SlotInfo> getFreeSlotsInformation();
 
@@ -72,6 +79,7 @@ public interface FreeSlotInfoTracker {
      * Reserve free slot when it is used.
      *
      * @param allocationId to reserve
+     *                     表示要占用这个slot
      */
     void reserveSlot(AllocationID allocationId);
 
@@ -80,6 +88,7 @@ public interface FreeSlotInfoTracker {
      *
      * @param blockedSlots slots that should not be used
      * @return the new free slot tracker
+     * 创建一个新的追踪对象 且不包含这些slot
      */
     FreeSlotInfoTracker createNewFreeSlotInfoTrackerWithoutBlockedSlots(
             Set<AllocationID> blockedSlots);

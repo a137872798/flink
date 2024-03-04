@@ -21,11 +21,16 @@ import org.apache.flink.runtime.taskexecutor.partition.ClusterPartitionReport;
 
 import java.io.Serializable;
 
-/** Payload for heartbeats sent from the TaskExecutor to the ResourceManager. */
+/** Payload for heartbeats sent from the TaskExecutor to the ResourceManager.
+ * 表示TE 发送心跳包
+ * */
 public class TaskExecutorHeartbeatPayload implements Serializable {
 
     private static final long serialVersionUID = -4556838854992435612L;
 
+    /**
+     * 将拥有的slot信息生成报告后发出
+     */
     private final SlotReport slotReport;
     private final ClusterPartitionReport clusterPartitionReport;
 

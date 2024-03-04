@@ -25,6 +25,7 @@ import java.util.List;
 /**
  * Interface that allows to implement different strategies for repartitioning of operator state as
  * parallelism changes.
+ * 由于并行度的变化 将原本的子任务重新分区
  */
 @Internal
 public interface OperatorStateRepartitioner<T> {

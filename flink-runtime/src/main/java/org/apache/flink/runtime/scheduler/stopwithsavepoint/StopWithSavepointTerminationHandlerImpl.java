@@ -49,18 +49,29 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * terminate.
  *
  * @see StopWithSavepointTerminationManager
+ * 表示处理为了保存点而停止的情况
  */
 public class StopWithSavepointTerminationHandlerImpl
         implements StopWithSavepointTerminationHandler {
 
     private final Logger log;
 
+    /**
+     * 这是调度对象
+     */
     private final SchedulerNG scheduler;
+
+    /**
+     * 是否该对象可以开关检查点
+     */
     private final CheckpointScheduling checkpointScheduling;
     private final JobID jobId;
 
     private final CompletableFuture<String> result = new CompletableFuture<>();
 
+    /**
+     * 表示本次状态 根据不同情况会转变
+     */
     private State state = new WaitingForSavepoint();
 
     public <S extends SchedulerNG & CheckpointScheduling> StopWithSavepointTerminationHandlerImpl(
@@ -85,6 +96,11 @@ public class StopWithSavepointTerminationHandlerImpl
         return result;
     }
 
+    /**
+     * 表示检查点创建完了
+     * @param completedSavepoint the {@code CompletedCheckpoint} referring to the created savepoint
+     * @param throwable an error that was caught during savepoint creation
+     */
     @Override
     public void handleSavepointCreation(
             CompletedCheckpoint completedSavepoint, Throwable throwable) {
@@ -100,6 +116,7 @@ public class StopWithSavepointTerminationHandlerImpl
 
     @Override
     public void handleExecutionsTermination(Collection<ExecutionState> terminatedExecutionStates) {
+        // 找到不属于finish状态的子任务
         final Set<ExecutionState> notFinishedExecutionStates =
                 checkNotNull(terminatedExecutionStates).stream()
                         .filter(state -> state != ExecutionState.FINISHED)
@@ -112,6 +129,10 @@ public class StopWithSavepointTerminationHandlerImpl
         }
     }
 
+    /**
+     * 保存点创建成功
+     * @param completedCheckpoint
+     */
     private void handleSavepointCreationSuccess(CompletedCheckpoint completedCheckpoint) {
         final State oldState = state;
         state = state.onSavepointCreation(completedCheckpoint);
@@ -123,8 +144,13 @@ public class StopWithSavepointTerminationHandlerImpl
                 jobId);
     }
 
+    /**
+     * 保存点创建失败
+     * @param throwable
+     */
     private void handleSavepointCreationFailure(Throwable throwable) {
         final State oldState = state;
+        // 转换状态
         state = state.onSavepointCreationFailure(throwable);
 
         log.debug(
@@ -134,6 +160,9 @@ public class StopWithSavepointTerminationHandlerImpl
                 jobId);
     }
 
+    /**
+     * 表示所有execution都执行完了
+     */
     private void handleExecutionsFinished() {
         final State oldState = state;
         state = state.onExecutionsFinished();
@@ -145,6 +174,10 @@ public class StopWithSavepointTerminationHandlerImpl
                 jobId);
     }
 
+    /**
+     * 某些execution未完成
+     * @param notFinishedExecutionStates
+     */
     private void handleAnyExecutionNotFinished(Set<ExecutionState> notFinishedExecutionStates) {
         final State oldState = state;
         state = state.onAnyExecutionNotFinished(notFinishedExecutionStates);
@@ -175,8 +208,10 @@ public class StopWithSavepointTerminationHandlerImpl
                 StringUtils.join(unfinishedExecutionStates, ", "),
                 inconsistentFinalStateException);
 
+        // 让调度器处理异常
         scheduler.handleGlobalFailure(inconsistentFinalStateException);
 
+        // 设置异常
         result.completeExceptionally(inconsistentFinalStateException);
     }
 
@@ -188,6 +223,7 @@ public class StopWithSavepointTerminationHandlerImpl
      * @param throwable the error that caused the exceptional termination.
      */
     private void terminateExceptionally(Throwable throwable) {
+        // 处理异常 保存点生成失败 但是检查点要重新开始
         checkpointScheduling.startCheckpointScheduler();
         result.completeExceptionally(throwable);
     }
@@ -196,11 +232,15 @@ public class StopWithSavepointTerminationHandlerImpl
      * Handles the successful termination of the {@code StopWithSavepointTerminationHandler}.
      *
      * @param completedSavepoint the completed savepoint
+     *                           设置结果
      */
     private void terminateSuccessfully(CompletedCheckpoint completedSavepoint) {
         result.complete(completedSavepoint.getExternalPointer());
     }
 
+    /**
+     * 这是初始状态
+     */
     private final class WaitingForSavepoint implements State {
 
         @Override
@@ -215,6 +255,9 @@ public class StopWithSavepointTerminationHandlerImpl
         }
     }
 
+    /**
+     * 表示保存点创建完成
+     */
     private final class SavepointCreated implements State {
 
         private final CompletedCheckpoint completedSavepoint;
@@ -252,6 +295,9 @@ public class StopWithSavepointTerminationHandlerImpl
         }
     }
 
+    /**
+     * 对应保存点可能出现的各种状态
+     */
     private interface State {
 
         default State onSavepointCreation(CompletedCheckpoint completedSavepoint) {

@@ -31,35 +31,51 @@ import java.io.Serializable;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Partition descriptor for {@link ShuffleMaster} to obtain {@link ShuffleDescriptor}. */
+/** Partition descriptor for {@link ShuffleMaster} to obtain {@link ShuffleDescriptor}.
+ * 在洗牌中使用的有关分区的描述信息
+ * 被产生的分区信息
+ * */
 public class PartitionDescriptor implements Serializable {
 
     private static final long serialVersionUID = 6343547936086963705L;
 
-    /** The ID of the result this partition belongs to. */
+    /** The ID of the result this partition belongs to.
+     * 本次关联的结果集
+     * */
     private final IntermediateDataSetID resultId;
 
-    /** The total number of partitions for the result. */
+    /** The total number of partitions for the result.
+     * 该数据集总共分散到多少个分区
+     * */
     private final int totalNumberOfPartitions;
 
-    /** The ID of the partition. */
+    /** The ID of the partition.
+     * 被分散的该分区的id
+     * */
     private final IntermediateResultPartitionID partitionId;
 
-    /** The type of the partition. */
+    /** The type of the partition.
+     * 数据集结果类型
+     * */
     private final ResultPartitionType partitionType;
 
-    /** The number of subpartitions. */
+    /** The number of subpartitions.
+     * 每个分区下面还有子分区
+     * */
     private final int numberOfSubpartitions;
 
     /** Connection index to identify this partition of intermediate result. */
     private final int connectionIndex;
 
-    /** Whether the intermediate result is a broadcast result. */
+    /** Whether the intermediate result is a broadcast result.
+     * 表示该结果集是否是一个广播数据
+     * */
     private final boolean isBroadcast;
 
     /**
      * Whether the distribution pattern of the intermediate result is {@link
      * DistributionPattern.ALL_TO_ALL}.
+     * allToAll的话 所有子分区相同的数据会被下游的同一个消费者处理 (对应的是点态 它会将各分区子分区数据完全打散)
      */
     private final boolean isAllToAllDistribution;
 

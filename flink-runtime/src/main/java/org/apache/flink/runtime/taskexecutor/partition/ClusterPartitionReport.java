@@ -32,6 +32,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * A report about the current status of all cluster partitions of the TaskExecutor, describing which
  * partitions are available.
+ * 表示集群分区报告
  */
 public class ClusterPartitionReport implements Serializable {
 
@@ -52,13 +53,25 @@ public class ClusterPartitionReport implements Serializable {
         return "PartitionReport{" + "entries=" + entries + '}';
     }
 
-    /** An entry describing all partitions belonging to one dataset. */
+    /** An entry describing all partitions belonging to one dataset.
+     * 描述集群中某个分区的报告数据
+     * */
     public static class ClusterPartitionReportEntry implements Serializable {
 
         private static final long serialVersionUID = -666517548300250601L;
 
+        /**
+         * 产生的一个数据集id
+         */
         private final IntermediateDataSetID dataSetId;
+
+        /**
+         * 数据集下有多个分区
+         */
         private final Map<ResultPartitionID, ShuffleDescriptor> shuffleDescriptors;
+        /**
+         * 该数据集分为多少分区
+         */
         private final int numTotalPartitions;
 
         public ClusterPartitionReportEntry(

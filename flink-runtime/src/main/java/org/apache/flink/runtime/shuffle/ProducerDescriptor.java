@@ -33,21 +33,30 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * <p>The producer descriptor contains general producer specific information relevant for the
  * shuffle service: the producer location as {@link ResourceID}, {@link ExecutionAttemptID} and the
  * network connection information for shuffle data exchange (address and port).
+ *
+ * 描述产生数据集的任务信息
  */
 public class ProducerDescriptor {
-    /** The resource ID to identify the container where the producer execution is deployed. */
+    /** The resource ID to identify the container where the producer execution is deployed.
+     * 该任务被部署的位置  producerLocation 对应TM的位置
+     * */
     private final ResourceID producerLocation;
 
-    /** The ID of the producer execution attempt. */
+    /** The ID of the producer execution attempt.
+     * 能够对标到某个subtask
+     * */
     private final ExecutionAttemptID producerExecutionId;
 
-    /** The address to connect to the producer. */
+    /** The address to connect to the producer.
+     * TM的地址
+     * */
     private final InetAddress address;
 
     /**
      * The port to connect to the producer for shuffle exchange.
      *
      * <p>Negative value means local execution.
+     * 端口
      */
     private final int dataPort;
 

@@ -63,6 +63,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * existence of a directory. S3 sometimes limits the number of HTTP HEAD requests to a few hundred
  * per second only. Those numbers are easily reached by moderately large setups. Surprisingly (and
  * fortunately), the actual state writing (POST) have much higher quotas.
+ *
+ * 基于文件系统
  */
 public class FsCheckpointStreamFactory implements CheckpointStreamFactory {
 
@@ -86,6 +88,8 @@ public class FsCheckpointStreamFactory implements CheckpointStreamFactory {
     /** Cached handle to the file system for file operations. */
     private final FileSystem filesystem;
 
+    // 提供拷贝数据的api
+
     private final FsCheckpointStateToolset privateStateToolset;
 
     private final FsCheckpointStateToolset sharedStateToolset;
@@ -107,8 +111,8 @@ public class FsCheckpointStreamFactory implements CheckpointStreamFactory {
      */
     public FsCheckpointStreamFactory(
             FileSystem fileSystem,
-            Path checkpointDirectory,
-            Path sharedStateDirectory,
+            Path checkpointDirectory,  // 独占目录
+            Path sharedStateDirectory,  // 共享目录
             int fileStateSizeThreshold,
             int writeBufferSize) {
 
@@ -132,6 +136,8 @@ public class FsCheckpointStreamFactory implements CheckpointStreamFactory {
         this.sharedStateDirectory = checkNotNull(sharedStateDirectory);
         this.fileStateThreshold = fileStateSizeThreshold;
         this.writeBufferSize = writeBufferSize;
+
+        // 如果是需要拷贝的文件系统
         if (fileSystem instanceof DuplicatingFileSystem) {
             final DuplicatingFileSystem duplicatingFileSystem = (DuplicatingFileSystem) fileSystem;
             this.privateStateToolset =
@@ -146,6 +152,12 @@ public class FsCheckpointStreamFactory implements CheckpointStreamFactory {
 
     // ------------------------------------------------------------------------
 
+    /**
+     * scope 也是服务于检索目录
+     * @param scope The state's scope, whether it is exclusive or shared.
+     * @return
+     * @throws IOException
+     */
     @Override
     public FsCheckpointStateOutputStream createCheckpointStateOutputStream(
             CheckpointedStateScope scope) throws IOException {
@@ -159,6 +171,11 @@ public class FsCheckpointStreamFactory implements CheckpointStreamFactory {
                 target, filesystem, bufferSize, fileStateThreshold, !absolutePath);
     }
 
+    /**
+     * 根据范围类型 定位到不同的目录
+     * @param scope
+     * @return
+     */
     private Path getTargetPath(CheckpointedStateScope scope) {
         return scope == CheckpointedStateScope.EXCLUSIVE
                 ? checkpointDirectory
@@ -214,9 +231,14 @@ public class FsCheckpointStreamFactory implements CheckpointStreamFactory {
     /**
      * A {@link CheckpointStateOutputStream} that writes into a file and returns a {@link
      * StreamStateHandle} upon closing.
+     *
+     * 这个就是产生的输出流对象
      */
     public static class FsCheckpointStateOutputStream extends CheckpointStateOutputStream {
 
+        /**
+         * 缓冲区
+         */
         private final byte[] writeBuffer;
 
         private int pos;
@@ -262,6 +284,7 @@ public class FsCheckpointStreamFactory implements CheckpointStreamFactory {
 
         @Override
         public void write(int b) throws IOException {
+            // 将缓冲区的写入文件
             if (pos >= writeBuffer.length) {
                 flushToFile();
             }
@@ -438,6 +461,7 @@ public class FsCheckpointStreamFactory implements CheckpointStreamFactory {
         }
 
         private Path createStatePath() {
+            // 文件名是一个 uuid
             final String fileName = UUID.randomUUID().toString();
             relativeStatePath = fileName;
             return new Path(basePath, fileName);

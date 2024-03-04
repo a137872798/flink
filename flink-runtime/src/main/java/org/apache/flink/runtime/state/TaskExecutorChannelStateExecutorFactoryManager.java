@@ -36,6 +36,8 @@ import java.util.Map;
 /**
  * This class holds the all {@link ChannelStateWriteRequestExecutorFactory} objects for a task
  * executor (manager).
+ * 该对象管理所有的job
+ * 简单看就是个map对象
  */
 @ThreadSafe
 public class TaskExecutorChannelStateExecutorFactoryManager {
@@ -46,6 +48,10 @@ public class TaskExecutorChannelStateExecutorFactoryManager {
 
     private final Object lock = new Object();
 
+    /**
+     * 维护所有要处理的job
+     * ChannelStateWriteRequestExecutorFactory 用于产生处理job的执行器
+     */
     @GuardedBy("lock")
     private final Map<JobID, ChannelStateWriteRequestExecutorFactory> executorFactoryByJobId;
 

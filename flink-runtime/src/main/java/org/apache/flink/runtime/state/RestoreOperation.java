@@ -22,6 +22,7 @@ package org.apache.flink.runtime.state;
  * Interface for restore operation.
  *
  * @param <R> Generic type of the restore result.
+ *           表示发起一个恢复操作
  */
 public interface RestoreOperation<R> {
     /** Restores state that was previously snapshot-ed from the provided state handles. */

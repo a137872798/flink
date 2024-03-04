@@ -34,6 +34,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * multiplier) until maximum delay is reached.
  *
  * <p>If the tasks are running smoothly for some time, backoff is reset to its initial value.
+ * 根据错误信息判断适合多久后重启  或者不支持恢复
  */
 public class ExponentialDelayRestartBackoffTimeStrategy implements RestartBackoffTimeStrategy {
 
@@ -87,6 +88,10 @@ public class ExponentialDelayRestartBackoffTimeStrategy implements RestartBackof
         this.strategyString = generateStrategyString();
     }
 
+    /**
+     * 总是认为任务是可以重启的
+     * @return
+     */
     @Override
     public boolean canRestart() {
         return true;
@@ -94,16 +99,22 @@ public class ExponentialDelayRestartBackoffTimeStrategy implements RestartBackof
 
     @Override
     public long getBackoffTime() {
+        // 使用一个抖动时间进行修正
         long backoffWithJitter = currentBackoffMS + calculateJitterBackoffMS();
         return Math.min(backoffWithJitter, maxBackoffMS);
     }
 
+    /**
+     * 通知产生了一个错误
+     * @param cause of the task failure
+     */
     @Override
     public void notifyFailure(Throwable cause) {
         long now = clock.absoluteTimeMillis();
         if ((now - lastFailureTimestamp) >= (resetBackoffThresholdMS + currentBackoffMS)) {
             setInitialBackoff();
         } else {
+            // 表示异常产生的太频繁   要增加延迟
             increaseBackoff();
         }
         lastFailureTimestamp = now;
@@ -132,6 +143,7 @@ public class ExponentialDelayRestartBackoffTimeStrategy implements RestartBackof
      * <p>F.e. for backoff time 8 with jitter 0.25, it generates random number in range [-2, 2].
      *
      * @return random value in interval [-n, n], where n represents jitter * current backoff
+     * 计算抖动时间
      */
     private long calculateJitterBackoffMS() {
         if (jitterFactor == 0) {

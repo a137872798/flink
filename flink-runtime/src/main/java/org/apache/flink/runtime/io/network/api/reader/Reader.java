@@ -22,12 +22,23 @@ import org.apache.flink.core.io.IOReadableWritable;
 
 import java.io.IOException;
 
-/** A record-oriented reader for immutable record types. */
+/** A record-oriented reader for immutable record types.
+ * 这个接口有点像迭代器
+ * */
 public interface Reader<T extends IOReadableWritable> extends ReaderBase {
 
     boolean hasNext() throws IOException, InterruptedException;
 
+    /**
+     * 获取下个元素
+     * @return
+     * @throws IOException
+     * @throws InterruptedException
+     */
     T next() throws IOException, InterruptedException;
 
+    /**
+     * 清空buffer的数据
+     */
     void clearBuffers();
 }

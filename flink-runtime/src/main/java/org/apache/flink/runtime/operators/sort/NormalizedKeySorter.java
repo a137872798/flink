@@ -35,7 +35,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/** */
+/**
+ * 该对象也是存储数据  但是开放了一些排序需要使用的api  借助一些排序算法可以完成内存中排序
+ * 该排序对象仅存储keys数据  对应的是LargeRecordHandler
+ * */
 public final class NormalizedKeySorter<T> implements InMemorySorter<T> {
 
     private static final Logger LOG = LoggerFactory.getLogger(NormalizedKeySorter.class);
@@ -58,24 +61,42 @@ public final class NormalizedKeySorter<T> implements InMemorySorter<T> {
     //                               Members
     // ------------------------------------------------------------------------
 
+    /**
+     * 排序需要借助的临时容器
+     */
     private final byte[] swapBuffer;
 
     private final TypeSerializer<T> serializer;
 
     private final TypeComparator<T> comparator;
 
+    /**
+     * 内部包含一组segment 用于写入数据
+     */
     private final SimpleCollectingOutputView recordCollector;
 
+    /**
+     * 可以通过设定偏移量 做到随机读取数据
+     */
     private final RandomAccessInputView recordBuffer;
 
+    /**
+     * 用于比较的
+     */
     private final RandomAccessInputView recordBufferForComparison;
 
     private MemorySegment currentSortIndexSegment;
 
     private final ArrayList<MemorySegment> freeMemory;
 
+    /**
+     * 存储数据的容器
+     */
     private final ArrayList<MemorySegment> sortIndex;
 
+    /**
+     * 存储数据的段
+     */
     private final ArrayList<MemorySegment> recordBufferSegments;
 
     private long currentDataBufferOffset;
@@ -113,6 +134,13 @@ public final class NormalizedKeySorter<T> implements InMemorySorter<T> {
         this(serializer, comparator, memory, DEFAULT_MAX_NORMALIZED_KEY_LEN);
     }
 
+    /**
+     *
+     * @param serializer
+     * @param comparator
+     * @param memory   内存块用于保存数据
+     * @param maxNormalizedKeyBytes  表示key最多会占用多少字节
+     */
     public NormalizedKeySorter(
             TypeSerializer<T> serializer,
             TypeComparator<T> comparator,
@@ -134,6 +162,7 @@ public final class NormalizedKeySorter<T> implements InMemorySorter<T> {
         // size.
         // the size must also be a power of 2
         this.totalNumBuffers = memory.size();
+        // buffer数量 有个最小值  不能低于这个值
         if (this.totalNumBuffers < MIN_REQUIRED_BUFFERS) {
             throw new IllegalArgumentException(
                     "Normalized-Key sorter requires at least "
@@ -153,15 +182,19 @@ public final class NormalizedKeySorter<T> implements InMemorySorter<T> {
                         this.recordBufferSegments,
                         new ListMemorySegmentSource(this.freeMemory),
                         this.segmentSize);
+
+        // 这个视图 对应recordCollector的数据
         this.recordBuffer = new RandomAccessInputView(this.recordBufferSegments, this.segmentSize);
         this.recordBufferForComparison =
                 new RandomAccessInputView(this.recordBufferSegments, this.segmentSize);
 
         // set up normalized key characteristics
+        // 比较器支持标准化key
         if (this.comparator.supportsNormalizedKey()) {
             // compute the max normalized key length
             int numPartialKeys;
             try {
+                // 表示参与比较的key数量
                 numPartialKeys = this.comparator.getFlatComparators().length;
             } catch (Throwable t) {
                 numPartialKeys = 1;
@@ -259,6 +292,12 @@ public final class NormalizedKeySorter<T> implements InMemorySorter<T> {
     // Retrieving and Writing
     // -------------------------------------------------------------------------
 
+    /**
+     * 从指定偏移量开始读取数据  读取到的也应该是一个指针
+     * @param logicalPosition The logical position of the record.
+     * @return
+     * @throws IOException
+     */
     @Override
     public T getRecord(int logicalPosition) throws IOException {
         return getRecordFromBuffer(readPointer(logicalPosition));
@@ -277,10 +316,12 @@ public final class NormalizedKeySorter<T> implements InMemorySorter<T> {
      * @return True, if the record was successfully written, false, if the sort buffer was full.
      * @throws IOException Thrown, if an error occurred while serializing the record into the
      *     buffers.
+     *     写入一条新数据
      */
     @Override
     public boolean write(T record) throws IOException {
         // check whether we need a new memory segment for the sort index
+        // 表示当前segment写满了
         if (this.currentSortIndexOffset > this.lastIndexEntryOffset) {
             if (memoryAvailable()) {
                 this.currentSortIndexSegment = nextMemorySegment();
@@ -288,18 +329,23 @@ public final class NormalizedKeySorter<T> implements InMemorySorter<T> {
                 this.currentSortIndexOffset = 0;
                 this.sortIndexBytes += this.segmentSize;
             } else {
+                // 无内存可用
                 return false;
             }
         }
 
         // serialize the record into the data buffers
+        // 完整数据写入recordCollector sorter容器维护keys+offset
         try {
             this.serializer.serialize(record, this.recordCollector);
         } catch (EOFException e) {
             return false;
         }
 
+        // 找到offset
         final long newOffset = this.recordCollector.getCurrentOffset();
+
+        // 根据写入数据的大小 判断是否是大记录
         final boolean shortRecord =
                 newOffset - this.currentDataBufferOffset < LARGE_RECORD_THRESHOLD;
 
@@ -308,12 +354,14 @@ public final class NormalizedKeySorter<T> implements InMemorySorter<T> {
         }
 
         // add the pointer and the normalized key
+        // 如果是大记录 追加一个tag   先写偏移量 再写keys
         this.currentSortIndexSegment.putLong(
                 this.currentSortIndexOffset,
                 shortRecord
                         ? this.currentDataBufferOffset
                         : (this.currentDataBufferOffset | LARGE_RECORD_TAG));
 
+        // 表示key字段的长度
         if (this.numKeyBytes != 0) {
             this.comparator.putNormalizedKey(
                     record,
@@ -332,18 +380,31 @@ public final class NormalizedKeySorter<T> implements InMemorySorter<T> {
     //                           Access Utilities
     // ------------------------------------------------------------------------
 
+    /**
+     * 该位置应该是存储了一个指针
+     * @param logicalPosition  逻辑指针 每个值对应一个record 所以应当是不能超出的
+     * @return
+     */
     private long readPointer(int logicalPosition) {
         if (logicalPosition < 0 || logicalPosition >= this.numRecords) {
             throw new IndexOutOfBoundsException();
         }
 
+        // 找到段的位置
         final int bufferNum = logicalPosition / this.indexEntriesPerSegment;
         final int segmentOffset = logicalPosition % this.indexEntriesPerSegment;
 
         return (this.sortIndex.get(bufferNum).getLong(segmentOffset * this.indexEntrySize))
-                & POINTER_MASK;
+                & POINTER_MASK;  // 表示读取的时候 忽略 largeRecord标志
     }
 
+    /**
+     * 利用指针从recordBuffer中读取数据
+     * @param reuse
+     * @param pointer
+     * @return
+     * @throws IOException
+     */
     private T getRecordFromBuffer(T reuse, long pointer) throws IOException {
         this.recordBuffer.setReadPosition(pointer);
         return this.serializer.deserialize(reuse, this.recordBuffer);
@@ -354,6 +415,12 @@ public final class NormalizedKeySorter<T> implements InMemorySorter<T> {
         return this.serializer.deserialize(this.recordBuffer);
     }
 
+    /**
+     * 比较原始记录
+     * @param pointer1
+     * @param pointer2
+     * @return
+     */
     private int compareRecords(long pointer1, long pointer2) {
         this.recordBuffer.setReadPosition(pointer1);
         this.recordBufferForComparison.setReadPosition(pointer2);
@@ -406,6 +473,7 @@ public final class NormalizedKeySorter<T> implements InMemorySorter<T> {
             return this.useNormKeyUninverted ? val : -val;
         }
 
+        // keys相等的情况下  比较record
         final long pointerI = segI.getLong(segmentOffsetI) & POINTER_MASK;
         final long pointerJ = segJ.getLong(segmentOffsetJ) & POINTER_MASK;
 
@@ -443,6 +511,7 @@ public final class NormalizedKeySorter<T> implements InMemorySorter<T> {
      * Gets an iterator over all records in this buffer in their logical order.
      *
      * @return An iterator returning the records in their logical order.
+     * 将内部数据按照顺序迭代
      */
     @Override
     public final MutableObjectIterator<T> getIterator() {
@@ -459,16 +528,19 @@ public final class NormalizedKeySorter<T> implements InMemorySorter<T> {
             public T next(T target) {
                 if (this.current < this.size) {
                     this.current++;
+                    // 切换到下个segment
                     if (this.currentOffset > lastIndexEntryOffset) {
                         this.currentOffset = 0;
                         this.currentIndexSegment = sortIndex.get(++this.currentSegment);
                     }
 
+                    // 先获取指针
                     long pointer =
                             this.currentIndexSegment.getLong(this.currentOffset) & POINTER_MASK;
                     this.currentOffset += indexEntrySize;
 
                     try {
+                        // 利用指针读取record
                         return getRecordFromBuffer(target, pointer);
                     } catch (IOException ioe) {
                         throw new RuntimeException(ioe);
@@ -517,6 +589,12 @@ public final class NormalizedKeySorter<T> implements InMemorySorter<T> {
         writeToOutput(output, null);
     }
 
+    /**
+     * 将数据写入目标输出流
+     * @param output
+     * @param largeRecordsOutput
+     * @throws IOException
+     */
     @Override
     public void writeToOutput(
             ChannelWriterOutputView output, LargeRecordHandler<T> largeRecordsOutput)
@@ -546,6 +624,7 @@ public final class NormalizedKeySorter<T> implements InMemorySorter<T> {
                 // path
                 if (pointer >= 0 || largeRecordsOutput == null) {
                     this.recordBuffer.setReadPosition(pointer);
+                    // 拷贝一条记录
                     this.serializer.copy(this.recordBuffer, output);
                 } else {
 
@@ -555,6 +634,7 @@ public final class NormalizedKeySorter<T> implements InMemorySorter<T> {
 
                     this.recordBuffer.setReadPosition(pointer & POINTER_MASK);
                     T record = this.serializer.deserialize(this.recordBuffer);
+                    // 利用largeRecordsOutput 写入    在largeRecordsOutput内部 数据也会按照keys和record存储
                     largeRecordsOutput.addRecord(record);
                 }
             }
@@ -575,6 +655,7 @@ public final class NormalizedKeySorter<T> implements InMemorySorter<T> {
         int currentMemSeg = start / this.indexEntriesPerSegment;
         int offset = (start % this.indexEntriesPerSegment) * this.indexEntrySize;
 
+        // 通过num来限制读取的数据
         while (num > 0) {
             final MemorySegment currentIndexSegment = this.sortIndex.get(currentMemSeg++);
             // check whether we have a full or partially full segment
@@ -588,6 +669,7 @@ public final class NormalizedKeySorter<T> implements InMemorySorter<T> {
                 num -= this.indexEntriesPerSegment;
             } else {
                 // partially filled segment
+                // 表示非完整的segment
                 for (;
                         num > 0 && offset <= this.lastIndexEntryOffset;
                         num--, offset += this.indexEntrySize) {
@@ -596,6 +678,7 @@ public final class NormalizedKeySorter<T> implements InMemorySorter<T> {
                     this.serializer.copy(this.recordBuffer, output);
                 }
             }
+            // 到合理代表消费玩了部分的segment
             offset = 0;
         }
     }

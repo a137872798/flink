@@ -55,6 +55,11 @@ public class SortBasedDataBuffer extends SortBuffer {
                 customReadOrder);
     }
 
+    /**
+     * 读取数据
+     * @param transitBuffer
+     * @return
+     */
     @Override
     public BufferWithChannel getNextBuffer(MemorySegment transitBuffer) {
         checkState(isFinished, "Sort buffer is not ready to be read.");
@@ -84,6 +89,7 @@ public class SortBasedDataBuffer extends SortBuffer {
             bufferDataType = dataType;
 
             // get the next index entry address and move the read position forward
+            // 这是下个数据块的位置
             long nextReadIndexEntryAddress = sourceSegment.getLong(sourceSegmentOffset + 8);
             sourceSegmentOffset += INDEX_ENTRY_SIZE;
 
@@ -92,6 +98,7 @@ public class SortBasedDataBuffer extends SortBuffer {
                 transitBuffer = MemorySegmentFactory.allocateUnpooledSegment(length);
             }
 
+            // 拷贝数据
             numBytesCopied +=
                     copyRecordOrEvent(
                             transitBuffer,
@@ -100,6 +107,7 @@ public class SortBasedDataBuffer extends SortBuffer {
                             sourceSegmentOffset,
                             length);
 
+            // 表示还要拷贝多少数据
             if (recordRemainingBytes == 0) {
                 // move to next channel if the current channel has been finished
                 if (readIndexEntryAddress == lastIndexEntryAddresses[channelIndex]) {

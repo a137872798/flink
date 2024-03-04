@@ -30,6 +30,9 @@ import java.util.Objects;
  * Configuration settings for the {@link CheckpointCoordinator}. This includes the checkpoint
  * interval, the checkpoint timeout, the pause between checkpoints, the maximum number of concurrent
  * checkpoints and settings for externalized checkpoints.
+ *
+ * 有关检查点协调者的一些配置
+ * 检查点协调者应该就是控制各个子任务产生检查点的中控对象
  */
 public class CheckpointCoordinatorConfiguration implements Serializable {
 
@@ -40,17 +43,34 @@ public class CheckpointCoordinatorConfiguration implements Serializable {
 
     private static final long serialVersionUID = 2L;
 
+    /**
+     * 每多久触发一次检查点
+     */
     private final long checkpointInterval;
 
+    /**
+     * 单次检查点生成的超时时间
+     */
     private final long checkpointTimeout;
 
+    /**
+     * 2次检查点生成时间的间隔
+     */
     private final long minPauseBetweenCheckpoints;
 
+    /**
+     * 最多允许同时多少个检查点并发生成
+     */
     private final int maxConcurrentCheckpoints;
 
+    /**
+     * 容忍检查点失败的次数
+     */
     private final int tolerableCheckpointFailureNumber;
 
-    /** Settings for what to do with checkpoints when a job finishes. */
+    /** Settings for what to do with checkpoints when a job finishes.
+     * 有关检查点的保留策略
+     * */
     private final CheckpointRetentionPolicy checkpointRetentionPolicy;
 
     /**
@@ -58,15 +78,26 @@ public class CheckpointCoordinatorConfiguration implements Serializable {
      * </code>, at least once mode has been configured. This is not a necessary attribute, because
      * the checkpointing mode is only relevant for the stream tasks, but we expose it here to
      * forward it to the web runtime UI.
+     *
+     * 表示是否精确执行一次
      */
     private final boolean isExactlyOnce;
 
+    /**
+     * 是否允许使用非对齐的检查点
+     */
     private final boolean isUnalignedCheckpointsEnabled;
 
+    /**
+     * 对齐检查点的超时时间
+     */
     private final long alignedCheckpointTimeout;
 
     private final long checkpointIdOfIgnoredInFlightData;
 
+    /**
+     * 当任务结束后 是否还允许生成检查点
+     */
     private final boolean enableCheckpointsAfterTasksFinish;
 
     /** @deprecated use {@link #builder()}. */

@@ -50,6 +50,10 @@ import java.util.stream.StreamSupport;
  * @param <K> type of key
  * @param <N> type of namespace
  * @param <S> type of state
+ *
+ *           stateTable 可以作为迭代器 遍历内部的状态
+ *           也可以作为快照的reader对象  用于读取快照并恢复数据
+ *           一个StateTable对应一个逻辑概念上的状态
  */
 public abstract class StateTable<K, N, S>
         implements StateSnapshotRestore, Iterable<StateEntry<K, N, S>> {
@@ -57,21 +61,30 @@ public abstract class StateTable<K, N, S>
     /**
      * The key context view on the backend. This provides information, such as the currently active
      * key.
+     * 可以查看当前读取的key 以及修改key
      */
     protected final InternalKeyContext<K> keyContext;
 
-    /** Combined meta information such as name and serializers for this state. */
+    /** Combined meta information such as name and serializers for this state.
+     * 状态的元数据信息  也可以产生对应的快照 其中包含了序列化对象
+     * */
     protected RegisteredKeyValueStateBackendMetaInfo<N, S> metaInfo;
 
-    /** The serializer of the key. */
+    /** The serializer of the key.
+     * 上面的序列化针对整个state 这个是仅针对key state可以抽出key
+     * */
     protected final TypeSerializer<K> keySerializer;
 
-    /** The current key group range. */
+    /** The current key group range.
+     * 通过keyGroup 算法 划分范围
+     * */
     protected final KeyGroupRange keyGroupRange;
 
     /**
      * Map for holding the actual state objects. The outer array represents the key-groups. All
      * array positions will be initialized with an empty state map.
+     *
+     * 先通过keyGroup算法 稀释掉state 然后分散的state又各自进入到自己的 stateMap中
      */
     protected final StateMap<K, N, S>[] keyGroupedStateMaps;
 
@@ -90,6 +103,7 @@ public abstract class StateTable<K, N, S>
 
         this.keyGroupRange = keyContext.getKeyGroupRange();
 
+        // 根据key数量创建map
         @SuppressWarnings("unchecked")
         StateMap<K, N, S>[] state =
                 (StateMap<K, N, S>[])
@@ -100,8 +114,16 @@ public abstract class StateTable<K, N, S>
         }
     }
 
+    /**
+     * 不同table 对应不同map
+     * @return
+     */
     protected abstract StateMap<K, N, S> createStateMap();
 
+    /**
+     * 对应StateMap的快照
+     * @return
+     */
     @Override
     @Nonnull
     public abstract IterableStateSnapshot<K, N, S> stateSnapshot();
@@ -138,6 +160,7 @@ public abstract class StateTable<K, N, S>
      * @param namespace the namespace. Not null.
      * @return the states of the mapping with the specified key/namespace composite key, or {@code
      *     null} if no mapping for the specified key is found.
+     *     通过命名空间 + context的一些信息 读取state
      */
     public S get(N namespace) {
         return get(keyContext.getCurrentKey(), keyContext.getCurrentKeyGroupIndex(), namespace);
@@ -150,6 +173,7 @@ public abstract class StateTable<K, N, S>
      * @param namespace the namespace in the composite key to search for. Not null.
      * @return {@code true} if this map contains the specified key/namespace composite key, {@code
      *     false} otherwise.
+     *     查看state是否存在
      */
     public boolean containsKey(N namespace) {
         return containsKey(
@@ -205,9 +229,11 @@ public abstract class StateTable<K, N, S>
             N namespace, T value, StateTransformationFunction<S, T> transformation)
             throws Exception {
         K key = keyContext.getCurrentKey();
+        // 确保参数不为空
         checkKeyNamespacePreconditions(key, namespace);
 
         int keyGroup = keyContext.getCurrentKeyGroupIndex();
+        // 找到map并调用方法
         getMapForKeyGroup(keyGroup).transform(key, namespace, value, transformation);
     }
 
@@ -223,6 +249,7 @@ public abstract class StateTable<K, N, S>
      *     null} if no mapping for the specified key is found.
      */
     public S get(K key, N namespace) {
+        // 找到map下标
         int keyGroup =
                 KeyGroupRangeAssignment.assignToKeyGroup(key, keyContext.getNumberOfKeyGroups());
         return get(key, keyGroup, namespace);
@@ -235,6 +262,7 @@ public abstract class StateTable<K, N, S>
                                 StreamSupport.stream(
                                         Spliterators.spliteratorUnknownSize(stateMap.iterator(), 0),
                                         false))
+                // 展开所有entry 找到namespace匹配的对象
                 .filter(entry -> entry.getNamespace().equals(namespace))
                 .map(StateEntry::getKey);
     }
@@ -255,6 +283,8 @@ public abstract class StateTable<K, N, S>
     }
 
     // ------------------------------------------------------------------------
+
+    // 定位到map后 就可以简单的调用api了
 
     private S get(K key, int keyGroupIndex, N namespace) {
         checkKeyNamespacePreconditions(key, namespace);
@@ -364,6 +394,11 @@ public abstract class StateTable<K, N, S>
         return count;
     }
 
+    /**
+     * 指定要读取的版本后 返回reader对象
+     * @param readVersion
+     * @return
+     */
     @Nonnull
     @Override
     public StateSnapshotKeyGroupReader keyGroupReader(int readVersion) {
@@ -373,12 +408,19 @@ public abstract class StateTable<K, N, S>
     // StateEntryIterator
     // ---------------------------------------------------------------------------------------------
 
+    /**
+     * 只能遍历部分记录
+     */
     class StateEntryIterator implements StateIncrementalVisitor<K, N, S> {
 
+        /**
+         * 每个map都可以读这么多
+         */
         final int recommendedMaxNumberOfReturnedRecords;
 
         int keyGroupIndex;
 
+        // 实际上就是利用visitor
         StateIncrementalVisitor<K, N, S> stateIncrementalVisitor;
 
         StateEntryIterator(int recommendedMaxNumberOfReturnedRecords) {
@@ -401,10 +443,14 @@ public abstract class StateTable<K, N, S>
 
         @Override
         public boolean hasNext() {
+            // visitor为空 或者无了
             while (stateIncrementalVisitor == null || !stateIncrementalVisitor.hasNext()) {
+                // 读取完了
                 if (keyGroupIndex == keyGroupedStateMaps.length) {
                     return false;
                 }
+
+                // 更新visitor
                 StateIncrementalVisitor<K, N, S> visitor =
                         keyGroupedStateMaps[keyGroupIndex++].getStateIncrementalVisitor(
                                 recommendedMaxNumberOfReturnedRecords);

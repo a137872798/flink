@@ -28,9 +28,15 @@ import java.util.Set;
 /**
  * This view maintains the finished progress of consumer {@link SchedulingPipelinedRegion}s for each
  * {@link ConsumedPartitionGroup}.
+ *
+ * 故障转移会使用到的组件
+ * 就是提供流水线的crud
  */
 public class ConsumerRegionGroupExecutionView implements Iterable<SchedulingPipelinedRegion> {
 
+    /**
+     * 每个对象都代表一个流水线
+     */
     private final Set<SchedulingPipelinedRegion> unfinishedConsumerRegions;
 
     public ConsumerRegionGroupExecutionView() {

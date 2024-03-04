@@ -41,10 +41,14 @@ import java.util.concurrent.ExecutionException;
  *
  * <p>Instances of partition requests clients are shared among several {@link RemoteInputChannel}
  * instances.
+ * 使用该对象管理所有连接  并将连接封装成client并提供api
  */
 class PartitionRequestClientFactory {
     private static final Logger LOG = LoggerFactory.getLogger(PartitionRequestClientFactory.class);
 
+    /**
+     * 该对象用于产生连接
+     */
     private final NettyClient nettyClient;
 
     private final int retryNumber;
@@ -74,6 +78,7 @@ class PartitionRequestClientFactory {
     /**
      * Atomically establishes a TCP connection to the given remote address and creates a {@link
      * NettyPartitionRequestClient} instance for this connection.
+     * 返回某个连接对应的client
      */
     NettyPartitionRequestClient createPartitionRequestClient(ConnectionID connectionId)
             throws IOException, InterruptedException {
@@ -94,6 +99,7 @@ class PartitionRequestClientFactory {
 
             if (clientFuture == null) {
                 try {
+                    // 基于一定重试次数创建连接
                     client = connectWithRetries(connectionId);
                 } catch (Throwable e) {
                     newClientFuture.completeExceptionally(
@@ -114,6 +120,7 @@ class PartitionRequestClientFactory {
 
             // Make sure to increment the reference count before handing a client
             // out to ensure correct bookkeeping for channel closing.
+            // 确保client正常
             if (client.validateClientAndIncrementReferenceCounter()) {
                 return client;
             } else if (client.canBeDisposed()) {
@@ -128,6 +135,13 @@ class PartitionRequestClientFactory {
         return connectionReuseEnabled;
     }
 
+    /**
+     * 尝试连接
+     * @param connectionId
+     * @return
+     * @throws InterruptedException
+     * @throws RemoteTransportException
+     */
     private NettyPartitionRequestClient connectWithRetries(ConnectionID connectionId)
             throws InterruptedException, RemoteTransportException {
         int tried = 0;
@@ -150,6 +164,13 @@ class PartitionRequestClientFactory {
         }
     }
 
+    /**
+     * 连接 产生client
+     * @param connectionId
+     * @return
+     * @throws RemoteTransportException
+     * @throws InterruptedException
+     */
     private NettyPartitionRequestClient connect(ConnectionID connectionId)
             throws RemoteTransportException, InterruptedException {
         try {
@@ -157,6 +178,7 @@ class PartitionRequestClientFactory {
             // done, and rethrows the cause of the failure if this future failed. `await` only
             // waits for this future to be completed, without throwing the error.
             Channel channel = nettyClient.connect(connectionId.getAddress()).sync().channel();
+            // 取出 NetworkClientHandler 并生成 NettyPartitionRequestClient
             NetworkClientHandler clientHandler = channel.pipeline().get(NetworkClientHandler.class);
             return new NettyPartitionRequestClient(channel, clientHandler, connectionId, this);
         } catch (InterruptedException e) {
@@ -175,6 +197,10 @@ class PartitionRequestClientFactory {
         }
     }
 
+    /**
+     * 尝试关闭连接
+     * @param connectionId
+     */
     void closeOpenChannelConnections(ConnectionID connectionId) {
         CompletableFuture<NettyPartitionRequestClient> entry = clients.get(connectionId);
 
@@ -192,7 +218,9 @@ class PartitionRequestClientFactory {
         return clients.size();
     }
 
-    /** Removes the client for the given {@link ConnectionID}. */
+    /** Removes the client for the given {@link ConnectionID}.
+     * 销毁client
+     * */
     void destroyPartitionRequestClient(ConnectionID connectionId, PartitionRequestClient client) {
         final CompletableFuture<NettyPartitionRequestClient> future = clients.get(connectionId);
         if (future != null && future.isDone()) {

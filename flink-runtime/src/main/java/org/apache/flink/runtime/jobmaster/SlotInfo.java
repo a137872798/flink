@@ -22,7 +22,9 @@ import org.apache.flink.runtime.clusterframework.types.AllocationID;
 import org.apache.flink.runtime.clusterframework.types.ResourceProfile;
 import org.apache.flink.runtime.taskmanager.TaskManagerLocation;
 
-/** Interface that provides basic information in the context of a slot. */
+/** Interface that provides basic information in the context of a slot.
+ * 表示一个槽  会关联一组资源
+ * */
 public interface SlotInfo {
 
     /**
@@ -30,6 +32,7 @@ public interface SlotInfo {
      * identifies the physical slot.
      *
      * @return The id under which the slot has been allocated on the TaskManager
+     * 槽的id
      */
     AllocationID getAllocationId();
 
@@ -44,6 +47,7 @@ public interface SlotInfo {
      * Gets the number of the slot.
      *
      * @return The number of the slot on the TaskManager.
+     * 获取编号
      */
     int getPhysicalSlotNumber();
 
@@ -51,6 +55,7 @@ public interface SlotInfo {
      * Returns the resource profile of the slot.
      *
      * @return the resource profile of the slot.
+     * 该槽所拥有的资源
      */
     ResourceProfile getResourceProfile();
 
@@ -58,6 +63,7 @@ public interface SlotInfo {
      * Returns whether the slot will be occupied indefinitely.
      *
      * @return true if the slot will be occupied indefinitely, otherwise false.
+     * 是否会被无期限占用
      */
     boolean willBeOccupiedIndefinitely();
 }

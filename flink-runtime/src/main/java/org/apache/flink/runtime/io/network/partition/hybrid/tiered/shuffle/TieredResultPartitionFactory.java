@@ -50,11 +50,21 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 
-/** {@link TieredResultPartitionFactory} contains the components to set up tiered storage. */
+/** {@link TieredResultPartitionFactory} contains the components to set up tiered storage.
+ * 通过工厂创建分区对象
+ * */
 public class TieredResultPartitionFactory {
 
     private final TieredStorageConfiguration tieredStorageConfiguration;
+
+    /**
+     * 该对象管理生产者 消费者
+     */
     private final TieredStorageNettyServiceImpl tieredStorageNettyService;
+
+    /**
+     * 该对象管理资源
+     */
     private final TieredStorageResourceRegistry tieredStorageResourceRegistry;
 
     public TieredResultPartitionFactory(

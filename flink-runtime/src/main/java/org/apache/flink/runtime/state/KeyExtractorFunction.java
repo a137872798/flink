@@ -24,6 +24,7 @@ import javax.annotation.Nonnull;
  * Function to extract a key from a given object.
  *
  * @param <T> type of the element from which we extract the key.
+ *           表示可以从元素中抽取key
  */
 @FunctionalInterface
 public interface KeyExtractorFunction<T> {

@@ -26,6 +26,7 @@ import java.net.InetSocketAddress;
  */
 public interface TaskExecutorBlobService extends BlobService {
 
+    // 该持久blob 可以注册/注销job
     @Override
     JobPermanentBlobService getPermanentBlobService();
 
@@ -33,6 +34,8 @@ public interface TaskExecutorBlobService extends BlobService {
      * Sets the blob server address.
      *
      * @param blobServerAddress blob server address
+     *
+     *                          该接口的实现类 相当于是blobServer的代理对象
      */
     void setBlobServerAddress(InetSocketAddress blobServerAddress);
 }

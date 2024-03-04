@@ -58,12 +58,16 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * This class is responsible for managing the data in a single subpartition. One {@link
  * HsMemoryDataManager} will hold multiple {@link HsSubpartitionMemoryDataManager}.
+ * 每个子分区关联一个
  */
 public class HsSubpartitionMemoryDataManager {
     private final int targetChannel;
 
     private final int bufferSize;
 
+    /**
+     * 用于对 manager发起操作
+     */
     private final HsMemoryDataManagerOperation memoryDataManagerOperation;
 
     // Not guarded by lock because it is expected only accessed from task's main thread.
@@ -72,9 +76,15 @@ public class HsSubpartitionMemoryDataManager {
     // Not guarded by lock because it is expected only accessed from task's main thread.
     private int finishedBufferIndex;
 
+    /**
+     * 使用HsBufferContext 来维护数据  还可以记录该buffer已经被哪些consumer消费过
+     */
     @GuardedBy("subpartitionLock")
     private final Deque<HsBufferContext> allBuffers = new LinkedList<>();
 
+    /**
+     * key 代表 bufferIndex
+     */
     @GuardedBy("subpartitionLock")
     private final Map<Integer, HsBufferContext> bufferIndexToContexts = new HashMap<>();
 
@@ -84,6 +94,9 @@ public class HsSubpartitionMemoryDataManager {
     /** DO NOT USE DIRECTLY. Use {@link #runWithLock} or {@link #callWithLock} instead. */
     private final ReentrantReadWriteLock subpartitionLock = new ReentrantReadWriteLock();
 
+    /**
+     * 每个HsSubpartitionConsumerMemoryDataManager 对应一个消费者  同一个子分区数据 可以有多个消费者进行重复消费
+     */
     @GuardedBy("subpartitionLock")
     private final Map<HsConsumerId, HsSubpartitionConsumerMemoryDataManager> consumerMap;
 
@@ -130,6 +143,7 @@ public class HsSubpartitionMemoryDataManager {
      * @param spillStatus the status of spilling expected.
      * @param consumeStatusWithId the status and consumerId expected.
      * @return buffers satisfy expected status in order.
+     * 找到满足条件的buffer
      */
     @SuppressWarnings("FieldAccessNotGuarded")
     // Note that: callWithLock ensure that code block guarded by resultPartitionReadLock and
@@ -158,6 +172,8 @@ public class HsSubpartitionMemoryDataManager {
      * @param toSpill All buffers that need to be spilled belong to this subpartition in a decision.
      * @param spillDoneFuture completed when spill is finished.
      * @return {@link BufferWithIdentity}s about these spill buffers.
+     * 开始倾倒buffer
+     * 触发这组buffer的startSpill后 返回
      */
     @SuppressWarnings("FieldAccessNotGuarded")
     // Note that: callWithLock ensure that code block guarded by resultPartitionReadLock and
@@ -170,6 +186,7 @@ public class HsSubpartitionMemoryDataManager {
                                 .map(
                                         indexAndChannel -> {
                                             int bufferIndex = indexAndChannel.getBufferIndex();
+                                            // 开始倾倒数据
                                             return startSpillingBuffer(bufferIndex, spillDoneFuture)
                                                     .map(
                                                             (context) ->
@@ -201,7 +218,9 @@ public class HsSubpartitionMemoryDataManager {
                                     HsBufferContext bufferContext =
                                             bufferIndexToContexts.get(bufferIndex);
                                     if (bufferContext != null) {
+                                        // 标记成释放状态
                                         checkAndMarkBufferReadable(bufferContext);
+                                        // 调用 release
                                         releaseBuffer(bufferIndex);
                                     }
                                 }));
@@ -211,11 +230,17 @@ public class HsSubpartitionMemoryDataManager {
         this.outputMetrics = checkNotNull(outputMetrics);
     }
 
+    /**
+     * 添加一个消费者
+     * @param consumerId
+     * @return
+     */
     @SuppressWarnings("FieldAccessNotGuarded")
     public HsSubpartitionConsumerMemoryDataManager registerNewConsumer(HsConsumerId consumerId) {
         return callWithLock(
                 () -> {
                     checkState(!consumerMap.containsKey(consumerId));
+                    // 封装一个消费者
                     HsSubpartitionConsumerMemoryDataManager newConsumer =
                             new HsSubpartitionConsumerMemoryDataManager(
                                     resultPartitionLock,
@@ -223,12 +248,17 @@ public class HsSubpartitionMemoryDataManager {
                                     targetChannel,
                                     consumerId,
                                     memoryDataManagerOperation);
+                    // 把这里的所有buffer设置进去 便于给消费者消费
                     newConsumer.addInitialBuffers(allBuffers);
                     consumerMap.put(consumerId, newConsumer);
                     return newConsumer;
                 });
     }
 
+    /**
+     * 表示某个消费者不再消费数据了
+     * @param consumerId
+     */
     @SuppressWarnings("FieldAccessNotGuarded")
     public void releaseConsumer(HsConsumerId consumerId) {
         runWithLock(() -> checkNotNull(consumerMap.remove(consumerId)));
@@ -242,6 +272,7 @@ public class HsSubpartitionMemoryDataManager {
         checkArgument(dataType.isEvent());
 
         // each Event must take an exclusive buffer
+        // 事件一定要独占一个buffer  所以如果有部分数据 一定要先处理掉
         finishCurrentWritingBufferIfNotEmpty();
 
         // store Events in adhoc heap segments, for network memory efficiency
@@ -251,6 +282,7 @@ public class HsSubpartitionMemoryDataManager {
 
         HsBufferContext bufferContext =
                 new HsBufferContext(buffer, finishedBufferIndex, targetChannel);
+        // 事件产生时 要立即发送
         addFinishedBuffer(bufferContext);
         memoryDataManagerOperation.onBufferFinished();
     }
@@ -263,6 +295,11 @@ public class HsSubpartitionMemoryDataManager {
         writeRecord(record);
     }
 
+    /**
+     * 先确保有足够空间
+     * @param record
+     * @throws InterruptedException
+     */
     private void ensureCapacityForRecord(ByteBuffer record) throws InterruptedException {
         final int numRecordBytes = record.remaining();
         int availableBytes =
@@ -288,14 +325,19 @@ public class HsSubpartitionMemoryDataManager {
                             unfinishedBuffers.peek(), "Expect enough capacity for the record.");
             currentWritingBuffer.append(record);
 
+            // 当一个buffer写满时 触发finish
             if (currentWritingBuffer.isFull()) {
                 finishCurrentWritingBuffer();
             }
         }
     }
 
+    /**
+     *
+     */
     private void finishCurrentWritingBufferIfNotEmpty() {
         BufferBuilder currentWritingBuffer = unfinishedBuffers.peek();
+        // 表示buffer是空的  不需要处理
         if (currentWritingBuffer == null || currentWritingBuffer.getWritableBytes() == bufferSize) {
             return;
         }
@@ -303,6 +345,9 @@ public class HsSubpartitionMemoryDataManager {
         finishCurrentWritingBuffer();
     }
 
+    /**
+     * 处理已经写入的数据
+     */
     private void finishCurrentWritingBuffer() {
         BufferBuilder currentWritingBuffer = unfinishedBuffers.poll();
 
@@ -315,6 +360,7 @@ public class HsSubpartitionMemoryDataManager {
         Buffer buffer = bufferConsumer.build();
         currentWritingBuffer.close();
         bufferConsumer.close();
+        // 将buffer包装成context
         HsBufferContext bufferContext =
                 new HsBufferContext(
                         compressBuffersIfPossible(buffer), finishedBufferIndex, targetChannel);
@@ -340,15 +386,18 @@ public class HsSubpartitionMemoryDataManager {
     @SuppressWarnings("FieldAccessNotGuarded")
     // Note that: callWithLock ensure that code block guarded by resultPartitionReadLock and
     // subpartitionLock.
+    // 添加一个已经准备好的buffer  (已经压缩过)
     private void addFinishedBuffer(HsBufferContext bufferContext) {
         finishedBufferIndex++;
         List<HsConsumerId> needNotify = new ArrayList<>(consumerMap.size());
         runWithLock(
                 () -> {
+                    // 加入容器中
                     allBuffers.add(bufferContext);
                     bufferIndexToContexts.put(
                             bufferContext.getBufferIndexAndChannel().getBufferIndex(),
                             bufferContext);
+                    // 同步到每个consumer的容器中
                     for (Map.Entry<HsConsumerId, HsSubpartitionConsumerMemoryDataManager>
                             consumerEntry : consumerMap.entrySet()) {
                         if (consumerEntry.getValue().addBuffer(bufferContext)) {
@@ -357,6 +406,7 @@ public class HsSubpartitionMemoryDataManager {
                     }
                     updateStatistics(bufferContext.getBuffer());
                 });
+        // 通知这些consumer 有数据可用了
         memoryDataManagerOperation.onDataAvailable(targetChannel, needNotify);
     }
 
@@ -371,6 +421,10 @@ public class HsSubpartitionMemoryDataManager {
         }
     }
 
+    /**
+     * 释放buffer
+     * @param bufferIndex
+     */
     @GuardedBy("subpartitionLock")
     private void releaseBuffer(int bufferIndex) {
         HsBufferContext bufferContext = bufferIndexToContexts.remove(bufferIndex);
@@ -382,6 +436,12 @@ public class HsSubpartitionMemoryDataManager {
         trimHeadingReleasedBuffers(allBuffers);
     }
 
+    /**
+     * 开始倾倒数据
+     * @param bufferIndex
+     * @param spillFuture
+     * @return
+     */
     @GuardedBy("subpartitionLock")
     private Optional<HsBufferContext> startSpillingBuffer(
             int bufferIndex, CompletableFuture<Void> spillFuture) {
@@ -394,6 +454,10 @@ public class HsSubpartitionMemoryDataManager {
                 : Optional.empty();
     }
 
+    /**
+     * 检查该buffer 是否可以标记成release
+     * @param bufferContext
+     */
     @GuardedBy("subpartitionLock")
     private void checkAndMarkBufferReadable(HsBufferContext bufferContext) {
         // only spill buffer needs to be marked as released.
@@ -408,6 +472,7 @@ public class HsSubpartitionMemoryDataManager {
                             () -> {
                                 BufferIndexAndChannel bufferIndexAndChannel =
                                         bufferContext.getBufferIndexAndChannel();
+                                // 将该buffer标记成释放状态
                                 memoryDataManagerOperation.markBufferReleasedFromFile(
                                         bufferIndexAndChannel.getChannel(),
                                         bufferIndexAndChannel.getBufferIndex());
@@ -415,12 +480,19 @@ public class HsSubpartitionMemoryDataManager {
         }
     }
 
+    /**
+     * 判断该buffer是否满足条件
+     * @param bufferContext
+     * @param spillStatus
+     * @param consumeStatusWithId  是否被本对象消费
+     * @return
+     */
     @GuardedBy("subpartitionLock")
     private boolean isBufferSatisfyStatus(
             HsBufferContext bufferContext,
             SpillStatus spillStatus,
             ConsumeStatusWithId consumeStatusWithId) {
-        // released buffer is not needed.
+        // released buffer is not needed. 本buffer已经被释放了  不应该再处理
         if (bufferContext.isReleased()) {
             return false;
         }

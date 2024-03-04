@@ -27,10 +27,13 @@ import java.util.function.Supplier;
  * This class encapsulates the completed configuration for local recovery, i.e. the root directories
  * into which all file-based snapshots can be written and the general mode for the local recover
  * feature.
+ * 用于本地恢复的配置
  */
 public class LocalRecoveryConfig {
 
-    /** Encapsulates the root directories and the subtask-specific path. */
+    /** Encapsulates the root directories and the subtask-specific path.
+     * 简单来说就是检索目录的对象
+     * */
     @Nullable private final LocalRecoveryDirectoryProvider localStateDirectories;
 
     public LocalRecoveryConfig(@Nullable LocalRecoveryDirectoryProvider directoryProvider) {

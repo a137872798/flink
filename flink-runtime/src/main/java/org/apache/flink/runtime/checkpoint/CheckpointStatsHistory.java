@@ -45,15 +45,20 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>Furthermore the history tracks the latest completed and latest failed checkpoint as well as
  * the latest savepoint.
+ * 维护了一组检查点信息  将他们作为历史记录
  */
 public class CheckpointStatsHistory implements Serializable {
 
     private static final long serialVersionUID = 7090320677606528415L;
 
-    /** List over all available stats. Only updated on {@link #createSnapshot()}. */
+    /** List over all available stats. Only updated on {@link #createSnapshot()}.
+     * 保存以往的检查点数据
+     * */
     private final List<AbstractCheckpointStats> checkpointsHistory;
 
-    /** Map of all available stats keyed by their ID. */
+    /** Map of all available stats keyed by their ID.
+     * 通过检查点id检索
+     * */
     private final LinkedHashMap<Long, AbstractCheckpointStats> recentCheckpoints;
 
     /** Maximum array size. */
@@ -67,6 +72,8 @@ public class CheckpointStatsHistory implements Serializable {
 
     /** Next position in {@link #checkpointsArray} to write to. */
     private transient int nextPos;
+
+    // 分别维护最近不同状态的检查点统计数据
 
     /** The latest successfully completed checkpoint. */
     @Nullable private CompletedCheckpointStats latestCompletedCheckpoint;
@@ -126,6 +133,8 @@ public class CheckpointStatsHistory implements Serializable {
         this.latestCompletedCheckpoint = latestCompletedCheckpoint;
         this.latestFailedCheckpoint = latestFailedCheckpoint;
         this.latestSavepoint = latestSavepoint;
+
+        // 仅维护maxSize数量的检查点数据
         this.recentCheckpoints =
                 new LinkedHashMap<Long, AbstractCheckpointStats>(checkpointsById) {
                     @Override
@@ -162,6 +171,7 @@ public class CheckpointStatsHistory implements Serializable {
      * Creates a snapshot of the current state.
      *
      * @return Snapshot of the current state.
+     * 产生快照
      */
     CheckpointStatsHistory createSnapshot() {
         if (readOnly) {
@@ -216,6 +226,7 @@ public class CheckpointStatsHistory implements Serializable {
             checkpointsById.put(latestSavepoint.getCheckpointId(), latestSavepoint);
         }
 
+        // 简单看就是生成了一个副本
         return new CheckpointStatsHistory(
                 true,
                 maxSize,
@@ -231,6 +242,7 @@ public class CheckpointStatsHistory implements Serializable {
      * Adds an in progress checkpoint to the checkpoint history.
      *
      * @param pending In progress checkpoint to add.
+     *                添加一个在进行中的检查点
      */
     void addInProgressCheckpoint(PendingCheckpointStats pending) {
         if (readOnly) {
@@ -257,6 +269,7 @@ public class CheckpointStatsHistory implements Serializable {
             nextPos = 0;
         }
 
+        // 就是将统计数据插入容器中 表示多维护一个数据
         checkpointsArray[nextPos++] = pending;
         recentCheckpoints.put(pending.checkpointId, pending);
     }
@@ -271,6 +284,8 @@ public class CheckpointStatsHistory implements Serializable {
      * @param completedOrFailed The completed or failed checkpoint to replace the in progress
      *     checkpoint with.
      * @return <code>true</code> if the checkpoint was replaced or <code>false</code> otherwise.
+     *
+     * 刚开始维护的时候 都是pending状态的检查点
      */
     boolean replacePendingCheckpointById(AbstractCheckpointStats completedOrFailed) {
         checkArgument(
@@ -285,6 +300,8 @@ public class CheckpointStatsHistory implements Serializable {
         // Update the latest checkpoint stats
         if (completedOrFailed.getStatus().isCompleted()) {
             CompletedCheckpointStats completed = (CompletedCheckpointStats) completedOrFailed;
+
+            // 根据类型 选择覆盖 latestSavepoint / latestCompletedCheckpoint
             if (completed.getProperties().isSavepoint()
                     && (latestSavepoint == null
                             || completed.getCheckpointId() > latestSavepoint.getCheckpointId())) {
@@ -295,6 +312,8 @@ public class CheckpointStatsHistory implements Serializable {
 
                 latestCompletedCheckpoint = completed;
             }
+
+            // 表示本次检查点失败
         } else if (completedOrFailed.getStatus().isFailed()) {
             FailedCheckpointStats failed = (FailedCheckpointStats) completedOrFailed;
             if (latestFailedCheckpoint == null
@@ -308,6 +327,7 @@ public class CheckpointStatsHistory implements Serializable {
             return false;
         }
 
+        // 接着替换数组中的检查点
         long checkpointId = completedOrFailed.getCheckpointId();
         recentCheckpoints.computeIfPresent(
                 checkpointId, (unusedKey, unusedValue) -> completedOrFailed);
@@ -318,6 +338,7 @@ public class CheckpointStatsHistory implements Serializable {
         int startPos =
                 nextPos == checkpointsArray.length ? checkpointsArray.length - 1 : nextPos - 1;
 
+        // 从后往前扫  发现一致的进行替换   也就意味着检查点更新了
         for (int i = startPos; i >= 0; i--) {
             if (checkpointsArray[i].getCheckpointId() == checkpointId) {
                 checkpointsArray[i] = completedOrFailed;

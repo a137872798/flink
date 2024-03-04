@@ -29,6 +29,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * Captures ambiguous mappings of old channels to new channels for a particular gate or partition.
  *
  * @see InflightDataGateOrPartitionRescalingDescriptor
+ * 用于channel映射
  */
 public class InflightDataRescalingDescriptor implements Serializable {
 
@@ -36,13 +37,17 @@ public class InflightDataRescalingDescriptor implements Serializable {
 
     private static final long serialVersionUID = -3396674344669796295L;
 
-    /** Set when several operator instances are merged into one. */
+    /** Set when several operator instances are merged into one.
+     * 每个对应一个分区
+     * */
     private final InflightDataGateOrPartitionRescalingDescriptor[] gateOrPartitionDescriptors;
 
     public InflightDataRescalingDescriptor(
             InflightDataGateOrPartitionRescalingDescriptor[] gateOrPartitionDescriptors) {
         this.gateOrPartitionDescriptors = checkNotNull(gateOrPartitionDescriptors);
     }
+
+    // 都是检索gateOrPartitionDescriptors
 
     public int[] getOldSubtaskIndexes(int gateOrPartitionIndex) {
         return gateOrPartitionDescriptors[gateOrPartitionIndex].oldSubtaskIndexes;
@@ -109,6 +114,8 @@ public class InflightDataRescalingDescriptor implements Serializable {
      * <p>Note that in the common rescaling case both information is set and need to be
      * simultaneously used. If the input subtask subsumes the state of 3 old subtasks and a channel
      * corresponds to 2 old channels, then there are 6 virtual channels to be demultiplexed.
+     * 用于channel映射
+     * 作为descriptor 只是包含描述信息 没有具体方法
      */
     public static class InflightDataGateOrPartitionRescalingDescriptor implements Serializable {
 
@@ -120,10 +127,13 @@ public class InflightDataRescalingDescriptor implements Serializable {
         /**
          * Set when channels are merged because the connected operator has been rescaled for each
          * gate/partition.
+         * 这里包含了映射规则
          */
         private final RescaleMappings rescaledChannelsMappings;
 
-        /** All channels where upstream duplicates data (only valid for downstream mappings). */
+        /** All channels where upstream duplicates data (only valid for downstream mappings).
+         * 表示会被多次映射
+         * */
         private final Set<Integer> ambiguousSubtaskIndexes;
 
         private final MappingType mappingType;
@@ -134,6 +144,13 @@ public class InflightDataRescalingDescriptor implements Serializable {
             RESCALING
         }
 
+        /**
+         *
+         * @param oldSubtaskIndexes   映射前 一组旧的subtask索引
+         * @param rescaledChannelsMappings
+         * @param ambiguousSubtaskIndexes
+         * @param mappingType
+         */
         public InflightDataGateOrPartitionRescalingDescriptor(
                 int[] oldSubtaskIndexes,
                 RescaleMappings rescaledChannelsMappings,

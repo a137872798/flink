@@ -21,7 +21,9 @@ import org.apache.flink.runtime.clusterframework.types.AllocationID;
 
 import javax.annotation.Nullable;
 
-/** A function for freeing slots. */
+/** A function for freeing slots.
+ * 表示释放掉某个slot
+ * */
 @FunctionalInterface
 public interface FreeSlotFunction {
     /**

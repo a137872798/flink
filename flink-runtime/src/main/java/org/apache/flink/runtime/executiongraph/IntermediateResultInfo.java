@@ -20,11 +20,15 @@ package org.apache.flink.runtime.executiongraph;
 
 import org.apache.flink.runtime.jobgraph.IntermediateDataSetID;
 
+/**
+ * 表示中间结果信息
+ */
 public interface IntermediateResultInfo {
     /**
      * Get the intermediate result id.
      *
      * @return the intermediate result id
+     * 中间数据集id
      */
     IntermediateDataSetID getResultId();
 
@@ -32,6 +36,7 @@ public interface IntermediateResultInfo {
      * Whether it is a broadcast result.
      *
      * @return whether it is a broadcast result
+     * 表示结果集是否会发往所有下游
      */
     boolean isBroadcast();
 
@@ -39,6 +44,7 @@ public interface IntermediateResultInfo {
      * Whether it is a pointwise result.
      *
      * @return whether it is a pointwise result
+     * 是否是点态的结果
      */
     boolean isPointwise();
 
@@ -46,6 +52,7 @@ public interface IntermediateResultInfo {
      * Get number of partitions for this result.
      *
      * @return the number of partitions in this result
+     * 结果有几个分区
      */
     int getNumPartitions();
 
@@ -54,6 +61,7 @@ public interface IntermediateResultInfo {
      *
      * @param partitionIndex the partition index
      * @return the number of subpartitions of the partition
+     * 查看某个分区有多少子分区
      */
     int getNumSubpartitions(int partitionIndex);
 }

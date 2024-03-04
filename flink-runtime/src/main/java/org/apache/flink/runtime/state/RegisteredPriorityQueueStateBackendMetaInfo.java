@@ -30,9 +30,14 @@ import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.Map;
 
-/** Meta information about a priority queue state in a backend. */
+/** Meta information about a priority queue state in a backend.
+ * 使用优先队列存储状态时的元数据信息
+ * */
 public class RegisteredPriorityQueueStateBackendMetaInfo<T> extends RegisteredStateMetaInfoBase {
 
+    /**
+     * 可以提供序列化对象
+     */
     @Nonnull private final StateSerializerProvider<T> elementSerializerProvider;
 
     public RegisteredPriorityQueueStateBackendMetaInfo(
@@ -64,12 +69,20 @@ public class RegisteredPriorityQueueStateBackendMetaInfo<T> extends RegisteredSt
         this.elementSerializerProvider = elementSerializerProvider;
     }
 
+    /**
+     * 产生相关的快照
+     * @return
+     */
     @Nonnull
     @Override
     public StateMetaInfoSnapshot snapshot() {
         return computeSnapshot();
     }
 
+    /**
+     * 使用快照初始化对象 这样的对象允许修改序列化对象
+     * @return
+     */
     @Nonnull
     @Override
     public RegisteredPriorityQueueStateBackendMetaInfo<T> withSerializerUpgradesAllowed() {
@@ -88,6 +101,10 @@ public class RegisteredPriorityQueueStateBackendMetaInfo<T> extends RegisteredSt
                 newElementSerializer);
     }
 
+    /**
+     * 获取之前的序列化对象
+     * @return
+     */
     @Nullable
     public TypeSerializer<T> getPreviousElementSerializer() {
         return elementSerializerProvider.previousSchemaSerializer();

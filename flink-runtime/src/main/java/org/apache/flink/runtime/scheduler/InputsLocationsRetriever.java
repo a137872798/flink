@@ -27,7 +27,9 @@ import java.util.Collection;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
-/** Component to retrieve the inputs locations of an {@link ExecutionVertex}. */
+/** Component to retrieve the inputs locations of an {@link ExecutionVertex}.
+ * 该对象可以查询输入的位置
+ * */
 public interface InputsLocationsRetriever {
 
     /**
@@ -35,6 +37,7 @@ public interface InputsLocationsRetriever {
      *
      * @param executionVertexId identifies the execution vertex
      * @return the consumed result partition groups
+     * 由该子任务消费的数据
      */
     Collection<ConsumedPartitionGroup> getConsumedPartitionGroups(
             ExecutionVertexID executionVertexId);
@@ -44,6 +47,7 @@ public interface InputsLocationsRetriever {
      *
      * @param consumedPartitionGroup the consumed result partition group
      * @return the ids of producer execution vertices
+     * 获得产生这组数据的子任务
      */
     Collection<ExecutionVertexID> getProducersOfConsumedPartitionGroup(
             ConsumedPartitionGroup consumedPartitionGroup);
@@ -53,6 +57,7 @@ public interface InputsLocationsRetriever {
      *
      * @param executionVertexId identifying the execution vertex
      * @return the task manager location future
+     * 查询顶点相关的TM位置
      */
     Optional<CompletableFuture<TaskManagerLocation>> getTaskManagerLocation(
             ExecutionVertexID executionVertexId);

@@ -25,8 +25,15 @@ import java.util.Collection;
 import java.util.Set;
 
 class PhysicalSlotRequestBulkWithTimestamp implements PhysicalSlotRequestBulk {
+
+    /**
+     * 应该就是PhysicalSlotRequestBulkImpl
+     */
     private final PhysicalSlotRequestBulk physicalSlotRequestBulk;
 
+    /**
+     * 在此基础上添加了时间戳
+     */
     private long unfulfillableTimestamp = Long.MAX_VALUE;
 
     PhysicalSlotRequestBulkWithTimestamp(PhysicalSlotRequestBulk physicalSlotRequestBulk) {

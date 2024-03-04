@@ -35,6 +35,7 @@ import java.util.concurrent.CompletableFuture;
  * of the subtask. After that execution attempt failed, that instance must not bind to another
  * execution attempt, but a new instance would need to be created via the {@link
  * SubtaskAccess.SubtaskAccessFactory}.
+ * 可以获取子任务的
  */
 interface SubtaskAccess {
 
@@ -46,11 +47,14 @@ interface SubtaskAccess {
      * <p>This lets the caller target the specific subtask without necessarily sending the event now
      * (for example, the event may be sent at a later point due to checkpoint alignment through the
      * {@link SubtaskGatewayImpl}).
+     * 产生事件 并发送
      */
     Callable<CompletableFuture<Acknowledge>> createEventSendAction(
             SerializedValue<OperatorEvent> event);
 
-    /** Gets the parallel subtask index of the target subtask. */
+    /** Gets the parallel subtask index of the target subtask.
+     * 获取当前子任务的下标
+     * */
     int getSubtaskIndex();
 
     /** Gets the execution attempt ID of the attempt that this instance is bound to. */
@@ -66,17 +70,20 @@ interface SubtaskAccess {
      * The future returned here completes once the target subtask is in a running state. As running
      * state classify the states {@link ExecutionState#RUNNING} and {@link
      * ExecutionState#INITIALIZING}.
+     * 切换成运行状态
      */
     CompletableFuture<?> hasSwitchedToRunning();
 
     /**
      * Checks whether the execution is still in a running state. See {@link #hasSwitchedToRunning()}
      * for details.
+     * 判断是否还处于运行状态
      */
     boolean isStillRunning();
 
     /**
      * Triggers a failover for the subtaks execution attempt that this access instance is bound to.
+     * 使用一个异常标识 运行失败了
      */
     void triggerTaskFailover(Throwable cause);
 
@@ -87,6 +94,7 @@ interface SubtaskAccess {
      * org.apache.flink.runtime.executiongraph.Execution}, this factory is bound to the operator as
      * a whole (like in the scope of an {@link
      * org.apache.flink.runtime.executiongraph.ExecutionJobVertex}.
+     * 获取某个子任务的访问对象
      */
     interface SubtaskAccessFactory {
 

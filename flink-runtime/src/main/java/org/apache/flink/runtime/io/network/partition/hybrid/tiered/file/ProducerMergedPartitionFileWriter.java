@@ -66,15 +66,20 @@ public class ProducerMergedPartitionFileWriter implements PartitionFileWriter {
                             .setUncaughtExceptionHandler(FatalExitExceptionHandler.INSTANCE)
                             .build());
 
-    /** File channel to write data. */
+    /** File channel to write data.
+     * 对应数据文件
+     * */
     private final FileChannel dataFileChannel;
 
     /**
      * The partition file index. When flushing buffers, the partition file indexes will be updated.
+     * 存储索引数据
      */
     private final ProducerMergedPartitionFileIndex partitionFileIndex;
 
-    /** The total number of bytes written to the file. */
+    /** The total number of bytes written to the file.
+     * 记录写入的总数
+     * */
     private long totalBytesWritten;
 
     ProducerMergedPartitionFileWriter(
@@ -90,6 +95,12 @@ public class ProducerMergedPartitionFileWriter implements PartitionFileWriter {
         this.partitionFileIndex = partitionFileIndex;
     }
 
+    /**
+     *
+     * @param partitionId the partition id
+     * @param buffersToWrite the buffers to be written to the partition file
+     * @return
+     */
     @Override
     public CompletableFuture<Void> write(
             TieredStoragePartitionId partitionId, List<SubpartitionBufferContext> buffersToWrite) {
@@ -116,12 +127,15 @@ public class ProducerMergedPartitionFileWriter implements PartitionFileWriter {
     //  Internal Methods
     // ------------------------------------------------------------------------
 
-    /** Called in single-threaded ioExecutor. Order is guaranteed. */
+    /** Called in single-threaded ioExecutor. Order is guaranteed.
+     * 将数据写入
+     * */
     private void flush(
             List<SubpartitionBufferContext> toWrite, CompletableFuture<Void> flushSuccessNotifier) {
         try {
             List<ProducerMergedPartitionFileIndex.FlushedBuffer> buffers = new ArrayList<>();
             calculateSizeAndFlushBuffers(toWrite, buffers);
+            // 将返回的数据加入索引
             partitionFileIndex.addBuffers(buffers);
             flushSuccessNotifier.complete(null);
         } catch (IOException exception) {
@@ -149,6 +163,8 @@ public class ProducerMergedPartitionFileWriter implements PartitionFileWriter {
                 List<Tuple2<Buffer, Integer>> bufferAndIndexes =
                         segmentBufferContext.getBufferAndIndexes();
                 buffersToFlush.addAll(bufferAndIndexes);
+
+                // 这个是要写入的数据
                 for (Tuple2<Buffer, Integer> bufferWithIndex :
                         segmentBufferContext.getBufferAndIndexes()) {
                     Buffer buffer = bufferWithIndex.f0;
@@ -162,6 +178,7 @@ public class ProducerMergedPartitionFileWriter implements PartitionFileWriter {
                 }
             }
         }
+        // 写入数据
         flushBuffers(buffersToFlush, expectedBytes);
         buffersToFlush.forEach(bufferWithIndex -> bufferWithIndex.f0.recycleBuffer());
     }

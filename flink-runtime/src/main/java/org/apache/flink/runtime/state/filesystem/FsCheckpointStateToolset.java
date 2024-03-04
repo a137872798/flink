@@ -34,6 +34,7 @@ import java.util.stream.IntStream;
 /**
  * An implementation of {@link CheckpointStateToolset} that does file based duplicating with as
  * {@link DuplicatingFileSystem}.
+ * 判断能否快速拷贝 以及提供拷贝接口
  */
 public class FsCheckpointStateToolset implements CheckpointStateToolset {
 
@@ -47,6 +48,7 @@ public class FsCheckpointStateToolset implements CheckpointStateToolset {
 
     @Override
     public boolean canFastDuplicate(StreamStateHandle stateHandle) throws IOException {
+        // 如果是FileStateHandle则可以快速拷贝  因为需要文件路径即可
         if (!(stateHandle instanceof FileStateHandle)) {
             return false;
         }
@@ -60,6 +62,8 @@ public class FsCheckpointStateToolset implements CheckpointStateToolset {
             throws IOException {
 
         final List<CopyRequest> requests = new ArrayList<>();
+
+        // 目前只支持拷贝FileStateHandle
         for (StreamStateHandle handle : stateHandles) {
             if (!(handle instanceof FileStateHandle)) {
                 throw new IllegalArgumentException("We can duplicate only FileStateHandles.");
@@ -84,8 +88,15 @@ public class FsCheckpointStateToolset implements CheckpointStateToolset {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 更换目录 变成新path
+     * @param fileName
+     * @return
+     * @throws IOException
+     */
     private Path getNewDstPath(String fileName) throws IOException {
         final Path dst = new Path(basePath, fileName);
+        // 这个是改写路径的 先忽略
         return EntropyInjector.addEntropy(dst.getFileSystem(), dst);
     }
 }

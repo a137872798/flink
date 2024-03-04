@@ -37,6 +37,13 @@ import static org.apache.flink.util.Preconditions.checkState;
 /** Util to compute {@link JobVertexInputInfo}s for execution job vertex. */
 public class VertexInputInfoComputationUtils {
 
+    /**
+     *
+     * @param ejv  待处理的task
+     * @param intermediateResultRetriever  通过id查找中间结果集
+     * @return
+     * @throws JobException
+     */
     public static Map<IntermediateDataSetID, JobVertexInputInfo> computeVertexInputInfos(
             ExecutionJobVertex ejv,
             Function<IntermediateDataSetID, IntermediateResult> intermediateResultRetriever)
@@ -56,6 +63,13 @@ public class VertexInputInfoComputationUtils {
                 ejv.getParallelism(), intermediateResultInfos, ejv.getGraph().isDynamic());
     }
 
+    /**
+     * 计算数据消费
+     * @param parallelism  使用的并行度
+     * @param inputs  描述输入的数据量
+     * @param isDynamicGraph
+     * @return
+     */
     public static Map<IntermediateDataSetID, JobVertexInputInfo> computeVertexInputInfos(
             int parallelism,
             List<? extends IntermediateResultInfo> inputs,
@@ -66,8 +80,10 @@ public class VertexInputInfoComputationUtils {
                 new LinkedHashMap<>();
 
         for (IntermediateResultInfo input : inputs) {
+            // 获取该输入的分区数
             int sourceParallelism = input.getNumPartitions();
 
+            // 对应点态
             if (input.isPointwise()) {
                 jobVertexInputInfos.putIfAbsent(
                         input.getResultId(),
@@ -77,6 +93,7 @@ public class VertexInputInfoComputationUtils {
                                 input::getNumSubpartitions,
                                 isDynamicGraph));
             } else {
+                // 对应 allToAll模式   也就是各分区相同子分区数据要被同一个对象消费
                 jobVertexInputInfos.putIfAbsent(
                         input.getResultId(),
                         computeVertexInputInfoForAllToAll(
@@ -102,6 +119,7 @@ public class VertexInputInfoComputationUtils {
      * @param numOfSubpartitionsRetriever a retriever to get the number of subpartitions
      * @param isDynamicGraph whether is dynamic graph
      * @return the computed {@link JobVertexInputInfo}
+     * 针对点态模式 为每个子任务分配上游消费的数据
      */
     static JobVertexInputInfo computeVertexInputInfoForPointwise(
             int sourceCount,
@@ -111,13 +129,16 @@ public class VertexInputInfoComputationUtils {
 
         final List<ExecutionVertexInputInfo> executionVertexInputInfos = new ArrayList<>();
 
+        // 上游数量超过下游
         if (sourceCount >= targetCount) {
             for (int index = 0; index < targetCount; index++) {
 
+                // 按比例计算 得到分区范围
                 int start = index * sourceCount / targetCount;
                 int end = (index + 1) * sourceCount / targetCount;
 
                 IndexRange partitionRange = new IndexRange(start, end - 1);
+                // 这里计算出来的子分区含义不同  范围变成了  0 ～ 分区*子分区
                 IndexRange subpartitionRange =
                         computeConsumedSubpartitionRange(
                                 index,
@@ -129,8 +150,10 @@ public class VertexInputInfoComputationUtils {
                         new ExecutionVertexInputInfo(index, partitionRange, subpartitionRange));
             }
         } else {
+            // 上游 < 下游
             for (int partitionNum = 0; partitionNum < sourceCount; partitionNum++) {
 
+                // 转换成 target的范围
                 int start = (partitionNum * targetCount + sourceCount - 1) / sourceCount;
                 int end = ((partitionNum + 1) * targetCount + sourceCount - 1) / sourceCount;
                 int numConsumers = end - start;
@@ -138,7 +161,10 @@ public class VertexInputInfoComputationUtils {
                 IndexRange partitionRange = new IndexRange(partitionNum, partitionNum);
                 // Variable used in lambda expression should be final or effectively final
                 final int finalPartitionNum = partitionNum;
+
+                // 在对应target的范围内检索
                 for (int i = start; i < end; i++) {
+                    // 得到子分区范围
                     IndexRange subpartitionRange =
                             computeConsumedSubpartitionRange(
                                     i,
@@ -160,9 +186,9 @@ public class VertexInputInfoComputationUtils {
      * according to the number of subpartitions. Different downstream subtasks consume roughly the
      * same number of subpartitions.
      *
-     * @param sourceCount the parallelism of upstream
-     * @param targetCount the parallelism of downstream
-     * @param numOfSubpartitionsRetriever a retriever to get the number of subpartitions
+     * @param sourceCount the parallelism of upstream  输入源的分区数
+     * @param targetCount the parallelism of downstream  消费端的分区数
+     * @param numOfSubpartitionsRetriever a retriever to get the number of subpartitions   查看某个分区有多少子分区
      * @param isDynamicGraph whether is dynamic graph
      * @param isBroadcast whether the edge is broadcast
      * @return the computed {@link JobVertexInputInfo}
@@ -174,8 +200,11 @@ public class VertexInputInfoComputationUtils {
             boolean isDynamicGraph,
             boolean isBroadcast) {
         final List<ExecutionVertexInputInfo> executionVertexInputInfos = new ArrayList<>();
+
+        // allToAll模式下 下游每个分区range都包含全部的分区
         IndexRange partitionRange = new IndexRange(0, sourceCount - 1);
         for (int i = 0; i < targetCount; ++i) {
+            // 计算子分区范围
             IndexRange subpartitionRange =
                     computeConsumedSubpartitionRange(
                             i,
@@ -194,12 +223,13 @@ public class VertexInputInfoComputationUtils {
      * distribute subpartitions to downstream subtasks according to the number of subpartitions.
      * Different downstream subtasks consume roughly the same number of subpartitions.
      *
-     * @param consumerSubtaskIndex the subtask index
-     * @param numConsumers the total number of consumers
-     * @param numOfSubpartitionsSupplier a supplier to get the number of subpartitions
-     * @param isDynamicGraph whether is dynamic graph
-     * @param isBroadcast whether the edge is broadcast
+     * @param consumerSubtaskIndex the subtask index  子任务下标
+     * @param numConsumers the total number of consumers  总计有多少子任务消费
+     * @param numOfSubpartitionsSupplier a supplier to get the number of subpartitions  可以查询分区下子分区数
+     * @param isDynamicGraph whether is dynamic graph  是否为动态图
+     * @param isBroadcast whether the edge is broadcast  是否广播
      * @return the computed subpartition range
+     * 计算该子任务如何消费上游数据
      */
     @VisibleForTesting
     static IndexRange computeConsumedSubpartitionRange(
@@ -210,17 +240,21 @@ public class VertexInputInfoComputationUtils {
             boolean isBroadcast) {
         int consumerIndex = consumerSubtaskIndex % numConsumers;
         if (!isDynamicGraph) {
+            // 非动态 1比1消费  下游每个task对应上游所有分区的某个子分区
             return new IndexRange(consumerIndex, consumerIndex);
         } else {
+            // 获取子分区数
             int numSubpartitions = numOfSubpartitionsSupplier.get();
             if (isBroadcast) {
                 // broadcast results have only one subpartition, and be consumed multiple times.
                 checkArgument(numSubpartitions == 1);
+                // 广播模式特殊情况
                 return new IndexRange(0, 0);
             } else {
                 checkArgument(consumerIndex < numConsumers);
                 checkArgument(numConsumers <= numSubpartitions);
 
+                // 按照下游子任务占比 等比例计算子分区数
                 int start = consumerIndex * numSubpartitions / numConsumers;
                 int nextStart = (consumerIndex + 1) * numSubpartitions / numConsumers;
 

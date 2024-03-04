@@ -29,13 +29,16 @@ import static org.apache.flink.util.Preconditions.checkState;
  * A logical timestamp to draw a boundary between the materialized and non-materialized changes.
  * Maintained by the state backend but implementations may choose to move its generation to {@link
  * StateChangelogStorage} as an optimization.
+ * 表示可以产生不断递增的序列号
  */
 @Internal
 public interface SequenceNumber extends Comparable<SequenceNumber>, Serializable {
 
     SequenceNumber next();
 
-    /** Generic {@link SequenceNumber}. */
+    /** Generic {@link SequenceNumber}.
+     * 这个对象是线程安全环境下使用的
+     * */
     final class GenericSequenceNumber implements SequenceNumber {
         private static final long serialVersionUID = 1L;
 

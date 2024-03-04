@@ -32,7 +32,9 @@ import java.util.function.BiConsumer;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Cleanup task for transient BLOBs. */
+/** Cleanup task for transient BLOBs.
+ * 由定时器定期执行的任务
+ * */
 class TransientBlobCleanupTask extends TimerTask {
 
     /** The log object used for debugging. */
@@ -68,6 +70,7 @@ class TransientBlobCleanupTask extends TimerTask {
         Set<Map.Entry<Tuple2<JobID, TransientBlobKey>, Long>> entries =
                 new HashSet<>(blobExpiryTimes.entrySet());
         for (Map.Entry<Tuple2<JobID, TransientBlobKey>, Long> entry : entries) {
+            // 超时了 执行清理函数
             if (currentTimeMillis >= entry.getValue()) {
                 JobID jobId = entry.getKey().f0;
                 TransientBlobKey blobKey = entry.getKey().f1;

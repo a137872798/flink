@@ -50,6 +50,11 @@ public class ReusingDeserializationDelegate<T> implements DeserializationDelegat
         throw new IllegalStateException("Serialization method called on DeserializationDelegate.");
     }
 
+    /**
+     * 在读取时  或者说反序列化时 自动复用之前的实例
+     * @param in the input view to read the data from
+     * @throws IOException
+     */
     @Override
     public void read(DataInputView in) throws IOException {
         this.instance = this.serializer.deserialize(this.instance, in);

@@ -43,6 +43,8 @@ import java.util.List;
  * from that buffer.
  *
  * @param <T> The type of record that the iterator handles.
+ *           又是倾泻对象  特点就是在writer还未初始化时  将数据存储到内存  初始化后 则利用writer写入全部数据
+ *           主要就是利用 SpillingBuffer
  */
 public class SpillingResettableMutableObjectIterator<T>
         implements ResettableMutableObjectIterator<T> {
@@ -52,12 +54,21 @@ public class SpillingResettableMutableObjectIterator<T>
 
     // ------------------------------------------------------------------------
 
+    /**
+     * 可以读取内部数据
+     */
     protected DataInputView inView;
 
     protected final TypeSerializer<T> serializer;
 
+    /**
+     * 总计有多少元素
+     */
     private long elementCount;
 
+    /**
+     * 当前下标
+     */
     private long currentElementNum;
 
     protected final SpillingBuffer buffer;
@@ -118,6 +129,7 @@ public class SpillingResettableMutableObjectIterator<T>
                             + " pages of memory.");
         }
 
+        // 该buffer可以体现 倾泻
         this.buffer =
                 new SpillingBuffer(
                         ioManager,
@@ -129,10 +141,16 @@ public class SpillingResettableMutableObjectIterator<T>
 
     @Override
     public void reset() throws IOException {
+        // 将buffer反转为input
         this.inView = this.buffer.flip();
         this.currentElementNum = 0;
     }
 
+    /**
+     * 准备清理数据
+     * @return
+     * @throws IOException
+     */
     public List<MemorySegment> close() throws IOException {
         if (LOG.isDebugEnabled()) {
             LOG.debug(
@@ -151,12 +169,20 @@ public class SpillingResettableMutableObjectIterator<T>
             this.memoryManager.release(memory);
             return Collections.emptyList();
         } else {
+            // 交给上层释放
             return memory;
         }
     }
 
+    /**
+     *
+     * @param reuse The target object into which to place next element if E is mutable.
+     * @return
+     * @throws IOException
+     */
     @Override
     public T next(T reuse) throws IOException {
+        // 当从迭代器读取完数据 并完成写入后 才会初始化inView  (将之前写入的数据变为读取数据)
         if (this.inView != null) {
             // reading, any subsequent pass
             if (this.currentElementNum < this.elementCount) {
@@ -173,6 +199,7 @@ public class SpillingResettableMutableObjectIterator<T>
             }
         } else {
             // writing pass (first)
+            // 此时还处于读取阶段  就跟其他几个类的   readPhase一样
             if ((reuse = this.input.next(reuse)) != null) {
                 try {
                     this.serializer.serialize(reuse, this.buffer);
@@ -222,6 +249,10 @@ public class SpillingResettableMutableObjectIterator<T>
         }
     }
 
+    /**
+     * 消费完剩下的数据
+     * @throws IOException
+     */
     public void consumeAndCacheRemainingData() throws IOException {
         // check that we are in the first pass and that more input data is left
         if (this.inView == null) {

@@ -219,6 +219,7 @@ public class BlobUtils {
      * @param jobId ID of the job for the incoming files (or <tt>null</tt> if job-unrelated)
      * @return the (designated) physical storage location of the BLOB
      * @throws IOException if creating the directory fails
+     * 将id，key 转换成路径
      */
     static File getStorageLocation(File storageDir, @Nullable JobID jobId, BlobKey key)
             throws IOException {
@@ -320,6 +321,7 @@ public class BlobUtils {
             bytesRead += read;
         }
 
+        // 拼接产生长度
         bytesRead = buf[0] & 0xff;
         bytesRead |= (buf[1] & 0xff) << 8;
         bytesRead |= (buf[2] & 0xff) << 16;
@@ -503,14 +505,22 @@ public class BlobUtils {
         return messageDigest.digest();
     }
 
+    /**
+     * 删除数据损坏的文件
+     * @param storageDir
+     * @param log
+     * @throws IOException
+     */
     static void checkAndDeleteCorruptedBlobs(java.nio.file.Path storageDir, Logger log)
             throws IOException {
+        // 列举目录下所有blob
         for (Blob blob : listBlobsInDirectory(storageDir)) {
             final BlobKey blobKey = blob.getBlobKey();
             final java.nio.file.Path blobPath = blob.getPath();
 
             final byte[] messageDigest = calculateMessageDigest(blobPath.toFile());
 
+            // 代表文件数据异常 删除本文件
             if (!Arrays.equals(blobKey.getHash(), messageDigest)) {
                 log.info(
                         "Found corrupted blob {} under {}. Deleting this blob.", blobKey, blobPath);

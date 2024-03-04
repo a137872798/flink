@@ -22,7 +22,9 @@ import org.apache.flink.configuration.MemorySize;
 
 import java.io.Serializable;
 
-/** Common interface for Flink JVM process memory components. */
+/** Common interface for Flink JVM process memory components.
+ * 获取各种内存的大小
+ * */
 public interface ProcessMemorySpec extends Serializable {
     MemorySize getJvmHeapMemorySize();
 

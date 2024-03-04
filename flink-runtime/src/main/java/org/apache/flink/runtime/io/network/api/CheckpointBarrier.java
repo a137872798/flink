@@ -41,10 +41,15 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * is complete (exactly once).
  *
  * <p>The checkpoint barrier IDs are strictly monotonous increasing.
+ * 表示一个屏障事件  应当是表示暂停数据的读取 直到某个时间戳
  */
 public class CheckpointBarrier extends RuntimeEvent {
 
     private final long id;
+
+    /**
+     * 表示屏障结束时间
+     */
     private final long timestamp;
     private final CheckpointOptions checkpointOptions;
 

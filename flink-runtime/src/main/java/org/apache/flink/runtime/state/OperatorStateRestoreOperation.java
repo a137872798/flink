@@ -36,7 +36,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-/** Implementation of operator state restore operation. */
+/** Implementation of operator state restore operation.
+ * 恢复 operatorState的数据到内存中
+ * */
 public class OperatorStateRestoreOperation implements RestoreOperation<Void> {
     private final CloseableRegistry closeStreamOnCancelRegistry;
     private final ClassLoader userClassloader;
@@ -63,12 +65,14 @@ public class OperatorStateRestoreOperation implements RestoreOperation<Void> {
             return null;
         }
 
+        // 每个state都要恢复
         for (OperatorStateHandle stateHandle : stateHandles) {
 
             if (stateHandle == null) {
                 continue;
             }
 
+            // 获取输入流
             FSDataInputStream in = stateHandle.openInputStream();
             closeStreamOnCancelRegistry.registerCloseable(in);
 
@@ -85,6 +89,7 @@ public class OperatorStateRestoreOperation implements RestoreOperation<Void> {
                         backendSerializationProxy.getOperatorStateMetaInfoSnapshots();
 
                 // Recreate all PartitionableListStates from the meta info
+                // 恢复元数据
                 for (StateMetaInfoSnapshot restoredSnapshot : restoredOperatorMetaInfoSnapshots) {
 
                     final RegisteredOperatorStateBackendMetaInfo<?> restoredMetaInfo =
@@ -123,6 +128,8 @@ public class OperatorStateRestoreOperation implements RestoreOperation<Void> {
                         // typeSerializer migration strategies
                     }
                 }
+
+                // 根据元数据信息 先初始化map
 
                 // ... and then get back the broadcast state.
                 List<StateMetaInfoSnapshot> restoredBroadcastMetaInfoSnapshots =
@@ -167,6 +174,8 @@ public class OperatorStateRestoreOperation implements RestoreOperation<Void> {
                         // typeSerializer migration strategies
                     }
                 }
+
+                // 接下来恢复state数据
 
                 // Restore all the states
                 for (Map.Entry<String, OperatorStateHandle.StateMetaInfo> nameToOffsets :

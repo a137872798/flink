@@ -53,6 +53,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * StateHandleStore}, we could persist the job graphs to various distributed storage. Also combined
  * with different {@link JobGraphStoreWatcher}, we could get all the changes on the job graph store
  * and do the response.
+ * job图存储
  */
 public class DefaultJobGraphStore<R extends ResourceVersion<R>>
         implements JobGraphStore, JobGraphStore.JobGraphListener {
@@ -62,23 +63,37 @@ public class DefaultJobGraphStore<R extends ResourceVersion<R>>
     /** Lock to synchronize with the {@link JobGraphListener}. */
     private final Object lock = new Object();
 
-    /** The set of IDs of all added job graphs. */
+    /** The set of IDs of all added job graphs.
+     * 当前收纳的所有job图
+     * */
     @GuardedBy("lock")
     private final Set<JobID> addedJobGraphs = new HashSet<>();
 
-    /** Submitted job graphs handle store. */
+    /** Submitted job graphs handle store.
+     * 该对象可以为state加锁和解锁
+     * */
     private final StateHandleStore<JobGraph, R> jobGraphStateHandleStore;
 
+    /**
+     * 监听本对象的启动和停止
+     */
     @GuardedBy("lock")
     private final JobGraphStoreWatcher jobGraphStoreWatcher;
 
+    /**
+     * 提供jobId 到name的转换能力
+     */
     private final JobGraphStoreUtil jobGraphStoreUtil;
 
-    /** The external listener to be notified on races. */
+    /** The external listener to be notified on races.
+     * 监听job图的变化
+     * */
     @GuardedBy("lock")
     private JobGraphListener jobGraphListener;
 
-    /** Flag indicating whether this instance is running. */
+    /** Flag indicating whether this instance is running.
+     * 表示当前实例是否在运行
+     * */
     @GuardedBy("lock")
     private volatile boolean running;
 
@@ -93,17 +108,27 @@ public class DefaultJobGraphStore<R extends ResourceVersion<R>>
         this.running = false;
     }
 
+    /**
+     * 启动对象
+     * @param jobGraphListener
+     * @throws Exception
+     */
     @Override
     public void start(JobGraphListener jobGraphListener) throws Exception {
         synchronized (lock) {
             if (!running) {
                 this.jobGraphListener = checkNotNull(jobGraphListener);
+                // 触发监听器
                 jobGraphStoreWatcher.start(this);
                 running = true;
             }
         }
     }
 
+    /**
+     * 停止 jobGraphStore
+     * @throws Exception
+     */
     @Override
     public void stop() throws Exception {
         synchronized (lock) {
@@ -113,12 +138,14 @@ public class DefaultJobGraphStore<R extends ResourceVersion<R>>
                 Exception exception = null;
 
                 try {
+                    // 释放所有锁
                     jobGraphStateHandleStore.releaseAll();
                 } catch (Exception e) {
                     exception = e;
                 }
 
                 try {
+                    // 触发钩子
                     jobGraphStoreWatcher.stop();
                 } catch (Exception e) {
                     exception = ExceptionUtils.firstOrSuppressed(e, exception);
@@ -132,6 +159,12 @@ public class DefaultJobGraphStore<R extends ResourceVersion<R>>
         }
     }
 
+    /**
+     * 还原出某个job图
+     * @param jobId
+     * @return
+     * @throws Exception
+     */
     @Nullable
     @Override
     public JobGraph recoverJobGraph(JobID jobId) throws Exception {
@@ -139,6 +172,7 @@ public class DefaultJobGraphStore<R extends ResourceVersion<R>>
 
         LOG.debug("Recovering job graph {} from {}.", jobId, jobGraphStateHandleStore);
 
+        // 转换成路径
         final String name = jobGraphStoreUtil.jobIDToName(jobId);
 
         synchronized (lock) {
@@ -150,6 +184,8 @@ public class DefaultJobGraphStore<R extends ResourceVersion<R>>
 
             try {
                 try {
+                    // 在锁加持的情况下 获得该state   job图看来在全局下是被独占的
+                    // 应该是这样 有个对象会根据job图分配task到不同节点  而分配过程应当由一个节点进行  所以要加锁
                     jobGraphRetrievableStateHandle = jobGraphStateHandleStore.getAndLock(name);
                 } catch (StateHandleStore.NotExistException ignored) {
                     success = true;
@@ -163,6 +199,7 @@ public class DefaultJobGraphStore<R extends ResourceVersion<R>>
                             e);
                 }
 
+                // 该stateHandle 存储的是一个job图  现在将它查询出来
                 JobGraph jobGraph;
                 try {
                     jobGraph = jobGraphRetrievableStateHandle.retrieveState();
@@ -182,6 +219,7 @@ public class DefaultJobGraphStore<R extends ResourceVersion<R>>
                             ioe);
                 }
 
+                // 还原出job图后 加入到map中 表示读取完成
                 addedJobGraphs.add(jobGraph.getJobID());
 
                 LOG.info("Recovered {}.", jobGraph);
@@ -190,16 +228,23 @@ public class DefaultJobGraphStore<R extends ResourceVersion<R>>
                 return jobGraph;
             } finally {
                 if (!success) {
+                    // 操作失败时 释放锁
                     jobGraphStateHandleStore.release(name);
                 }
             }
         }
     }
 
+    /**
+     * 插入一个job图
+     * @param jobGraph
+     * @throws Exception
+     */
     @Override
     public void putJobGraph(JobGraph jobGraph) throws Exception {
         checkNotNull(jobGraph, "Job graph");
 
+        // 转换成name  (或者说zk的路径)
         final JobID jobID = jobGraph.getJobID();
         final String name = jobGraphStoreUtil.jobIDToName(jobID);
 
@@ -211,18 +256,22 @@ public class DefaultJobGraphStore<R extends ResourceVersion<R>>
             synchronized (lock) {
                 verifyIsRunning();
 
+                // 这里要进行双写
                 final R currentVersion = jobGraphStateHandleStore.exists(name);
 
                 if (!currentVersion.isExisting()) {
                     try {
+                        // 锁住路径添加job图
                         jobGraphStateHandleStore.addAndLock(name, jobGraph);
 
+                        // 写入zk成功后 再写入内存
                         addedJobGraphs.add(jobID);
 
                         success = true;
                     } catch (StateHandleStore.AlreadyExistException ignored) {
                         LOG.warn("{} already exists in {}.", jobGraph, jobGraphStateHandleStore);
                     }
+                    // 已经存在的情况下  理解为替换
                 } else if (addedJobGraphs.contains(jobID)) {
                     try {
                         jobGraphStateHandleStore.replace(name, currentVersion, jobGraph);
@@ -243,6 +292,12 @@ public class DefaultJobGraphStore<R extends ResourceVersion<R>>
         LOG.info("Added {} to {}.", jobGraph, jobGraphStateHandleStore);
     }
 
+    /**
+     * 设置一些job的资源要求
+     * @param jobId job the given requirements belong to
+     * @param jobResourceRequirements requirements to persist
+     * @throws Exception
+     */
     @Override
     public void putJobResourceRequirements(
             JobID jobId, JobResourceRequirements jobResourceRequirements) throws Exception {
@@ -254,16 +309,25 @@ public class DefaultJobGraphStore<R extends ResourceVersion<R>>
                                 "JobGraph for job [%s] was not found in JobGraphStore and is needed for attaching JobResourceRequirements.",
                                 jobId));
             }
+            // 写入到jobGraph的config中
             JobResourceRequirements.writeToJobGraph(jobGraph, jobResourceRequirements);
+            // 使用新的覆盖
             putJobGraph(jobGraph);
         }
     }
 
+    /**
+     * 清理全局资源
+     * @param jobId
+     * @param executor
+     * @return
+     */
     @Override
     public CompletableFuture<Void> globalCleanupAsync(JobID jobId, Executor executor) {
         checkNotNull(jobId, "Job ID");
 
         return runAsyncWithLockAssertRunning(
+                // 在锁内执行
                 () -> {
                     LOG.debug("Removing job graph {} from {}.", jobId, jobGraphStateHandleStore);
 
@@ -277,6 +341,11 @@ public class DefaultJobGraphStore<R extends ResourceVersion<R>>
                 executor);
     }
 
+    /**
+     * 删除job
+     * @param jobId
+     * @param jobName
+     */
     @GuardedBy("lock")
     private void releaseAndRemoveOrThrowCompletionException(JobID jobId, String jobName) {
         boolean success;
@@ -313,7 +382,9 @@ public class DefaultJobGraphStore<R extends ResourceVersion<R>>
                 () -> {
                     LOG.debug("Releasing job graph {} from {}.", jobId, jobGraphStateHandleStore);
 
+                    // 这里只是释放锁
                     jobGraphStateHandleStore.release(jobGraphStoreUtil.jobIDToName(jobId));
+                    // 只清理内存数据 而没有清除zk数据
                     addedJobGraphs.remove(jobId);
 
                     LOG.info("Released job graph {} from {}.", jobId, jobGraphStateHandleStore);
@@ -337,6 +408,11 @@ public class DefaultJobGraphStore<R extends ResourceVersion<R>>
                 executor);
     }
 
+    /**
+     * 返回所有job
+     * @return
+     * @throws Exception
+     */
     @Override
     public Collection<JobID> getJobIds() throws Exception {
         LOG.debug("Retrieving all stored job ids from {}.", jobGraphStateHandleStore);
@@ -367,14 +443,20 @@ public class DefaultJobGraphStore<R extends ResourceVersion<R>>
         return jobIds;
     }
 
+    /**
+     * 检测到添加了新的job图
+     * @param jobId The {@link JobID} of the added job graph
+     */
     @Override
     public void onAddedJobGraph(JobID jobId) {
         synchronized (lock) {
             if (running) {
+                // 之前未出现的
                 if (!addedJobGraphs.contains(jobId)) {
                     try {
                         // This has been added by someone else. Or we were fast to remove it (false
                         // positive).
+                        // 这里只做转发
                         jobGraphListener.onAddedJobGraph(jobId);
                     } catch (Throwable t) {
                         LOG.error(

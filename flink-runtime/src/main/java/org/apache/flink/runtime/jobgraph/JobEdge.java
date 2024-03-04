@@ -26,16 +26,23 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * This class represent edges (communication channels) in a job graph. The edges always go from an
  * intermediate result partition to a job vertex. An edge is parametrized with its {@link
  * DistributionPattern}.
+ * 表示一条边  有source和target2个部分
  */
 public class JobEdge implements java.io.Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /** The vertex connected to this edge. */
+    /** The vertex connected to this edge.
+     * 该正向边通往的顶点
+     * */
     private final JobVertex target;
 
-    /** The distribution pattern that should be used for this job edge. */
+    /** The distribution pattern that should be used for this job edge.
+     * 表示 producer -> consumer 是一对一还是一对多
+     * */
     private final DistributionPattern distributionPattern;
+
+    // SubtaskStateMapper 表示任务缩放器 在任务数量发生变化时起作用
 
     /** The channel rescaler that should be used for this job edge on downstream side. */
     private SubtaskStateMapper downstreamSubtaskStateMapper = SubtaskStateMapper.ROUND_ROBIN;
@@ -43,7 +50,9 @@ public class JobEdge implements java.io.Serializable {
     /** The channel rescaler that should be used for this job edge on upstream side. */
     private SubtaskStateMapper upstreamSubtaskStateMapper = SubtaskStateMapper.ROUND_ROBIN;
 
-    /** The data set at the source of the edge, may be null if the edge is not yet connected. */
+    /** The data set at the source of the edge, may be null if the edge is not yet connected.
+     * 边的起点应该是一个中间数据集 如果为空 代表该边还没有跟上游连接起来
+     * */
     private final IntermediateDataSet source;
 
     /**
@@ -52,9 +61,14 @@ public class JobEdge implements java.io.Serializable {
      */
     private String shipStrategyName;
 
+    /**
+     * 是否是广播的  中间结果集可以在添加消费者(edge)时设置该属性
+     */
     private final boolean isBroadcast;
 
     private boolean isForward;
+
+    // 这些都是描述信息
 
     /**
      * Optional name for the pre-processing operation (sort, combining sort, ...), to be displayed
@@ -74,7 +88,7 @@ public class JobEdge implements java.io.Serializable {
      * @param isBroadcast Whether the source broadcasts data to the target.
      */
     public JobEdge(
-            IntermediateDataSet source,
+            IntermediateDataSet source,  // 结果集中有source属性 表示产生该结果集的顶点 也就可以转换成JobVertex  所以跟传入2个JobVertex的效果是一样的
             JobVertex target,
             DistributionPattern distributionPattern,
             boolean isBroadcast) {

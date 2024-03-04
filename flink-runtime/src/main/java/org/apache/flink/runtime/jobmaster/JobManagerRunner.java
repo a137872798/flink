@@ -28,7 +28,9 @@ import org.apache.flink.util.AutoCloseableAsync;
 
 import java.util.concurrent.CompletableFuture;
 
-/** Interface for a runner which executes a {@link JobMaster}. */
+/** Interface for a runner which executes a {@link JobMaster}.
+ * 表示一个运行器  去运行 JobMaster
+ * */
 public interface JobManagerRunner extends AutoCloseableAsync {
 
     /**
@@ -43,6 +45,7 @@ public interface JobManagerRunner extends AutoCloseableAsync {
      * the JobMaster becomes leader.
      *
      * @return Future with the JobMasterGateway once the underlying JobMaster becomes leader
+     * 获取网关对象
      */
     CompletableFuture<JobMasterGateway> getJobMasterGateway();
 
@@ -54,6 +57,7 @@ public interface JobManagerRunner extends AutoCloseableAsync {
      * denote an unexpected exception which leads to a process restart.
      *
      * @return Future which is completed with the job result
+     * 获取运行结果
      */
     CompletableFuture<JobManagerRunnerResult> getResultFuture();
 
@@ -77,6 +81,7 @@ public interface JobManagerRunner extends AutoCloseableAsync {
      *
      * @param timeout for the rpc call
      * @return Future containing the current job status
+     * 获取当前job的状态
      */
     CompletableFuture<JobStatus> requestJobStatus(Time timeout);
 
@@ -85,6 +90,7 @@ public interface JobManagerRunner extends AutoCloseableAsync {
      *
      * @param timeout for the rpc call
      * @return Future details of the executed job
+     * 获取job此时的信息
      */
     CompletableFuture<JobDetails> requestJobDetails(Time timeout);
 
@@ -93,6 +99,7 @@ public interface JobManagerRunner extends AutoCloseableAsync {
      *
      * @param timeout for the rpc call
      * @return Future which is completed with the {@link ExecutionGraphInfo} of the executed job
+     * 获取job的执行图
      */
     CompletableFuture<ExecutionGraphInfo> requestJob(Time timeout);
 

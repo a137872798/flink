@@ -24,7 +24,9 @@ import org.apache.flink.types.Either;
 
 import java.util.function.Consumer;
 
-/** Request execution state of partition producer, the response accepts state check callbacks. */
+/** Request execution state of partition producer, the response accepts state check callbacks.
+ * 用于获取生产方状态
+ * */
 public interface PartitionProducerStateProvider {
     /**
      * Trigger the producer execution state request.
@@ -33,6 +35,7 @@ public interface PartitionProducerStateProvider {
      * @param resultPartitionId ID of the result partition to check. This identifies the producing
      *     execution and partition.
      * @param responseConsumer consumer for the response handle.
+     *                         检查生产方此时的状态
      */
     void requestPartitionProducerState(
             IntermediateDataSetID intermediateDataSetId,

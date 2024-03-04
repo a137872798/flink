@@ -20,7 +20,9 @@ package org.apache.flink.runtime.util;
 
 import java.io.IOException;
 
-/** The memory block iterator is an iterator that always buffers a block of elements in memory. */
+/** The memory block iterator is an iterator that always buffers a block of elements in memory.
+ * 可以迭代内存块
+ * */
 public interface MemoryBlockIterator {
     /**
      * Move the iterator to the next memory block. The next memory block starts at the first element

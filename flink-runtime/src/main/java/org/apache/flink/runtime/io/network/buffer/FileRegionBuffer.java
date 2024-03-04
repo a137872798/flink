@@ -48,6 +48,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * <p>This class extends from Netty's {@link DefaultFileRegion}, similar as the {@link
  * NetworkBuffer} extends from Netty's {@link ByteBuf}. That way we can pass both of them to Netty
  * in the same way, and Netty will internally treat them appropriately.
+ *
+ * 表示将文件的一部分看作buffer
  */
 public class FileRegionBuffer extends DefaultFileRegion implements Buffer {
 

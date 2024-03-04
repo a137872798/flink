@@ -20,7 +20,9 @@ package org.apache.flink.runtime.blocklist;
 
 import java.util.Collection;
 
-/** Operations to perform on the blocklist. */
+/** Operations to perform on the blocklist.
+ * 赋予阻塞列表一个可操作的api  也就是追加阻塞节点
+ * */
 public interface BlocklistOperations {
 
     /**

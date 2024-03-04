@@ -25,13 +25,19 @@ import java.util.Arrays;
 
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** Information of Pointwise result. */
+/** Information of Pointwise result.
+ * 表示点态的结果
+ * */
 public class PointwiseBlockingResultInfo extends AbstractBlockingResultInfo {
     PointwiseBlockingResultInfo(
             IntermediateDataSetID resultId, int numOfPartitions, int numOfSubpartitions) {
         super(resultId, numOfPartitions, numOfSubpartitions);
     }
 
+    /**
+     * 点态一定是非广播模式
+     * @return
+     */
     @Override
     public boolean isBroadcast() {
         return false;
@@ -62,6 +68,12 @@ public class PointwiseBlockingResultInfo extends AbstractBlockingResultInfo {
                 .reduce(0L, Long::sum);
     }
 
+    /**
+     * 按照范围读取数据
+     * @param partitionIndexRange range of the index of the consumed partition.
+     * @param subpartitionIndexRange range of the index of the consumed subpartition.
+     * @return
+     */
     @Override
     public long getNumBytesProduced(
             IndexRange partitionIndexRange, IndexRange subpartitionIndexRange) {
@@ -79,6 +91,7 @@ public class PointwiseBlockingResultInfo extends AbstractBlockingResultInfo {
                     "Subpartition end index %s is out of range of partition %s.",
                     subpartitionIndexRange.getEndIndex(),
                     i);
+            // 这个就是正常的检索范围
             for (int j = subpartitionIndexRange.getStartIndex();
                     j <= subpartitionIndexRange.getEndIndex();
                     ++j) {

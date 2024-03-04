@@ -30,26 +30,38 @@ import javax.annotation.Nonnull;
  *
  * <p>The typical use case for this interface is providing a view on the current-key selection
  * aspects of {@link org.apache.flink.runtime.state.KeyedStateBackend}.
+ *
+ * 通过该对象可以获取当前key信息
  */
 @Internal
 public interface InternalKeyContext<K> {
 
-    /** Used by states to access the current key. */
+    /** Used by states to access the current key.
+     * 返回当前key
+     * */
     K getCurrentKey();
 
-    /** Returns the key-group to which the current key belongs. */
+    /** Returns the key-group to which the current key belongs.
+     * 获取key 在当前keyGroup的下标
+     * */
     int getCurrentKeyGroupIndex();
 
-    /** Returns the number of key-groups aka max parallelism. */
+    /** Returns the number of key-groups aka max parallelism.
+     * keyGroup下有多少元素
+     * */
     int getNumberOfKeyGroups();
 
-    /** Returns the key groups for this backend. */
+    /** Returns the key groups for this backend.
+     * 返回当前状态后端的 keyGroup
+     * */
     KeyGroupRange getKeyGroupRange();
 
     /**
      * Set current key of the context.
      *
      * @param currentKey the current key to set to.
+     *
+     *                   切换当前key
      */
     void setCurrentKey(@Nonnull K currentKey);
 
@@ -57,6 +69,7 @@ public interface InternalKeyContext<K> {
      * Set current key group index of the context.
      *
      * @param currentKeyGroupIndex the current key group index to set to.
+     *                             设置当前指向的 keyGroup槽
      */
     void setCurrentKeyGroupIndex(int currentKeyGroupIndex);
 }

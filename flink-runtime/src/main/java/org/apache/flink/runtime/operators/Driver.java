@@ -28,15 +28,21 @@ import org.apache.flink.api.common.functions.Function;
  * @see TaskContext
  * @param <S> The type of stub driven by this driver.
  * @param <OT> The data type of the records produced by this driver.
+ *            驱动 应该就是包装一个函数并运行的基本单元 并提供生命周期接口
  */
 public interface Driver<S extends Function, OT> {
 
+    /**
+     * 为驱动设置上下文
+     * @param context
+     */
     void setup(TaskContext<S, OT> context);
 
     /**
      * Gets the number of inputs that the task has.
      *
      * @return The number of inputs.
+     * 有多少个输入流
      */
     int getNumberOfInputs();
 
@@ -44,6 +50,7 @@ public interface Driver<S extends Function, OT> {
      * Gets the number of comparators required for this driver.
      *
      * @return The number of comparators required for this driver.
+     * 有关数据的比较器
      */
     int getNumberOfDriverComparators();
 

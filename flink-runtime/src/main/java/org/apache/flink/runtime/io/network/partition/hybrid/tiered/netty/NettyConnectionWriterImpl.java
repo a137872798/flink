@@ -26,10 +26,16 @@ import javax.annotation.Nullable;
 /** The default implementation of {@link NettyConnectionWriter}. */
 public class NettyConnectionWriterImpl implements NettyConnectionWriter {
 
+    /**
+     * 记录和管理当前待发送的payload
+     */
     private final NettyPayloadManager nettyPayloadManager;
 
     private final NettyConnectionId connectionId;
 
+    /**
+     * 监听buffer是否可用
+     */
     private final BufferAvailabilityListener availabilityListener;
 
     public NettyConnectionWriterImpl(

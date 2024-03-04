@@ -37,6 +37,9 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 public final class ChannelSelectorRecordWriter<T extends IOReadableWritable>
         extends RecordWriter<T> {
 
+    /**
+     * 借助选择器找到下个合适的channel
+     */
     private final ChannelSelector<T> channelSelector;
 
     ChannelSelectorRecordWriter(
@@ -63,7 +66,9 @@ public final class ChannelSelectorRecordWriter<T extends IOReadableWritable>
         // ResultPartitionWriter#broadcastRecord because the broadcastRecord
         // method incurs extra overhead.
         ByteBuffer serializedRecord = serializeRecord(serializer, record);
+        // 挨个发射
         for (int channelIndex = 0; channelIndex < numberOfChannels; channelIndex++) {
+            // 每次重置指针
             serializedRecord.rewind();
             emit(record, channelIndex);
         }

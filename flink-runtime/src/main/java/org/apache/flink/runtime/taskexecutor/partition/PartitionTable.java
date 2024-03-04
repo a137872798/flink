@@ -29,10 +29,15 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Thread-safe Utility for tracking partitions. */
+/** Thread-safe Utility for tracking partitions.
+ * 用于追踪分区数据的对象
+ * */
 @ThreadSafe
 public class PartitionTable<K> {
 
+    /**
+     * 就是一个简单的存储检索信息的容器
+     */
     private final Map<K, Set<ResultPartitionID>> trackedPartitionsPerKey =
             new ConcurrentHashMap<>(8);
 
@@ -50,6 +55,7 @@ public class PartitionTable<K> {
             return;
         }
 
+        // 开始在这些分区下追踪该key   就是进行插入操作
         trackedPartitionsPerKey.compute(
                 key,
                 (ignored, partitionIds) -> {

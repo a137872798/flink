@@ -35,6 +35,7 @@ public enum AnyMatchingSlotMatchingStrategy implements SlotMatchingStrategy {
             Collection<T> freeSlots,
             Function<InstanceID, Integer> numberRegisteredSlotsLookup) {
 
+        // 找到任意一个资源匹配的slot   ANY/UNKNOWN 是特殊情况
         return freeSlots.stream()
                 .filter(slot -> slot.isMatchingRequirement(requestedProfile))
                 .findAny();

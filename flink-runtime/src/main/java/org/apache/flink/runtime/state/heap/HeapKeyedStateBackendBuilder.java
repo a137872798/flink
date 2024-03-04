@@ -47,11 +47,14 @@ import static org.apache.flink.runtime.state.SnapshotExecutionType.SYNCHRONOUS;
  * clean ups.
  *
  * @param <K> The data type that the key serializer serializes.
+ *           作为基于heap的状态后端 需要一些额外的组件来辅助
  */
 public class HeapKeyedStateBackendBuilder<K> extends AbstractKeyedStateBackendBuilder<K> {
     /** The configuration of local recovery. */
     private final LocalRecoveryConfig localRecoveryConfig;
-    /** Factory for state that is organized as priority queue. */
+    /** Factory for state that is organized as priority queue.
+     * 该对象构建的优先队列  还额外维护了一个基于keyGroup划分的hashMap数组
+     * */
     private final HeapPriorityQueueSetFactory priorityQueueSetFactory;
     /** Whether asynchronous snapshot is enabled. */
     private final boolean asynchronousSnapshots;
@@ -88,22 +91,38 @@ public class HeapKeyedStateBackendBuilder<K> extends AbstractKeyedStateBackendBu
         this.asynchronousSnapshots = asynchronousSnapshots;
     }
 
+    /**
+     * 基于这些组件产生基于heap的状态后端 (并且该state还可以使用key检索)
+     * @return
+     * @throws BackendBuildingException
+     */
     @Override
     public HeapKeyedStateBackend<K> build() throws BackendBuildingException {
+        // 2个map 分别存储 kv类型 和优先队列类型的state
+        // 一个状态对应一个StateTable/HeapPriorityQueueSnapshotRestoreWrapper
+
         // Map of registered Key/Value states
         Map<String, StateTable<K, ?, ?>> registeredKVStates = new HashMap<>();
         // Map of registered priority queue set states
+        // 每个HeapPriorityQueueSnapshotRestoreWrapper 内部是一个优先队列 同时还按照每个key关联一个hashMap
         Map<String, HeapPriorityQueueSnapshotRestoreWrapper<?>> registeredPQStates =
                 new HashMap<>();
         CloseableRegistry cancelStreamRegistryForBackend = new CloseableRegistry();
+
+        // 该对象可以将state写入检查点  并返回一个读取检查点的handle
         HeapSnapshotStrategy<K> snapshotStrategy =
                 initSnapshotStrategy(registeredKVStates, registeredPQStates);
+
+        // 产生上下文
         InternalKeyContext<K> keyContext =
                 new InternalKeyContextImpl<>(keyGroupRange, numberOfKeyGroups);
 
         final StateTableFactory<K> stateTableFactory = CopyOnWriteStateTable::new;
 
+        // 在构建该对象时 允许传入一组 stateHandles 这组对象是用来恢复state的
         restoreState(registeredKVStates, registeredPQStates, keyContext, stateTableFactory);
+
+        // 各种组件都用上就构成了HeapKeyedStateBackend
         return new HeapKeyedStateBackend<>(
                 kvStateRegistry,
                 keySerializerProvider.currentSchemaSerializer(),
@@ -123,6 +142,14 @@ public class HeapKeyedStateBackendBuilder<K> extends AbstractKeyedStateBackendBu
                 keyContext);
     }
 
+    /**
+     * 利用restoreStateHandles 加载state并填充到 registeredKVStates/registeredPQStates 中
+     * @param registeredKVStates
+     * @param registeredPQStates
+     * @param keyContext
+     * @param stateTableFactory
+     * @throws BackendBuildingException
+     */
     private void restoreState(
             Map<String, StateTable<K, ?, ?>> registeredKVStates,
             Map<String, HeapPriorityQueueSnapshotRestoreWrapper<?>> registeredPQStates,
@@ -137,7 +164,10 @@ public class HeapKeyedStateBackendBuilder<K> extends AbstractKeyedStateBackendBu
         } else {
             firstHandle = restoreStateHandles.iterator().next();
         }
+
+        // 看来这组handle的类型应该是一致的
         if (firstHandle instanceof SavepointKeyedStateHandle) {
+
             restoreOperation =
                     new HeapSavepointRestoreOperation<>(
                             restoreStateHandles,
@@ -166,6 +196,7 @@ public class HeapKeyedStateBackendBuilder<K> extends AbstractKeyedStateBackendBu
                             keyContext);
         }
         try {
+            // 生成恢复对象 并进行恢复
             restoreOperation.restore();
             logger.info("Finished to build heap keyed state-backend.");
         } catch (Exception e) {

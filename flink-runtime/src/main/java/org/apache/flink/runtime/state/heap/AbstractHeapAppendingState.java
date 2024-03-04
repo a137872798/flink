@@ -31,6 +31,8 @@ import org.apache.flink.runtime.state.internal.InternalAppendingState;
  * @param <IN> The type of the input elements.
  * @param <SV> The type of the values in the state.
  * @param <OUT> The type of the output elements.
+ *
+ *             AbstractHeapState 表示利用heap来存储状态  核心数据结构就是 StateMap 和使用keyGroup算法包装多个StateMap的StateTable
  */
 abstract class AbstractHeapAppendingState<K, N, IN, SV, OUT> extends AbstractHeapState<K, N, SV>
         implements InternalAppendingState<K, N, IN, SV, OUT> {
@@ -52,6 +54,10 @@ abstract class AbstractHeapAppendingState<K, N, IN, SV, OUT> extends AbstractHea
         super(stateTable, keySerializer, valueSerializer, namespaceSerializer, defaultValue);
     }
 
+    /**
+     * 从StateMap中获取value
+     * @return
+     */
     @Override
     public SV getInternal() {
         return stateTable.get(currentNamespace);

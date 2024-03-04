@@ -25,6 +25,10 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /** This class describe how a job vertex consume an input(intermediate result). */
 public class JobVertexInputInfo {
 
+    /**
+     * 表示一组输入
+     * 单个输入 表示某个 subtask 消费的分区，子分区范围
+     */
     private final List<ExecutionVertexInputInfo> executionVertexInputInfos;
 
     public JobVertexInputInfo(final List<ExecutionVertexInputInfo> executionVertexInputInfos) {

@@ -26,13 +26,21 @@ import java.util.UUID;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Information about leader including the confirmed leader session id and leader address. */
+/** Information about leader including the confirmed leader session id and leader address.
+ * 表示leader的信息
+ * */
 public class LeaderInformation implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 本次选举的会话id
+     */
     @Nullable private final UUID leaderSessionID;
 
+    /**
+     * leader所在的地址
+     */
     @Nullable private final String leaderAddress;
 
     private static final LeaderInformation EMPTY = new LeaderInformation(null, null);

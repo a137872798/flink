@@ -39,11 +39,15 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * Maintains a set of {@link ChannelStateCheckpointWriter writers} per checkpoint and translates
  * incoming {@link ChannelStateWriteRequest requests} to their corresponding methods.
+ * 该对象用于分发检查点相关的请求
  */
 final class ChannelStateWriteRequestDispatcherImpl implements ChannelStateWriteRequestDispatcher {
     private static final Logger LOG =
             LoggerFactory.getLogger(ChannelStateWriteRequestDispatcherImpl.class);
 
+    /**
+     * 存储检查点数据
+     */
     private final CheckpointStorage checkpointStorage;
 
     private final JobID jobID;
@@ -52,21 +56,28 @@ final class ChannelStateWriteRequestDispatcherImpl implements ChannelStateWriteR
 
     private final Set<SubtaskID> registeredSubtasks;
 
+    /**
+     * 提取作为工作者能访问的api
+     */
     private CheckpointStorageWorkerView streamFactoryResolver;
 
     /**
      * It is the checkpointId corresponding to writer. And It should be always update with {@link
      * #writer}.
+     * 记录当前正在处理的检查点id   看来支持同时进行多个检查点
      */
     private long ongoingCheckpointId;
 
     /**
      * The checkpoint that checkpointId is less than or equal to maxAbortedCheckpointId should be
      * aborted.
+     * 被禁止的最大检查点
      */
     private long maxAbortedCheckpointId;
 
-    /** The aborted subtask of the maxAbortedCheckpointId. */
+    /** The aborted subtask of the maxAbortedCheckpointId.
+     * 记录终止检查点的subtask
+     * */
     private SubtaskID abortedSubtaskID;
 
     /** The aborted cause of the maxAbortedCheckpointId. */
@@ -74,6 +85,7 @@ final class ChannelStateWriteRequestDispatcherImpl implements ChannelStateWriteR
 
     /**
      * The channelState writer of ongoing checkpointId, it can be null when the writer is finished.
+     * 该对象实现写入逻辑
      */
     private ChannelStateCheckpointWriter writer;
 
@@ -102,6 +114,11 @@ final class ChannelStateWriteRequestDispatcherImpl implements ChannelStateWriteR
         }
     }
 
+    /**
+     * 分发请求
+     * @param request
+     * @throws Exception
+     */
     private void dispatchInternal(ChannelStateWriteRequest request) throws Exception {
         if (request instanceof SubtaskRegisterRequest) {
             SubtaskRegisterRequest req = (SubtaskRegisterRequest) request;
@@ -115,11 +132,13 @@ final class ChannelStateWriteRequestDispatcherImpl implements ChannelStateWriteR
             if (writer == null) {
                 return;
             }
+            // 取消子任务 可能会提前加快结束检查点
             writer.releaseSubtask(subtaskID);
             return;
         }
 
         if (isAbortedCheckpoint(request.getCheckpointId())) {
+            // 因为检查点已经被终止  处理请求
             handleAbortedRequest(request);
         } else if (request instanceof CheckpointStartRequest) {
             handleCheckpointStartRequest(request);
@@ -132,14 +151,21 @@ final class ChannelStateWriteRequestDispatcherImpl implements ChannelStateWriteR
         }
     }
 
+    /**
+     *
+     * @param request
+     * @throws Exception
+     */
     private void handleAbortedRequest(ChannelStateWriteRequest request) throws Exception {
         if (request.getCheckpointId() != maxAbortedCheckpointId) {
+            // 通知req 因为有新的检查点 本次被禁止
             request.cancel(new CheckpointException(CHECKPOINT_DECLINED_SUBSUMED));
             return;
         }
 
         SubtaskID requestSubtask =
                 SubtaskID.of(request.getJobVertexID(), request.getSubtaskIndex());
+        // 刚好是被禁止的子任务  触发cancel
         if (requestSubtask.equals(abortedSubtaskID)) {
             request.cancel(abortedCause);
         } else {
@@ -148,12 +174,18 @@ final class ChannelStateWriteRequestDispatcherImpl implements ChannelStateWriteR
         }
     }
 
+    /**
+     * 开始检查点
+     * @param request  注意一个req仅针对某个subtask
+     * @throws Exception
+     */
     private void handleCheckpointStartRequest(ChannelStateWriteRequest request) throws Exception {
         checkState(
                 request.getCheckpointId() >= ongoingCheckpointId,
                 String.format(
                         "Checkpoint must be incremented, ongoingCheckpointId is %s, but the request is %s.",
                         ongoingCheckpointId, request));
+        // 发出了更新的检查点 停止之前的检查点
         if (request.getCheckpointId() > ongoingCheckpointId) {
             // Clear the previous writer.
             failAndClearWriter(new CheckpointException(CHECKPOINT_DECLINED_SUBSUMED));
@@ -162,6 +194,7 @@ final class ChannelStateWriteRequestDispatcherImpl implements ChannelStateWriteR
         // The writer may not be null due to other subtask may have built writer for
         // ongoingCheckpointId when multiple subtasks share channel state file.
         if (writer == null) {
+            // 重新生成writer对象
             this.writer = buildWriter(req);
             this.ongoingCheckpointId = request.getCheckpointId();
         }
@@ -177,6 +210,10 @@ final class ChannelStateWriteRequestDispatcherImpl implements ChannelStateWriteR
         req.execute(writer);
     }
 
+    /**
+     * 取消检查点
+     * @param request
+     */
     private void handleCheckpointAbortRequest(ChannelStateWriteRequest request) {
         CheckpointAbortRequest req = (CheckpointAbortRequest) request;
         if (request.getCheckpointId() > maxAbortedCheckpointId) {
@@ -192,6 +229,11 @@ final class ChannelStateWriteRequestDispatcherImpl implements ChannelStateWriteR
         }
     }
 
+    /**
+     * 判断该检查点是否已经被终止了
+     * @param checkpointId
+     * @return
+     */
     private boolean isAbortedCheckpoint(long checkpointId) {
         return checkpointId < ongoingCheckpointId || checkpointId <= maxAbortedCheckpointId;
     }

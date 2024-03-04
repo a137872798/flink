@@ -42,31 +42,50 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Abstract base class for permanent and transient BLOB files. */
+/** Abstract base class for permanent and transient BLOB files.
+ * 永久或者临时 Blob文件 的基类
+ * 缓存对象 可以理解为 BlobView 的本地缓存
+ * */
 public abstract class AbstractBlobCache implements Closeable {
 
-    /** The log object used for debugging. */
+    /** The log object used for debugging.
+     * 用于记录日志
+     * */
     protected final Logger log;
 
-    /** Counter to generate unique names for temporary files. */
+    /** Counter to generate unique names for temporary files.
+     * 生成唯一临时文件
+     * */
     protected final AtomicLong tempFileCounter = new AtomicLong(0);
 
-    /** Root directory for local file storage. */
+    /** Root directory for local file storage.
+     * 存储文件的目录
+     * */
     protected final Reference<File> storageDir;
 
-    /** Blob store for distributed file storage, e.g. in HA. */
+    /** Blob store for distributed file storage, e.g. in HA.
+     * 存储blob的容器
+     * */
     protected final BlobView blobView;
 
+    /**
+     * 表示被请求关闭了
+     */
     protected final AtomicBoolean shutdownRequested = new AtomicBoolean();
 
-    /** Shutdown hook thread to ensure deletion of the local storage directory. */
+    /** Shutdown hook thread to ensure deletion of the local storage directory.
+     * 删除目录用的线程
+     * */
     protected final Thread shutdownHook;
 
-    /** The number of retries when the transfer fails. */
+    /** The number of retries when the transfer fails.
+     * 失败时重试次数
+     * */
     protected final int numFetchRetries;
 
     /**
      * Configuration for the blob client like ssl parameters required to connect to the blob server.
+     * 提供一些blob相关的参数
      */
     protected final Configuration blobClientConfig;
 
@@ -104,6 +123,7 @@ public abstract class AbstractBlobCache implements Closeable {
         }
 
         // Add shutdown hook to delete storage directory
+        // 添加一个终结钩子   在进程本关闭时  会执行本对象的close方法 并且是使用单独的线程
         shutdownHook = ShutdownHookUtil.addShutdownHook(this, getClass().getSimpleName(), log);
 
         this.serverAddress = serverAddress;
@@ -111,6 +131,10 @@ public abstract class AbstractBlobCache implements Closeable {
         checkStoredBlobsForCorruption();
     }
 
+    /**
+     * 检查目录下是否有数据损坏的文件  并删除
+     * @throws IOException
+     */
     private void checkStoredBlobsForCorruption() throws IOException {
         if (storageDir.deref().exists()) {
             BlobUtils.checkAndDeleteCorruptedBlobs(storageDir.deref().toPath(), log);
@@ -133,10 +157,13 @@ public abstract class AbstractBlobCache implements Closeable {
      * @return file referring to the local storage location of the BLOB.
      * @throws IOException Thrown if an I/O error occurs while downloading the BLOBs from the BLOB
      *     server.
+     *
      */
     protected File getFileInternal(@Nullable JobID jobId, BlobKey blobKey) throws IOException {
         checkArgument(blobKey != null, "BLOB key cannot be null.");
 
+        // 首先尝试从本地(缓存)中获取
+        // 生成了blob理应使用的路径 (文件不一定存在 )
         final File localFile = BlobUtils.getStorageLocation(storageDir.deref(), jobId, blobKey);
         readWriteLock.readLock().lock();
 
@@ -150,13 +177,16 @@ public abstract class AbstractBlobCache implements Closeable {
 
         // first try the distributed blob store (if available)
         // use a temporary file (thread-safe without locking)
+        // 此时尝试从远端获取   要生成一个临时文件 并从远端读取数据
         File incomingFile = createTemporaryFilename();
         try {
             try {
+                // 将远端 jobId/blobKey的文件拷贝到临时文件
                 if (blobView.get(jobId, blobKey, incomingFile)) {
                     // now move the temp file to our local cache atomically
                     readWriteLock.writeLock().lock();
                     try {
+                        // 临时文件原子移动到目标文件
                         BlobUtils.moveTempFileToStore(
                                 incomingFile, jobId, blobKey, localFile, log, null);
                     } finally {
@@ -170,10 +200,13 @@ public abstract class AbstractBlobCache implements Closeable {
                         "Failed to copy from blob store. Downloading from BLOB server instead.", e);
             }
 
+            // 上面如果成功也会提前结束  然后现在采取的措施是从BlobServer上下载
+
             final InetSocketAddress currentServerAddress = serverAddress;
 
             if (currentServerAddress != null) {
                 // fallback: download from the BlobServer
+                // 降级处理 尝试从 blobServer下载文件
                 BlobClient.downloadFromBlobServer(
                         jobId,
                         blobKey,
@@ -211,6 +244,7 @@ public abstract class AbstractBlobCache implements Closeable {
      * Returns the port the BLOB server is listening on.
      *
      * @return BLOB server port or {@code -1} if no server address
+     * 获取 blob服务器的端口
      */
     public int getPort() {
         final InetSocketAddress currentServerAddress = serverAddress;
@@ -245,12 +279,14 @@ public abstract class AbstractBlobCache implements Closeable {
 
     @Override
     public void close() throws IOException {
+        // 因为手动关闭了 就不需要后台清理任务了
         cancelCleanupTask();
 
         if (shutdownRequested.compareAndSet(false, true)) {
             log.info("Shutting down BLOB cache");
 
             // Clean up the storage directory
+            // 删除目录
             try {
                 storageDir
                         .owned()

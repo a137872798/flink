@@ -34,13 +34,17 @@ import java.io.IOException;
  * to that, exceptions from interactions with the primary stream are immediately returned to the
  * user. This class is used to write state for local recovery as a local (secondary) copy of the
  * (primary) state snapshot that is written to a (slower but highly-available) remote filesystem.
+ *
+ * 表示内部包含了2个输出检查点的流
  */
 public class DuplicatingCheckpointOutputStream extends CheckpointStateOutputStream {
 
     /** Default buffer size of 8KB. */
     private static final int DEFAULT_BUFFER_SIZER = 8 * 1024;
 
-    /** Write buffer. */
+    /** Write buffer.
+     * 用于缓冲数据
+     * */
     private final byte[] buffer;
 
     /** Position in the write buffer. */
@@ -58,6 +62,7 @@ public class DuplicatingCheckpointOutputStream extends CheckpointStateOutputStre
     /**
      * Stores a potential exception that occurred while interacting with {@link
      * #secondaryOutputStream}
+     * 记录处理第二个流时的异常
      */
     private Exception secondaryStreamException;
 
@@ -82,6 +87,7 @@ public class DuplicatingCheckpointOutputStream extends CheckpointStateOutputStre
 
         this.secondaryStreamException = null;
 
+        // 确保2个stream的pos一致
         checkForAlignedStreamPositions();
     }
 
@@ -89,6 +95,7 @@ public class DuplicatingCheckpointOutputStream extends CheckpointStateOutputStre
     public void write(int b) throws IOException {
 
         if (buffer.length <= bufferIdx) {
+            // 将buffer数据刷盘
             flushInternalBuffer();
         }
 
@@ -108,6 +115,7 @@ public class DuplicatingCheckpointOutputStream extends CheckpointStateOutputStre
         if (buffer.length <= len) {
 
             flushInternalBuffer();
+            // 直写
             writeThroughInternal(b, off, len);
         } else {
 
@@ -129,7 +137,10 @@ public class DuplicatingCheckpointOutputStream extends CheckpointStateOutputStre
     @Override
     public void flush() throws IOException {
 
+        // buffer数据刷盘
         flushInternalBuffer();
+
+        // 2个stream 都flush
         primaryOutputStream.flush();
 
         if (secondaryStreamException == null) {
@@ -186,6 +197,10 @@ public class DuplicatingCheckpointOutputStream extends CheckpointStateOutputStre
         }
     }
 
+    /**
+     * 要求2个stream的 pos一致
+     * @throws IOException
+     */
     private void checkForAlignedStreamPositions() throws IOException {
 
         if (secondaryStreamException != null) {
@@ -220,6 +235,13 @@ public class DuplicatingCheckpointOutputStream extends CheckpointStateOutputStre
         }
     }
 
+    /**
+     * buffer数据要同时写入2个流中
+     * @param b
+     * @param off
+     * @param len
+     * @throws IOException
+     */
     private void writeThroughInternal(byte[] b, int off, int len) throws IOException {
 
         primaryOutputStream.write(b, off, len);
@@ -254,7 +276,9 @@ public class DuplicatingCheckpointOutputStream extends CheckpointStateOutputStre
         return closeAndGetPrimaryHandle();
     }
 
-    /** Returns the state handle from the {@link #primaryOutputStream}. */
+    /** Returns the state handle from the {@link #primaryOutputStream}.
+     * 将数据刷盘后  并得到第一个流
+     * */
     public StreamStateHandle closeAndGetPrimaryHandle() throws IOException {
         flushInternalBuffer();
         return primaryOutputStream.closeAndGetHandle();

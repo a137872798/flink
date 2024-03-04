@@ -32,6 +32,7 @@ import static org.apache.flink.runtime.checkpoint.filemerging.FileMergingSnapsho
 /**
  * An abstraction of logical files in file-merging checkpoints. It stands for a data segment, that
  * is to say a single file before file-merging.
+ * 逻辑文件
  */
 public class LogicalFile {
 
@@ -51,7 +52,9 @@ public class LogicalFile {
         }
     }
 
-    /** ID for this file. */
+    /** ID for this file.
+     * 文件id
+     * */
     LogicalFileId fileId;
 
     /**
@@ -66,16 +69,22 @@ public class LogicalFile {
     /** Whether this logical file is removed by checkpoint subsumption/abortion. */
     boolean discarded = false;
 
-    /** The physical file where this logical file is stored. This should never be null. */
+    /** The physical file where this logical file is stored. This should never be null.
+     * 关联的物理文件
+     * */
     @Nonnull private final PhysicalFile physicalFile;
 
-    /** The offset of the physical file that this logical file start from. */
+    /** The offset of the physical file that this logical file start from.
+     * 该逻辑文件在物理文件上的起始偏移量
+     * */
     private final int startOffset;
 
     /** The length of this logical file. */
     private final int length;
 
-    /** The id of the subtask that this logical file belongs to. */
+    /** The id of the subtask that this logical file belongs to.
+     * 表示这段数据是属于哪个子任务的
+     * */
     @Nonnull private final SubtaskKey subtaskKey;
 
     public LogicalFile(
@@ -89,6 +98,7 @@ public class LogicalFile {
         this.startOffset = startOffset;
         this.length = length;
         this.subtaskKey = subtaskKey;
+        // 因为产生了一个逻辑文件 所以对物理文件引用次数+1
         physicalFile.incRefCount();
     }
 
@@ -102,6 +112,7 @@ public class LogicalFile {
      * file.
      *
      * @param checkpointId the checkpoint that uses this logical file.
+     *                     更新最新的的检查点id
      */
     public void advanceLastCheckpointId(long checkpointId) {
         if (checkpointId > lastUsedCheckpointID) {
@@ -116,6 +127,7 @@ public class LogicalFile {
      *
      * @param checkpointId the checkpoint that is notified subsumed or aborted.
      * @throws IOException if anything goes wrong with file system.
+     * 本对象不再引用物理文件
      */
     public void discardWithCheckpointId(long checkpointId) throws IOException {
         if (!discarded && checkpointId >= lastUsedCheckpointID) {

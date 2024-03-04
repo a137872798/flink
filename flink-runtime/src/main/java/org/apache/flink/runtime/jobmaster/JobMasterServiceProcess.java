@@ -27,7 +27,8 @@ import javax.annotation.Nonnull;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
-/** JobMasterServiceProcess is responsible for running a {@link JobMasterService}. */
+/** JobMasterServiceProcess is responsible for running a {@link JobMasterService}.
+ * */
 public interface JobMasterServiceProcess extends AutoCloseableAsync {
 
     static JobMasterServiceProcess waitingForLeadership() {

@@ -50,6 +50,9 @@ public class AllGroupReduceDriver<IT, OT> implements Driver<GroupReduceFunction<
 
     private TaskContext<GroupReduceFunction<IT, OT>, OT> taskContext;
 
+    /**
+     * input实际上也是从context中获取的
+     */
     private MutableObjectIterator<IT> input;
 
     private TypeSerializer<IT> serializer;
@@ -133,7 +136,9 @@ public class AllGroupReduceDriver<IT, OT> implements Driver<GroupReduceFunction<
                     new ReusingMutableToRegularIteratorWrapper<IT>(this.input, this.serializer);
 
             // single UDF call with the single group
+            // 获取下个元素
             if (inIter.hasNext()) {
+                // 通过策略来 fun类型 比拿给对数据进行处理
                 if (strategy == DriverStrategy.ALL_GROUP_REDUCE) {
                     final GroupReduceFunction<IT, OT> reducer = this.taskContext.getStub();
                     final Collector<OT> output = this.taskContext.getOutputCollector();

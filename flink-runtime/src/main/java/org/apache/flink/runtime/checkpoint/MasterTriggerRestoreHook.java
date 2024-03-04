@@ -68,6 +68,7 @@ public interface MasterTriggerRestoreHook<T> {
      * thing.
      *
      * @return The identifier of the hook.
+     * 每个钩子有一个标识符
      */
     String getIdentifier();
 
@@ -129,6 +130,7 @@ public interface MasterTriggerRestoreHook<T> {
      *     null.
      * @throws Exception Exceptions thrown while restoring the checkpoint will cause the restore
      *     operation to fail and to possibly fall back to another checkpoint.
+     *     恢复检查点数据
      */
     void restoreCheckpoint(long checkpointId, @Nullable T checkpointData) throws Exception;
 

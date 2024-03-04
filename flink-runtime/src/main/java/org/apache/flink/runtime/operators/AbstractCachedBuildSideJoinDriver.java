@@ -36,11 +36,19 @@ import org.apache.flink.runtime.operators.util.metrics.CountingMutableObjectIter
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.MutableObjectIterator;
 
+/**
+ * JoinDriver 基本已经定义好了join流程的骨架
+ * @param <IT1>
+ * @param <IT2>
+ * @param <OT>
+ */
 public abstract class AbstractCachedBuildSideJoinDriver<IT1, IT2, OT>
         extends JoinDriver<IT1, IT2, OT>
-        implements ResettableDriver<FlatJoinFunction<IT1, IT2, OT>, OT> {
+        implements ResettableDriver<FlatJoinFunction<IT1, IT2, OT>, OT> {  // ResettableDriver 表示可以重置内部的stream
 
     private volatile JoinTaskIterator<IT1, IT2, OT> matchIterator;
+
+    // 在hashJoin时 分为探测数据和普通数据 被重复迭代的就是普通数据 所以是resettable的
 
     private final int buildSideIndex;
 
@@ -48,6 +56,11 @@ public abstract class AbstractCachedBuildSideJoinDriver<IT1, IT2, OT>
 
     private boolean objectReuseEnabled = false;
 
+    /**
+     * driver的很多信息都是从context中获取的  包括配置 包括stream
+     * @param buildSideIndex
+     * @param probeSideIndex
+     */
     protected AbstractCachedBuildSideJoinDriver(int buildSideIndex, int probeSideIndex) {
         this.buildSideIndex = buildSideIndex;
         this.probeSideIndex = probeSideIndex;
@@ -63,6 +76,10 @@ public abstract class AbstractCachedBuildSideJoinDriver<IT1, IT2, OT>
         return inputNum == buildSideIndex;
     }
 
+    /**
+     * 进行初始化工作
+     * @throws Exception
+     */
     @Override
     public void initialize() throws Exception {
         TaskConfig config = this.taskContext.getTaskConfig();
@@ -99,6 +116,9 @@ public abstract class AbstractCachedBuildSideJoinDriver<IT1, IT2, OT>
         objectReuseEnabled = executionConfig.isObjectReuseEnabled();
 
         if (objectReuseEnabled) {
+
+            // 分别生成first/second对象
+
             if (buildSideIndex == 0 && probeSideIndex == 1) {
 
                 matchIterator =
@@ -190,6 +210,7 @@ public abstract class AbstractCachedBuildSideJoinDriver<IT1, IT2, OT>
     @Override
     public void prepare() throws Exception {
         // nothing
+        // 在init中已经做了需要做的事
     }
 
     @Override
@@ -200,6 +221,7 @@ public abstract class AbstractCachedBuildSideJoinDriver<IT1, IT2, OT>
         final Collector<OT> collector =
                 new CountingCollector<>(this.taskContext.getOutputCollector(), numRecordsOut);
 
+        // 不断触发join
         while (this.running
                 && matchIterator != null
                 && matchIterator.callWithNextKey(matchStub, collector)) {}
@@ -208,12 +230,18 @@ public abstract class AbstractCachedBuildSideJoinDriver<IT1, IT2, OT>
     @Override
     public void cleanup() throws Exception {}
 
+    /**
+     * 可以进行重置
+     * @throws Exception
+     */
     @Override
     public void reset() throws Exception {
 
+        // 重新获取迭代器
         MutableObjectIterator<IT1> input1 = this.taskContext.getInput(0);
         MutableObjectIterator<IT2> input2 = this.taskContext.getInput(1);
 
+        // 恢复到原来的状态
         if (objectReuseEnabled) {
             if (buildSideIndex == 0 && probeSideIndex == 1) {
                 final ReusingBuildFirstReOpenableHashJoinIterator<IT1, IT2, OT> matchIterator =

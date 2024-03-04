@@ -22,7 +22,9 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.function.BiConsumer;
 
-/** This class is responsible for spilling region to disk and managing these spilled regions. */
+/** This class is responsible for spilling region to disk and managing these spilled regions.
+ * 该对象用于管理region
+ * */
 public interface FileDataIndexSpilledRegionManager<T extends FileDataIndexRegionHelper.Region>
         extends AutoCloseable {
     /**
@@ -30,6 +32,7 @@ public interface FileDataIndexSpilledRegionManager<T extends FileDataIndexRegion
      *
      * @param subpartition the subpartition id of this region.
      * @param region the region to be spilled to index file.
+     *               往某个子分区追加一个region数据
      */
     void appendOrOverwriteRegion(int subpartition, T region) throws IOException;
 
@@ -41,6 +44,7 @@ public interface FileDataIndexSpilledRegionManager<T extends FileDataIndexRegion
      * @param loadToCache whether to load the found region into the cache.
      * @return if target region can be founded, return it's offset in index file. Otherwise, return
      *     -1.
+     *     在该子分区下找到包含该buffer的region
      */
     long findRegion(int subpartition, int bufferIndex, boolean loadToCache);
 

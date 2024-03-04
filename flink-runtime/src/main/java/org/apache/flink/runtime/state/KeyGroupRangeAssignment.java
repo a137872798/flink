@@ -131,8 +131,9 @@ public final class KeyGroupRangeAssignment {
      * the user has not explicitly configured a maximum parallelism to still allow a certain degree
      * of scale-up.
      *
-     * @param operatorParallelism the operator parallelism as basis for computation.
+     * @param operatorParallelism the operator parallelism as basis for computation.  当前并行度
      * @return the computed default maximum parallelism.
+     * 计算最大并行度
      */
     public static int computeDefaultMaxParallelism(int operatorParallelism) {
 

@@ -29,7 +29,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
-/** A {@link FileMergingSnapshotManager} that merging files within a checkpoint. */
+/** A {@link FileMergingSnapshotManager} that merging files within a checkpoint.
+ * 管理检查点文件的
+ * */
 public class WithinCheckpointFileMergingSnapshotManager extends FileMergingSnapshotManagerBase {
 
     /** A dummy subtask key to reuse files among subtasks for private states. */
@@ -50,6 +52,14 @@ public class WithinCheckpointFileMergingSnapshotManager extends FileMergingSnaps
         writablePhysicalFilePool = new HashMap<>();
     }
 
+    /**
+     * 查询/创建物理文件
+     * @param subtaskKey the subtask key for the caller
+     * @param checkpointId the checkpoint id
+     * @param scope checkpoint scope
+     * @return
+     * @throws IOException
+     */
     @Override
     @Nonnull
     protected PhysicalFile getOrCreatePhysicalFileForCheckpoint(
@@ -64,6 +74,7 @@ public class WithinCheckpointFileMergingSnapshotManager extends FileMergingSnaps
         PhysicalFile file;
         synchronized (writablePhysicalFilePool) {
             file = writablePhysicalFilePool.remove(fileKey);
+            // 代表不存在  进行创建
             if (file == null) {
                 file = createPhysicalFile(subtaskKey, scope);
             }
@@ -84,6 +95,7 @@ public class WithinCheckpointFileMergingSnapshotManager extends FileMergingSnaps
                         scope);
         PhysicalFile current;
         synchronized (writablePhysicalFilePool) {
+            // 重新加入pool中
             current = writablePhysicalFilePool.putIfAbsent(fileKey, physicalFile);
         }
         // TODO: We sync the file when return to the reuse pool for safety. Actually it could be
@@ -94,6 +106,7 @@ public class WithinCheckpointFileMergingSnapshotManager extends FileMergingSnaps
                 os.sync();
             }
         }
+        // 已经存在文件了 就关闭准备回收的文件
         if (current != physicalFile) {
             physicalFile.close();
         }

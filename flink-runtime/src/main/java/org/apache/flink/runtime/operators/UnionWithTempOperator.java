@@ -73,6 +73,7 @@ public class UnionWithTempOperator<T> implements Driver<Function, T> {
                         .createInstance();
         T record;
 
+        // 将2个stream的数据一起写入下游  相当于union
         final MutableObjectIterator<T> input = this.taskContext.getInput(STREAMED_INPUT);
         while (this.running && ((record = input.next(reuse)) != null)) {
             numRecordsIn.inc();

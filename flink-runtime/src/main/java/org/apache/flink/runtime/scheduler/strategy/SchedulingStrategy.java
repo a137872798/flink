@@ -28,16 +28,20 @@ import java.util.Set;
 /**
  * Component which encapsulates the scheduling logic. It can react to execution state changes and
  * partition consumable events. Moreover, it is responsible for resolving task failures.
+ * 调度策略
  */
 public interface SchedulingStrategy {
 
-    /** Called when the scheduling is started (initial scheduling operation). */
+    /** Called when the scheduling is started (initial scheduling operation).
+     * 开始调度
+     * */
     void startScheduling();
 
     /**
      * Called whenever vertices need to be restarted (due to task failure).
      *
-     * @param verticesToRestart The tasks need to be restarted
+     * @param verticesToRestart The tasks need to be restarted   每个ExecutionVertexID 包含顶点id和subtaskIndex
+     *                          重启任务
      */
     void restartTasks(Set<ExecutionVertexID> verticesToRestart);
 
@@ -46,6 +50,8 @@ public interface SchedulingStrategy {
      *
      * @param executionVertexId The id of the task
      * @param executionState The new state of the execution
+     *
+     *                       表示某个子任务执行状态的改变
      */
     void onExecutionStateChange(ExecutionVertexID executionVertexId, ExecutionState executionState);
 

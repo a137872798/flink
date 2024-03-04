@@ -74,6 +74,8 @@ import static org.apache.flink.util.Preconditions.checkState;
  * <h2>Buffer management</h2>
  *
  * <h2>State management</h2>
+ * 该对象可以写入分区数据
+ * 该对象写入数据  而view对象提供接口访问分区数据
  */
 public abstract class ResultPartition implements ResultPartitionWriter {
 
@@ -81,23 +83,46 @@ public abstract class ResultPartition implements ResultPartitionWriter {
 
     private final String owningTaskName;
 
+    /**
+     * 分区下标
+     */
     private final int partitionIndex;
 
+    /**
+     * 对应的分区id    下面还有子分区
+     */
     protected final ResultPartitionID partitionId;
 
-    /** Type of this partition. Defines the concrete subpartition implementation to use. */
+    /** Type of this partition. Defines the concrete subpartition implementation to use.
+     * 表示数据的消费类型
+     * */
     protected final ResultPartitionType partitionType;
 
+    /**
+     * 表示本对象通过该manager来维护
+     */
     protected final ResultPartitionManager partitionManager;
 
+    /**
+     * 内部有多少子分区
+     */
     protected final int numSubpartitions;
 
+    /**
+     * 有多少个目标keyGroup
+     */
     private final int numTargetKeyGroups;
 
     // - Runtime state --------------------------------------------------------
 
+    /**
+     * 表示该分区是否已经被释放
+     */
     private final AtomicBoolean isReleased = new AtomicBoolean();
 
+    /**
+     * 通过该对象分配buffer
+     */
     protected BufferPool bufferPool;
 
     private boolean isFinished;
@@ -106,13 +131,18 @@ public abstract class ResultPartition implements ResultPartitionWriter {
 
     private final SupplierWithException<BufferPool, IOException> bufferPoolFactory;
 
-    /** Used to compress buffer to reduce IO. */
+    /** Used to compress buffer to reduce IO.
+     * 用于压缩数据
+     * */
     @Nullable protected final BufferCompressor bufferCompressor;
 
     protected Counter numBytesOut = new SimpleCounter();
 
     protected Counter numBuffersOut = new SimpleCounter();
 
+    /**
+     * TODO 统计对象
+     */
     protected ResultPartitionBytesCounter resultPartitionBytes;
 
     public ResultPartition(
@@ -146,6 +176,7 @@ public abstract class ResultPartition implements ResultPartitionWriter {
      *
      * <p>The pool is registered with the partition *after* it as been constructed in order to
      * conform to the life-cycle of task registrations in the {@link TaskExecutor}.
+     * 进行初始化工作
      */
     @Override
     public void setup() throws IOException {
@@ -223,6 +254,7 @@ public abstract class ResultPartition implements ResultPartitionWriter {
      *
      * @see EndOfData
      * @param subpartition The index of the subpartition sending the notification.
+     *                     告知某个子分区消费完了
      */
     public void onSubpartitionAllDataProcessed(int subpartition) {}
 
@@ -330,7 +362,9 @@ public abstract class ResultPartition implements ResultPartitionWriter {
 
     // ------------------------------------------------------------------------
 
-    /** Notification when a subpartition is released. */
+    /** Notification when a subpartition is released.
+     * 表示数据消费对象 已经被释放了
+     * */
     void onConsumedSubpartition(int subpartitionIndex) {
 
         if (isReleased.get()) {

@@ -17,11 +17,22 @@
 
 package org.apache.flink.runtime.io.network.partition;
 
-/** Encapsulates all information that a {@link PartitionTracker} keeps for a partition. */
+/** Encapsulates all information that a {@link PartitionTracker} keeps for a partition.
+ * 分区链路的数据
+ * */
 public class PartitionTrackerEntry<K, M> {
 
+    /**
+     * 内部包含分区id
+     */
     private final ResultPartitionID resultPartitionId;
+    /**
+     * 通过key进行检索
+     */
     private final K key;
+    /**
+     * 存储的是元数据
+     */
     private final M metaInfo;
 
     PartitionTrackerEntry(ResultPartitionID resultPartitionId, K key, M metaInfo) {

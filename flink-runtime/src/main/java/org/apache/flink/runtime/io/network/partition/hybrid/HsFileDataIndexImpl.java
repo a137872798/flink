@@ -43,10 +43,15 @@ import java.util.Optional;
 import static org.apache.flink.runtime.io.network.partition.hybrid.index.FileRegionWriteReadUtils.allocateAndConfigureBuffer;
 import static org.apache.flink.util.Preconditions.checkArgument;
 
-/** Default implementation of {@link HsFileDataIndex}. */
+/** Default implementation of {@link HsFileDataIndex}.
+ * 该对象存储的是索引信息
+ * */
 @ThreadSafe
 public class HsFileDataIndexImpl implements HsFileDataIndex {
 
+    /**
+     * 作为region的缓存对象
+     */
     @GuardedBy("lock")
     private final FileDataIndexCache<InternalRegion> indexCache;
 
@@ -81,23 +86,38 @@ public class HsFileDataIndexImpl implements HsFileDataIndex {
         }
     }
 
+    /**
+     * 检索一个可读区域
+     * @param subpartitionId that the readable region belongs to
+     * @param bufferIndex that the readable region starts with
+     * @param consumingOffset of the downstream            通过offset定位到一个region
+     * @return
+     */
     @Override
     public Optional<ReadableRegion> getReadableRegion(
             int subpartitionId, int bufferIndex, int consumingOffset) {
         synchronized (lock) {
             return getInternalRegion(subpartitionId, bufferIndex)
                     .map(
+                            // 转换成 ReadableRegion  并要求numReadable大于0
                             internalRegion ->
                                     internalRegion.toReadableRegion(bufferIndex, consumingOffset))
                     .filter(internalRegion -> internalRegion.numReadable > 0);
         }
     }
 
+
+    /**
+     * SpilledBuffer 就是包含一些位置信息
+     * @param spilledBuffers to be added. The buffers in the list are expected in the same order as
+     *     in the spilled file.
+     */
     @Override
     public void addBuffers(List<SpilledBuffer> spilledBuffers) {
         final Map<Integer, List<InternalRegion>> subpartitionInternalRegions =
                 convertToInternalRegions(spilledBuffers);
         synchronized (lock) {
+            // 将数据加入到缓存中    key是子分区编号 value是region数据
             subpartitionInternalRegions.forEach(indexCache::put);
         }
     }
@@ -105,7 +125,9 @@ public class HsFileDataIndexImpl implements HsFileDataIndex {
     @Override
     public void markBufferReleased(int subpartitionId, int bufferIndex) {
         synchronized (lock) {
+            // 找到所在的region
             getInternalRegion(subpartitionId, bufferIndex)
+                    // 将相关位置标记成已释放
                     .ifPresent(internalRegion -> internalRegion.markBufferReleased(bufferIndex));
         }
     }
@@ -115,6 +137,11 @@ public class HsFileDataIndexImpl implements HsFileDataIndex {
         return indexCache.get(subpartitionId, bufferIndex);
     }
 
+    /**
+     * 转换成InternalRegion
+     * @param spilledBuffers
+     * @return
+     */
     private static Map<Integer, List<InternalRegion>> convertToInternalRegions(
             List<SpilledBuffer> spilledBuffers) {
 
@@ -131,7 +158,9 @@ public class HsFileDataIndexImpl implements HsFileDataIndex {
         while (iterator.hasNext()) {
             SpilledBuffer currentBuffer = iterator.next();
 
+            // 当buffer的位置分区信息发生变化
             if (currentBuffer.subpartitionId != firstBufferOfCurrentRegion.subpartitionId
+                    // 或者buffer不连续  (表示属于2个region)
                     || currentBuffer.bufferIndex != lastBufferOfCurrentRegion.bufferIndex + 1) {
                 // the current buffer belongs to a new region, close the previous region
                 addInternalRegionToMap(
@@ -145,6 +174,7 @@ public class HsFileDataIndexImpl implements HsFileDataIndex {
         }
 
         // close the last region
+        // 剩余数据作为最后一个region
         addInternalRegionToMap(
                 firstBufferOfCurrentRegion,
                 lastBufferOfCurrentRegion,
@@ -153,6 +183,12 @@ public class HsFileDataIndexImpl implements HsFileDataIndex {
         return internalRegionsBySubpartition;
     }
 
+    /**
+     * 追加一个region信息
+     * @param firstBufferInRegion
+     * @param lastBufferInRegion
+     * @param internalRegionsBySubpartition
+     */
     private static void addInternalRegionToMap(
             SpilledBuffer firstBufferInRegion,
             SpilledBuffer lastBufferInRegion,
@@ -174,18 +210,27 @@ public class HsFileDataIndexImpl implements HsFileDataIndex {
      * A {@link InternalRegion} is an implementation of {@link FileDataIndexRegionHelper.Region}.
      * Note that this class introduced a new field to indicate whether each buffer in the region is
      * released.
+     * region 表示一组连续的buffer
      */
     public static class InternalRegion implements FileDataIndexRegionHelper.Region {
         /**
          * {@link InternalRegion} is consists of header and payload. (firstBufferIndex,
          * firstBufferOffset, numBuffer) are immutable header part that have fixed size. The array
          * of released is variable payload. This field represents the size of header.
+         * 每个region前有一个header
          */
         public static final int HEADER_SIZE = Integer.BYTES + Long.BYTES + Integer.BYTES;
 
+        /**
+         * bufferIndex 应该是全局递增的
+         */
         private final int firstBufferIndex;
         private final long regionFileOffset;
         private final int numBuffers;
+
+        /**
+         * 表示buffer是否被释放
+         */
         private final boolean[] released;
 
         private InternalRegion(int firstBufferIndex, long regionFileOffset, int numBuffers) {
@@ -204,11 +249,20 @@ public class HsFileDataIndexImpl implements HsFileDataIndex {
             this.released = released;
         }
 
+
+        /**
+         * 判断buffer是否属于该region
+         * @param bufferIndex the specific buffer index
+         * @return
+         */
         @Override
         public boolean containBuffer(int bufferIndex) {
             return bufferIndex >= firstBufferIndex && bufferIndex < firstBufferIndex + numBuffers;
         }
 
+        /**
+         * 记录总大小
+         */
         @Override
         public int getSize() {
             return HEADER_SIZE + numBuffers;
@@ -234,11 +288,21 @@ public class HsFileDataIndexImpl implements HsFileDataIndex {
             return numBuffers;
         }
 
+        /**
+         * 转换成另一个region
+         * @param bufferIndex
+         * @param consumingOffset
+         * @return
+         */
         private HsFileDataIndex.ReadableRegion toReadableRegion(
                 int bufferIndex, int consumingOffset) {
             int nSkip = bufferIndex - firstBufferIndex;
             int nReadable = 0;
+
+            // 从skip后的起点开始  检测有多少个可读的buffer
             while (nSkip + nReadable < numBuffers) {
+                // 当前buffer没有被释放 或者 <= consumingOffset
+                // TODO 不需要检测吗？
                 if (!released[nSkip + nReadable] || (bufferIndex + nReadable) <= consumingOffset) {
                     break;
                 }
@@ -247,6 +311,10 @@ public class HsFileDataIndexImpl implements HsFileDataIndex {
             return new ReadableRegion(nSkip, nReadable, regionFileOffset);
         }
 
+        /**
+         * 计算下标 修改成释放
+         * @param bufferIndex
+         */
         private void markBufferReleased(int bufferIndex) {
             released[bufferIndex - firstBufferIndex] = true;
         }
@@ -262,6 +330,7 @@ public class HsFileDataIndexImpl implements HsFileDataIndex {
      *
      * <p>Note that this type of region's length may be variable because it contains an array to
      * indicate each buffer's release state.
+     * 提供读取和写入api
      */
     public static class HsFileDataIndexRegionHelper
             implements FileDataIndexRegionHelper<InternalRegion> {

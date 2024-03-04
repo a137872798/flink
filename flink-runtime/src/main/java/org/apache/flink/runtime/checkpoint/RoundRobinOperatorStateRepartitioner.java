@@ -40,6 +40,8 @@ import java.util.stream.Collectors;
 /**
  * Current default implementation of {@link OperatorStateRepartitioner} that redistributes state in
  * round robin fashion.
+ * 该对象可以对子任务数据进行重分区
+ * TODO
  */
 @Internal
 public class RoundRobinOperatorStateRepartitioner
@@ -62,31 +64,38 @@ public class RoundRobinOperatorStateRepartitioner
                 "This method still depends on the order of the new and old operators");
 
         // Assemble result from all merge maps
+        // 为新结果 初始化容器
         List<List<OperatorStateHandle>> result = new ArrayList<>(newParallelism);
 
         List<Map<StreamStateHandle, OperatorStateHandle>> mergeMapList;
 
         // We only round-robin repartition UNION state if new parallelism equals to the old one.
+        // 并行度没有变化
         if (newParallelism == oldParallelism) {
+            // 将原数据中各子分区数据按照状态名合并收集
             Map<String, List<Tuple2<StreamStateHandle, OperatorStateHandle.StateMetaInfo>>>
                     unionStates = collectUnionStates(previousParallelSubtaskStates);
 
+            // 获取基于广播模式合并的对象
             Map<String, List<Tuple2<StreamStateHandle, OperatorStateHandle.StateMetaInfo>>>
                     partlyFinishedBroadcastStates =
                             collectPartlyFinishedBroadcastStates(previousParallelSubtaskStates);
 
+            // 表示数据无法合并 同时因为newParallelism == oldParallelism  返回原对象
             if (unionStates.isEmpty() && partlyFinishedBroadcastStates.isEmpty()) {
                 return previousParallelSubtaskStates;
             }
 
-            // Initialize
+            // Initialize  将每个子任务对应的一组状态列表 变成map
             mergeMapList = initMergeMapList(previousParallelSubtaskStates);
 
+            // 对union数据进行重分区
             repartitionUnionState(unionStates, mergeMapList);
 
             // TODO: Currently if some tasks is finished, we would rescale the
             // remaining state. A better solution would be not touch the non-empty
             // subtask state and only fix the empty ones.
+            // 对广播数据进行重分区
             repartitionBroadcastState(partlyFinishedBroadcastStates, mergeMapList);
         } else {
 
@@ -113,6 +122,7 @@ public class RoundRobinOperatorStateRepartitioner
     /**
      * Init the list of StreamStateHandle -> OperatorStateHandle map with given
      * parallelSubtaskStates when parallelism not changed.
+     * 初始化merge后的list
      */
     private List<Map<StreamStateHandle, OperatorStateHandle>> initMergeMapList(
             List<List<OperatorStateHandle>> parallelSubtaskStates) {
@@ -124,6 +134,7 @@ public class RoundRobinOperatorStateRepartitioner
 
         for (List<OperatorStateHandle> previousParallelSubtaskState : parallelSubtaskStates) {
             mergeMapList.add(
+                    // 处理每个状态
                     previousParallelSubtaskState.stream()
                             .collect(
                                     Collectors.toMap(
@@ -134,8 +145,14 @@ public class RoundRobinOperatorStateRepartitioner
         return mergeMapList;
     }
 
+    /**
+     * 处理依照旧分区划分的子状态数据
+     * @param parallelSubtaskStates
+     * @return
+     */
     private Map<String, List<Tuple2<StreamStateHandle, OperatorStateHandle.StateMetaInfo>>>
             collectUnionStates(List<List<OperatorStateHandle>> parallelSubtaskStates) {
+        // 找到与union模式匹配的各子分区数据 然后按照同名key收集起来
         return collectStates(parallelSubtaskStates, OperatorStateHandle.Mode.UNION).entrySet()
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().entries));
@@ -144,35 +161,44 @@ public class RoundRobinOperatorStateRepartitioner
     private Map<String, List<Tuple2<StreamStateHandle, OperatorStateHandle.StateMetaInfo>>>
             collectPartlyFinishedBroadcastStates(
                     List<List<OperatorStateHandle>> parallelSubtaskStates) {
+        // 基于广播模式收集
         return collectStates(parallelSubtaskStates, OperatorStateHandle.Mode.BROADCAST).entrySet()
                 .stream()
+                // 找到还没采集满的
                 .filter(e -> e.getValue().isPartiallyReported())
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().entries));
     }
 
-    /** Collect the states from given parallelSubtaskStates with the specific {@code mode}. */
+    /** Collect the states from given parallelSubtaskStates with the specific {@code mode}.
+     * 根据指定模式 结合子任务数据
+     * */
     private Map<String, StateEntry> collectStates(
             List<List<OperatorStateHandle>> parallelSubtaskStates, OperatorStateHandle.Mode mode) {
 
         Map<String, StateEntry> states =
                 CollectionUtil.newHashMapWithExpectedSize(parallelSubtaskStates.size());
 
+        // 每个对应一个旧分区
         for (int i = 0; i < parallelSubtaskStates.size(); ++i) {
             final int subtaskIndex = i;
             List<OperatorStateHandle> subTaskState = parallelSubtaskStates.get(i);
+            // 遍历旧分区的每个状态数据
             for (OperatorStateHandle operatorStateHandle : subTaskState) {
                 if (operatorStateHandle == null) {
                     continue;
                 }
 
+                // 这里描述分区数据中每个entry的起始偏移量
                 final Set<Map.Entry<String, OperatorStateHandle.StateMetaInfo>>
                         partitionOffsetEntries =
                                 operatorStateHandle.getStateNameToPartitionOffsets().entrySet();
 
                 partitionOffsetEntries.stream()
+                        // 找到模式匹配的数据
                         .filter(entry -> entry.getValue().getDistributionMode().equals(mode))
                         .forEach(
                                 entry -> {
+                                    // key是state的名字
                                     StateEntry stateEntry =
                                             states.computeIfAbsent(
                                                     entry.getKey(),
@@ -182,6 +208,7 @@ public class RoundRobinOperatorStateRepartitioner
                                                                             * partitionOffsetEntries
                                                                                     .size(),
                                                                     parallelSubtaskStates.size()));
+                                    // 是把同名且匹配模式与入参相同的所有数据采集起来
                                     stateEntry.addEntry(
                                             subtaskIndex,
                                             Tuple2.of(
@@ -390,18 +417,23 @@ public class RoundRobinOperatorStateRepartitioner
         }
     }
 
-    /** Repartition UNION state. */
+    /** Repartition UNION state.
+     * 对基于union模式的数据进行重分区
+     * */
     private void repartitionUnionState(
             Map<String, List<Tuple2<StreamStateHandle, OperatorStateHandle.StateMetaInfo>>>
                     unionState,
             List<Map<StreamStateHandle, OperatorStateHandle>> mergeMapList) {
 
         for (Map<StreamStateHandle, OperatorStateHandle> mergeMap : mergeMapList) {
+
+            // 遍历按照stateName分组后的状态数据
             for (Map.Entry<
                             String,
                             List<Tuple2<StreamStateHandle, OperatorStateHandle.StateMetaInfo>>>
                     e : unionState.entrySet()) {
 
+                // 遍历每个 state (按name分组后) 的数据
                 for (Tuple2<StreamStateHandle, OperatorStateHandle.StateMetaInfo>
                         handleWithMetaInfo : e.getValue()) {
                     OperatorStateHandle operatorStateHandle = mergeMap.get(handleWithMetaInfo.f0);
@@ -413,6 +445,7 @@ public class RoundRobinOperatorStateRepartitioner
                                         handleWithMetaInfo.f0);
                         mergeMap.put(handleWithMetaInfo.f0, operatorStateHandle);
                     }
+                    // 设置偏移量信息
                     operatorStateHandle
                             .getStateNameToPartitionOffsets()
                             .put(e.getKey(), handleWithMetaInfo.f1);
@@ -427,9 +460,11 @@ public class RoundRobinOperatorStateRepartitioner
                     broadcastState,
             List<Map<StreamStateHandle, OperatorStateHandle>> mergeMapList) {
 
+        // map的长度就是新分区长度
         int newParallelism = mergeMapList.size();
         for (int i = 0; i < newParallelism; ++i) {
 
+            // 获取该分区的数据
             final Map<StreamStateHandle, OperatorStateHandle> mergeMap = mergeMapList.get(i);
 
             // for each name, pick the i-th entry
@@ -438,8 +473,10 @@ public class RoundRobinOperatorStateRepartitioner
                             List<Tuple2<StreamStateHandle, OperatorStateHandle.StateMetaInfo>>>
                     e : broadcastState.entrySet()) {
 
+                // 这是之前的并行度  代表在不同子分区针对同一stateName的数据
                 int previousParallelism = e.getValue().size();
 
+                // 找到应该分到新分区的对象
                 Tuple2<StreamStateHandle, OperatorStateHandle.StateMetaInfo> handleWithMetaInfo =
                         e.getValue().get(i % previousParallelism);
 
@@ -452,6 +489,7 @@ public class RoundRobinOperatorStateRepartitioner
                                     handleWithMetaInfo.f0);
                     mergeMap.put(handleWithMetaInfo.f0, operatorStateHandle);
                 }
+                // TODO put之前的数据不就丢了吗
                 operatorStateHandle
                         .getStateNameToPartitionOffsets()
                         .put(e.getKey(), handleWithMetaInfo.f1);

@@ -27,11 +27,19 @@ import java.util.concurrent.CompletableFuture;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** The default implementation of {@link JobShuffleContext}. */
+/** The default implementation of {@link JobShuffleContext}.
+ * 用于job洗牌的上下文
+ * */
 public class JobShuffleContextImpl implements JobShuffleContext {
 
+    /**
+     * 相关的job
+     */
     private final JobID jobId;
 
+    /**
+     * 通过该对象与JM交互
+     */
     private final JobMasterGateway jobMasterGateway;
 
     public JobShuffleContextImpl(JobID jobId, JobMasterGateway jobMasterGateway) {

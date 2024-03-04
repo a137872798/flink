@@ -44,6 +44,7 @@ import java.util.function.Function;
  * be represented. Alternatives may be complete or partial substitutes for the "ground truth" with a
  * higher priority (if they had a lower alternative, they would not really be alternatives).
  * Substitution is determined on a per-sub-state basis.
+ * 跟 OperatorSubtaskState 相似  内部包含了大量的state
  */
 @Internal
 public class PrioritizedOperatorSubtaskState {

@@ -41,22 +41,37 @@ import java.util.concurrent.CompletableFuture;
  * triggers failure and cancellation of production. In this case {@link
  * ResultPartitionWriter#fail(Throwable)} still needs to be called afterwards to fully release all
  * resources associated the partition and propagate failure cause to the consumer if possible.
+ *
+ * 以分区为单位写入数据
+ * RecordWriter内主要就是依靠该对象
  */
 public interface ResultPartitionWriter extends AutoCloseable, AvailabilityProvider {
 
     /** Setup partition, potentially heavy-weight, blocking operation comparing to just creation. */
     void setup() throws IOException;
 
+    /**
+     * 获取分区id
+     * @return
+     */
     ResultPartitionID getPartitionId();
 
+    /**
+     * channel数量
+     * @return
+     */
     int getNumberOfSubpartitions();
 
     int getNumTargetKeyGroups();
 
-    /** Sets the max overdraft buffer size of per gate. */
+    /** Sets the max overdraft buffer size of per gate.
+     * 每个gate最多透支的buffer大小
+     * */
     void setMaxOverdraftBuffersPerGate(int maxOverdraftBuffersPerGate);
 
-    /** Writes the given serialized record to the target subpartition. */
+    /** Writes the given serialized record to the target subpartition.
+     * 写入一条记录到指定的子分区
+     * */
     void emitRecord(ByteBuffer record, int targetSubpartition) throws IOException;
 
     /**
@@ -68,13 +83,19 @@ public interface ResultPartitionWriter extends AutoCloseable, AvailabilityProvid
      */
     void broadcastRecord(ByteBuffer record) throws IOException;
 
-    /** Writes the given {@link AbstractEvent} to all channels. */
+    /** Writes the given {@link AbstractEvent} to all channels.
+     * 广播一个事件到所有channel
+     * */
     void broadcastEvent(AbstractEvent event, boolean isPriorityEvent) throws IOException;
 
-    /** Timeout the aligned barrier to unaligned barrier. */
+    /** Timeout the aligned barrier to unaligned barrier.
+     * 表示某个对齐的屏障超时 变成了非对齐状态
+     * */
     void alignedBarrierTimeout(long checkpointId) throws IOException;
 
-    /** Abort the checkpoint. */
+    /** Abort the checkpoint.
+     * 终止生成检查点操作
+     * */
     void abortCheckpoint(long checkpointId, CheckpointException cause);
 
     /**
@@ -99,10 +120,14 @@ public interface ResultPartitionWriter extends AutoCloseable, AvailabilityProvid
     ResultSubpartitionView createSubpartitionView(
             int index, BufferAvailabilityListener availabilityListener) throws IOException;
 
-    /** Manually trigger the consumption of data from all subpartitions. */
+    /** Manually trigger the consumption of data from all subpartitions.
+     * 为所有channel刷盘
+     * */
     void flushAll();
 
-    /** Manually trigger the consumption of data from the given subpartitions. */
+    /** Manually trigger the consumption of data from the given subpartitions.
+     * 为某channel数据刷盘
+     * */
     void flush(int subpartitionIndex);
 
     /**

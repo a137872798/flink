@@ -29,16 +29,25 @@ import java.util.function.Supplier;
 /** The default implementation of {@link NettyConnectionReader}. */
 public class NettyConnectionReaderImpl implements NettyConnectionReader {
 
-    /** The provider to provide the input channel. */
+    /** The provider to provide the input channel.
+     * 从管道中读取数据
+     * */
     private final Supplier<InputChannel> inputChannelProvider;
 
-    /** The last required segment id. */
+    /** The last required segment id.
+     * 最近访问的段
+     * */
     private int lastRequiredSegmentId = 0;
 
     public NettyConnectionReaderImpl(Supplier<InputChannel> inputChannelProvider) {
         this.inputChannelProvider = inputChannelProvider;
     }
 
+    /**
+     *
+     * @param segmentId segment id indicates the id of segment.
+     * @return
+     */
     @Override
     public Optional<Buffer> readBuffer(int segmentId) {
         if (segmentId > 0L && (segmentId != lastRequiredSegmentId)) {
@@ -49,6 +58,7 @@ public class NettyConnectionReaderImpl implements NettyConnectionReader {
                 ExceptionUtils.rethrow(e, "Failed to notify required segment id");
             }
         }
+        // 本次读取下一个buffer
         Optional<InputChannel.BufferAndAvailability> bufferAndAvailability = Optional.empty();
         try {
             bufferAndAvailability = inputChannelProvider.get().getNextBuffer();

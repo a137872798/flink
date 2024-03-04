@@ -22,7 +22,8 @@ import org.apache.flink.core.memory.DataInputView;
 import org.apache.flink.core.memory.DataOutputView;
 import org.apache.flink.runtime.event.RuntimeEvent;
 
-/** Marks the end of a superstep of one particular iteration superstep. */
+/** Marks the end of a superstep of one particular iteration superstep.
+ * */
 public class EndOfSuperstepEvent extends RuntimeEvent {
 
     /** The singleton instance of this event. */

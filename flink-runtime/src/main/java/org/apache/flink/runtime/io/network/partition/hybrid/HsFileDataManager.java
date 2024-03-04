@@ -58,12 +58,14 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * File data manager for HsResultPartition, which schedules {@link HsSubpartitionFileReaderImpl} for
  * loading data w.r.t. their offset in the file.
+ * 管理文件数据
  */
 @ThreadSafe
 public class HsFileDataManager implements Runnable, BufferRecycler {
     private static final Logger LOG = LoggerFactory.getLogger(HsFileDataManager.class);
 
-    /** Executor to run the shuffle data reading task. */
+    /** Executor to run the shuffle data reading task.
+     * */
     private final ScheduledExecutorService ioExecutor;
 
     /** Maximum number of buffers can be allocated by this partition reader. */
@@ -90,6 +92,9 @@ public class HsFileDataManager implements Runnable, BufferRecycler {
 
     private final Path dataFilePath;
 
+    /**
+     * 存储的是索引数据 根据bufferIndex 可以找到region
+     */
     private final HsFileDataIndex dataIndex;
 
     private final HsSubpartitionFileReader.Factory fileReaderFactory;
@@ -98,7 +103,9 @@ public class HsFileDataManager implements Runnable, BufferRecycler {
 
     private final ByteBuffer headerBuf = BufferReaderWriterUtil.allocatedHeaderBuffer();
 
-    /** All readers waiting to read data of different subpartitions. */
+    /** All readers waiting to read data of different subpartitions.
+     * 每个子分区有一个reader对象
+     * */
     @GuardedBy("lock")
     private final Set<HsSubpartitionFileReader> allReaders = new HashSet<>();
 
@@ -147,11 +154,15 @@ public class HsFileDataManager implements Runnable, BufferRecycler {
     // Note, this method is synchronized on `this`, not `lock`. The purpose here is to prevent
     // concurrent `run()` executions. Concurrent calls to other methods are allowed.
     public synchronized void run() {
+        // 申请buffer 让reader完成准备工作 触发所有reader的读取
+        // 返回的表示使用了多少buffer
         int numBuffersRead = tryRead();
         endCurrentRoundOfReading(numBuffersRead);
     }
 
-    /** This method only called by result partition to create subpartitionFileReader. */
+    /** This method only called by result partition to create subpartitionFileReader.
+     * 追加一个reader对象
+     * */
     public HsDataView registerNewConsumer(
             int subpartitionId,
             HsConsumerId consumerId,
@@ -174,12 +185,14 @@ public class HsFileDataManager implements Runnable, BufferRecycler {
 
             allReaders.add(subpartitionReader);
 
+            // 因为有了新的reader 立即触发读取
             mayTriggerReading();
             return subpartitionReader;
         }
     }
 
     public void closeDataIndexAndDeleteShuffleFile() {
+        // 关闭索引对象
         dataIndex.close();
         IOUtils.deleteFileQuietly(dataFilePath);
     }
@@ -195,7 +208,9 @@ public class HsFileDataManager implements Runnable, BufferRecycler {
         }
     }
 
-    /** Releases this file data manager and delete shuffle data after all readers is removed. */
+    /** Releases this file data manager and delete shuffle data after all readers is removed.
+     * 释放本对象
+     * */
     public void release() {
         synchronized (lock) {
             if (isReleased) {
@@ -205,6 +220,7 @@ public class HsFileDataManager implements Runnable, BufferRecycler {
 
             List<HsSubpartitionFileReader> pendingReaders = new ArrayList<>(allReaders);
             mayNotifyReleased();
+            // 以失败方式触发所有reader
             failSubpartitionReaders(
                     pendingReaders,
                     new IllegalStateException("Result partition has been already released."));
@@ -217,8 +233,12 @@ public class HsFileDataManager implements Runnable, BufferRecycler {
     //  Internal Methods
     // ------------------------------------------------------------------------
 
-    /** @return number of buffers read. */
+    /** @return number of buffers read.
+     * 触发数据读取
+     * */
     private int tryRead() {
+
+        // 所有reader做好准备工作
         Queue<HsSubpartitionFileReader> availableReaders = prepareAndGetAvailableReaders();
         if (availableReaders.isEmpty()) {
             return 0;
@@ -226,6 +246,7 @@ public class HsFileDataManager implements Runnable, BufferRecycler {
 
         Queue<MemorySegment> buffers;
         try {
+            // 申请buffer
             buffers = allocateBuffers();
         } catch (Exception exception) {
             // fail all pending subpartition readers immediately if any exception occurs
@@ -239,9 +260,11 @@ public class HsFileDataManager implements Runnable, BufferRecycler {
             return 0;
         }
 
+        // 申请完buffer后 通过reader将数据读取进去
         readData(availableReaders, buffers);
         int numBuffersRead = numBuffersAllocated - buffers.size();
 
+        // 剩余的buffer就是多出来的  归还即可
         releaseBuffers(buffers);
 
         return numBuffersRead;
@@ -249,6 +272,7 @@ public class HsFileDataManager implements Runnable, BufferRecycler {
 
     @SuppressWarnings("FieldAccessNotGuarded")
     // read-only access to volatile isReleased and numRequestedBuffers
+    // 申请buffer
     private Queue<MemorySegment> allocateBuffers() throws Exception {
         long timeoutTime = getBufferRequestTimeoutTime();
         do {
@@ -278,6 +302,9 @@ public class HsFileDataManager implements Runnable, BufferRecycler {
                         TaskManagerOptions.NETWORK_BATCH_SHUFFLE_READ_MEMORY.key()));
     }
 
+    /**
+     * 记录触发read
+     */
     private void mayTriggerReading() {
         synchronized (lock) {
             if (!isRunning
@@ -327,6 +354,10 @@ public class HsFileDataManager implements Runnable, BufferRecycler {
         }
     }
 
+    /**
+     * 触发所有reader的 prepareForScheduling
+     * @return
+     */
     private Queue<HsSubpartitionFileReader> prepareAndGetAvailableReaders() {
         synchronized (lock) {
             if (isReleased) {
@@ -340,6 +371,11 @@ public class HsFileDataManager implements Runnable, BufferRecycler {
         }
     }
 
+    /**
+     * 利用reader 将数据读取到buffer
+     * @param availableReaders
+     * @param buffers
+     */
     private void readData(
             Queue<HsSubpartitionFileReader> availableReaders, Queue<MemorySegment> buffers) {
         while (!availableReaders.isEmpty() && !buffers.isEmpty()) {
@@ -364,6 +400,10 @@ public class HsFileDataManager implements Runnable, BufferRecycler {
         }
     }
 
+    /**
+     * 移除相关的reader
+     * @param readers
+     */
     @GuardedBy("lock")
     private void removeSubpartitionReaders(Collection<HsSubpartitionFileReader> readers) {
         allReaders.removeAll(readers);
@@ -373,12 +413,18 @@ public class HsFileDataManager implements Runnable, BufferRecycler {
         }
     }
 
+    /**
+     * 当前这一轮read结束时触发
+     * @param numBuffersRead
+     */
     private void endCurrentRoundOfReading(int numBuffersRead) {
         synchronized (lock) {
             numRequestedBuffers += numBuffersRead;
             isRunning = false;
+            // 检查是否触发了 release
             mayNotifyReleased();
         }
+        // 本次没有读取到任何数据 代表某些条件暂时不满足  稍作等待后重试
         if (numBuffersRead == 0) {
             // When fileReader has no data to read, for example, most of the data is
             // consumed from memory. HsFileDataManager will encounter busy-loop
@@ -386,6 +432,7 @@ public class HsFileDataManager implements Runnable, BufferRecycler {
             // and seriously affect performance.
             ioExecutor.schedule(this::mayTriggerReading, 5, TimeUnit.MILLISECONDS);
         } else {
+            // 立即触发read
             mayTriggerReading();
         }
     }

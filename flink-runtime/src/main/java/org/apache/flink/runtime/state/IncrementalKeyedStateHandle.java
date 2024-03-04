@@ -27,22 +27,29 @@ import java.util.UUID;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Common interface to all incremental {@link KeyedStateHandle}. */
+/** Common interface to all incremental {@link KeyedStateHandle}.
+ * 使用keyGroup 来标识state   同时状态绑定检查点
+ * */
 public interface IncrementalKeyedStateHandle
         extends KeyedStateHandle, CheckpointBoundKeyedStateHandle {
 
-    /** Returns the identifier of the state backend from which this handle was created. */
+    /** Returns the identifier of the state backend from which this handle was created.
+     * 获取使用的状态后端
+     * */
     @Nonnull
     UUID getBackendIdentifier();
 
     /**
      * Returns a list of all shared states and the corresponding localPath in the backend at the
      * time this was created.
+     * 有些状态是被多个检查点共享的  这里返回这些状态以及位置信息
      */
     @Nonnull
     List<HandleAndLocalPath> getSharedStateHandles();
 
-    /** A Holder of StreamStateHandle and the corresponding localPath. */
+    /** A Holder of StreamStateHandle and the corresponding localPath.
+     * 每个handle 关联一个本地目录 应该是一个文件 用于存储state数据
+     * */
     final class HandleAndLocalPath implements Serializable {
 
         private static final long serialVersionUID = 7711754687567545052L;

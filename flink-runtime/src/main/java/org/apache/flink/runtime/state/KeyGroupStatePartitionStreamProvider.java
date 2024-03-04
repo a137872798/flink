@@ -26,6 +26,7 @@ import java.io.InputStream;
 /**
  * This class provides access to an input stream that contains state data for one key group and the
  * key group id.
+ * 单分区数据 以及相关的keyGroup
  */
 @PublicEvolving
 public class KeyGroupStatePartitionStreamProvider extends StatePartitionStreamProvider {

@@ -24,6 +24,8 @@ package org.apache.flink.runtime.state;
  * @param <K> type of key.
  * @param <N> type of namespace.
  * @param <S> type of state.
+ *
+ *           状态的某个条目
  */
 public interface StateEntry<K, N, S> {
 

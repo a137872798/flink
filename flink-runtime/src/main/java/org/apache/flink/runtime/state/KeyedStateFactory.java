@@ -26,7 +26,9 @@ import org.apache.flink.runtime.state.internal.InternalKvState;
 
 import javax.annotation.Nonnull;
 
-/** This factory produces concrete internal state objects. */
+/** This factory produces concrete internal state objects.
+ * 这个工厂可以产生状态对象
+ * */
 public interface KeyedStateFactory {
 
     /**
@@ -53,12 +55,14 @@ public interface KeyedStateFactory {
      *
      * @param namespaceSerializer TypeSerializer for the state namespace.
      * @param stateDesc The {@code StateDescriptor} that contains the name of the state.
-     * @param snapshotTransformFactory factory of state snapshot transformer.
+     * @param snapshotTransformFactory factory of state snapshot transformer.  默认转换器为 noTransform()
      * @param <N> The type of the namespace.
      * @param <SV> The type of the stored state value.
      * @param <SEV> The type of the stored state value or entry for collection types (list or map).
      * @param <S> The type of the public API state.
      * @param <IS> The type of internal state.
+     *
+     *            snapshotTransformFactory 表示允许传入一个工厂 之后在通过快照进行恢复的时候 可以用转换函数处理entries
      */
     @Nonnull
     <N, SV, SEV, S extends State, IS extends S> IS createOrUpdateInternalState(
@@ -73,7 +77,7 @@ public interface KeyedStateFactory {
      * @param namespaceSerializer TypeSerializer for the state namespace.
      * @param stateDesc The {@code StateDescriptor} that contains the name of the state.
      * @param snapshotTransformFactory factory of state snapshot transformer.
-     * @param allowFutureMetadataUpdates whether allow metadata to update in the future or not.
+     * @param allowFutureMetadataUpdates whether allow metadata to update in the future or not.   表示是否允许元数据在以后发生变化
      * @param <N> The type of the namespace.
      * @param <SV> The type of the stored state value.
      * @param <SEV> The type of the stored state value or entry for collection types (list or map).
@@ -87,6 +91,8 @@ public interface KeyedStateFactory {
             @Nonnull StateSnapshotTransformFactory<SEV> snapshotTransformFactory,
             boolean allowFutureMetadataUpdates)
             throws Exception {
+
+        // 默认不允许变化
         if (allowFutureMetadataUpdates) {
             throw new UnsupportedOperationException(
                     this.getClass().getName() + "doesn't support to allow future metadata update");

@@ -31,7 +31,10 @@ import java.util.stream.Collectors;
 
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** Information of All-To-All result. */
+/** Information of All-To-All result.
+ * 记录结果字节数的
+ * All-To-All 表示子分区是不能拆分的
+ * */
 public class AllToAllBlockingResultInfo extends AbstractBlockingResultInfo {
 
     private final boolean isBroadcast;
@@ -40,6 +43,7 @@ public class AllToAllBlockingResultInfo extends AbstractBlockingResultInfo {
      * Aggregated subpartition bytes, which aggregates the subpartition bytes with the same
      * subpartition index in different partitions. Note that We can aggregate them because they will
      * be consumed by the same downstream task.
+     * 每个值都是不同分区同一子分区的字节数和
      */
     @Nullable private List<Long> aggregatedSubpartitionBytes;
 
@@ -75,13 +79,21 @@ public class AllToAllBlockingResultInfo extends AbstractBlockingResultInfo {
     @Override
     public long getNumBytesProduced() {
         checkState(aggregatedSubpartitionBytes != null, "Not all partition infos are ready");
+        // 广播模式的话 只要一份数据就可以了
         if (isBroadcast) {
             return aggregatedSubpartitionBytes.get(0);
         } else {
+            // 非广播模式就是总和
             return aggregatedSubpartitionBytes.stream().reduce(0L, Long::sum);
         }
     }
 
+    /**
+     * 通过范围检索字节数
+     * @param partitionIndexRange range of the index of the consumed partition.  注意这里只支持获取所有的分区
+     * @param subpartitionIndexRange range of the index of the consumed subpartition.
+     * @return
+     */
     @Override
     public long getNumBytesProduced(
             IndexRange partitionIndexRange, IndexRange subpartitionIndexRange) {
@@ -104,6 +116,11 @@ public class AllToAllBlockingResultInfo extends AbstractBlockingResultInfo {
                 .reduce(0L, Long::sum);
     }
 
+    /**
+     * 报告某个分区的字节数
+     * @param partitionIndex
+     * @param partitionBytes
+     */
     @Override
     public void recordPartitionInfo(int partitionIndex, ResultPartitionBytes partitionBytes) {
         // Once all partitions are finished, we can convert the subpartition bytes to aggregated
@@ -113,6 +130,7 @@ public class AllToAllBlockingResultInfo extends AbstractBlockingResultInfo {
         if (aggregatedSubpartitionBytes == null) {
             super.recordPartitionInfo(partitionIndex, partitionBytes);
 
+            // 至少各分区都写入一次数据时 才能计算aggr数据
             if (subpartitionBytesByPartitionIndex.size() == numOfPartitions) {
                 long[] aggregatedBytes = new long[numOfSubpartitions];
                 subpartitionBytesByPartitionIndex
@@ -120,12 +138,14 @@ public class AllToAllBlockingResultInfo extends AbstractBlockingResultInfo {
                         .forEach(
                                 subpartitionBytes -> {
                                     checkState(subpartitionBytes.length == numOfSubpartitions);
+                                    // aggregatedBytes 保存的就是各子分区的数据和
                                     for (int i = 0; i < subpartitionBytes.length; ++i) {
                                         aggregatedBytes[i] += subpartitionBytes[i];
                                     }
                                 });
                 this.aggregatedSubpartitionBytes =
                         Arrays.stream(aggregatedBytes).boxed().collect(Collectors.toList());
+                // 清空上层的临时数据
                 this.subpartitionBytesByPartitionIndex.clear();
             }
         }

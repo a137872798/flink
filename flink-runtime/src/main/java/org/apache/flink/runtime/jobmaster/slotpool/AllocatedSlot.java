@@ -40,24 +40,37 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * <p>Note: Prior to the resource management changes introduced in (Flink Improvement Proposal 6),
  * an AllocatedSlot was allocated to the JobManager as soon as the TaskManager registered at the
  * JobManager. All slots had a default unknown resource profile.
+ * 表示一个槽 可以在上面分配payload
+ * 简单看也是一个bean对象
  */
 class AllocatedSlot implements PhysicalSlot {
 
-    /** The ID under which the slot is allocated. Uniquely identifies the slot. */
+    /** The ID under which the slot is allocated. Uniquely identifies the slot.
+     * 每个slot有一个唯一标识符
+     * */
     private final AllocationID allocationId;
 
-    /** The location information of the TaskManager to which this slot belongs. */
+    /** The location information of the TaskManager to which this slot belongs.
+     * 通过这个位置信息可以找到 TaskManager
+     * */
     private final TaskManagerLocation taskManagerLocation;
 
-    /** The resource profile of the slot provides. */
+    /** The resource profile of the slot provides.
+     * 该slot所能提供的资源
+     * */
     private final ResourceProfile resourceProfile;
 
-    /** RPC gateway to call the TaskManager that holds this slot. */
+    /** RPC gateway to call the TaskManager that holds this slot.
+     * 通过网关与TaskManager通信
+     * */
     private final TaskManagerGateway taskManagerGateway;
 
     /** The number of the slot on the TaskManager to which slot belongs. Purely informational. */
     private final int physicalSlotNumber;
 
+    /**
+     * 每个slot可以被分配一个payload  通过该变量维护
+     */
     private final AtomicReference<Payload> payloadReference;
 
     // ------------------------------------------------------------------------
@@ -107,6 +120,7 @@ class AllocatedSlot implements PhysicalSlot {
 
     @Override
     public boolean willBeOccupiedIndefinitely() {
+        // 查看payload是否无期限占用slot
         return isUsed() && payloadReference.get().willOccupySlotIndefinitely();
     }
 
@@ -120,6 +134,10 @@ class AllocatedSlot implements PhysicalSlot {
         return taskManagerGateway;
     }
 
+    /**
+     * 获取物理槽编号
+     * @return
+     */
     @Override
     public int getPhysicalSlotNumber() {
         return physicalSlotNumber;
@@ -134,6 +152,11 @@ class AllocatedSlot implements PhysicalSlot {
         return payloadReference.get() != null;
     }
 
+    /**
+     * 使用一个payload 占用slot
+     * @param payload to assign to this slot
+     * @return
+     */
     @Override
     public boolean tryAssignPayload(Payload payload) {
         return payloadReference.compareAndSet(null, payload);
@@ -144,6 +167,7 @@ class AllocatedSlot implements PhysicalSlot {
      * removed from the slot.
      *
      * @param cause of the release operation
+     *              释放payload
      */
     public void releasePayload(Throwable cause) {
         final Payload payload = payloadReference.get();

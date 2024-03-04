@@ -23,7 +23,9 @@ import java.io.Serializable;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Immutable snapshot of {@link CompletedCheckpointStatsSummary}. */
+/** Immutable snapshot of {@link CompletedCheckpointStatsSummary}.
+ * 快照就是某一时刻的数据
+ * */
 @Internal
 public class CompletedCheckpointStatsSummarySnapshot implements Serializable {
     private static final long serialVersionUID = 1L;

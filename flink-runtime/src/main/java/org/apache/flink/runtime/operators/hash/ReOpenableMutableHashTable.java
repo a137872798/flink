@@ -30,12 +30,21 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 表示数据可以还原吧
+ * @param <BT>
+ * @param <PT>
+ */
 public class ReOpenableMutableHashTable<BT, PT> extends MutableHashTable<BT, PT> {
 
-    /** Channel for the spilled partitions */
+    /** Channel for the spilled partitions
+     * 这个对象用于遍历一组目录下的文件
+     * */
     private final FileIOChannel.Enumerator spilledInMemoryPartitions;
 
-    /** Stores the initial partitions and a list of the files that contain the spilled contents */
+    /** Stores the initial partitions and a list of the files that contain the spilled contents
+     * 第一次初始化时的分区数据
+     * */
     private List<HashPartition<BT, PT>> initialPartitions;
 
     /**
@@ -78,23 +87,35 @@ public class ReOpenableMutableHashTable<BT, PT> extends MutableHashTable<BT, PT>
             boolean buildSideOuterJoin)
             throws IOException {
         super.open(buildSide, probeSide, buildSideOuterJoin);
+
+        // 记录最初的数据
         initialPartitions = new ArrayList<HashPartition<BT, PT>>(partitionsBeingBuilt);
         initialPartitionFanOut = (byte) partitionsBeingBuilt.size();
         initialBucketCount = this.numBuckets;
     }
 
+    /**
+     * 恢复成最初的数据  并重新设置探测数据
+     * @param probeInput
+     * @throws IOException
+     */
     public void reopenProbe(MutableObjectIterator<PT> probeInput) throws IOException {
         if (this.closed.get()) {
             throw new IllegalStateException(
                     "Cannot open probe input because hash join has already been closed");
         }
         partitionsBeingBuilt.clear();
+
+        // 重新构建了2个对象
         probeIterator = new ProbeIterator<PT>(probeInput, probeSideSerializer.createInstance());
         // We restore the same "partitionsBeingBuild" state as after the initial open call.
         partitionsBeingBuilt.addAll(initialPartitions);
 
+        // 表示数据已经倾泻到文件中
         if (spilled) {
             this.currentRecursionDepth = 0;
+
+            // 复原成最初的样子
             initTable(initialBucketCount, initialPartitionFanOut);
 
             // setup partitions for insertion:
@@ -103,12 +124,14 @@ public class ReOpenableMutableHashTable<BT, PT> extends MutableHashTable<BT, PT>
                         (ReOpenableHashPartition<BT, PT>) this.partitionsBeingBuilt.get(i);
                 if (part.isInMemory()) {
                     ensureNumBuffersReturned(part.initialPartitionBuffersCount);
+                    // 恢复之前的数据
                     part.restorePartitionBuffers(ioManager, availableMemory);
                     // now, index the partition through a hash table
                     final HashPartition<BT, PT>.PartitionIterator pIter =
                             part.getPartitionIterator(this.buildSideComparator);
                     BT record = this.buildSideSerializer.createInstance();
 
+                    // 迭代分区数据重新补充bucket数据
                     while ((record = pIter.next(record)) != null) {
                         final int hashCode = hash(pIter.getCurrentHashCode(), 0);
                         final int posHashCode = hashCode % initialBucketCount;
@@ -137,6 +160,7 @@ public class ReOpenableMutableHashTable<BT, PT> extends MutableHashTable<BT, PT>
             // been handled
         } else {
             // the build input completely fits into memory, hence everything is still in memory.
+            // 为探测做准备
             for (int partIdx = 0; partIdx < partitionsBeingBuilt.size(); partIdx++) {
                 final HashPartition<BT, PT> p = partitionsBeingBuilt.get(partIdx);
                 p.prepareProbePhase(ioManager, currentEnumerator, writeBehindBuffers);
@@ -161,6 +185,7 @@ public class ReOpenableMutableHashTable<BT, PT> extends MutableHashTable<BT, PT>
         }
         spilled = true;
 
+        // 将所有分区的所有内存数据 都倾泻到文件channel中 并且各分区会缓存第一次的分区数据
         for (int partIdx = 0; partIdx < initialPartitions.size(); partIdx++) {
             final ReOpenableHashPartition<BT, PT> p =
                     (ReOpenableHashPartition<BT, PT>) initialPartitions.get(partIdx);
@@ -172,17 +197,24 @@ public class ReOpenableMutableHashTable<BT, PT> extends MutableHashTable<BT, PT>
         }
     }
 
+    /**
+     * 准备下个分区数据的逻辑被修改了
+     * @return
+     * @throws IOException
+     */
     @Override
     protected boolean prepareNextPartition() throws IOException {
         // check if there will be further partition processing.
         this.furtherPartitioning = false;
         for (int i = 0; i < this.partitionsBeingBuilt.size(); i++) {
             final HashPartition<BT, PT> p = this.partitionsBeingBuilt.get(i);
+            // 表示探测数据在p写入磁盘后发生
             if (!p.isInMemory() && p.getProbeSideRecordCount() != 0) {
                 furtherPartitioning = true;
                 break;
             }
         }
+        // TODO 为什么有这样的逻辑  反正暂存各分区的数据 以便之后可以复原
         if (furtherPartitioning) {
             ((ReOpenableMutableHashTable<BT, PT>) this).storeInitialHashTable();
         }
@@ -196,8 +228,15 @@ public class ReOpenableMutableHashTable<BT, PT> extends MutableHashTable<BT, PT>
         }
     }
 
+    /**
+     * 创建的分区不同
+     * @param number
+     * @param recursionLevel
+     * @return
+     */
     @Override
     protected HashPartition<BT, PT> getNewInMemoryPartition(int number, int recursionLevel) {
+        // 该分区拥有一次复原到最初数据的能力
         return new ReOpenableHashPartition<BT, PT>(
                 this.buildSideSerializer,
                 this.probeSideSerializer,
@@ -210,6 +249,7 @@ public class ReOpenableMutableHashTable<BT, PT> extends MutableHashTable<BT, PT>
 
     @Override
     public void close() {
+        // 主要是为了内存释放
         if (partitionsBeingBuilt.size()
                 == 0) { // partitions are cleared after the build phase. But we need to drop
             // memory with them.

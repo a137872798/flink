@@ -43,12 +43,16 @@ import java.util.concurrent.LinkedBlockingQueue;
 /**
  * @param <BT> The type of the build side records.
  * @param <PT> The type of the probe side records.
+ *            AbstractPagedInputView 是从一组segment读取数据的对象
  */
 public class HashPartition<BT, PT> extends AbstractPagedInputView implements SeekableDataInputView {
 
     // --------------------------------- Table Structure Auxiliaries
     // ------------------------------------
 
+    /**
+     * 存储额外的entry信息
+     */
     protected MemorySegment[]
             overflowSegments; // segments in which overflow buckets from the table structure are
     // stored
@@ -68,14 +72,23 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
     // -------------------------------------- Record Buffers
     // --------------------------------------------
 
+    /**
+     * 存储分区中的数据
+     */
     protected MemorySegment[] partitionBuffers;
 
     private int currentBufferNum;
 
+    /**
+     * 最后一个segment的长度
+     */
     private int finalBufferLimit;
 
     private BuildSideBuffer buildSideWriteBuffer;
 
+    /**
+     * 存储探测数据
+     */
     protected ChannelWriterOutputView probeSideBuffer;
 
     private RandomAccessOutputView overwriteBuffer;
@@ -119,10 +132,10 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
      * Creates a new partition, initially in memory, with one buffer for the build side. The
      * partition is initialized to expect record insertions for the build side.
      *
-     * @param partitionNumber The number of the partition.
+     * @param partitionNumber The number of the partition.   对应的分区
      * @param recursionLevel The recursion level - zero for partitions from the initial build, <i>n
      *     + 1</i> for partitions that are created from spilled partition with recursion level
-     *     <i>n</i>.
+     *     <i>n</i>.    递归级别
      * @param initialBuffer The initial buffer for this partition.
      */
     HashPartition(
@@ -225,6 +238,7 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
      * buffers and overflow memory segments.
      *
      * @return The number of occupied memory segments.
+     * 获取当前已经使用的segment数量
      */
     public int getNumOccupiedMemorySegments() {
         // either the number of memory segments, or one for spilling
@@ -232,9 +246,14 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
                 this.partitionBuffers != null
                         ? this.partitionBuffers.length
                         : this.buildSideWriteBuffer.getNumOccupiedMemorySegments();
+        // 要加上存储额外信息的segment
         return numPartitionBuffers + numOverflowSegments;
     }
 
+    /**
+     * 数据内存块的数量
+     * @return
+     */
     public int getBuildSideBlockCount() {
         return this.partitionBuffers == null
                 ? this.buildSideWriteBuffer.getBlockCount()
@@ -272,15 +291,18 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
      * @return A pointer to the object in the partition, or <code>-1</code>, if the partition is
      *     spilled.
      * @throws IOException Thrown, when this is a spilled partition and the write failed.
+     * 写入一条数据
      */
     public final long insertIntoBuildBuffer(BT record) throws IOException {
         this.buildSideRecordCounter++;
 
+        // 表示此时 channel还没有被创建 先暂存在内存中
         if (isInMemory()) {
             final long pointer = this.buildSideWriteBuffer.getCurrentPointer();
             this.buildSideSerializer.serialize(record, this.buildSideWriteBuffer);
             return isInMemory() ? pointer : -1;
         } else {
+            // 此时会写入底层channel
             this.buildSideSerializer.serialize(record, this.buildSideWriteBuffer);
             return -1;
         }
@@ -296,6 +318,7 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
      * @param record The record to be inserted into the probe side buffers.
      * @throws IOException Thrown, if the buffer is full, needs to be spilled, and spilling causes
      *     an error.
+     *     当数据已经进入channel 并需要探测时  使用该对象维护所有探测数据
      */
     public final void insertIntoProbeBuffer(PT record) throws IOException {
         this.probeSideSerializer.serialize(record, this.probeSideBuffer);
@@ -320,7 +343,7 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
             FileIOChannel.ID targetChannel,
             LinkedBlockingQueue<MemorySegment> bufferReturnQueue)
             throws IOException {
-        // sanity checks
+        // sanity checks    此时应当还未设置channel
         if (!isInMemory()) {
             throw new RuntimeException(
                     "Bug in Hybrid Hash Join: "
@@ -344,9 +367,17 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
         // that keep the build side buffers current block, as it is most likely not full, yet
         // we return the number of blocks that become available
         this.buildSideChannel = ioAccess.createBlockChannelWriter(targetChannel, bufferReturnQueue);
+        // 使得下游囤积的数据 写入channel
         return this.buildSideWriteBuffer.spill(this.buildSideChannel);
     }
 
+    /**
+     * 当填充完分区数据时  调用该方法  表示结束了数据构建阶段
+     * @param ioAccess
+     * @param probeChannelEnumerator
+     * @param bufferReturnQueue
+     * @throws IOException
+     */
     public void finalizeBuildPhase(
             IOManager ioAccess,
             FileIOChannel.Enumerator probeChannelEnumerator,
@@ -355,11 +386,14 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
         this.finalBufferLimit = this.buildSideWriteBuffer.getCurrentPositionInSegment();
         this.partitionBuffers = this.buildSideWriteBuffer.close();
 
+        // 表示数据已经写入channel
         if (!isInMemory()) {
             // close the channel. note that in the spilled case, the build-side-buffer will have
             // sent off
             // the last segment and it will be returned to the write-behind-buffer queue.
             this.buildSideChannel.close();
+
+            // 初始化探测相关的buffer/channel
 
             // create the channel for the probe side and claim one buffer for it
             this.probeSideChannel =
@@ -374,10 +408,13 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
     }
 
     /**
+     *
+     * @param spilledPartitions 收集需要处理的分区数据
      * @param keepUnprobedSpilledPartitions If true then partitions that were spilled but received
      *     no further probe requests will be retained; used for build-side outer joins.
      * @return The number of write-behind buffers reclaimable after this method call.
      * @throws IOException
+     * 表示探测阶段结束
      */
     public int finalizeProbePhase(
             List<MemorySegment> freeMemory,
@@ -387,6 +424,7 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
         if (isInMemory()) {
             // in this case, return all memory buffers
 
+            // 将索引数据和分区数据都加入 freeMemory
             // return the overflow segments
             for (int k = 0; k < this.numOverflowSegments; k++) {
                 freeMemory.add(this.overflowSegments[k]);
@@ -400,6 +438,7 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
             }
             this.partitionBuffers = null;
             return 0;
+            // 此时该分区还未设置任何探测数据 并且不需要维护未探测的分区  那么直接关闭channel
         } else if (this.probeSideRecordCounter == 0 && !keepUnprobedSpilledPartitions) {
             // partition is empty, no spilled buffers
             // return the memory buffer
@@ -412,6 +451,7 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
             return 0;
         } else {
             // flush the last probe side buffer and register this partition as pending
+            // 返回这些还未处理探测的分区
             this.probeSideBuffer.close();
             this.probeSideChannel.close();
             spilledPartitions.add(this);
@@ -419,6 +459,10 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
         }
     }
 
+    /**
+     * 清理所有内存数据
+     * @param target
+     */
     public void clearAllMemory(List<MemorySegment> target) {
         // return current buffers from build side and probe side
         if (this.buildSideWriteBuffer != null) {
@@ -485,6 +529,13 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
     //                   ReOpenableHashTable related methods
     // --------------------------------------------------------------------------------------------------
 
+    /**
+     * 初始化探测对象
+     * @param ioAccess
+     * @param probeChannelEnumerator
+     * @param bufferReturnQueue
+     * @throws IOException
+     */
     public void prepareProbePhase(
             IOManager ioAccess,
             FileIOChannel.Enumerator probeChannelEnumerator,
@@ -536,12 +587,22 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
 
     // ============================================================================================
 
+    /**
+     * AbstractPagedOutputView 表示内部是一组segment  并提供写入数据的api
+     * SideBuffer 会将写入的数据存起来
+     */
     protected static final class BuildSideBuffer extends AbstractPagedOutputView {
 
         private final ArrayList<MemorySegment> targetList;
 
+        /**
+         * 该对象提供segment
+         */
         private final MemorySegmentSource memSource;
 
+        /**
+         * 使用该对象发起写入   并且该对象提供一个队列 可以获取写入的数据
+         */
         private BlockChannelWriter<MemorySegment> writer;
 
         private int currentBlockNumber;
@@ -556,6 +617,13 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
             this.sizeBits = MathUtils.log2strict(initialSegment.size());
         }
 
+        /**
+         * 获取下个segment
+         * @param current The current memory segment
+         * @param bytesUsed
+         * @return
+         * @throws IOException
+         */
         @Override
         protected MemorySegment nextSegment(MemorySegment current, int bytesUsed)
                 throws IOException {
@@ -563,9 +631,11 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
 
             final MemorySegment next;
             if (this.writer == null) {
+                // 在writer还未设置时  使用targetList暂存数据
                 this.targetList.add(current);
                 next = this.memSource.nextSegment();
             } else {
+                // writer已经初始化的情况下  利用returnQueue 取回写入的数据
                 this.writer.writeBlock(current);
                 try {
                     next = this.writer.getReturnQueue().take();
@@ -593,6 +663,12 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
             return this.targetList.size() + 1;
         }
 
+        /**
+         * 倾泻  也就是将暂存的数据一次性写入
+         * @param writer
+         * @return
+         * @throws IOException
+         */
         int spill(BlockChannelWriter<MemorySegment> writer) throws IOException {
             this.writer = writer;
             final int numSegments = this.targetList.size();
@@ -603,6 +679,11 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
             return numSegments;
         }
 
+        /**
+         * 关闭当前对象
+         * @return
+         * @throws IOException
+         */
         MemorySegment[] close() throws IOException {
             final MemorySegment current = getCurrentSegment();
             if (current == null) {
@@ -613,6 +694,7 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
             clear();
 
             if (this.writer == null) {
+                // 将未写入的数据全部返回
                 this.targetList.add(current);
                 MemorySegment[] buffers =
                         this.targetList.toArray(new MemorySegment[this.targetList.size()]);
@@ -629,6 +711,9 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
 
     // ============================================================================================
 
+    /**
+     * 用于迭代分区数据
+     */
     final class PartitionIterator implements MutableObjectIterator<BT> {
 
         private final TypeComparator<BT> comparator;
@@ -643,15 +728,19 @@ public class HashPartition<BT, PT> extends AbstractPagedInputView implements See
         }
 
         public final BT next(BT reuse) throws IOException {
+            // 表示当前segment的位置 和第几个segment
             final int pos = getCurrentPositionInSegment();
             final int buffer = HashPartition.this.currentBufferNum;
 
+            // 更新当前指针
             this.currentPointer = (((long) buffer) << HashPartition.this.segmentSizeBits) + pos;
 
             try {
+                // 读取对象
                 reuse =
                         HashPartition.this.buildSideSerializer.deserialize(
                                 reuse, HashPartition.this);
+                // 计算当前record的hash值
                 this.currentHashCode = this.comparator.hash(reuse);
                 return reuse;
             } catch (EOFException eofex) {

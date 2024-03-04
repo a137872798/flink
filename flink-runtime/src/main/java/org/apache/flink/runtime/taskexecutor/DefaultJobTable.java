@@ -36,10 +36,15 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-/** Default implementation of the {@link JobTable}. */
+/** Default implementation of the {@link JobTable}.
+ * 维护job的表
+ * */
 public final class DefaultJobTable implements JobTable {
     private final Map<JobID, JobOrConnection> jobs;
 
+    /**
+     * ResourceID 是 Connection的
+     */
     private final Map<ResourceID, JobID> resourceIdJobIdIndex;
 
     private DefaultJobTable() {
@@ -54,6 +59,7 @@ public final class DefaultJobTable implements JobTable {
             throws E {
         JobOrConnection job = jobs.get(jobId);
 
+        // 首次创建连接
         if (job == null) {
             job = new JobOrConnection(jobId, jobServicesSupplier.get());
             jobs.put(jobId, job);
@@ -72,6 +78,11 @@ public final class DefaultJobTable implements JobTable {
         return getJob(jobId).flatMap(Job::asConnection);
     }
 
+    /**
+     * 使用 connection的resourceId 来查询
+     * @param resourceId resourceId identifying the connection to get
+     * @return
+     */
     @Override
     public Optional<Connection> getConnection(ResourceID resourceId) {
         final JobID jobId = resourceIdJobIdIndex.get(resourceId);
@@ -104,12 +115,21 @@ public final class DefaultJobTable implements JobTable {
         }
     }
 
+    /**
+     * Connection 表示可以提供各种组件
+     */
     private final class JobOrConnection implements JobTable.Job, JobTable.Connection {
 
         private final JobID jobId;
 
+        /**
+         * 可以获取job的 classLoader
+         */
         private final JobTable.JobServices jobServices;
 
+        /**
+         * 该连接可以提供各种组件
+         */
         @Nullable private EstablishedConnection connection;
 
         private boolean isClosed;
@@ -129,6 +149,7 @@ public final class DefaultJobTable implements JobTable {
 
         @Override
         public JobTable.Job disconnect() {
+            // 断开连接就是不再维护connection信息
             resourceIdJobIdIndex.remove(verifyContainsEstablishedConnection().getResourceID());
             connection = null;
 
@@ -191,6 +212,16 @@ public final class DefaultJobTable implements JobTable {
             }
         }
 
+        /**
+         * 连接就是将各组件合成 EstablishedConnection
+         * @param resourceId resourceId of the JobManager to connect to
+         * @param jobMasterGateway jobMasterGateway of the JobManager to connect to
+         * @param taskManagerActions taskManagerActions associated with this connection
+         * @param checkpointResponder checkpointResponder associated with this connection
+         * @param aggregateManager aggregateManager associated with this connection
+         * @param partitionStateChecker partitionStateChecker associated with this connection
+         * @return
+         */
         @Override
         public JobTable.Connection connect(
                 ResourceID resourceId,
@@ -241,6 +272,9 @@ public final class DefaultJobTable implements JobTable {
         }
     }
 
+    /**
+     * 表示一个已经建立的连接 可以获取各种组件
+     */
     private static final class EstablishedConnection {
 
         // The unique id used for identifying the job manager

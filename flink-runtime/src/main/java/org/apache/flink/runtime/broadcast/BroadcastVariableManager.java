@@ -30,9 +30,14 @@ import java.util.concurrent.ConcurrentHashMap;
  * The BroadcastVariableManager is used to manage the materialization of broadcast variables.
  * References to materialized broadcast variables are cached and shared between parallel subtasks. A
  * reference count is maintained to track whether the materialization may be cleaned up.
+ *
+ * 广播变量管理器
  */
 public class BroadcastVariableManager {
 
+    /**
+     * 维护广播变量的kv关系
+     */
     private final ConcurrentHashMap<BroadcastVariableKey, BroadcastVariableMaterialization<?, ?>>
             variables =
                     new ConcurrentHashMap<
@@ -44,12 +49,15 @@ public class BroadcastVariableManager {
      * Materializes the broadcast variable for the given name, scoped to the given task and its
      * iteration superstep. An existing materialization created by another parallel subtask may be
      * returned, if it hasn't expired yet.
+     *
+     * 每个task都尝试用reader对象内的数据来物化广播变量 只会采用第一个task的数据 其他task则变成广播变量的引用者
+     * 当引用数量归0时  清除广播变量
      */
     public <T> BroadcastVariableMaterialization<T, ?> materializeBroadcastVariable(
             String name,
             int superstep,
             BatchTask<?, ?> holder,
-            MutableReader<?> reader,
+            MutableReader<?> reader,  // 通过它读取广播变量
             TypeSerializerFactory<T> serializerFactory)
             throws IOException {
         final BroadcastVariableKey key =
@@ -60,6 +68,7 @@ public class BroadcastVariableManager {
                     new BroadcastVariableMaterialization<T, Object>(key);
 
             final BroadcastVariableMaterialization<?, ?> previous =
+                    // putIfAbsent 并不会覆盖
                     variables.putIfAbsent(key, newMat);
 
             @SuppressWarnings("unchecked")
@@ -67,8 +76,11 @@ public class BroadcastVariableManager {
                     (previous == null) ? newMat : (BroadcastVariableMaterialization<T, ?>) previous;
 
             try {
+                // 记录信息
                 materialization.materializeVariable(reader, serializerFactory, holder);
                 return materialization;
+
+                // 表示广播变量已经被关闭了  重新创建并插入map
             } catch (MaterializationExpiredException e) {
                 // concurrent release. as an optimization, try to replace the previous one with our
                 // version. otherwise we might spin for a while
@@ -96,6 +108,12 @@ public class BroadcastVariableManager {
         }
     }
 
+    /**
+     * 该task 不再引用广播变量
+     * @param name
+     * @param superstep
+     * @param referenceHolder
+     */
     public void releaseReference(String name, int superstep, BatchTask<?, ?> referenceHolder) {
         BroadcastVariableKey key =
                 new BroadcastVariableKey(
@@ -107,6 +125,7 @@ public class BroadcastVariableManager {
         BroadcastVariableMaterialization<?, ?> mat = variables.get(key);
 
         // release this reference
+        // 返回true 代表该广播变量不再被引用了
         if (mat.decrementReference(referenceHolder)) {
             // remove if no one holds a reference and no one concurrently replaced the entry
             variables.remove(key, mat);

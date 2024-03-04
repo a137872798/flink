@@ -75,6 +75,8 @@ import java.util.Collection;
  *
  * <p>State backend implementations have to be thread-safe. Multiple threads may be creating
  * keyed-/operator state backends concurrently.
+ *
+ * 表示状态后端   可以理解为state的仓库
  */
 @PublicEvolving
 public interface StateBackend extends java.io.Serializable {
@@ -110,6 +112,7 @@ public interface StateBackend extends java.io.Serializable {
      * @return The Keyed State Backend for the given job, operator, and key group range.
      * @throws Exception This method may forward all exceptions that occur while instantiating the
      *     backend.
+     *     使用相关的组件 产生CheckpointableKeyedStateBackend
      */
     <K> CheckpointableKeyedStateBackend<K> createKeyedStateBackend(
             Environment env,
@@ -172,6 +175,8 @@ public interface StateBackend extends java.io.Serializable {
      * @return The OperatorStateBackend for operator identified by the job and operator identifier.
      * @throws Exception This method may forward all exceptions that occur while instantiating the
      *     backend.
+     *
+     *     操作状态和keyedState是不一样的
      */
     OperatorStateBackend createOperatorStateBackend(
             Environment env,

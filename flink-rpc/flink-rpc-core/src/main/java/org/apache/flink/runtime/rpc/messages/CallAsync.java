@@ -22,7 +22,9 @@ import org.apache.flink.util.Preconditions;
 
 import java.util.concurrent.Callable;
 
-/** Message for asynchronous callable invocations. */
+/** Message for asynchronous callable invocations.
+ * 这个消息携带的是一个 callable 对象
+ * */
 public final class CallAsync implements Message {
 
     private final Callable<?> callable;

@@ -29,18 +29,23 @@ import java.util.concurrent.CompletableFuture;
 /**
  * This context is the interface through which the {@link CheckpointCoordinator} interacts with an
  * {@link OperatorCoordinator} during checkpointing and checkpoint restoring.
+ * 维护一个算子相关的检查点信息
  */
 public interface OperatorCoordinatorCheckpointContext extends OperatorInfo, CheckpointListener {
 
     void checkpointCoordinator(long checkpointId, CompletableFuture<byte[]> result)
             throws Exception;
 
+    /**
+     * 通知检查点失败了
+     */
     void abortCurrentTriggering();
 
     /**
      * We override the method here to remove the checked exception. Please check the Java docs of
      * {@link CheckpointListener#notifyCheckpointComplete(long)} for more detail semantic of the
      * method.
+     * 通知检查点完成了
      */
     @Override
     void notifyCheckpointComplete(long checkpointId);
@@ -65,6 +70,7 @@ public interface OperatorCoordinatorCheckpointContext extends OperatorInfo, Chec
      * </ul>
      *
      * <p>In both cases, the coordinator should reset to an empty (new) state.
+     * 利用检查点的数据进行恢复
      */
     void resetToCheckpoint(long checkpointId, @Nullable byte[] checkpointData) throws Exception;
 

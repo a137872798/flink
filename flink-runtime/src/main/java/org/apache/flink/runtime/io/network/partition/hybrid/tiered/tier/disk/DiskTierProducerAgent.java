@@ -50,9 +50,14 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
 
-/** The disk tier implementation of {@link TierProducerAgent}. */
+/** The disk tier implementation of {@link TierProducerAgent}.
+ * 使用该对象发送数据
+ * */
 public class DiskTierProducerAgent implements TierProducerAgent, NettyServiceProducer {
 
+    /**
+     * 每个分区对应一个agent
+     */
     private final TieredStoragePartitionId partitionId;
 
     private final int numBuffersPerSegment;
@@ -63,20 +68,32 @@ public class DiskTierProducerAgent implements TierProducerAgent, NettyServicePro
 
     private final float minReservedDiskSpaceFraction;
 
+    /**
+     * 通过该对象管理/分配内存
+     */
     private final TieredStorageMemoryManager memoryManager;
 
+    /**
+     * 缓存管理器
+     */
     private final DiskCacheManager diskCacheManager;
 
     /**
      * Record the first buffer index in the segment for each subpartition. The index of the list is
      * responding to the subpartition id. The key in the map is the first buffer index and the value
      * in the map is the segment id.
+     * 第一维 对应 子分区下标   key 对应bufferIndex  value对应seg
      */
     private final List<Map<Integer, Integer>> firstBufferIndexInSegment;
 
-    /** Record the number of buffers currently written to each subpartition. */
+    /** Record the number of buffers currently written to each subpartition.
+     * 记录每个子分区写入的buffer数量
+     * */
     private final int[] currentSubpartitionWriteBuffers;
 
+    /**
+     * 该对象可以使用reader读取数据 并发送到 payload队列
+     */
     private final DiskIOScheduler diskIOScheduler;
 
     private volatile boolean isReleased;
@@ -138,10 +155,17 @@ public class DiskTierProducerAgent implements TierProducerAgent, NettyServicePro
                         this::retrieveFirstBufferIndexInSegment,
                         partitionFileReader);
 
+        // 注册本对象
         nettyService.registerProducer(partitionId, this);
         resourceRegistry.registerResource(partitionId, this::releaseResources);
     }
 
+    /**
+     * 切换到新的seg
+     * @param subpartitionId subpartition id that the new segment belongs to
+     * @param segmentId id of the new segment
+     * @return
+     */
     @Override
     public boolean tryStartNewSegment(TieredStorageSubpartitionId subpartitionId, int segmentId) {
         File filePath = dataFilePath.toFile();
@@ -149,23 +173,34 @@ public class DiskTierProducerAgent implements TierProducerAgent, NettyServicePro
                 filePath.getUsableSpace() - ((long) numBuffersPerSegment) * bufferSizeBytes
                         > (long) (filePath.getTotalSpace() * minReservedDiskSpaceFraction);
         if (canStartNewSegment) {
+            // 维护映射关系
             firstBufferIndexInSegment
                     .get(subpartitionId.getSubpartitionId())
                     .put(
                             diskCacheManager.getBufferIndex(subpartitionId.getSubpartitionId()),
                             segmentId);
+            // 更新cache的segId
             diskCacheManager.startSegment(subpartitionId.getSubpartitionId(), segmentId);
         }
         return canStartNewSegment;
     }
 
+    /**
+     * 写入数据
+     * @param subpartitionId the subpartition id that the buffer is writing to
+     * @param finishedBuffer the writing buffer
+     * @param bufferOwner the current owner of this writing buffer
+     * @return
+     */
     @Override
     public boolean tryWrite(
             TieredStorageSubpartitionId subpartitionId, Buffer finishedBuffer, Object bufferOwner) {
         int subpartitionIndex = subpartitionId.getSubpartitionId();
         if (currentSubpartitionWriteBuffers[subpartitionIndex] != 0
                 && currentSubpartitionWriteBuffers[subpartitionIndex] + 1 > numBuffersPerSegment) {
+            // 当前seg被写满了
             emitEndOfSegmentEvent(subpartitionIndex);
+            // 重置bufferIndex
             currentSubpartitionWriteBuffers[subpartitionIndex] = 0;
             return false;
         }
@@ -186,6 +221,7 @@ public class DiskTierProducerAgent implements TierProducerAgent, NettyServicePro
                     new PartitionNotFoundException(
                             TieredStorageIdMappingUtils.convertId(partitionId)));
         }
+        // 添加一个reader到调度器  并尝试发送数据到对应的payload
         diskIOScheduler.connectionEstablished(subpartitionId, nettyConnectionWriter);
     }
 
@@ -203,6 +239,10 @@ public class DiskTierProducerAgent implements TierProducerAgent, NettyServicePro
     //  Internal Methods
     // ------------------------------------------------------------------------
 
+    /**
+     * 追加一条seg满了的记录
+     * @param subpartitionId
+     */
     private void emitEndOfSegmentEvent(int subpartitionId) {
         try {
             diskCacheManager.appendEndOfSegmentEvent(
@@ -212,6 +252,11 @@ public class DiskTierProducerAgent implements TierProducerAgent, NettyServicePro
         }
     }
 
+    /**
+     * 将数据写入cache 达到一定量时触发刷盘
+     * @param finishedBuffer
+     * @param subpartition
+     */
     private void emitBuffer(Buffer finishedBuffer, int subpartition) {
         diskCacheManager.append(finishedBuffer, subpartition);
     }
@@ -225,7 +270,14 @@ public class DiskTierProducerAgent implements TierProducerAgent, NettyServicePro
         }
     }
 
+    /**
+     * 提供检索功能
+     * @param subpartitionId
+     * @param bufferIndex
+     * @return
+     */
     private Integer retrieveFirstBufferIndexInSegment(int subpartitionId, int bufferIndex) {
+        // 确保覆盖了当前子分区
         return firstBufferIndexInSegment.size() > subpartitionId
                 ? firstBufferIndexInSegment.get(subpartitionId).get(bufferIndex)
                 : null;

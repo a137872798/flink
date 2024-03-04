@@ -26,7 +26,9 @@ import java.util.Objects;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Information about the parallelism of job vertices. */
+/** Information about the parallelism of job vertices.
+ * 描述都某个顶点的限制条件
+ * */
 public class JobVertexResourceRequirements implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -37,6 +39,8 @@ public class JobVertexResourceRequirements implements Serializable {
 
         private static final String FIELD_NAME_LOWER_BOUND = "lowerBound";
         private static final String FIELD_NAME_UPPER_BOUND = "upperBound";
+
+        // 分别是并行度上限和下限
 
         @JsonProperty(FIELD_NAME_LOWER_BOUND)
         private final int lowerBound;

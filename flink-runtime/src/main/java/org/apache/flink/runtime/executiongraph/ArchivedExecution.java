@@ -28,17 +28,27 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Optional;
 
-/** {@code ArchivedExecution} is a readonly representation of {@link Execution}. */
+/** {@code ArchivedExecution} is a readonly representation of {@link Execution}.
+ * 表示一个已经归档的执行信息  只需要存储数据 不需要处理逻辑
+ * */
 public class ArchivedExecution implements AccessExecution, Serializable {
     private static final long serialVersionUID = 4817108757483345173L;
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * Execution 的id
+     */
     private final ExecutionAttemptID attemptId;
+
+    // 进入不同状态的时间和结束时间
 
     private final long[] stateTimestamps;
 
     private final long[] stateEndTimestamps;
 
+    /**
+     * 最终状态
+     */
     private final ExecutionState state;
 
     @Nullable private final ErrorInfo failureInfo; // once assigned, never changes
@@ -47,9 +57,14 @@ public class ArchivedExecution implements AccessExecution, Serializable {
 
     private final AllocationID assignedAllocationID;
 
-    /* Continuously updated map of user-defined accumulators */
+    /* Continuously updated map of user-defined accumulators
+    * 执行后产生的各种结果
+    * */
     private final StringifiedAccumulatorResult[] userAccumulators;
 
+    /**
+     * TODO
+     */
     private final IOMetrics ioMetrics;
 
     public ArchivedExecution(Execution execution) {

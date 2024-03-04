@@ -42,10 +42,16 @@ public class EmbeddedCompletedCheckpointStore extends AbstractCompleteCheckpoint
                 String.format("Store has been already shutdown with %s.", status));
     }
 
+    /**
+     * 也是存队列里
+     */
     private final ArrayDeque<CompletedCheckpoint> checkpoints = new ArrayDeque<>(2);
 
     private final AtomicReference<JobStatus> shutdownStatus = new AtomicReference<>();
 
+    /**
+     * 最多保留多少检查点
+     */
     private final int maxRetainedCheckpoints;
 
     private final Executor ioExecutor = Executors.directExecutor();
@@ -85,6 +91,14 @@ public class EmbeddedCompletedCheckpointStore extends AbstractCompleteCheckpoint
         this.checkpoints.addAll(initialCheckpoints);
     }
 
+    /**
+     * 添加检查点 并丢弃旧的
+     * @param checkpoint
+     * @param checkpointsCleaner
+     * @param postCleanup
+     * @return
+     * @throws Exception
+     */
     @Override
     public CompletedCheckpoint addCheckpointAndSubsumeOldestOne(
             CompletedCheckpoint checkpoint,
@@ -96,6 +110,7 @@ public class EmbeddedCompletedCheckpointStore extends AbstractCompleteCheckpoint
         }
         checkpoints.addLast(checkpoint);
 
+        // 这个操作跟 standalone是一样的
         CompletedCheckpoint completedCheckpoint =
                 CheckpointSubsumeHelper.subsume(
                                 checkpoints,
@@ -131,6 +146,7 @@ public class EmbeddedCompletedCheckpointStore extends AbstractCompleteCheckpoint
         if (shutdownStatus.compareAndSet(null, jobStatus)) {
             if (jobStatus.isGloballyTerminalState()) {
                 // We are done with this store. We should leave no checkpoints for recovery.
+                // 这样要在下次插入时才会抛出异常
                 checkpoints.clear();
             }
         } else {

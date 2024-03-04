@@ -35,10 +35,14 @@ import java.util.Iterator;
 /**
  * An implementation of the {@link org.apache.flink.runtime.operators.util.JoinTaskIterator} that
  * realizes the outer join through a sort-merge join strategy.
+ * 使用外连接合并
  */
 public abstract class AbstractMergeOuterJoinIterator<T1, T2, O>
         extends AbstractMergeIterator<T1, T2, O> {
 
+    /**
+     * 外连接方式
+     */
     private final OuterJoinType outerJoinType;
 
     private boolean initialized = false;
@@ -97,15 +101,19 @@ public abstract class AbstractMergeOuterJoinIterator<T1, T2, O>
             initialized = true;
         }
 
+        // 二者都为空 才结束
         if (it1Empty && it2Empty) {
             return false;
         } else if (it2Empty) {
+            // 根据外连接模式 选择一方与null合并
             if (outerJoinType == OuterJoinType.LEFT || outerJoinType == OuterJoinType.FULL) {
+                // 左侧与null join
                 joinLeftKeyValuesWithNull(iterator1.getValues(), joinFunction, collector);
                 it1Empty = !iterator1.nextKey();
                 return true;
             } else {
                 // consume rest of left side
+                // 主导的一方没有数据 就空消费数据
                 while (iterator1.nextKey()) {}
                 it1Empty = true;
                 return false;
@@ -122,6 +130,7 @@ public abstract class AbstractMergeOuterJoinIterator<T1, T2, O>
                 return false;
             }
         } else {
+            // 表示2边都有数据
             final TypePairComparator<T1, T2> comparator = super.pairComparator;
             comparator.setReference(this.iterator1.getCurrent());
             T2 current2 = this.iterator2.getCurrent();
@@ -135,6 +144,7 @@ public abstract class AbstractMergeOuterJoinIterator<T1, T2, O>
                     break;
                 }
 
+                // key不匹配的情况  要用null进行join
                 if (comp < 0) {
                     // right key < left key
                     if (outerJoinType == OuterJoinType.RIGHT

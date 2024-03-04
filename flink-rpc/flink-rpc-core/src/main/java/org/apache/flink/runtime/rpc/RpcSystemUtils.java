@@ -36,6 +36,7 @@ public interface RpcSystemUtils {
      *     allows to fail fast in case that the hostname cannot be resolved.
      * @param config The configuration from which to deduce further settings.
      * @return The RPC URL of the specified RPC endpoint.
+     * 拼接调用路径
      */
     String getRpcUrl(
             String hostname,
@@ -52,6 +53,7 @@ public interface RpcSystemUtils {
      * @param url RPC url
      * @return inet socket address
      * @throws Exception if the URL is invalid
+     * 从rpc url 上解析地址
      */
     InetSocketAddress getInetSocketAddressFromRpcUrl(String url) throws Exception;
 

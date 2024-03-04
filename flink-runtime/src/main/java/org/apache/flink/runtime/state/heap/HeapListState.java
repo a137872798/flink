@@ -39,6 +39,7 @@ import java.util.List;
  * @param <K> The type of the key.
  * @param <N> The type of the namespace.
  * @param <V> The type of the value.
+ *           表示 在StateMap中 kv中的 v是list类型
  */
 class HeapListState<K, N, V> extends AbstractHeapMergingState<K, N, V, List<V>, Iterable<V>>
         implements InternalListState<K, N, V> {
@@ -91,6 +92,7 @@ class HeapListState<K, N, V> extends AbstractHeapMergingState<K, N, V, List<V>, 
         final N namespace = currentNamespace;
 
         final StateTable<K, N, List<V>> map = stateTable;
+        // 会自动检索到StateMap的某个kv
         List<V> list = map.get(namespace);
 
         if (list == null) {
@@ -113,10 +115,12 @@ class HeapListState<K, N, V> extends AbstractHeapMergingState<K, N, V, List<V>, 
         Preconditions.checkNotNull(safeNamespaceSerializer);
         Preconditions.checkNotNull(safeValueSerializer);
 
+        // 解析字节流 得到key和ns
         Tuple2<K, N> keyAndNamespace =
                 KvStateSerializer.deserializeKeyAndNamespace(
                         serializedKeyAndNamespace, safeKeySerializer, safeNamespaceSerializer);
 
+        // 找到StateMap下的kv
         List<V> result = stateTable.get(keyAndNamespace.f0, keyAndNamespace.f1);
 
         if (result == null) {
@@ -130,6 +134,7 @@ class HeapListState<K, N, V> extends AbstractHeapMergingState<K, N, V, List<V>, 
         DataOutputViewStreamWrapper view = new DataOutputViewStreamWrapper(baos);
 
         // write the same as RocksDB writes lists, with one ',' separator
+        // 将list中的元素 以 ','作为分隔符 写入输出流
         for (int i = 0; i < result.size(); i++) {
             dupSerializer.serialize(result.get(i), view);
             if (i < result.size() - 1) {
@@ -145,6 +150,12 @@ class HeapListState<K, N, V> extends AbstractHeapMergingState<K, N, V, List<V>, 
     //  state merging
     // ------------------------------------------------------------------------
 
+    /**
+     * 合并不同的state 简单来讲就是将元素追加到list中
+     * @param a
+     * @param b
+     * @return
+     */
     @Override
     protected List<V> mergeState(List<V> a, List<V> b) {
         a.addAll(b);
@@ -166,6 +177,7 @@ class HeapListState<K, N, V> extends AbstractHeapMergingState<K, N, V, List<V>, 
             newStateList.add(v);
         }
 
+        // 替换list
         stateTable.put(currentNamespace, newStateList);
     }
 
@@ -177,6 +189,7 @@ class HeapListState<K, N, V> extends AbstractHeapMergingState<K, N, V, List<V>, 
             stateTable.transform(
                     currentNamespace,
                     values,
+                    // 表示合并的逻辑
                     (previousState, value) -> {
                         if (previousState == null) {
                             previousState = new ArrayList<>();
@@ -190,6 +203,19 @@ class HeapListState<K, N, V> extends AbstractHeapMergingState<K, N, V, List<V>, 
         }
     }
 
+    /**
+     * 提供静态方法 用于创建list类型的state
+     * @param stateDesc
+     * @param stateTable
+     * @param keySerializer
+     * @param <E>
+     * @param <K>
+     * @param <N>
+     * @param <SV>
+     * @param <S>
+     * @param <IS>
+     * @return
+     */
     @SuppressWarnings("unchecked")
     static <E, K, N, SV, S extends State, IS extends S> IS create(
             StateDescriptor<S, SV> stateDesc,

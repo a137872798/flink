@@ -39,6 +39,8 @@ import java.util.Collection;
  *
  * <p>This class has currently no contents and only kept to not break the prior class hierarchy for
  * users.
+ *
+ * 状态后端骨架类
  */
 @PublicEvolving
 public abstract class AbstractStateBackend implements StateBackend, java.io.Serializable {
@@ -47,6 +49,7 @@ public abstract class AbstractStateBackend implements StateBackend, java.io.Seri
 
     public static StreamCompressionDecorator getCompressionDecorator(
             ExecutionConfig executionConfig) {
+        // 返回一个会自动压缩的流
         if (executionConfig != null && executionConfig.isUseSnapshotCompression()) {
             return SnappyStreamCompressionDecorator.INSTANCE;
         } else {
@@ -54,12 +57,17 @@ public abstract class AbstractStateBackend implements StateBackend, java.io.Seri
         }
     }
 
+    /**
+     * TODO 先忽略测量
+     */
     protected LatencyTrackingStateConfig.Builder latencyTrackingConfigBuilder =
             LatencyTrackingStateConfig.newBuilder();
 
     // ------------------------------------------------------------------------
     //  State Backend - State-Holding Backends
     // ------------------------------------------------------------------------
+
+    // 2个核心方法 交由子类了
 
     @Override
     public abstract <K> AbstractKeyedStateBackend<K> createKeyedStateBackend(

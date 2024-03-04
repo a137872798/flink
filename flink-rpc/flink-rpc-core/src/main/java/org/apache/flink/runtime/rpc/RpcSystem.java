@@ -39,6 +39,7 @@ public interface RpcSystem extends RpcSystemUtils, AutoCloseable {
      *
      * @param configuration Flink configuration
      * @return rpc service builder
+     * 作为系统可以生成 RPC服务建造器
      */
     RpcServiceBuilder localServiceBuilder(Configuration configuration);
 

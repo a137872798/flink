@@ -41,16 +41,21 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
  * {@link CompletedCheckpointStore} for JobManagers running in {@link HighAvailabilityMode#NONE}.
+ * 单机模式下 检查点仓库
  */
 public class StandaloneCompletedCheckpointStore extends AbstractCompleteCheckpointStore {
 
     private static final Logger LOG =
             LoggerFactory.getLogger(StandaloneCompletedCheckpointStore.class);
 
-    /** The maximum number of checkpoints to retain (at least 1). */
+    /** The maximum number of checkpoints to retain (at least 1).
+     * 表示最多支持保留多少检查点
+     * */
     private final int maxNumberOfCheckpointsToRetain;
 
-    /** The completed checkpoints. */
+    /** The completed checkpoints.
+     * 每个元素包含了一个完整的检查点信息
+     * */
     private final ArrayDeque<CompletedCheckpoint> checkpoints;
 
     private final Executor ioExecutor;
@@ -71,6 +76,7 @@ public class StandaloneCompletedCheckpointStore extends AbstractCompleteCheckpoi
      * @param restoreMode
      * @param maxNumberOfCheckpointsToRetain The maximum number of checkpoints to retain (at least
      *     1). Adding more checkpoints than this results in older checkpoints being discarded.
+     * @param sharedStateRegistryFactory 共享变量仓库
      */
     public StandaloneCompletedCheckpointStore(
             int maxNumberOfCheckpointsToRetain,
@@ -109,11 +115,13 @@ public class StandaloneCompletedCheckpointStore extends AbstractCompleteCheckpoi
         checkpoints.addLast(checkpoint);
 
         CompletedCheckpoint completedCheckpoint =
+                // 该方法会将队列控制在maxNumberOfCheckpointsToRetain的数量
                 CheckpointSubsumeHelper.subsume(
                                 checkpoints,
                                 maxNumberOfCheckpointsToRetain,
                                 (cc) -> {
                                     cc.markAsDiscardedOnSubsume();
+                                    // 被维护后 可以通过一个api进行删除
                                     checkpointsCleaner.addSubsumedCheckpoint(cc);
                                 })
                         .orElse(null);
@@ -121,6 +129,7 @@ public class StandaloneCompletedCheckpointStore extends AbstractCompleteCheckpoi
         findLowest(checkpoints)
                 .ifPresent(
                         id ->
+                                // 现在开始清理 addSubsumedCheckpoint 时加入的检查点
                                 checkpointsCleaner.cleanSubsumedCheckpoints(
                                         id,
                                         getSharedStateRegistry().unregisterUnusedState(id),
@@ -145,6 +154,12 @@ public class StandaloneCompletedCheckpointStore extends AbstractCompleteCheckpoi
         return maxNumberOfCheckpointsToRetain;
     }
 
+    /**
+     * 关闭仓库
+     * @param jobStatus
+     * @param checkpointsCleaner
+     * @throws Exception
+     */
     @Override
     public void shutdown(JobStatus jobStatus, CheckpointsCleaner checkpointsCleaner)
             throws Exception {
@@ -152,6 +167,7 @@ public class StandaloneCompletedCheckpointStore extends AbstractCompleteCheckpoi
         try {
             LOG.info("Shutting down");
 
+            // 记录发现的最小检查点
             long lowestRetained = Long.MAX_VALUE;
             for (CompletedCheckpoint checkpoint : checkpoints) {
                 if (checkpoint.shouldBeDiscardedOnShutdown(jobStatus)) {
@@ -164,6 +180,8 @@ public class StandaloneCompletedCheckpointStore extends AbstractCompleteCheckpoi
                     lowestRetained = Math.min(checkpoint.getCheckpointID(), lowestRetained);
                 }
             }
+
+            // 表示全局关闭
             if (jobStatus.isGloballyTerminalState()) {
                 // Now discard the shared state of not subsumed checkpoints - only if:
                 // - the job is in a globally terminal state. Otherwise,
@@ -171,6 +189,8 @@ public class StandaloneCompletedCheckpointStore extends AbstractCompleteCheckpoi
                 // - checkpoint is not retained (it might be used externally)
                 // - checkpoint handle removal succeeded (e.g. from ZK) - otherwise, it might still
                 // be used in recovery if the job status is lost
+
+                // 丢弃该检查点之前的数据
                 checkpointsCleaner.cleanSubsumedCheckpoints(
                         lowestRetained,
                         getSharedStateRegistry().unregisterUnusedState(lowestRetained),

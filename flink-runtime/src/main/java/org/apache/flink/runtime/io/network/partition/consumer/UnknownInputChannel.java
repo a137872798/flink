@@ -42,11 +42,15 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * An input channel placeholder to be replaced by either a {@link RemoteInputChannel} or {@link
  * LocalInputChannel} at runtime.
+ * 表示一个在运行时才被替换的临时inputChannel
  */
 class UnknownInputChannel extends InputChannel implements ChannelStateHolder {
 
     private final ResultPartitionManager partitionManager;
 
+    /**
+     * 可以通过该对象将event推送给对应的handler
+     */
     private final TaskEventPublisher taskEventPublisher;
 
     private final ConnectionManager connectionManager;
@@ -158,6 +162,11 @@ class UnknownInputChannel extends InputChannel implements ChannelStateHolder {
     // Graduation to a local or remote input channel at runtime
     // ------------------------------------------------------------------------
 
+    /**
+     * 生成远端channel
+     * @param producerAddress  标识存储数据的远程主机
+     * @return
+     */
     public RemoteInputChannel toRemoteInputChannel(ConnectionID producerAddress) {
         return new RemoteInputChannel(
                 inputGate,
@@ -174,6 +183,11 @@ class UnknownInputChannel extends InputChannel implements ChannelStateHolder {
                 channelStateWriter == null ? ChannelStateWriter.NO_OP : channelStateWriter);
     }
 
+    /**
+     * 生成本地channel
+     * @param resultPartitionID
+     * @return
+     */
     public LocalInputChannel toLocalInputChannel(ResultPartitionID resultPartitionID) {
         return new LocalInputChannel(
                 inputGate,

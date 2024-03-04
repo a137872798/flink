@@ -47,16 +47,33 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * A simple implementation of {@link ExecutionSlotAllocator}. No support for slot sharing,
  * co-location, nor local recovery.
+ * 这是一个简单的分配对象
  */
 public class SimpleExecutionSlotAllocator implements ExecutionSlotAllocator {
+
+    /**
+     * 可以向该对象申请/提供 slot
+     */
     private final PhysicalSlotProvider slotProvider;
 
+    /**
+     * 表示slot是否会被永久占用
+     */
     private final boolean slotWillBeOccupiedIndefinitely;
 
+    /**
+     * 查看Execution需要的资源
+     */
     private final Function<ExecutionAttemptID, ResourceProfile> resourceProfileRetriever;
 
+    /**
+     * 该对象以阻塞形式 得到一个Execution最合适分配的TMLocation
+     */
     private final SyncPreferredLocationsRetriever preferredLocationsRetriever;
 
+    /**
+     * 可以使用2种key 来检索value
+     */
     private final DualKeyLinkedMap<
                     ExecutionAttemptID, SlotRequestId, CompletableFuture<LogicalSlot>>
             requestedPhysicalSlots;
@@ -73,6 +90,11 @@ public class SimpleExecutionSlotAllocator implements ExecutionSlotAllocator {
         this.requestedPhysicalSlots = new DualKeyLinkedMap<>();
     }
 
+    /**
+     * 为这组Execution 分配slot
+     * @param executionAttemptIds executions to allocate slots for
+     * @return
+     */
     @Override
     public Map<ExecutionAttemptID, ExecutionSlotAssignment> allocateSlotsFor(
             List<ExecutionAttemptID> executionAttemptIds) {
@@ -85,15 +107,20 @@ public class SimpleExecutionSlotAllocator implements ExecutionSlotAllocator {
 
         for (ExecutionAttemptID executionAttemptId : executionAttemptIds) {
             if (requestedPhysicalSlots.containsKeyA(executionAttemptId)) {
+                // 该Execution之前分配过  直接用结果
                 result.put(
                         executionAttemptId,
                         new ExecutionSlotAssignment(
                                 executionAttemptId,
                                 requestedPhysicalSlots.getValueByKeyA(executionAttemptId)));
             } else {
+                // 之前无结果 产生一个请求id
                 final SlotRequestId slotRequestId = new SlotRequestId();
+                // 找到需要的资源
                 final ResourceProfile resourceProfile =
                         resourceProfileRetriever.apply(executionAttemptId);
+
+                // 找到合适的位置
                 Collection<TaskManagerLocation> preferredLocations =
                         preferredLocationsRetriever.getPreferredLocations(
                                 executionAttemptId.getExecutionVertexId(), Collections.emptySet());
@@ -108,6 +135,8 @@ public class SimpleExecutionSlotAllocator implements ExecutionSlotAllocator {
                         new PhysicalSlotRequest(
                                 slotRequestId, slotProfile, slotWillBeOccupiedIndefinitely);
                 physicalSlotRequests.add(request);
+                // 将请求id 和execution关联起来
+                // 请求id又可以找到 PhysicalSlotRequest
                 remainingExecutionsToSlotRequest.put(slotRequestId, executionAttemptId);
             }
         }
@@ -117,10 +146,19 @@ public class SimpleExecutionSlotAllocator implements ExecutionSlotAllocator {
         return result;
     }
 
+    /**
+     * 这里进行分配
+     * @param executionAttemptIds
+     * @param slotRequests
+     * @return
+     */
     private Map<ExecutionAttemptID, ExecutionSlotAssignment> allocatePhysicalSlotsFor(
             Map<SlotRequestId, ExecutionAttemptID> executionAttemptIds,
             List<PhysicalSlotRequest> slotRequests) {
+
         Map<ExecutionAttemptID, ExecutionSlotAssignment> allocatedSlots = new HashMap<>();
+
+        // 这里已经得到结果了
         Map<SlotRequestId, CompletableFuture<PhysicalSlotRequest.Result>> slotFutures =
                 slotProvider.allocatePhysicalSlots(slotRequests);
 
@@ -133,7 +171,7 @@ public class SimpleExecutionSlotAllocator implements ExecutionSlotAllocator {
                                     physicalSlotRequest ->
                                             allocateLogicalSlotFromPhysicalSlot(
                                                     slotRequestId,
-                                                    physicalSlotRequest.getPhysicalSlot(),
+                                                    physicalSlotRequest.getPhysicalSlot(),  // 找到分配的slot
                                                     slotWillBeOccupiedIndefinitely));
                     slotFuture.exceptionally(
                             throwable -> {
@@ -141,6 +179,7 @@ public class SimpleExecutionSlotAllocator implements ExecutionSlotAllocator {
                                 this.slotProvider.cancelSlotRequest(slotRequestId, throwable);
                                 return null;
                             });
+                    // 设置分配结果
                     requestedPhysicalSlots.put(executionAttemptId, slotRequestId, slotFuture);
                     allocatedSlots.put(
                             executionAttemptId,
@@ -164,11 +203,24 @@ public class SimpleExecutionSlotAllocator implements ExecutionSlotAllocator {
                 new FlinkException("Slot is being returned from SimpleExecutionSlotAllocator."));
     }
 
+    /**
+     * 归还slot
+     * @param slot
+     * @param cause
+     */
     private void releaseSlot(LogicalSlot slot, Throwable cause) {
+        // 不再维护之前的分配结果
         requestedPhysicalSlots.removeKeyB(slot.getSlotRequestId());
         slotProvider.cancelSlotRequest(slot.getSlotRequestId(), cause);
     }
 
+    /**
+     * 将相关信息包装成 SingleLogicalSlot
+     * @param slotRequestId
+     * @param physicalSlot
+     * @param slotWillBeOccupiedIndefinitely
+     * @return
+     */
     private LogicalSlot allocateLogicalSlotFromPhysicalSlot(
             final SlotRequestId slotRequestId,
             final PhysicalSlot physicalSlot,
@@ -191,6 +243,9 @@ public class SimpleExecutionSlotAllocator implements ExecutionSlotAllocator {
         }
     }
 
+    /**
+     * 该对象作为负载 挂在physicalSlot上
+     */
     private class LogicalSlotHolder implements PhysicalSlot.Payload {
         private final SingleLogicalSlot logicalSlot;
 

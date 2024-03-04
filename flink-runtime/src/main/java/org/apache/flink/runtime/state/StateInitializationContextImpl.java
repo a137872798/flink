@@ -25,7 +25,9 @@ import javax.annotation.Nullable;
 
 import java.util.OptionalLong;
 
-/** Default implementation of {@link StateInitializationContext}. */
+/** Default implementation of {@link StateInitializationContext}.
+ *
+ * */
 public class StateInitializationContextImpl implements StateInitializationContext {
 
     /** Signal whether any state to restore was found */
@@ -35,6 +37,7 @@ public class StateInitializationContextImpl implements StateInitializationContex
 
     private final KeyedStateStore keyedStateStore;
 
+    // 下面的是state的数据流
     private final Iterable<KeyGroupStatePartitionStreamProvider> rawKeyedStateInputs;
     private final Iterable<StatePartitionStreamProvider> rawOperatorStateInputs;
 

@@ -47,6 +47,7 @@ import java.io.Serializable;
  * depending on the process type. The Flink memory components can be derived from either its total
  * size or a subset of configured required fine-grained components. Check the implementations for
  * details about the concrete components.
+ * 表示flink会使用的内存大小
  */
 public interface FlinkMemory extends Serializable {
     MemorySize getJvmHeapMemorySize();

@@ -26,15 +26,21 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** View over a pipelined in-memory only subpartition. */
+/** View over a pipelined in-memory only subpartition.
+ * 基于管道模式读取 子分区的数据
+ * */
 public class PipelinedSubpartitionView implements ResultSubpartitionView {
 
-    /** The subpartition this view belongs to. */
+    /** The subpartition this view belongs to.
+     * 该视图针对的子分区
+     * */
     private final PipelinedSubpartition parent;
 
     private final BufferAvailabilityListener availabilityListener;
 
-    /** Flag indicating whether this view has been released. */
+    /** Flag indicating whether this view has been released.
+     * 表示本reader对象是否被释放
+     * */
     final AtomicBoolean isReleased;
 
     public PipelinedSubpartitionView(
@@ -44,6 +50,10 @@ public class PipelinedSubpartitionView implements ResultSubpartitionView {
         this.isReleased = new AtomicBoolean();
     }
 
+    /**
+     * 管道对象不同于blocking对象   直接从parent 拉取数据
+     * @return
+     */
     @Nullable
     @Override
     public BufferAndBacklog getNextBuffer() {
@@ -55,11 +65,18 @@ public class PipelinedSubpartitionView implements ResultSubpartitionView {
         availabilityListener.notifyDataAvailable();
     }
 
+    /**
+     * 告知有一个高优先级事件
+     * @param priorityBufferNumber
+     */
     @Override
     public void notifyPriorityEvent(int priorityBufferNumber) {
         availabilityListener.notifyPriorityEvent(priorityBufferNumber);
     }
 
+    /**
+     * 表示数据消费对象 消费完毕了
+     */
     @Override
     public void releaseAllResources() {
         if (isReleased.compareAndSet(false, true)) {
@@ -74,6 +91,9 @@ public class PipelinedSubpartitionView implements ResultSubpartitionView {
         return isReleased.get() || parent.isReleased();
     }
 
+    /**
+     * 恢复消费
+     */
     @Override
     public void resumeConsumption() {
         parent.resumeConsumption();

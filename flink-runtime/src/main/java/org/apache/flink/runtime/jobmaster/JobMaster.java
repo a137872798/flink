@@ -143,6 +143,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * <ul>
  *   <li>{@link #updateTaskExecutionState} updates the task execution state for given task
  * </ul>
+ * JM
  */
 public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         implements JobMasterGateway, JobMasterService {
@@ -156,26 +157,41 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
 
     private final ResourceID resourceId;
 
+    /**
+     * 表示该job的拓扑图
+     */
     private final JobGraph jobGraph;
 
     private final Time rpcTimeout;
 
+    /**
+     * 通过该对象可以获取选举相关的组件
+     */
     private final HighAvailabilityServices highAvailabilityServices;
 
     private final BlobWriter blobWriter;
 
+    /**
+     * 心跳服务 可以创建心跳发送相关的组件
+     */
     private final HeartbeatServices heartbeatServices;
 
     private final ScheduledExecutorService futureExecutor;
 
     private final Executor ioExecutor;
 
+    /**
+     * 包含当job失败时或者到达一个全局的完结状态时的钩子
+     */
     private final OnCompletionActions jobCompletionActions;
 
     private final FatalErrorHandler fatalErrorHandler;
 
     private final ClassLoader userCodeLoader;
 
+    /**
+     * 通过该对象可以分配slot资源
+     */
     private final SlotPoolService slotPoolService;
 
     private final long initializationTimestamp;
@@ -184,40 +200,83 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
 
     // --------- ResourceManager --------
 
+    /**
+     * 借助该对象可以发现RM leader节点
+     */
     private final LeaderRetrievalService resourceManagerLeaderRetriever;
 
     // --------- TaskManagers --------
 
+    /**
+     * 维护注册到该对象上的所有 TaskManager
+     * 并且可以通过网关访问 TM
+     */
     private final Map<ResourceID, TaskManagerRegistration> registeredTaskManagers;
 
+    /**
+     * 这是一个洗牌对象
+     */
     private final ShuffleMaster<?> shuffleMaster;
 
     // --------- Scheduler --------
 
+    /**
+     * 调度对象
+     */
     private final SchedulerNG schedulerNG;
 
+    /**
+     * 处理job状态变化
+     */
     private final JobManagerJobStatusListener jobStatusListener;
 
     private final JobManagerJobMetricGroup jobManagerJobMetricGroup;
 
     // -------- Misc ---------
 
+    /**
+     * 维护本job相关的累加数据
+     */
     private final Map<String, Object> accumulators;
 
+    /**
+     * 追踪数据的分区情况   因为产生结果集时 会分散到下游多个分区
+     */
     private final JobMasterPartitionTracker partitionTracker;
 
+    /**
+     * 记录Execution 在 TM的部署情况
+     */
     private final ExecutionDeploymentTracker executionDeploymentTracker;
+
+    /**
+     * 当Execution的部署情况  与预期不同时  使用该对象处理
+     */
     private final ExecutionDeploymentReconciler executionDeploymentReconciler;
+
+    /**
+     * 用于丰富错误信息
+     */
     private final Collection<FailureEnricher> failureEnrichers;
 
     // -------- Mutable fields ---------
 
+    /**
+     * 存储资源管理器的地址
+     */
     @Nullable private ResourceManagerAddress resourceManagerAddress;
 
+    /**
+     * 本对象与 RM的连接   本对象需要注册到RM上
+     */
     @Nullable private ResourceManagerConnection resourceManagerConnection;
 
+    /**
+     * 完成连接后 维护网关  并通过网关访问 RM
+     */
     @Nullable private EstablishedResourceManagerConnection establishedResourceManagerConnection;
 
+    // 需要2个心跳对象 分别访问 RM/TM
     private HeartbeatManager<TaskExecutorToJobManagerHeartbeatPayload, AllocatedSlotReport>
             taskManagerHeartbeatManager;
 
@@ -250,11 +309,18 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
             long initializationTimestamp)
             throws Exception {
 
+        // 本节点作为一个rpc服务  需要组件初始化
         super(rpcService, RpcServiceUtils.createRandomName(JOB_MANAGER_NAME), jobMasterId);
 
+        // 该对象在 当前Execution部署情况与预期不同时起作用
         final ExecutionDeploymentReconciliationHandler executionStateReconciliationHandler =
                 new ExecutionDeploymentReconciliationHandler() {
 
+                    /**
+                     * 表示缺失的
+                     * @param executionAttemptIds ids of the missing deployments  表示一组execution的第某次执行
+                     * @param host
+                     */
                     @Override
                     public void onMissingDeploymentsOf(
                             Collection<ExecutionAttemptID> executionAttemptIds, ResourceID host) {
@@ -262,6 +328,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                                 "Failing deployments {} due to no longer being deployed.",
                                 executionAttemptIds);
                         for (ExecutionAttemptID executionAttemptId : executionAttemptIds) {
+                            // 标记任务失败 根据错误类型 在状态机中会决定任务重启 or 任务失败
                             schedulerNG.updateTaskExecutionState(
                                     new TaskExecutionState(
                                             executionAttemptId,
@@ -273,6 +340,11 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                         }
                     }
 
+                    /**
+                     * 表示预期外多出来的
+                     * @param executionAttemptIds ids of the unknown executions
+                     * @param host
+                     */
                     @Override
                     public void onUnknownDeploymentsOf(
                             Collection<ExecutionAttemptID> executionAttemptIds, ResourceID host) {
@@ -286,6 +358,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                             if (taskManagerRegistration != null) {
                                 taskManagerRegistration
                                         .getTaskExecutorGateway()
+                                        // 要求TM取消执行这些任务  因为这个与预期不符
                                         .cancelTask(executionAttemptId, rpcTimeout);
                             }
                         }
@@ -336,6 +409,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                                 createDeclarativeSlotPoolFactory(
                                         jobMasterConfiguration.getConfiguration()));
 
+        // 通过该对象追踪 数据集上有哪些分区
         this.partitionTracker =
                 checkNotNull(partitionTrackerFactory)
                         .create(
@@ -369,6 +443,15 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         this.accumulators = new HashMap<>();
     }
 
+    /**
+     * 创建调度器对象
+     * @param slotPoolServiceSchedulerFactory
+     * @param executionDeploymentTracker
+     * @param jobManagerJobMetricGroup
+     * @param jobStatusListener
+     * @return
+     * @throws Exception
+     */
     private SchedulerNG createScheduler(
             SlotPoolServiceSchedulerFactory slotPoolServiceSchedulerFactory,
             ExecutionDeploymentTracker executionDeploymentTracker,
@@ -439,7 +522,9 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         }
     }
 
-    /** Suspend the job and shutdown all other services including rpc. */
+    /** Suspend the job and shutdown all other services including rpc.
+     * 停止端点时触发
+     * */
     @Override
     public CompletableFuture<Void> onStop() {
         log.info(
@@ -467,6 +552,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
 
     @Override
     public CompletableFuture<Acknowledge> cancel(Time timeout) {
+        // 取消job
         schedulerNG.cancel();
 
         return CompletableFuture.completedFuture(Acknowledge.get());
@@ -477,6 +563,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
      *
      * @param taskExecutionState New task execution state for a given task
      * @return Acknowledge the task execution state update
+     * 更新某个任务状态
      */
     @Override
     public CompletableFuture<Acknowledge> updateTaskExecutionState(
@@ -485,6 +572,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         try {
             checkNotNull(taskExecutionState, "taskExecutionState");
 
+            // 转发给调度器
             if (schedulerNG.updateTaskExecutionState(taskExecutionState)) {
                 return CompletableFuture.completedFuture(Acknowledge.get());
             } else {
@@ -505,9 +593,16 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
 
     @Override
     public void notifyEndOfData(final ExecutionAttemptID executionAttempt) {
+        // 通知某个execution 处理完了数据
         schedulerNG.notifyEndOfData(executionAttempt);
     }
 
+    /**
+     * 转发给调度器
+     * @param vertexID The job vertex id
+     * @param executionAttempt The execution attempt id
+     * @return
+     */
     @Override
     public CompletableFuture<SerializedInputSplit> requestNextInputSplit(
             final JobVertexID vertexID, final ExecutionAttemptID executionAttempt) {
@@ -535,6 +630,12 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         }
     }
 
+    /**
+     * 与TM断开连接
+     * @param resourceID identifying the TaskManager to disconnect
+     * @param cause for the disconnection of the TaskManager
+     * @return
+     */
     @Override
     public CompletableFuture<Acknowledge> disconnectTaskManager(
             final ResourceID resourceID, final Exception cause) {
@@ -545,8 +646,11 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                 ExceptionUtils.returnExceptionIfUnexpected(cause.getCause()));
         ExceptionUtils.logExceptionIfExcepted(cause.getCause(), log);
 
+        // 不再监控TM心跳
         taskManagerHeartbeatManager.unmonitorTarget(resourceID);
+        // 释放TM 也会减小slot的需求量
         slotPoolService.releaseTaskManager(resourceID, cause);
+        // 不再维护落在该TM相关的分区数据
         partitionTracker.stopTrackingPartitionsFor(resourceID);
 
         TaskManagerRegistration taskManagerRegistration = registeredTaskManagers.remove(resourceID);
@@ -554,6 +658,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         if (taskManagerRegistration != null) {
             taskManagerRegistration
                     .getTaskExecutorGateway()
+                    // 通知TM 与本JM断开
                     .disconnectJobManager(jobGraph.getJobID(), cause);
         }
 
@@ -561,6 +666,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
     }
 
     // TODO: This method needs a leader session ID
+    // 表示确认检查点完成
     @Override
     public void acknowledgeCheckpoint(
             final JobID jobID,
@@ -671,6 +777,13 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         }
     }
 
+    /**
+     * 由外部向pool内填充slot   (其实是由TM调用)
+     * @param taskManagerId identifying the task manager
+     * @param slots to offer to the job manager
+     * @param timeout for the rpc call
+     * @return
+     */
     @Override
     public CompletableFuture<Collection<SlotOffer>> offerSlots(
             final ResourceID taskManagerId, final Collection<SlotOffer> slots, final Time timeout) {
@@ -693,6 +806,12 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                         slots));
     }
 
+    /**
+     * TM通知JM某个slot分配失败
+     * @param taskManagerId identifying the task manager
+     * @param allocationId identifying the slot to fail
+     * @param cause of the failing
+     */
     @Override
     public void failSlot(
             final ResourceID taskManagerId,
@@ -732,6 +851,14 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                                 resourceId.getStringWithMetadata())));
     }
 
+    /**
+     * 注册TM
+     * @param jobId jobId specifying the job for which the JobMaster should be responsible
+     * @param taskManagerRegistrationInformation the information for registering a task manager at
+     *     the job manager   这里有 TM的地址信息
+     * @param timeout for the rpc call
+     * @return
+     */
     @Override
     public CompletableFuture<RegistrationResponse> registerTaskManager(
             final JobID jobId,
@@ -749,6 +876,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                                     jobId)));
         }
 
+        // 解析得到位置信息
         final TaskManagerLocation taskManagerLocation;
         try {
             taskManagerLocation =
@@ -764,7 +892,9 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         final TaskManagerRegistration taskManagerRegistration =
                 registeredTaskManagers.get(taskManagerId);
 
+        // 表示TM已经存在
         if (taskManagerRegistration != null) {
+            // 确保是同一个节点
             if (taskManagerRegistration.getSessionId().equals(sessionId)) {
                 log.debug(
                         "Ignoring registration attempt of TaskManager {} with the same session id {}.",
@@ -773,6 +903,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                 final RegistrationResponse response = new JMTMRegistrationSuccess(resourceId);
                 return CompletableFuture.completedFuture(response);
             } else {
+                // 否则断开连接
                 disconnectTaskManager(
                         taskManagerId,
                         new FlinkException(
@@ -782,6 +913,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
             }
         }
 
+        // 通过rpc服务连接
         return getRpcService()
                 .connect(
                         taskManagerRegistrationInformation.getTaskManagerRpcAddress(),
@@ -792,6 +924,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                                 return new RegistrationResponse.Failure(throwable);
                             }
 
+                            // 注册TM
                             slotPoolService.registerTaskManager(taskManagerId);
                             registeredTaskManagers.put(
                                     taskManagerId,
@@ -799,6 +932,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                                             taskManagerLocation, taskExecutorGateway, sessionId));
 
                             // monitor the task manager as heartbeat target
+                            // 准备好发送心跳的对象
                             taskManagerHeartbeatManager.monitorTarget(
                                     taskManagerId,
                                     new TaskExecutorHeartbeatSender(taskExecutorGateway));
@@ -808,10 +942,17 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                         getMainThreadExecutor());
     }
 
+    /**
+     * 解析TM地址信息
+     * @param unresolvedTaskManagerLocation
+     * @return
+     * @throws FlinkException
+     */
     @Nonnull
     private TaskManagerLocation resolveTaskManagerLocation(
             UnresolvedTaskManagerLocation unresolvedTaskManagerLocation) throws FlinkException {
         try {
+            // 表示ip 还是 host
             if (retrieveTaskManagerHostName) {
                 return TaskManagerLocation.fromUnresolvedLocation(
                         unresolvedTaskManagerLocation, ResolutionMode.RETRIEVE_HOST_NAME);
@@ -843,6 +984,12 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                 && resourceManagerAddress.getResourceManagerId().equals(resourceManagerId);
     }
 
+    /**
+     * 收到TM心跳包
+     * @param resourceID unique id of the task manager
+     * @param payload report payload
+     * @return
+     */
     @Override
     public CompletableFuture<Void> heartbeatFromTaskManager(
             final ResourceID resourceID, TaskExecutorToJobManagerHeartbeatPayload payload) {
@@ -906,6 +1053,13 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         slotPoolService.notifyNotEnoughResourcesAvailable(acquiredResources);
     }
 
+    /**
+     * 更新全局累加值
+     * @param aggregateName The name of the aggregate to update
+     * @param aggregand The value to add to the aggregate
+     * @param serializedAggregateFunction
+     * @return
+     */
     @Override
     public CompletableFuture<Object> updateGlobalAggregate(
             String aggregateName, Object aggregand, byte[] serializedAggregateFunction) {
@@ -961,6 +1115,11 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         return CompletableFuture.completedFuture(schedulerNG.requestJobResourceRequirements());
     }
 
+    /**
+     * 资源的变化 会让job重新进入等待资源状态
+     * @param jobResourceRequirements new resource requirements
+     * @return
+     */
     @Override
     public CompletableFuture<Acknowledge> updateJobResourceRequirements(
             JobResourceRequirements jobResourceRequirements) {
@@ -975,6 +1134,10 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
     // -- job starting and stopping
     // -----------------------------------------------------------------
 
+    /**
+     * rpc端点启动时 触发该钩子
+     * @throws Exception
+     */
     private void startJobExecution() throws Exception {
         validateRunsInMainThread();
 
@@ -989,11 +1152,17 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                 jobGraph.getJobID(),
                 getFencingToken());
 
+        // 开始调度 会申请资源 然后将任务部署到各TM 在各任务运行完后 进入finish状态
         startScheduling();
     }
 
+    /**
+     * 启动服务
+     * @throws Exception
+     */
     private void startJobMasterServices() throws Exception {
         try {
+            // 创建心跳对象
             this.taskManagerHeartbeatManager = createTaskManagerHeartbeatManager(heartbeatServices);
             this.resourceManagerHeartbeatManager =
                     createResourceManagerHeartbeatManager(heartbeatServices);
@@ -1021,6 +1190,10 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         throw e;
     }
 
+    /**
+     * 终止JM
+     * @throws Exception
+     */
     private void stopJobMasterServices() throws Exception {
         Exception resultingException = null;
 
@@ -1039,15 +1212,23 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         ExceptionUtils.tryRethrowException(resultingException);
     }
 
+    /**
+     * 使用异常结束job执行
+     * @param cause
+     * @return
+     */
     private CompletableFuture<Void> stopJobExecution(final Exception cause) {
         validateRunsInMainThread();
 
+        // 停止调度
         final CompletableFuture<Void> terminationFuture = stopScheduling();
 
         return FutureUtils.runAfterwards(
                 terminationFuture,
                 () -> {
+                    // 注销该job
                     shuffleMaster.unregisterJob(jobGraph.getJobID());
+                    // 与TM RM 断开连接
                     disconnectTaskManagerResourceManagerConnections(cause);
                     stopJobMasterServices();
                 });
@@ -1095,20 +1276,29 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         }
     }
 
+    /**
+     * 监听Job的状态变化
+     * @param newJobStatus
+     */
     private void jobStatusChanged(final JobStatus newJobStatus) {
         validateRunsInMainThread();
         if (newJobStatus.isGloballyTerminalState()) {
             CompletableFuture<Void> partitionPromoteFuture;
             if (newJobStatus == JobStatus.FINISHED) {
+                // 表示本次job执行结束
                 Collection<ResultPartitionID> jobPartitions =
                         partitionTracker.getAllTrackedNonClusterPartitions().stream()
                                 .map(d -> d.getShuffleDescriptor().getResultPartitionID())
                                 .collect(Collectors.toList());
+                // 停止追踪这些分区
                 partitionTracker.stopTrackingAndReleasePartitions(jobPartitions);
+
+                // 获取另一种类型分区
                 Collection<ResultPartitionID> clusterPartitions =
                         partitionTracker.getAllTrackedClusterPartitions().stream()
                                 .map(d -> d.getShuffleDescriptor().getResultPartitionID())
                                 .collect(Collectors.toList());
+                // 也停止追踪
                 partitionPromoteFuture =
                         partitionTracker.stopTrackingAndPromotePartitions(clusterPartitions);
             } else {
@@ -1132,16 +1322,23 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                             // eventually when they find out the JobMaster is closed.
                             log.warn("Fail to release or promote partitions", e);
                         }
+                        // 通知job到达全局终止状态
                         jobCompletionActions.jobReachedGloballyTerminalState(executionGraphInfo);
                     });
         }
     }
 
+    /**
+     * 表示RM leader 发生了变化
+     * @param newResourceManagerAddress
+     * @param resourceManagerId
+     */
     private void notifyOfNewResourceManagerLeader(
             final String newResourceManagerAddress, final ResourceManagerId resourceManagerId) {
         resourceManagerAddress =
                 createResourceManagerAddress(newResourceManagerAddress, resourceManagerId);
 
+        // 连接到新的RM
         reconnectToResourceManager(
                 new FlinkException(
                         String.format(
@@ -1162,8 +1359,14 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         }
     }
 
+    /**
+     * 与RM断开连接
+     * @param cause
+     */
     private void reconnectToResourceManager(Exception cause) {
+        // 与当前RM断开连接
         closeResourceManagerConnection(cause);
+        // 尝试重新连接
         tryConnectToResourceManager();
     }
 
@@ -1173,6 +1376,9 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         }
     }
 
+    /**
+     * 尝试连接到RM
+     */
     private void connectToResourceManager() {
         assert (resourceManagerAddress != null);
         assert (resourceManagerConnection == null);
@@ -1180,6 +1386,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
 
         log.info("Connecting to ResourceManager {}", resourceManagerAddress);
 
+        // 创建对象 用于连接RM
         resourceManagerConnection =
                 new ResourceManagerConnection(
                         log,
@@ -1194,6 +1401,10 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         resourceManagerConnection.start();
     }
 
+    /**
+     * 与RM建立连接
+     * @param success
+     */
     private void establishResourceManagerConnection(final JobMasterRegistrationSuccess success) {
         final ResourceManagerId resourceManagerId = success.getResourceManagerId();
 
@@ -1215,6 +1426,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                     new EstablishedResourceManagerConnection(
                             resourceManagerGateway, resourceManagerResourceId);
 
+            // 将rm注册到各组件上
             blocklistHandler.registerBlocklistListener(resourceManagerGateway);
             slotPoolService.connectToResourceManager(resourceManagerGateway);
             partitionTracker.connectToResourceManager(resourceManagerGateway);
@@ -1229,8 +1441,13 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         }
     }
 
+    /**
+     * 与RM断开连接
+     * @param cause
+     */
     private void closeResourceManagerConnection(Exception cause) {
         if (establishedResourceManagerConnection != null) {
+            // 断连
             dissolveResourceManagerConnection(establishedResourceManagerConnection, cause);
             establishedResourceManagerConnection = null;
         }
@@ -1242,6 +1459,11 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         }
     }
 
+    /**
+     * 与RM断开连接
+     * @param establishedResourceManagerConnection
+     * @param cause
+     */
     private void dissolveResourceManagerConnection(
             EstablishedResourceManagerConnection establishedResourceManagerConnection,
             Exception cause) {
@@ -1260,13 +1482,17 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                     cause.getMessage());
         }
 
+        // 取消心跳超时检测
         resourceManagerHeartbeatManager.unmonitorTarget(resourceManagerResourceID);
 
         ResourceManagerGateway resourceManagerGateway =
                 establishedResourceManagerConnection.getResourceManagerGateway();
+        // 注销本对象
         resourceManagerGateway.disconnectJobManager(
                 jobGraph.getJobID(), schedulerNG.requestJobStatus(), cause);
+        // 注销 RM 监听器 这样新增慢节点时 就不会通知它
         blocklistHandler.deregisterBlocklistListener(resourceManagerGateway);
+        // 将RM置空
         slotPoolService.disconnectResourceManager();
     }
 
@@ -1316,6 +1542,9 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         }
     }
 
+    /**
+     * 该对象监听 RM leader
+     */
     private class ResourceManagerLeaderListener implements LeaderRetrievalListener {
 
         @Override
@@ -1336,6 +1565,9 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
 
     // ----------------------------------------------------------------------------------------------
 
+    /**
+     * 通过该对象与RM建立连接
+     */
     private class ResourceManagerConnection
             extends RegisteredRpcConnection<
                     ResourceManagerId,
@@ -1386,6 +1618,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                     getTargetLeaderId(),
                     jobMasterConfiguration.getRetryingRegistrationConfiguration()) {
 
+                // 这里就是向RM注册自身
                 @Override
                 protected CompletableFuture<RegistrationResponse> invokeRegistration(
                         ResourceManagerGateway gateway,
@@ -1449,6 +1682,9 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         }
     }
 
+    /**
+     * 该对象用于向TM发送心跳
+     */
     private class TaskManagerHeartbeatListener
             implements HeartbeatListener<
                     TaskExecutorToJobManagerHeartbeatPayload, AllocatedSlotReport> {
@@ -1480,14 +1716,20 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
             handleTaskManagerConnectionLoss(resourceID, new JobMasterException(message));
         }
 
+        /**
+         * 处理TM发来的心跳
+         * @param resourceID Resource ID identifying the sender of the payload
+         * @param payload Payload of the received heartbeat
+         */
         @Override
         public void reportPayload(
                 ResourceID resourceID, TaskExecutorToJobManagerHeartbeatPayload payload) {
             validateRunsInMainThread();
             executionDeploymentReconciler.reconcileExecutionDeployments(
                     resourceID,
-                    payload.getExecutionDeploymentReport(),
+                    payload.getExecutionDeploymentReport(), // 这是TM上有关该job的execution部署情况  如果与预期不匹配 要进行处理
                     executionDeploymentTracker.getExecutionsOn(resourceID));
+            // 获取当前累计数据信息 并更新到调度器上
             for (AccumulatorSnapshot snapshot :
                     payload.getAccumulatorReport().getAccumulatorSnapshots()) {
                 schedulerNG.updateAccumulators(snapshot);
@@ -1497,10 +1739,14 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         @Override
         public AllocatedSlotReport retrievePayload(ResourceID resourceID) {
             validateRunsInMainThread();
+            // 获取心跳包
             return slotPoolService.createAllocatedSlotReport(resourceID);
         }
     }
 
+    /**
+     * 用于向RM发送心跳包
+     */
     private class ResourceManagerHeartbeatListener implements HeartbeatListener<Void, Void> {
 
         @Override
@@ -1514,12 +1760,18 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
             handleResourceManagerConnectionLoss(resourceId, new TimeoutException(message));
         }
 
+        /**
+         * 心跳超时时  断开连接
+         * @param resourceId
+         * @param cause
+         */
         private void handleResourceManagerConnectionLoss(ResourceID resourceId, Exception cause) {
             validateRunsInMainThread();
             if (establishedResourceManagerConnection != null
                     && establishedResourceManagerConnection
                             .getResourceManagerResourceID()
                             .equals(resourceId)) {
+                // 尝试重连
                 reconnectToResourceManager(cause);
             }
         }
@@ -1546,8 +1798,15 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
         }
     }
 
+    /**
+     * 阻塞节点上下文
+     */
     private class JobMasterBlocklistContext implements BlocklistContext {
 
+        /**
+         * 当收到某些节点变成慢节点后
+         * @param blockedNodes the nodes to block resources
+         */
         @Override
         public void blockResources(Collection<BlockedNode> blockedNodes) {
             Set<String> blockedNodeIds =
@@ -1561,6 +1820,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                                                     getNodeIdOfTaskManager(taskManagerId)))
                             .collect(Collectors.toList());
 
+            // 找到慢节点所在的 TM
             blockedTaskMangers.forEach(
                     taskManagerId -> {
                         Exception cause =
@@ -1568,6 +1828,7 @@ public class JobMaster extends FencedRpcEndpoint<JobMasterId>
                                         String.format(
                                                 "TaskManager %s is blocked.",
                                                 taskManagerId.getStringWithMetadata()));
+                        // 释放TM上的 freeSlot  这样之后的任务就无法从该TM上申请到资源 也就不会继续调度到该节点了
                         slotPoolService.releaseFreeSlotsOnTaskManager(taskManagerId, cause);
                     });
         }

@@ -31,15 +31,29 @@ import java.util.function.Supplier;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Default implementation of {@link SchedulingExecutionVertex}. */
+/** Default implementation of {@link SchedulingExecutionVertex}.
+ * 表示一个顶点
+ * */
 class DefaultExecutionVertex implements SchedulingExecutionVertex {
 
+    /**
+     * 顶点id  还包括subtaskIndex
+     */
     private final ExecutionVertexID executionVertexId;
 
+    /**
+     * 产生的分区数据集
+     */
     private final List<DefaultResultPartition> producedResults;
 
+    /**
+     * 当前顶点的执行状态
+     */
     private final Supplier<ExecutionState> stateSupplier;
 
+    /**
+     * 交由本顶点待消费的数据
+     */
     private final List<ConsumedPartitionGroup> consumedPartitionGroups;
 
     private final Function<IntermediateResultPartitionID, DefaultResultPartition>
@@ -71,6 +85,7 @@ class DefaultExecutionVertex implements SchedulingExecutionVertex {
 
     @Override
     public Iterable<DefaultResultPartition> getConsumedResults() {
+        // 每个id通过查询函数转换
         return IterableUtils.flatMap(consumedPartitionGroups, resultPartitionRetriever);
     }
 

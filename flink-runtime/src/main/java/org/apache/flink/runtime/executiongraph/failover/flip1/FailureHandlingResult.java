@@ -36,34 +36,46 @@ import static org.apache.flink.util.Preconditions.checkState;
  * Result containing the tasks to restart upon a task failure. Also contains the reason of the
  * failure and the vertices to restart if the failure is recoverable (in contrast to non-recoverable
  * failure type or restarting suppressed by restart strategy).
+ *
+ * 表示一个异常处理的结果
  */
 public class FailureHandlingResult {
 
     /**
      * Task vertices to restart to recover from the failure or {@code null} if the failure is not
      * recoverable.
+     * 需要重启的所有顶点
      */
     private final Set<ExecutionVertexID> verticesToRestart;
 
-    /** Delay before the restarting can be conducted. */
+    /** Delay before the restarting can be conducted.
+     * 代表多久后开始重启
+     * */
     private final long restartDelayMS;
 
     /**
      * The {@link Execution} that the failure is originating from or {@code null} if it's a global
      * failure.
+     * 本次失败的顶点  如果是global  则为null
      */
     @Nullable private final Execution failedExecution;
 
     /** Failure reason. {@code @Nullable} because of FLINK-21376. */
     @Nullable private final Throwable error;
 
-    /** Future Map of string labels characterizing the failure. */
+    /** Future Map of string labels characterizing the failure.
+     * 错误信息
+     * */
     private final CompletableFuture<Map<String, String>> failureLabels;
 
-    /** Failure timestamp. */
+    /** Failure timestamp.
+     * 失败时的时间戳
+     * */
     private final long timestamp;
 
-    /** True if the original failure was a global failure. */
+    /** True if the original failure was a global failure.
+     * 本次是否是全局失败
+     * */
     private final boolean globalFailure;
 
     /**
@@ -108,7 +120,7 @@ public class FailureHandlingResult {
      *     FailureEnrichers
      */
     private FailureHandlingResult(
-            @Nullable Execution failedExecution,
+            @Nullable Execution failedExecution,  // 非全局异常才会设置
             @Nonnull Throwable error,
             long timestamp,
             CompletableFuture<Map<String, String>> failureLabels,
@@ -126,6 +138,7 @@ public class FailureHandlingResult {
      * Returns the tasks to restart.
      *
      * @return the tasks to restart
+     * 返回需要重启的顶点
      */
     public Set<ExecutionVertexID> getVerticesToRestart() {
         if (canRestart()) {
@@ -222,6 +235,7 @@ public class FailureHandlingResult {
      *     {@code null} indicates that the failure is not restartable.
      * @param restartDelayMS indicate a delay before conducting the restart
      * @return result of a set of tasks to restart to recover from the failure
+     * 可重试的失败  区别就是传入了需要重启的顶点  以及启动延时
      */
     public static FailureHandlingResult restartable(
             @Nullable Execution failedExecution,
@@ -254,6 +268,7 @@ public class FailureHandlingResult {
      * @param failureLabels Map of labels characterizing the failure produced by the
      *     FailureEnrichers.
      * @return result indicating the failure is not recoverable
+     * 表示找到了一个不可恢复的异常
      */
     public static FailureHandlingResult unrecoverable(
             @Nullable Execution failedExecution,

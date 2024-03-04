@@ -30,10 +30,14 @@ import java.util.concurrent.TimeoutException;
  *
  * <p>The method {@code isProducerReadyOrAbortConsumption} determines whether the partition producer
  * is in a producing state, ready for consumption. Otherwise it aborts the consumption.
+ * 该对象用于检测提供数据的上游状态
  */
 public class RemoteChannelStateChecker {
     private static final Logger LOG = LoggerFactory.getLogger(RemoteChannelStateChecker.class);
 
+    /**
+     * 数据所在分区
+     */
     private final ResultPartitionID resultPartitionId;
 
     private final String taskNameWithSubtask;
@@ -44,9 +48,19 @@ public class RemoteChannelStateChecker {
         this.taskNameWithSubtask = taskNameWithSubtask;
     }
 
+    /**
+     * 根据responseHandle 判断目标是否准备好数据 或者被禁止了
+     * @param responseHandle
+     * @return
+     */
     public boolean isProducerReadyOrAbortConsumption(ResponseHandle responseHandle) {
+        // 获取生产方状态
         Either<ExecutionState, Throwable> result = responseHandle.getProducerExecutionState();
+
+        // 获取消费方状态
         ExecutionState consumerExecutionState = responseHandle.getConsumerExecutionState();
+
+        // 表示消费方有问题
         if (!isConsumerStateValidForConsumption(consumerExecutionState)) {
             LOG.debug(
                     "Ignore a partition producer state notification for task {}, because it's not running.",
@@ -56,6 +70,7 @@ public class RemoteChannelStateChecker {
             if (isProducerConsumerReady) {
                 return true;
             } else {
+                // 表示生产方出了问题
                 abortConsumptionOrIgnoreCheckResult(responseHandle);
             }
         } else {
@@ -71,6 +86,11 @@ public class RemoteChannelStateChecker {
                 || consumerExecutionState == ExecutionState.DEPLOYING;
     }
 
+    /**
+     * 检查生产方状态是否正常
+     * @param responseHandle
+     * @return
+     */
     private boolean isProducerConsumerReady(ResponseHandle responseHandle) {
         ExecutionState producerState = getProducerState(responseHandle);
         return producerState == ExecutionState.SCHEDULED
@@ -80,6 +100,10 @@ public class RemoteChannelStateChecker {
                 || producerState == ExecutionState.FINISHED;
     }
 
+    /**
+     * 生产方状态出了问题
+     * @param responseHandle
+     */
     private void abortConsumptionOrIgnoreCheckResult(ResponseHandle responseHandle) {
         ExecutionState producerState = getProducerState(responseHandle);
         if (producerState == ExecutionState.CANCELING

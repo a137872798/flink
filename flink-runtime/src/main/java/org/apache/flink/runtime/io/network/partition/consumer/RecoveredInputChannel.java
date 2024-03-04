@@ -47,11 +47,16 @@ import static org.apache.flink.runtime.checkpoint.CheckpointFailureReason.CHECKP
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** An input channel reads recovered state from previous unaligned checkpoint snapshots. */
+/** An input channel reads recovered state from previous unaligned checkpoint snapshots.
+ * 表示可以进行数据恢复的channel  实际上可以进行数据恢复是由于 state 可以被保存
+ * */
 public abstract class RecoveredInputChannel extends InputChannel implements ChannelStateHolder {
 
     private static final Logger LOG = LoggerFactory.getLogger(RecoveredInputChannel.class);
 
+    /**
+     * 存储用于恢复数据的buffer
+     */
     private final ArrayDeque<Buffer> receivedBuffers = new ArrayDeque<>();
     private final CompletableFuture<?> stateConsumedFuture = new CompletableFuture<>();
     protected final BufferManager bufferManager;
@@ -92,10 +97,15 @@ public abstract class RecoveredInputChannel extends InputChannel implements Chan
                 numBytesIn,
                 numBuffersIn);
 
+        // 生成一个内存管理对象
         bufferManager = new BufferManager(inputGate.getMemorySegmentProvider(), this, 0);
         this.networkBuffersPerChannel = networkBuffersPerChannel;
     }
 
+    /**
+     * 通过该对象持久化状态  便于之后恢复数据
+     * @param channelStateWriter
+     */
     @Override
     public void setChannelStateWriter(ChannelStateWriter channelStateWriter) {
         checkState(this.channelStateWriter == null, "Already initialized");
@@ -121,6 +131,10 @@ public abstract class RecoveredInputChannel extends InputChannel implements Chan
         return stateConsumedFuture;
     }
 
+    /**
+     * 追加用于数据恢复的buffer
+     * @param buffer
+     */
     public void onRecoveredStateBuffer(Buffer buffer) {
         boolean recycleBuffer = true;
         NetworkActionsLogger.traceRecover(
@@ -153,11 +167,17 @@ public abstract class RecoveredInputChannel extends InputChannel implements Chan
     }
 
     public void finishReadRecoveredState() throws IOException {
+        // 往buffer队列中追加一个表示数据恢复完毕的事件
         onRecoveredStateBuffer(EventSerializer.toBuffer(EndOfChannelStateEvent.INSTANCE, false));
         bufferManager.releaseFloatingBuffers();
         LOG.debug("{}/{} finished recovering input.", inputGate.getOwningTaskName(), channelInfo);
     }
 
+    /**
+     * 获取下个用于恢复数据的buffer
+     * @return
+     * @throws IOException
+     */
     @Nullable
     private BufferAndAvailability getNextRecoveredStateBuffer() throws IOException {
         final Buffer next;
@@ -179,6 +199,12 @@ public abstract class RecoveredInputChannel extends InputChannel implements Chan
         }
     }
 
+    /**
+     * 表示数据恢复完成了
+     * @param buffer
+     * @return
+     * @throws IOException
+     */
     private boolean isEndOfChannelStateEvent(Buffer buffer) throws IOException {
         if (buffer.isBuffer()) {
             return false;
@@ -202,6 +228,10 @@ public abstract class RecoveredInputChannel extends InputChannel implements Chan
         return first != null ? first.getDataType() : Buffer.DataType.NONE;
     }
 
+    /**
+     * 查看有多少个buffer在使用中
+     * @return
+     */
     @Override
     int getBuffersInUseCount() {
         synchronized (receivedBuffers) {
@@ -243,6 +273,10 @@ public abstract class RecoveredInputChannel extends InputChannel implements Chan
         }
     }
 
+    /**
+     * 释放所有持有的资源
+     * @throws IOException
+     */
     void releaseAllResources() throws IOException {
         ArrayDeque<Buffer> releasedBuffers = new ArrayDeque<>();
         boolean shouldRelease = false;

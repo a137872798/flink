@@ -28,15 +28,22 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
 
+/**
+ * 获取flink包装过的文件channel
+ */
 public abstract class AbstractFileIOChannel implements FileIOChannel {
 
     /** Logger object for channel and its subclasses */
     protected static final Logger LOG = LoggerFactory.getLogger(FileIOChannel.class);
 
-    /** The ID of the underlying channel. */
+    /** The ID of the underlying channel.
+     * 内部包含了文件路径 和 threadNum
+     * */
     protected final FileIOChannel.ID id;
 
-    /** A file channel for NIO access to the file. */
+    /** A file channel for NIO access to the file.
+     * 连接文件的channel
+     * */
     protected final FileChannel fileChannel;
 
     /**
@@ -47,6 +54,8 @@ public abstract class AbstractFileIOChannel implements FileIOChannel {
      * @param writeEnabled Flag describing whether the channel should be opened in read/write mode,
      *     rather than in read-only mode.
      * @throws IOException Thrown, if the channel could no be opened.
+     *
+     * 打开文件channel
      */
     protected AbstractFileIOChannel(FileIOChannel.ID channelID, boolean writeEnabled)
             throws IOException {
@@ -69,6 +78,11 @@ public abstract class AbstractFileIOChannel implements FileIOChannel {
         return this.id;
     }
 
+    /**
+     * 获取文件大小
+     * @return
+     * @throws IOException
+     */
     @Override
     public long getSize() throws IOException {
         FileChannel channel = fileChannel;
@@ -81,6 +95,9 @@ public abstract class AbstractFileIOChannel implements FileIOChannel {
     @Override
     public abstract void close() throws IOException;
 
+    /**
+     * 删除文件
+     */
     @Override
     public void deleteChannel() {
         if (!isClosed() || this.fileChannel.isOpen()) {

@@ -30,7 +30,9 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.List;
 
-/** {@link PartitionFileReader} defines the read logic for different types of shuffle files. */
+/** {@link PartitionFileReader} defines the read logic for different types of shuffle files.
+ * 使用该对象读取文件数据
+ * */
 public interface PartitionFileReader {
 
     /**
@@ -106,16 +108,20 @@ public interface PartitionFileReader {
     /**
      * A wrapper class of the reading buffer result, including the read buffers, the hint of
      * continue reading, and the read progress, etc.
+     * 表示读取的结果
      */
     class ReadBufferResult {
 
-        /** The read buffers. */
+        /** The read buffers.
+         * 存储数据结果
+         * */
         private final List<Buffer> readBuffers;
 
         /**
          * A hint to determine whether the caller may continue reading the following buffers. Note
          * that this hint is merely a recommendation and not obligatory. Following the hint while
          * reading buffers may improve performance.
+         * 是否推荐继续读取
          */
         private final boolean continuousReadSuggested;
 

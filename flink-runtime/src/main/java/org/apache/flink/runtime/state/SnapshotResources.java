@@ -25,9 +25,13 @@ import org.apache.flink.annotation.Internal;
  * snapshot.
  *
  * @see SnapshotStrategy
+ *
+ * 在创建快照时会占用的资源
  */
 @Internal
 public interface SnapshotResources {
-    /** Cleans up the resources after the asynchronous part is done. */
+    /** Cleans up the resources after the asynchronous part is done.
+     * 当创建结束后 即可清理资源
+     * */
     void release();
 }

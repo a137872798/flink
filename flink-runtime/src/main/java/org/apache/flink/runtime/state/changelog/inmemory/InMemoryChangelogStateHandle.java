@@ -32,16 +32,29 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-/** In-memory {@link ChangelogStateHandle}. */
+/** In-memory {@link ChangelogStateHandle}.
+ * 表示将changelog 存储在内存中
+ * */
 @Internal
 public class InMemoryChangelogStateHandle implements ChangelogStateHandle {
 
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 这就是state发生的变化
+     */
     private final List<StateChange> changes;
     private final SequenceNumber from; // for debug purposes
     private final SequenceNumber to; // for debug purposes
+
+    /**
+     * 表示一个key的范围
+     */
     private final KeyGroupRange keyGroupRange;
+
+    /**
+     * 标记handle的id
+     */
     private final StateHandleID stateHandleID;
 
     public InMemoryChangelogStateHandle(
@@ -77,6 +90,10 @@ public class InMemoryChangelogStateHandle implements ChangelogStateHandle {
     @Override
     public void discardState() {}
 
+    /**
+     * 表示要将这些变更信息 作为state保存下来的大小
+     * @return
+     */
     @Override
     public long getStateSize() {
         return changes.stream().mapToLong(change -> change.getChange().length).sum();
@@ -97,6 +114,13 @@ public class InMemoryChangelogStateHandle implements ChangelogStateHandle {
         return keyGroupRange;
     }
 
+
+    /**
+     * 只要有交集 就会完整的返回本对象 看来本对象是不期望被拆散的
+     * @param keyGroupRange The key group range to intersect with, will return null if the
+     *     intersection of this handle's key-group and the provided key-group is empty.
+     * @return
+     */
     @Nullable
     @Override
     public KeyedStateHandle getIntersection(KeyGroupRange keyGroupRange) {

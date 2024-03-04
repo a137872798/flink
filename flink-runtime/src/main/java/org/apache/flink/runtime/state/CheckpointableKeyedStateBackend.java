@@ -33,16 +33,21 @@ import java.io.Closeable;
  * implement the {@link CheckpointListener} interface.
  *
  * @param <K> Type of the key by which state is keyed.
+ *
+ *           KeyedStateBackend 用于存储状态
  */
 public interface CheckpointableKeyedStateBackend<K>
         extends KeyedStateBackend<K>, Snapshotable<SnapshotResult<KeyedStateHandle>>, Closeable {
 
-    /** Returns the key groups which this state backend is responsible for. */
+    /** Returns the key groups which this state backend is responsible for.
+     * 获取状态后端  key的范围
+     * */
     KeyGroupRange getKeyGroupRange();
 
     /**
      * Returns a {@link SavepointResources} that can be used by {@link SavepointSnapshotStrategy} to
      * write out a savepoint in the common/unified format.
+     * 该资源对象中包含了 生成保存点需要的各种对象
      */
     @Nonnull
     SavepointResources<K> savepoint() throws Exception;

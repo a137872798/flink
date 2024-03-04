@@ -38,6 +38,7 @@ public interface SlotSelectionStrategy {
      *     resources to select from.
      * @param slotProfile a slot profile, describing requirements for the slot selection.
      * @return the selected slot info with the corresponding locality hint.
+     * 根据slotProfile信息 选择最合适的slot
      */
     Optional<SlotInfoAndLocality> selectBestSlotForProfile(
             @Nonnull FreeSlotInfoTracker freeSlotInfoTracker, @Nonnull SlotProfile slotProfile);

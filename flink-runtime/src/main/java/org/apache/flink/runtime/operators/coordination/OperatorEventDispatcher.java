@@ -23,6 +23,7 @@ import org.apache.flink.runtime.jobgraph.OperatorID;
 /**
  * The dispatcher through which Operators receive {@link OperatorEvent}s and through which they can
  * send OperatorEvents back to the {@code OperatorCoordinator}.
+ * 该对象可以管理事件处理器
  */
 public interface OperatorEventDispatcher {
 
@@ -35,6 +36,7 @@ public interface OperatorEventDispatcher {
     /**
      * Gets the gateway through which events can be passed to the OperatorCoordinator for the
      * operator identified by the given OperatorID.
+     * 网关是用来发送事件的
      */
     OperatorEventGateway getOperatorEventGateway(OperatorID operatorId);
 }

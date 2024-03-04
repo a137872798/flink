@@ -445,7 +445,9 @@ public class TaskDeploymentDescriptorFactory {
         }
     }
 
-    /** A set of shuffle descriptors that will be serialized together. */
+    /** A set of shuffle descriptors that will be serialized together.
+     * 就是一组 ShuffleDescriptor
+     * */
     public static class ShuffleDescriptorGroup implements Serializable {
         private static final long serialVersionUID = 1L;
 

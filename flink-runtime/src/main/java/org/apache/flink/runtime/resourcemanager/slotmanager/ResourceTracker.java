@@ -25,7 +25,9 @@ import org.apache.flink.runtime.slots.ResourceRequirements;
 import java.util.Collection;
 import java.util.Map;
 
-/** Tracks for each job how many resource are required/acquired. */
+/** Tracks for each job how many resource are required/acquired.
+ * 追踪每个job请求的资源和获得的资源
+ * */
 public interface ResourceTracker {
 
     /**
@@ -33,6 +35,7 @@ public interface ResourceTracker {
      *
      * @param jobId the job that the resource requirements belongs to
      * @param resourceRequirements new resource requirements
+     *                             通知job需要的资源
      */
     void notifyResourceRequirements(
             JobID jobId, Collection<ResourceRequirement> resourceRequirements);
@@ -43,6 +46,7 @@ public interface ResourceTracker {
      *
      * @param jobId the job that acquired the resource
      * @param resourceProfile profile of the resource
+     *                        为job分配了某个资源
      */
     void notifyAcquiredResource(JobID jobId, ResourceProfile resourceProfile);
 
@@ -52,6 +56,7 @@ public interface ResourceTracker {
      *
      * @param jobId the job that lost the resource
      * @param resourceProfile profile of the resource
+     *                        通知job失去了某个资源
      */
     void notifyLostResource(JobID jobId, ResourceProfile resourceProfile);
 
@@ -60,6 +65,7 @@ public interface ResourceTracker {
      * corresponding job is missing.
      *
      * @return missing resources for each jobs
+     * 返回每个job此时缺失的资源
      */
     Map<JobID, Collection<ResourceRequirement>> getMissingResources();
 
@@ -69,6 +75,7 @@ public interface ResourceTracker {
      *
      * @param jobId job ID
      * @return required/exceeding resources for each jobs
+     * 获取某个job需要的所有资源
      */
     Collection<ResourceRequirement> getAcquiredResources(JobID jobId);
 
@@ -77,6 +84,7 @@ public interface ResourceTracker {
      *
      * @param jobId job ID
      * @return true if the {@link ResourceRequirement} of the given job is empty
+     * 确认某个job是否未声明需要的资源
      */
     boolean isRequirementEmpty(JobID jobId);
 

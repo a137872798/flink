@@ -24,6 +24,8 @@ import java.io.Serializable;
 /** Handle to state that can be read back again via {@link #retrieveState()}. */
 public interface RetrievableStateHandle<T extends Serializable> extends StateObject {
 
-    /** Retrieves the object that was previously written to state. */
+    /** Retrieves the object that was previously written to state.
+     * 检索先前写入的状态
+     * */
     T retrieveState() throws IOException, ClassNotFoundException;
 }

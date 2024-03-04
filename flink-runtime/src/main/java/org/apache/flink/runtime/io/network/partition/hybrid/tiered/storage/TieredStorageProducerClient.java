@@ -36,13 +36,19 @@ import java.util.function.Consumer;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** Client of the Tiered Storage used by the producer. */
+/** Client of the Tiered Storage used by the producer.
+ * 生产者通过该client推送数据
+ * */
 public class TieredStorageProducerClient {
 
     private final boolean isBroadcastOnly;
 
     private final int numSubpartitions;
 
+    /**
+     * 累加器为什么在producer端啊   应该是在生产端不断累加数据 并触发聚合 然后推送到目标服务器
+     * 消费端应该是直接处理聚合完的数据
+     */
     private final BufferAccumulator bufferAccumulator;
 
     private final BufferCompressor bufferCompressor;
@@ -50,6 +56,7 @@ public class TieredStorageProducerClient {
     /**
      * Note that the {@link TierProducerAgent}s are sorted by priority, with a lower index
      * indicating a higher priority.
+     * consumer/producer/master 发现有3种探针  对应3种client
      */
     private final List<TierProducerAgent> tierProducerAgents;
 
@@ -97,6 +104,7 @@ public class TieredStorageProducerClient {
      * @param subpartitionId the subpartition identifier
      * @param dataType the data type of the record
      * @param isBroadcast whether the record is a broadcast record
+     *                    写入数据
      */
     public void write(
             ByteBuffer record,
@@ -106,6 +114,7 @@ public class TieredStorageProducerClient {
             throws IOException {
 
         if (isBroadcast && !isBroadcastOnly) {
+            // 表示要挨个写入各分区
             for (int i = 0; i < numSubpartitions; ++i) {
                 // As the tiered storage subpartition ID is created only for broadcast records,
                 // which are fewer than normal records, the performance impact of generating new
@@ -137,6 +146,7 @@ public class TieredStorageProducerClient {
      *
      * @param subpartitionId the subpartition identifier
      * @param accumulatedBuffers the accumulated buffers of this subpartition
+     *                           这个是触发累加逻辑
      */
     private void writeAccumulatedBuffers(
             TieredStorageSubpartitionId subpartitionId, List<Buffer> accumulatedBuffers) {
@@ -170,6 +180,8 @@ public class TieredStorageProducerClient {
      *
      * @param subpartitionId the subpartition identifier
      * @param accumulatedBuffer one accumulated buffer of this subpartition
+     *
+     *                          处理收到的buffer
      */
     private void writeAccumulatedBuffer(
             TieredStorageSubpartitionId subpartitionId, Buffer accumulatedBuffer)
@@ -177,11 +189,14 @@ public class TieredStorageProducerClient {
         Buffer compressedBuffer = compressBufferIfPossible(accumulatedBuffer);
 
         if (currentSubpartitionTierAgent[subpartitionId.getSubpartitionId()] == null) {
+            // 设置agent
             chooseStorageTierToStartSegment(subpartitionId);
         }
 
+        // 开始写入数据
         if (!currentSubpartitionTierAgent[subpartitionId.getSubpartitionId()].tryWrite(
                 subpartitionId, compressedBuffer, bufferAccumulator)) {
+            // 写入失败 创建一个新segment
             chooseStorageTierToStartSegment(subpartitionId);
             checkState(
                     currentSubpartitionTierAgent[subpartitionId.getSubpartitionId()].tryWrite(
@@ -190,6 +205,11 @@ public class TieredStorageProducerClient {
         }
     }
 
+    /**
+     * 这里设置探针
+     * @param subpartitionId
+     * @throws IOException
+     */
     private void chooseStorageTierToStartSegment(TieredStorageSubpartitionId subpartitionId)
             throws IOException {
         int subpartitionIndex = subpartitionId.getSubpartitionId();
@@ -197,6 +217,8 @@ public class TieredStorageProducerClient {
         int nextSegmentIndex = segmentIndex + 1;
 
         for (TierProducerAgent tierProducerAgent : tierProducerAgents) {
+
+            // 又是只要一个探针成功就行了
             if (tierProducerAgent.tryStartNewSegment(subpartitionId, nextSegmentIndex)) {
                 // Update the segment index and the chosen storage tier for the subpartition.
                 currentSubpartitionSegmentId[subpartitionIndex] = nextSegmentIndex;

@@ -21,7 +21,9 @@ package org.apache.flink.runtime.checkpoint;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Singleton {@link CheckpointStoreUtil} implementation for ZooKeeper. */
+/** Singleton {@link CheckpointStoreUtil} implementation for ZooKeeper.
+ * 提供id到name的转换
+ * */
 public enum ZooKeeperCheckpointStoreUtil implements CheckpointStoreUtil {
     INSTANCE;
 

@@ -53,6 +53,7 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * Executes {@link ChannelStateWriteRequest}s in a separate thread. Any exception occurred during
  * execution causes this thread to stop and the exception to be re-thrown on any subsequent call.
+ * 该对象作为门面对象 可以接收检查点相关的请求
  */
 @ThreadSafe
 class ChannelStateWriteRequestExecutorImpl implements ChannelStateWriteRequestExecutor {
@@ -62,11 +63,17 @@ class ChannelStateWriteRequestExecutorImpl implements ChannelStateWriteRequestEx
 
     private final Object lock = new Object();
 
+    /**
+     * 该对象底层对接 writer对象 包含了写入数据流的逻辑
+     */
     private final ChannelStateWriteRequestDispatcher dispatcher;
     private final Thread thread;
 
     private final int maxSubtasksPerChannelStateFile;
 
+    /**
+     * 待处理的请求
+     */
     @GuardedBy("lock")
     private final Deque<ChannelStateWriteRequest> deque;
 
@@ -79,6 +86,9 @@ class ChannelStateWriteRequestExecutorImpl implements ChannelStateWriteRequestEx
     @GuardedBy("lock")
     private final Map<SubtaskID, Queue<ChannelStateWriteRequest>> unreadyQueues = new HashMap<>();
 
+    /**
+     * 一开始为空
+     */
     @GuardedBy("lock")
     private final Set<SubtaskID> subtasks;
 
@@ -123,6 +133,7 @@ class ChannelStateWriteRequestExecutorImpl implements ChannelStateWriteRequestEx
     @VisibleForTesting
     void run() {
         try {
+            // 该对象维护避免资源泄漏 可以先忽略
             FileSystemSafetyNet.initializeSafetyNetForThread();
             loop();
         } catch (Exception ex) {
@@ -149,12 +160,17 @@ class ChannelStateWriteRequestExecutorImpl implements ChannelStateWriteRequestEx
         LOG.debug("loop terminated");
     }
 
+    /**
+     * 执行器 就是不断循环
+     * @throws Exception
+     */
     private void loop() throws Exception {
         while (true) {
             try {
                 ChannelStateWriteRequest request;
                 synchronized (lock) {
                     request = waitAndTakeUnsafe();
+                    // 表示被关闭了
                     if (request == null) {
                         // The executor is closed, so return directly.
                         return;
@@ -165,10 +181,13 @@ class ChannelStateWriteRequestExecutorImpl implements ChannelStateWriteRequestEx
                 if (request instanceof CheckpointStartRequest) {
                     synchronized (registerLock) {
                         if (completeRegister()) {
+                            // 首次启动检查点 触发钩子
                             onRegistered.accept(this);
                         }
                     }
                 }
+
+                // 分发请求
                 dispatcher.dispatch(request);
             } catch (InterruptedException e) {
                 synchronized (lock) {
@@ -205,6 +224,10 @@ class ChannelStateWriteRequestExecutorImpl implements ChannelStateWriteRequestEx
         return null;
     }
 
+    /**
+     * 取消所有req
+     * @throws Exception
+     */
     private void cleanupRequests() throws Exception {
         List<ChannelStateWriteRequest> drained;
         Throwable cause;
@@ -230,6 +253,11 @@ class ChannelStateWriteRequestExecutorImpl implements ChannelStateWriteRequestEx
         this.thread.start();
     }
 
+    /**
+     *
+     * @param request
+     * @throws Exception
+     */
     @Override
     public void submit(ChannelStateWriteRequest request) throws Exception {
         synchronized (lock) {
@@ -239,28 +267,37 @@ class ChannelStateWriteRequestExecutorImpl implements ChannelStateWriteRequestEx
             checkArgument(unreadyQueue != null, "The subtask %s is not yet registered.");
             submitInternal(
                     request,
+                    // 这个是处理逻辑
                     () -> {
                         // 1. unreadyQueue isn't empty, the new request must keep the order, so add
                         // the new request to the unreadyQueue tail.
+                        // 需要按照顺序发送  如果前面有未准备好的req 就加入到等待队列
                         if (!unreadyQueue.isEmpty()) {
                             unreadyQueue.add(request);
                             return;
                         }
                         // 2. unreadyQueue is empty, and new request is ready, so add it to the
                         // readyQueue directly.
+                        // unreadyQueue为空 并且该请求可以直接发送  就直接写入队列
                         if (request.getReadyFuture().isDone()) {
                             deque.add(request);
-                            lock.notifyAll();
+                            lock.notifyAll();  // 有req了 唤醒阻塞线程
                             return;
                         }
                         // 3. unreadyQueue is empty, and new request isn't ready, so add it to the
                         // unreadyQueue, and register it as the first request.
+                        // 当前请求还没准备好  加入unreadyQueue
                         unreadyQueue.add(request);
                         registerFirstRequestFuture(request, unreadyQueue);
                     });
         }
     }
 
+    /**
+     * 表示收到第一个加入该队列的req   在req准备好后 要自动将队列移动到 deque中
+     * @param firstRequest
+     * @param unreadyQueue
+     */
     private void registerFirstRequestFuture(
             @Nonnull ChannelStateWriteRequest firstRequest,
             Queue<ChannelStateWriteRequest> unreadyQueue) {
@@ -302,6 +339,11 @@ class ChannelStateWriteRequestExecutorImpl implements ChannelStateWriteRequestEx
         }
     }
 
+    /**
+     * 发送高优先级请求
+     * @param request
+     * @throws Exception
+     */
     @Override
     public void submitPriority(ChannelStateWriteRequest request) throws Exception {
         synchronized (lock) {
@@ -313,6 +355,7 @@ class ChannelStateWriteRequestExecutorImpl implements ChannelStateWriteRequestEx
             submitInternal(
                     request,
                     () -> {
+                        // 注意直接加入到队首
                         deque.addFirst(request);
                         lock.notifyAll();
                     });
@@ -344,6 +387,11 @@ class ChannelStateWriteRequestExecutorImpl implements ChannelStateWriteRequestEx
         }
     }
 
+    /**
+     * 一开始subtasks为空 需要注册才能知道参与本次检查点的子任务
+     * @param jobVertexID
+     * @param subtaskIndex
+     */
     @Override
     public void registerSubtask(JobVertexID jobVertexID, int subtaskIndex) {
         assert Thread.holdsLock(registerLock);
@@ -360,6 +408,7 @@ class ChannelStateWriteRequestExecutorImpl implements ChannelStateWriteRequestEx
                             subtaskID.getJobVertexID(), subtaskID.getSubtaskIndex()));
             lock.notifyAll();
             unreadyQueues.put(subtaskID, new ArrayDeque<>());
+            // 注册的子任务达到最大值  强制启动(或者理解为结束准备阶段)
             if (subtasks.size() == maxSubtasksPerChannelStateFile && completeRegister()) {
                 onRegistered.accept(this);
             }
@@ -393,6 +442,7 @@ class ChannelStateWriteRequestExecutorImpl implements ChannelStateWriteRequestEx
                 if (!subtasks.isEmpty()) {
                     return;
                 }
+                // 当所有注册的子任务都被释放时  本对象被关闭
                 wasClosed = true;
                 lock.notifyAll();
             }

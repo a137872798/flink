@@ -44,9 +44,21 @@ public class RecreateOnResetOperatorCoordinator implements OperatorCoordinator {
     private static final Logger LOG =
             LoggerFactory.getLogger(RecreateOnResetOperatorCoordinator.class);
     private static final long CLOSING_TIMEOUT_MS = 60000L;
+
+    /**
+     * 该对象可以产生协调者
+     */
     private final Provider provider;
     private final long closingTimeoutMs;
+
+    /**
+     * 提供一些辅助能力
+     */
     private final OperatorCoordinator.Context context;
+
+    /**
+     * 可以随时替换内部的协调者
+     */
     private DeferrableCoordinator coordinator;
     private boolean started;
     private volatile boolean closed;
@@ -121,6 +133,11 @@ public class RecreateOnResetOperatorCoordinator implements OperatorCoordinator {
         coordinator.applyCall("checkpointAborted", c -> c.notifyCheckpointAborted(checkpointId));
     }
 
+    /**
+     * 包装该方法
+     * @param checkpointId
+     * @param checkpointData
+     */
     @Override
     public void resetToCheckpoint(final long checkpointId, @Nullable final byte[] checkpointData) {
         // First bump up the coordinator epoch to fence out the active coordinator.
@@ -134,6 +151,7 @@ public class RecreateOnResetOperatorCoordinator implements OperatorCoordinator {
         coordinator = newCoordinator;
         // Close the old coordinator asynchronously in a separate closing thread.
         // The future will be completed when the old coordinator closes.
+        // 关闭原协调者
         CompletableFuture<Void> closingFuture = oldCoordinator.closeAsync(closingTimeoutMs);
 
         // Create and possibly start the coordinator and apply all meanwhile deferred calls
@@ -152,6 +170,7 @@ public class RecreateOnResetOperatorCoordinator implements OperatorCoordinator {
                     }
                     if (!closed) {
                         // The previous coordinator has closed. Create a new one.
+                        // 重启一个新的协调者
                         newCoordinator.createNewInternalCoordinator(context, provider);
                         newCoordinator.resetAndStart(checkpointId, checkpointData, wasStarted);
                         newCoordinator.processPendingCalls();
@@ -173,6 +192,10 @@ public class RecreateOnResetOperatorCoordinator implements OperatorCoordinator {
         return coordinator.internalQuiesceableContext;
     }
 
+    /**
+     * 等待之前的任务结束
+     * @throws Exception
+     */
     @VisibleForTesting
     void waitForAllAsyncCallsFinish() throws Exception {
         CompletableFuture<Void> future = new CompletableFuture<>();
@@ -182,7 +205,9 @@ public class RecreateOnResetOperatorCoordinator implements OperatorCoordinator {
 
     // ---------------------
 
-    /** The provider for a private RecreateOnResetOperatorCoordinator. */
+    /** The provider for a private RecreateOnResetOperatorCoordinator.
+     * 该对象用于产生协调者
+     * */
     public abstract static class Provider implements OperatorCoordinator.Provider {
         private static final long serialVersionUID = 3002837631612629071L;
         private final OperatorID operatorID;
@@ -219,6 +244,7 @@ public class RecreateOnResetOperatorCoordinator implements OperatorCoordinator {
      * it from making any further impact to the job master. This is done by quiesce the operator
      * coordinator context. After the quiescence, the "reading" methods will still work, but the
      * "writing" methods will become a no-op or fail immediately.
+     * 静默上下文
      */
     @VisibleForTesting
     static class QuiesceableContext implements OperatorCoordinator.Context {
@@ -240,6 +266,10 @@ public class RecreateOnResetOperatorCoordinator implements OperatorCoordinator {
             return context.metricGroup();
         }
 
+        /**
+         * 本对象被静默后  就不会处理异常了
+         * @param cause
+         */
         @Override
         public synchronized void failJob(Throwable cause) {
             if (quiesced) {
@@ -300,12 +330,30 @@ public class RecreateOnResetOperatorCoordinator implements OperatorCoordinator {
      *       the queued up method calls. From this point on, the method calls to this coordinator
      *       will be executed in the caller thread directly instead of being put into the queue.
      * </ul>
+     *
+     * 表示一个可延期的对象
      */
     private static class DeferrableCoordinator {
         private final OperatorID operatorId;
+
+        /**
+         * 维护一组待作用在协调者上的函数
+         */
         private final BlockingQueue<NamedCall> pendingCalls;
+
+        /**
+         * 上下文被静默后 就不会处理异常了
+         */
         private QuiesceableContext internalQuiesceableContext;
+
+        /**
+         * 内部包含的协调者对象
+         */
         private OperatorCoordinator internalCoordinator;
+
+        /**
+         * 表示追赶上来了
+         */
         private boolean hasCaughtUp;
         private boolean closed;
         private volatile boolean failed;
@@ -323,8 +371,10 @@ public class RecreateOnResetOperatorCoordinator implements OperatorCoordinator {
             synchronized (this) {
                 if (hasCaughtUp) {
                     // The new coordinator has caught up.
+                    // 表示队列已清空  直接作用即可
                     call.accept(internalCoordinator);
                 } else {
+                    // 否则暂存
                     pendingCalls.add(new NamedCall(name, call));
                 }
             }
@@ -340,6 +390,7 @@ public class RecreateOnResetOperatorCoordinator implements OperatorCoordinator {
             // of the new internal coordinator may block the applyCall() method
             // which is invoked in the scheduler main thread.
             try {
+                // 更新内部的协调者
                 internalQuiesceableContext = new QuiesceableContext(context);
                 internalCoordinator = provider.getCoordinator(internalQuiesceableContext);
             } catch (Exception e) {
@@ -352,6 +403,7 @@ public class RecreateOnResetOperatorCoordinator implements OperatorCoordinator {
             closed = true;
             if (internalCoordinator != null) {
                 internalQuiesceableContext.quiesce();
+                // 处理所有消费者
                 pendingCalls.clear();
                 return closeAsyncWithTimeout(
                                 "SourceCoordinator for " + operatorId,
@@ -367,6 +419,9 @@ public class RecreateOnResetOperatorCoordinator implements OperatorCoordinator {
             }
         }
 
+        /**
+         * 处理囤积的消费者
+         */
         void processPendingCalls() {
             if (failed || closed || internalCoordinator == null) {
                 return;
@@ -431,6 +486,9 @@ public class RecreateOnResetOperatorCoordinator implements OperatorCoordinator {
         }
     }
 
+    /**
+     * 包装消费者 并给予一个名字
+     */
     private static class NamedCall {
         private final String name;
         private final ThrowingConsumer<OperatorCoordinator, ?> consumer;

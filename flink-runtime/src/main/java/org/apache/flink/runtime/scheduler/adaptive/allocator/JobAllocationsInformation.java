@@ -36,10 +36,16 @@ import java.util.Map;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
-/** Information about allocations of Job Vertices. */
+/** Information about allocations of Job Vertices.
+ * 有关job顶点的分配信息
+ * */
 @Internal
 public class JobAllocationsInformation {
 
+    /**
+     * 每个顶点有多个分配信息
+     * 顶点根据某个规则被拆分到多个地方
+     */
     private final Map<JobVertexID, List<VertexAllocationInformation>> vertexAllocations;
 
     JobAllocationsInformation(
@@ -55,6 +61,11 @@ public class JobAllocationsInformation {
         return vertexAllocations.getOrDefault(jobVertexID, emptyList());
     }
 
+    /**
+     * 从执行图中
+     * @param graph
+     * @return
+     */
     private static Map<JobVertexID, List<VertexAllocationInformation>> calculateAllocations(
             ExecutionGraph graph) {
         final Map<JobVertexID, List<VertexAllocationInformation>> allocations = new HashMap<>();
@@ -84,10 +95,24 @@ public class JobAllocationsInformation {
         return vertexAllocations.isEmpty();
     }
 
-    /** Information about the allocations of a single Job Vertex. */
+    /** Information about the allocations of a single Job Vertex.
+     * 顶点的分配信息
+     * */
     public static class VertexAllocationInformation {
+
+        /**
+         * 对应一个slot
+         */
         private final AllocationID allocationID;
+
+        /**
+         * 相关的顶点
+         */
         private final JobVertexID jobVertexID;
+
+        /**
+         * 根据keyGroup来拆分
+         */
         private final KeyGroupRange keyGroupRange;
 
         public VertexAllocationInformation(

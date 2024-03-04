@@ -36,6 +36,7 @@ import java.util.Collections;
 /**
  * File based {@link SlotAllocationSnapshotPersistenceService} that persists the {@link
  * SlotAllocationSnapshot} as local files.
+ * 基于本地文件 存储slot的分配结果快照
  */
 public class FileSlotAllocationSnapshotPersistenceService
         implements SlotAllocationSnapshotPersistenceService {
@@ -45,6 +46,10 @@ public class FileSlotAllocationSnapshotPersistenceService
     private static final String SUFFIX = ".bin";
     private final File slotAllocationSnapshotDirectory;
 
+    /**
+     *
+     * @param slotAllocationSnapshotDirectory 初始化时 传入目录
+     */
     public FileSlotAllocationSnapshotPersistenceService(File slotAllocationSnapshotDirectory) {
         this.slotAllocationSnapshotDirectory = slotAllocationSnapshotDirectory;
 
@@ -57,13 +62,20 @@ public class FileSlotAllocationSnapshotPersistenceService
         }
     }
 
+    /**
+     * 持久化某个快照
+     * @param slotAllocationSnapshot slot allocation snapshot to persist
+     * @throws IOException
+     */
     @Override
     public void persistAllocationSnapshot(SlotAllocationSnapshot slotAllocationSnapshot)
             throws IOException {
         // Let's try to write the slot allocations on file
+        // 一个编号对应一个文件
         final File slotAllocationSnapshotFile =
                 slotAllocationFile(slotAllocationSnapshot.getSlotID().getSlotNumber());
 
+        // 写入文件
         try (ObjectOutputStream oos =
                 new ObjectOutputStream(new FileOutputStream(slotAllocationSnapshotFile))) {
             oos.writeObject(slotAllocationSnapshot);
@@ -89,6 +101,10 @@ public class FileSlotAllocationSnapshotPersistenceService
         return Integer.parseInt(filename.substring(0, filename.length() - SUFFIX.length()));
     }
 
+    /**
+     * 按照编号删除文件
+     * @param slotIndex identifying the slot allocation snapshot to delete
+     */
     @Override
     public void deleteAllocationSnapshot(int slotIndex) {
         // Let's try to write the slot allocations on file
@@ -106,6 +122,10 @@ public class FileSlotAllocationSnapshotPersistenceService
         }
     }
 
+    /**
+     * 读取目录下所有文件 还原成分配快照
+     * @return
+     */
     @Override
     public Collection<SlotAllocationSnapshot> loadAllocationSnapshots() {
         // Let's try to populate the slot allocation from local file

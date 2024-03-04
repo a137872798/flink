@@ -31,11 +31,14 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * <p>The threads are designed to terminate themselves when the task they are set up to do is
  * completed. Further more, they terminate immediately when the <code>shutdown()</code> method is
  * called.
+ * 使用一条后台线程来进行 stage数据的分发
  */
 abstract class ThreadBase<E> extends Thread
         implements Thread.UncaughtExceptionHandler, StageRunner {
 
-    /** The queue of empty buffer that can be used for reading; */
+    /** The queue of empty buffer that can be used for reading;
+     * 分发器 内部默认实现是3个队列
+     * */
     protected final StageMessageDispatcher<E> dispatcher;
 
     /** The exception handler for any problems. */
@@ -70,6 +73,7 @@ abstract class ThreadBase<E> extends Thread
     /** Implements exception handling and delegates to go(). */
     public void run() {
         try {
+            // 当线程启动后 就会运行go函数
             go();
         } catch (Throwable t) {
             internalHandleException(

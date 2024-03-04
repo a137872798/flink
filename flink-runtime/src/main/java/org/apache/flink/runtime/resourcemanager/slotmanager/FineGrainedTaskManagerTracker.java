@@ -39,19 +39,28 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/** Implementation of {@link TaskManagerTracker} supporting fine-grained resource management. */
+/** Implementation of {@link TaskManagerTracker} supporting fine-grained resource management.
+ *
+ * */
 public class FineGrainedTaskManagerTracker implements TaskManagerTracker {
     private static final Logger LOG = LoggerFactory.getLogger(FineGrainedTaskManagerTracker.class);
 
     /** Map for allocated and pending slots. */
     private final Map<AllocationID, FineGrainedTaskManagerSlot> slots;
 
-    /** All currently registered task managers. */
+    /** All currently registered task managers.
+     * 记录了每个TM此时资源的分配情况
+     * */
     private final Map<InstanceID, FineGrainedTaskManagerRegistration> taskManagerRegistrations;
 
-    /** All unwanted task managers. */
+    /** All unwanted task managers.
+     * 表示不被需要的TM  Value对象就比较简单
+     * */
     private final Map<InstanceID, WorkerResourceSpec> unWantedTaskManagers;
 
+    /**
+     * 维护待分配的资源
+     */
     private final Map<PendingTaskManagerId, PendingTaskManager> pendingTaskManagers;
 
     private ResourceProfile totalRegisteredResource = ResourceProfile.ZERO;
@@ -60,6 +69,7 @@ public class FineGrainedTaskManagerTracker implements TaskManagerTracker {
     /**
      * Pending task manager indexed by the tuple of total resource profile and default slot resource
      * profile.
+     * 这个是用来匹配 PendingTaskManager 的
      */
     private final Map<Tuple2<ResourceProfile, ResourceProfile>, Set<PendingTaskManager>>
             totalAndDefaultSlotProfilesToPendingTaskManagers;
@@ -72,6 +82,10 @@ public class FineGrainedTaskManagerTracker implements TaskManagerTracker {
         totalAndDefaultSlotProfilesToPendingTaskManagers = new HashMap<>();
     }
 
+    /**
+     * 更替所有 pending的信息
+     * @param pendingSlotAllocations new pending slot allocations be recorded
+     */
     @Override
     public void replaceAllPendingAllocations(
             Map<PendingTaskManagerId, Map<JobID, ResourceCounter>> pendingSlotAllocations) {
@@ -80,10 +94,16 @@ public class FineGrainedTaskManagerTracker implements TaskManagerTracker {
         pendingTaskManagers.values().forEach(PendingTaskManager::clearAllPendingAllocations);
         pendingSlotAllocations.forEach(
                 (pendingTaskManagerId, jobIDResourceCounterMap) ->
+                        // 找到对应TM
                         Preconditions.checkNotNull(pendingTaskManagers.get(pendingTaskManagerId))
+                                // 重新计算 PendingTaskManager 中的未分配资源和分配中资源
                                 .replaceAllPendingAllocations(jobIDResourceCounterMap));
     }
 
+    /**
+     * 清理有关这个job的资源分配
+     * @param jobId of the given job
+     */
     @Override
     public void clearPendingAllocationsOfJob(JobID jobId) {
         LOG.info("Clear all pending allocations for job {}.", jobId);
@@ -94,6 +114,12 @@ public class FineGrainedTaskManagerTracker implements TaskManagerTracker {
                                 pendingTaskManager.clearPendingAllocationsOfJob(jobId));
     }
 
+    /**
+     * 追加一个TM
+     * @param taskExecutorConnection of the new task manager   要添加的TM
+     * @param totalResourceProfile of the new task manager
+     * @param defaultSlotResourceProfile of the new task manager
+     */
     @Override
     public void addTaskManager(
             TaskExecutorConnection taskExecutorConnection,
@@ -107,27 +133,42 @@ public class FineGrainedTaskManagerTracker implements TaskManagerTracker {
                 taskExecutorConnection.getInstanceID(),
                 totalResourceProfile,
                 defaultSlotResourceProfile);
+
+        // 根据描述信息产生 注册对象
         final FineGrainedTaskManagerRegistration taskManagerRegistration =
                 new FineGrainedTaskManagerRegistration(
                         taskExecutorConnection, totalResourceProfile, defaultSlotResourceProfile);
         taskManagerRegistrations.put(
                 taskExecutorConnection.getInstanceID(), taskManagerRegistration);
+
+        // 记录总资源量
         totalRegisteredResource = totalRegisteredResource.merge(totalResourceProfile);
     }
 
+    /**
+     * 不再维护某个TM
+     * @param instanceId of the task manager
+     */
     @Override
     public void removeTaskManager(InstanceID instanceId) {
         Preconditions.checkNotNull(instanceId);
         unWantedTaskManagers.remove(instanceId);
         final FineGrainedTaskManagerRegistration taskManager =
                 Preconditions.checkNotNull(taskManagerRegistrations.remove(instanceId));
+
+        // 从总资源中去除
         totalRegisteredResource = totalRegisteredResource.subtract(taskManager.getTotalResource());
         LOG.debug("Remove task manager {}.", instanceId);
+        // 不再维护该TM相关的slot
         for (AllocationID allocationId : taskManager.getAllocatedSlots().keySet()) {
             slots.remove(allocationId);
         }
     }
 
+    /**
+     * 将某个TM变成无用的状态   (加入一个额外的容器)
+     * @param instanceId identifier of task manager.
+     */
     @Override
     public void addUnWantedTaskManager(InstanceID instanceId) {
         final FineGrainedTaskManagerRegistration taskManager =
@@ -150,6 +191,10 @@ public class FineGrainedTaskManagerTracker implements TaskManagerTracker {
         return unWantedTaskManagers;
     }
 
+    /**
+     * 添加一个申请中的TM
+     * @param pendingTaskManager to be added
+     */
     @Override
     public void addPendingTaskManager(PendingTaskManager pendingTaskManager) {
         Preconditions.checkNotNull(pendingTaskManager);
@@ -157,6 +202,8 @@ public class FineGrainedTaskManagerTracker implements TaskManagerTracker {
         pendingTaskManagers.put(pendingTaskManager.getPendingTaskManagerId(), pendingTaskManager);
         totalPendingResource =
                 totalPendingResource.merge(pendingTaskManager.getTotalResourceProfile());
+
+        // 便于特定api检索
         totalAndDefaultSlotProfilesToPendingTaskManagers
                 .computeIfAbsent(
                         Tuple2.of(
@@ -166,6 +213,11 @@ public class FineGrainedTaskManagerTracker implements TaskManagerTracker {
                 .add(pendingTaskManager);
     }
 
+    /**
+     * 移除待处理的 TM
+     * @param pendingTaskManagerId of the pending task manager
+     * @return
+     */
     @Override
     public Map<JobID, ResourceCounter> removePendingTaskManager(
             PendingTaskManagerId pendingTaskManagerId) {
@@ -200,6 +252,15 @@ public class FineGrainedTaskManagerTracker implements TaskManagerTracker {
     // Core state transitions
     // ---------------------------------------------------------------------------------------------
 
+
+    /**
+     * 更新slot的状态
+     * @param allocationId of the slot
+     * @param jobId of the slot
+     * @param instanceId of the slot
+     * @param resourceProfile of the slot
+     * @param slotState of the slot
+     */
     @Override
     public void notifySlotStatus(
             AllocationID allocationId,
@@ -225,6 +286,11 @@ public class FineGrainedTaskManagerTracker implements TaskManagerTracker {
         }
     }
 
+    /**
+     * 通知TM 释放slot
+     * @param instanceId
+     * @param allocationId
+     */
     private void freeSlot(InstanceID instanceId, AllocationID allocationId) {
         final FineGrainedTaskManagerRegistration taskManager =
                 Preconditions.checkNotNull(taskManagerRegistrations.get(instanceId));
@@ -233,6 +299,13 @@ public class FineGrainedTaskManagerTracker implements TaskManagerTracker {
         taskManager.freeSlot(allocationId);
     }
 
+    /**
+     * 添加一个分配好的slot
+     * @param allocationId
+     * @param jobId
+     * @param instanceId
+     * @param resourceProfile
+     */
     private void addAllocatedSlot(
             AllocationID allocationId,
             JobID jobId,
@@ -255,10 +328,18 @@ public class FineGrainedTaskManagerTracker implements TaskManagerTracker {
                             taskManager.getTaskExecutorConnection(),
                             SlotState.ALLOCATED);
             slots.put(allocationId, slot);
+            // 表示没有经过pending阶段  直接添加
             taskManager.notifyAllocation(allocationId, slot);
         }
     }
 
+    /**
+     * 添加分配中的slot
+     * @param allocationId
+     * @param jobId
+     * @param instanceId
+     * @param resourceProfile
+     */
     private void addPendingSlot(
             AllocationID allocationId,
             JobID jobId,
@@ -268,6 +349,8 @@ public class FineGrainedTaskManagerTracker implements TaskManagerTracker {
         final FineGrainedTaskManagerRegistration taskManager =
                 Preconditions.checkNotNull(taskManagerRegistrations.get(instanceId));
         LOG.debug("Add pending slot with allocationId {}.", allocationId);
+
+        // 创建slot信息
         final FineGrainedTaskManagerSlot slot =
                 new FineGrainedTaskManagerSlot(
                         allocationId,
@@ -315,6 +398,10 @@ public class FineGrainedTaskManagerTracker implements TaskManagerTracker {
                         Collections.emptySet()));
     }
 
+    /**
+     * 根据TM设置的slot数量 来计算整个集群能够感知到的slot数量
+     * @return
+     */
     @Override
     public int getNumberRegisteredSlots() {
         return taskManagerRegistrations.values().stream()

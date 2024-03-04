@@ -52,6 +52,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * Default implementation of {@link HsSubpartitionFileReader}.
  *
  * <p>Note: This class is not thread safe.
+ * 基于文件 读取每个子分区的数据
  */
 public class HsSubpartitionFileReaderImpl implements HsSubpartitionFileReader {
 
@@ -65,12 +66,24 @@ public class HsSubpartitionFileReaderImpl implements HsSubpartitionFileReader {
 
     private final HsSubpartitionConsumerInternalOperations operations;
 
+    /**
+     * 该对象会缓存最近的region
+     */
     private final CachedRegionManager cachedRegionManager;
 
+    /**
+     * 管理最近加载和消费的buffer偏移量
+     */
     private final BufferIndexManager bufferIndexManager;
 
+    /**
+     * 表示已经被加载出来的buffer  还没有被消费
+     */
     private final Deque<BufferIndexOrError> loadedBuffers = new LinkedBlockingDeque<>();
 
+    /**
+     * 本对象的清理函数
+     */
     private final Consumer<HsSubpartitionFileReader> fileReaderReleaser;
 
     private final AtomicInteger backlog = new AtomicInteger(0);
@@ -129,6 +142,7 @@ public class HsSubpartitionFileReaderImpl implements HsSubpartitionFileReader {
      * decision when to stop reading. Currently, it stops reading when: 1) buffers are used up, or
      * 2) reaches the end of the subpartition data within the region, or 3) enough data have been
      * read ahead the downstream consuming offset.
+     * 通过该方法读取数据
      */
     @Override
     public void readBuffers(Queue<MemorySegment> buffers, BufferRecycler recycler)
@@ -140,6 +154,8 @@ public class HsSubpartitionFileReaderImpl implements HsSubpartitionFileReader {
             if (isFailed) {
                 throw new IOException("subpartition reader has already failed.");
             }
+
+            // 计算下个要加载的bufferIndex
             int firstBufferToLoad = bufferIndexManager.getNextToLoad();
             if (firstBufferToLoad < 0) {
                 return;
@@ -149,15 +165,19 @@ public class HsSubpartitionFileReaderImpl implements HsSubpartitionFileReader {
             // 1) The target buffer has not been spilled into disk.
             // 2) The target buffer has not been released from memory.
             // So, just skip this round reading.
+            // 返回当前region还剩余的buffer数量
             int numRemainingBuffer =
                     cachedRegionManager.getRemainingBuffersInRegion(firstBufferToLoad);
             if (numRemainingBuffer == 0) {
                 return;
             }
+
+            // 移动fileChannel的偏移量
             moveFileOffsetToBuffer(firstBufferToLoad);
 
             int indexToLoad;
             int numLoaded = 0;
+            // 开始读取数据
             while (!buffers.isEmpty()
                     && (indexToLoad = bufferIndexManager.getNextToLoad()) >= 0
                     && numRemainingBuffer-- > 0) {
@@ -175,6 +195,7 @@ public class HsSubpartitionFileReaderImpl implements HsSubpartitionFileReader {
                     buffers.add(segment);
                     throw throwable;
                 }
+                // 读取到数据后 认为是囤积数据
                 tryIncreaseBacklog(buffer);
                 loadedBuffers.add(BufferIndexOrError.newBuffer(buffer, indexToLoad));
                 bufferIndexManager.updateLastLoaded(indexToLoad);
@@ -216,6 +237,7 @@ public class HsSubpartitionFileReaderImpl implements HsSubpartitionFileReader {
     public void prepareForScheduling() {
         // Access the consuming offset with lock, to prevent loading any buffer released from the
         // memory data manager that is already consumed.
+        // 获取上次消费的偏移量 并更新
         int consumingOffset = operations.getConsumingOffset(true);
         bufferIndexManager.updateLastConsumed(consumingOffset);
         cachedRegionManager.updateConsumingOffset(consumingOffset);
@@ -233,6 +255,14 @@ public class HsSubpartitionFileReaderImpl implements HsSubpartitionFileReader {
         return loadedBuffers;
     }
 
+
+    /**
+     * 调用consumer api 返回准备好的buffer
+     * @param nextBufferToConsume next buffer index to consume.  下个要消费的buffer 下标
+     * @param buffersToRecycle buffers to recycle if needed.
+     * @return
+     * @throws Throwable
+     */
     @Override
     public Optional<ResultSubpartition.BufferAndBacklog> consumeBuffer(
             int nextBufferToConsume, Collection<Buffer> buffersToRecycle) throws Throwable {
@@ -246,6 +276,7 @@ public class HsSubpartitionFileReaderImpl implements HsSubpartitionFileReader {
 
         BufferIndexOrError next = loadedBuffers.peek();
 
+        // 将相关信息组成 BufferAndBacklog
         Buffer.DataType nextDataType = next == null ? Buffer.DataType.NONE : next.getDataType();
         int bufferIndex = current.getIndex();
         Buffer buffer =
@@ -275,6 +306,9 @@ public class HsSubpartitionFileReaderImpl implements HsSubpartitionFileReader {
         return dataType;
     }
 
+    /**
+     * 释放视图对象
+     */
     @Override
     public void releaseDataView() {
         Queue<Buffer> bufferToRecycle = new ArrayDeque<>();
@@ -303,16 +337,27 @@ public class HsSubpartitionFileReaderImpl implements HsSubpartitionFileReader {
     //  Internal Methods
     // ------------------------------------------------------------------------
 
+    /**
+     * 检查第一个未消费数据 与入参Index是否匹配
+     * @param expectedBufferIndex
+     * @param buffersToRecycle
+     * @return
+     * @throws Throwable
+     */
     private Optional<BufferIndexOrError> checkAndGetFirstBufferIndexOrError(
             int expectedBufferIndex, Collection<Buffer> buffersToRecycle) throws Throwable {
         BufferIndexOrError peek = loadedBuffers.peek();
         while (peek != null) {
+            // 发现异常 则抛出
             if (peek.getThrowable().isPresent()) {
                 throw peek.getThrowable().get();
+                // 匹配成功
             } else if (peek.getIndex() == expectedBufferIndex) {
                 break;
+                // 匹配失败 返回空
             } else if (peek.getIndex() > expectedBufferIndex) {
                 return Optional.empty();
+                // 丢弃掉前面的数据
             } else if (peek.getIndex() < expectedBufferIndex) {
                 // Because the update of consumption progress may be delayed, there is a
                 // very small probability to load the buffer that has been consumed from memory.
@@ -340,12 +385,15 @@ public class HsSubpartitionFileReaderImpl implements HsSubpartitionFileReader {
     }
 
     private void moveFileOffsetToBuffer(int bufferIndex) throws IOException {
+        // 获取该buffer的文件偏移量
         Tuple2<Integer, Long> indexAndOffset =
                 cachedRegionManager.getNumSkipAndFileOffset(bufferIndex);
         dataFileChannel.position(indexAndOffset.f1);
         for (int i = 0; i < indexAndOffset.f0; ++i) {
+            // 推移到这里时  dataFileChannel会被定位到正确的位置
             positionToNextBuffer(dataFileChannel, headerBuf);
         }
+        // 记录当前偏移量
         cachedRegionManager.skipAll(dataFileChannel.position());
     }
 
@@ -359,7 +407,9 @@ public class HsSubpartitionFileReaderImpl implements HsSubpartitionFileReader {
         }
     }
 
-    /** Indicates a buffer with index or an error. */
+    /** Indicates a buffer with index or an error.
+     * 表示一个 buffer 或者 error
+     * */
     public static class BufferIndexOrError {
         @Nullable private final Buffer buffer;
         private final int index;
@@ -398,8 +448,14 @@ public class HsSubpartitionFileReaderImpl implements HsSubpartitionFileReader {
         }
     }
 
-    /** Take care of buffer index consumed by the file reader. */
+    /** Take care of buffer index consumed by the file reader.
+     * 记录最近加载的buffer 以及 最近消费的buffer
+     * */
     static class BufferIndexManager {
+
+        /**
+         * 表示最多允许二者 相差多少
+         */
         private final int maxBuffersReadAhead;
 
         /** Index of the last buffer that has ever been loaded from file. */
@@ -424,6 +480,7 @@ public class HsSubpartitionFileReaderImpl implements HsSubpartitionFileReader {
         private int getNextToLoad() {
             int nextToLoad = Math.max(lastLoaded, lastConsumed) + 1;
             int maxToLoad = lastConsumed + maxBuffersReadAhead;
+            // 表示二者不能相差太多
             return nextToLoad <= maxToLoad ? nextToLoad : -1;
         }
     }
@@ -439,14 +496,26 @@ public class HsSubpartitionFileReaderImpl implements HsSubpartitionFileReader {
      *   <li>The {@code numReadable} continuous buffers starting from the offset of the buffer with
      *       {@code currentBufferIndex} belongs to the same readable region.
      * </ol>
+     * 缓存region信息
      */
     private static class CachedRegionManager {
         private final int subpartitionId;
+
+        /**
+         * 使用子分区+bufferIndex 可以检索region
+         */
         private final HsFileDataIndex dataIndex;
 
+        /**
+         * 记录当前消费到的偏移量
+         */
         private int consumingOffset = -1;
 
         private int currentBufferIndex;
+
+        /**
+         * 当前跳过了多少buffer
+         */
         private int numSkip;
         private int numReadable;
         private long offset;
@@ -460,13 +529,19 @@ public class HsSubpartitionFileReaderImpl implements HsSubpartitionFileReader {
         //  Called by HsSubpartitionFileReader
         // ------------------------------------------------------------------------
 
+        /**
+         * 更新当前消费到的偏移量
+         * @param consumingOffset
+         */
         public void updateConsumingOffset(int consumingOffset) {
             this.consumingOffset = consumingOffset;
         }
 
-        /** Return Long.MAX_VALUE if region does not exist to giving the lowest priority. */
+        /** Return Long.MAX_VALUE if region does not exist to giving the lowest priority.
+         * */
         private long getFileOffset(int bufferIndex) {
             updateCachedRegionIfNeeded(bufferIndex);
+            // != -1 代表bufferIndex有效  返回当前位置信息
             return currentBufferIndex == -1 ? Long.MAX_VALUE : offset;
         }
 
@@ -498,6 +573,7 @@ public class HsSubpartitionFileReaderImpl implements HsSubpartitionFileReader {
 
         private void advance(long bufferSize) {
             if (isInCachedRegion(currentBufferIndex + 1)) {
+                // 推进一个buffer的位置
                 currentBufferIndex++;
                 numReadable--;
                 offset += bufferSize;
@@ -508,18 +584,24 @@ public class HsSubpartitionFileReaderImpl implements HsSubpartitionFileReader {
         //  Internal Methods
         // ------------------------------------------------------------------------
 
-        /** Points the cursors to the given buffer index, if possible. */
+        /** Points the cursors to the given buffer index, if possible.
+         * 检查region是否变化 并进行更新
+         * */
         private void updateCachedRegionIfNeeded(int bufferIndex) {
+            // 该buffer还在当前region内
             if (isInCachedRegion(bufferIndex)) {
                 int numAdvance = bufferIndex - currentBufferIndex;
                 numSkip += numAdvance;
                 numReadable -= numAdvance;
+                // 更新当前访问的bufferIndex
                 currentBufferIndex = bufferIndex;
                 return;
             }
 
             Optional<HsFileDataIndex.ReadableRegion> lookupResultOpt =
                     dataIndex.getReadableRegion(subpartitionId, bufferIndex, consumingOffset);
+
+            // 表示对应的region不存在 重置指标
             if (!lookupResultOpt.isPresent()) {
                 currentBufferIndex = -1;
                 numReadable = 0;
@@ -534,6 +616,11 @@ public class HsSubpartitionFileReaderImpl implements HsSubpartitionFileReader {
             }
         }
 
+        /**
+         * 表示该 bufferIndex 在region范围内
+         * @param bufferIndex
+         * @return
+         */
         private boolean isInCachedRegion(int bufferIndex) {
             return bufferIndex < currentBufferIndex + numReadable
                     && bufferIndex >= currentBufferIndex;

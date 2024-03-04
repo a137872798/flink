@@ -28,6 +28,8 @@ import java.util.Optional;
  * a previous checkpoint. So we don't have to send a state handle twice, e.g. in case of {@link
  * ByteStreamStateHandle}. This class is used in the referenced states of {@link
  * IncrementalRemoteKeyedStateHandle}.
+ *
+ * 表示一个空对象
  */
 public class PlaceholderStreamStateHandle implements StreamStateHandle {
 

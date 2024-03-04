@@ -31,6 +31,8 @@ public interface SchedulingTopologyListener {
      *
      * @param schedulingTopology the scheduling topology which is just updated
      * @param newExecutionVertices the newly added execution vertices.
+     *
+     *                             当拓扑图变化时 触发钩子
      */
     void notifySchedulingTopologyUpdated(
             SchedulingTopology schedulingTopology, List<ExecutionVertexID> newExecutionVertices);

@@ -27,6 +27,7 @@ import java.util.Optional;
  * readability.
  *
  * <p>Note: Buffers added to this index should not be read until being explicitly marked READABLE.
+ * 这个是文件索引数据
  */
 public interface HsFileDataIndex {
 
@@ -39,7 +40,7 @@ public interface HsFileDataIndex {
      *
      * @param subpartitionId that the readable region belongs to
      * @param bufferIndex that the readable region starts with
-     * @param consumingOffset of the downstream
+     * @param consumingOffset of the downstream            通过offset定位到一个region
      * @return a {@link ReadableRegion} for the given subpartition that starts with the given buffer
      *     index, if exist; otherwise, {@link Optional#empty()}.
      */
@@ -53,6 +54,7 @@ public interface HsFileDataIndex {
      *
      * @param spilledBuffers to be added. The buffers in the list are expected in the same order as
      *     in the spilled file.
+     *                       往索引中添加数据
      */
     void addBuffers(List<SpilledBuffer> spilledBuffers);
 
@@ -61,6 +63,7 @@ public interface HsFileDataIndex {
      *
      * @param subpartitionId that the buffer belongs to
      * @param bufferIndex of the buffer within the subpartition
+     *                    标记某个buffer已经被释放
      */
     void markBufferReleased(int subpartitionId, int bufferIndex);
 
@@ -74,9 +77,12 @@ public interface HsFileDataIndex {
      * <p>For efficiency, the index may not remember offsets of all buffers. Thus, a region is
      * described as: starting from the {@link #offset}, skip the first {@link #numSkip} buffers and
      * include the next {@link #numReadable} buffers.
+     * 表示一系列连续的buffer 组成了一个区域
      */
     class ReadableRegion {
-        /** From the {@link #offset}, number of buffers to skip. */
+        /** From the {@link #offset}, number of buffers to skip.
+         * 表示从开始位置跳过了多少个buffer
+         * */
         public final int numSkip;
 
         /**
@@ -85,7 +91,9 @@ public interface HsFileDataIndex {
          */
         public final int numReadable;
 
-        /** The file offset to begin with. */
+        /** The file offset to begin with.
+         * 首个buffer的起始位置
+         * */
         public final long offset;
 
         public ReadableRegion(int numSkip, int numReadable, long offset) {
@@ -95,15 +103,21 @@ public interface HsFileDataIndex {
         }
     }
 
-    /** Represents a spilled buffer. */
+    /** Represents a spilled buffer.
+     * 表示一个已经倾倒到消费者的buffer
+     * */
     class SpilledBuffer {
         /** Id of subpartition that the buffer belongs to. */
         public final int subpartitionId;
 
-        /** Index of the buffer within the subpartition. */
+        /** Index of the buffer within the subpartition.
+         * 在该子分区下的第几个buffer
+         * */
         public final int bufferIndex;
 
-        /** File offset that the buffer begin with. */
+        /** File offset that the buffer begin with.
+         * 该buffer在文件的起始偏移量
+         * */
         public final long fileOffset;
 
         public SpilledBuffer(int subpartitionId, int bufferIndex, long fileOffset) {

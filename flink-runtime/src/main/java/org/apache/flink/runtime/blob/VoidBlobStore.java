@@ -23,7 +23,9 @@ import org.apache.flink.api.common.JobID;
 import java.io.File;
 import java.io.IOException;
 
-/** A blob store doing nothing. */
+/** A blob store doing nothing.
+ * 一个空对象 无法存储也无法获取任何东西
+ * */
 public class VoidBlobStore implements BlobStoreService {
 
     @Override

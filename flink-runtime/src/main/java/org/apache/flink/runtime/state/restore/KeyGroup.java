@@ -23,7 +23,14 @@ import org.apache.flink.annotation.Internal;
 /** Part of a savepoint representing data for a single key group. */
 @Internal
 public class KeyGroup {
+
+    /**
+     * 对应keyGroup算法中的一个key
+     */
     private final int keyGroupId;
+    /**
+     * 表示在遍历时可能会出现异常
+     */
     private final ThrowingIterator<KeyGroupEntry> keyGroupEntries;
 
     KeyGroup(int keyGroupId, ThrowingIterator<KeyGroupEntry> keyGroupEntries) {

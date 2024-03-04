@@ -21,7 +21,9 @@ package org.apache.flink.runtime.blocklist;
 import java.util.Collection;
 import java.util.Set;
 
-/** A tracker for blocklist. */
+/** A tracker for blocklist.
+ * 提供一些操作阻塞节点的api
+ * */
 public interface BlocklistTracker {
 
     /**

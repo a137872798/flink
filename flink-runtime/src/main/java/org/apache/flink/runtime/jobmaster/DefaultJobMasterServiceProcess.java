@@ -66,13 +66,22 @@ public class DefaultJobMasterServiceProcess
 
     private final UUID leaderSessionId;
 
+    /**
+     * JobMaster
+     */
     private final CompletableFuture<JobMasterService> jobMasterServiceFuture;
 
     private final CompletableFuture<Void> terminationFuture = new CompletableFuture<>();
 
+    /**
+     * 表示 JM的一个运行结果
+     */
     private final CompletableFuture<JobManagerRunnerResult> resultFuture =
             new CompletableFuture<>();
 
+    /**
+     * 可以获取与 JobMaster交互的网关
+     */
     private final CompletableFuture<JobMasterGateway> jobMasterGatewayFuture =
             new CompletableFuture<>();
 
@@ -81,6 +90,13 @@ public class DefaultJobMasterServiceProcess
     @GuardedBy("lock")
     private boolean isRunning = true;
 
+    /**
+     *
+     * @param jobId
+     * @param leaderSessionId
+     * @param jobMasterServiceFactory
+     * @param failedArchivedExecutionGraphFactory  表示当失败时 消化异常并产生一个归档的执行图
+     */
     public DefaultJobMasterServiceProcess(
             JobID jobId,
             UUID leaderSessionId,
@@ -91,6 +107,7 @@ public class DefaultJobMasterServiceProcess
         this.jobMasterServiceFuture =
                 jobMasterServiceFactory.createJobMasterService(leaderSessionId, this);
 
+        // 当JobMasterService(JobMaster)被创建后
         jobMasterServiceFuture.whenComplete(
                 (jobMasterService, throwable) -> {
                     if (throwable != null) {
@@ -104,6 +121,7 @@ public class DefaultJobMasterServiceProcess
                                 leaderSessionId,
                                 jobInitializationException);
 
+                        // 遇到异常，消化并设置结果
                         resultFuture.complete(
                                 JobManagerRunnerResult.forInitializationFailure(
                                         new ExecutionGraphInfo(
@@ -116,12 +134,18 @@ public class DefaultJobMasterServiceProcess
                 });
     }
 
+    /**
+     * 注册 JobMaster
+     * @param jobMasterService
+     */
     private void registerJobMasterServiceFutures(JobMasterService jobMasterService) {
         LOG.debug(
                 "Successfully created the JobMasterService for job {} under leader id {}.",
                 jobId,
                 leaderSessionId);
+        // 网关对象是用于与其他模块通信的
         jobMasterGatewayFuture.complete(jobMasterService.getGateway());
+        // 获取该JobMaster绑定的地址
         leaderAddressFuture.complete(jobMasterService.getAddress());
 
         jobMasterService
@@ -134,6 +158,7 @@ public class DefaultJobMasterServiceProcess
                                             "Unexpected termination of the JobMasterService for job {} under leader id {}.",
                                             jobId,
                                             leaderSessionId);
+                                    // 表示预期外的结束
                                     jobMasterFailed(
                                             new FlinkException(
                                                     "Unexpected termination of the JobMasterService.",
@@ -143,6 +168,10 @@ public class DefaultJobMasterServiceProcess
                         });
     }
 
+    /**
+     * 关闭本对象
+     * @return
+     */
     @Override
     public CompletableFuture<Void> closeAsync() {
         synchronized (lock) {
@@ -209,6 +238,10 @@ public class DefaultJobMasterServiceProcess
         return leaderAddressFuture;
     }
 
+    /**
+     * 表示正常结束任务
+     * @param executionGraphInfo contains information about the terminated job  这个是执行图内部包含 task，subtask信息
+     */
     @Override
     public void jobReachedGloballyTerminalState(ExecutionGraphInfo executionGraphInfo) {
         LOG.debug(
@@ -216,6 +249,7 @@ public class DefaultJobMasterServiceProcess
                 jobId,
                 leaderSessionId,
                 executionGraphInfo.getArchivedExecutionGraph().getState());
+        // 设置结果
         resultFuture.complete(JobManagerRunnerResult.forSuccess(executionGraphInfo));
     }
 

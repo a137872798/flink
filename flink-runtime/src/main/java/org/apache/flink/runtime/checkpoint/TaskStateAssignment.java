@@ -57,11 +57,20 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * Used by {@link StateAssignmentOperation} to store temporal information while creating {@link
  * OperatorSubtaskState}.
+ * 表示任务的分配信息
+ * TODO
  */
 class TaskStateAssignment {
     private static final Logger LOG = LoggerFactory.getLogger(TaskStateAssignment.class);
 
+    /**
+     * 看作一个job
+     */
     final ExecutionJobVertex executionJobVertex;
+
+    /**
+     * 维护各个算子的状态  每个OperatorState下有多个子任务
+     */
     final Map<OperatorID, OperatorState> oldState;
     final boolean hasNonFinishedState;
     final boolean isFullyFinished;
@@ -71,26 +80,44 @@ class TaskStateAssignment {
     final OperatorID inputOperatorID;
     final OperatorID outputOperatorID;
 
+    /**
+     * OperatorInstanceID 对应到某个子任务实例  operatorId + subtask
+     * List<OperatorStateHandle> 表示相关的一组状态     分为4类状态
+     */
     final Map<OperatorInstanceID, List<OperatorStateHandle>> subManagedOperatorState;
     final Map<OperatorInstanceID, List<OperatorStateHandle>> subRawOperatorState;
     final Map<OperatorInstanceID, List<KeyedStateHandle>> subManagedKeyedState;
     final Map<OperatorInstanceID, List<KeyedStateHandle>> subRawKeyedState;
 
+    // 对应输入输出状态
     final Map<OperatorInstanceID, List<InputChannelStateHandle>> inputChannelStates;
     final Map<OperatorInstanceID, List<ResultSubpartitionStateHandle>> resultSubpartitionStates;
+
+    // 子任务会关联重映射对象
+
     /** The subtask mapping when the output operator was rescaled. */
     private final Map<Integer, SubtasksRescaleMapping> outputSubtaskMappings = new HashMap<>();
     /** The subtask mapping when the input operator was rescaled. */
     private final Map<Integer, SubtasksRescaleMapping> inputSubtaskMappings = new HashMap<>();
 
+    // 关联的上下游
     @Nullable private TaskStateAssignment[] downstreamAssignments;
     @Nullable private TaskStateAssignment[] upstreamAssignments;
+
+    // 描述是否有上游/下游
     @Nullable private Boolean hasUpstreamOutputStates;
     @Nullable private Boolean hasDownstreamInputStates;
+
 
     private final Map<IntermediateDataSetID, TaskStateAssignment> consumerAssignment;
     private final Map<ExecutionJobVertex, TaskStateAssignment> vertexAssignments;
 
+    /**
+     * @param executionJobVertex
+     * @param oldState
+     * @param consumerAssignment  对应downstream
+     * @param vertexAssignments   对应upstream
+     */
     public TaskStateAssignment(
             ExecutionJobVertex executionJobVertex,
             Map<OperatorID, OperatorState> oldState,
@@ -99,9 +126,13 @@ class TaskStateAssignment {
 
         this.executionJobVertex = executionJobVertex;
         this.oldState = oldState;
+
+        // 只要有子任务数量 > 0 代表包含未完成
+        // FullyFinishedOperatorState 中数量就是0
         this.hasNonFinishedState =
                 oldState.values().stream()
                         .anyMatch(operatorState -> operatorState.getNumberCollectedStates() > 0);
+        // 要求所有状态的所有子任务 都完成了
         this.isFullyFinished = oldState.values().stream().anyMatch(OperatorState::isFullyFinished);
         if (isFullyFinished) {
             checkState(
@@ -112,6 +143,8 @@ class TaskStateAssignment {
         newParallelism = executionJobVertex.getParallelism();
         this.consumerAssignment = checkNotNull(consumerAssignment);
         this.vertexAssignments = checkNotNull(vertexAssignments);
+
+        // 预期出现的子任务总数
         final int expectedNumberOfSubtasks = newParallelism * oldState.size();
 
         subManagedOperatorState =
@@ -124,9 +157,11 @@ class TaskStateAssignment {
         subRawKeyedState = CollectionUtil.newHashMapWithExpectedSize(expectedNumberOfSubtasks);
 
         final List<OperatorIDPair> operatorIDs = executionJobVertex.getOperatorIDs();
+        // 第一个id是输出id  最后一个是输入id
         outputOperatorID = operatorIDs.get(0).getGeneratedOperatorID();
         inputOperatorID = operatorIDs.get(operatorIDs.size() - 1).getGeneratedOperatorID();
 
+        // 根据子状态是否有输入/输出 设置标识
         hasInputState =
                 oldState.get(inputOperatorID).getStates().stream()
                         .anyMatch(subState -> !subState.getInputChannelState().isEmpty());
@@ -139,7 +174,7 @@ class TaskStateAssignment {
         if (downstreamAssignments == null) {
             downstreamAssignments =
                     Arrays.stream(executionJobVertex.getProducedDataSets())
-                            .map(result -> consumerAssignment.get(result.getId()))
+                            .map(result -> consumerAssignment.get(result.getId())) // consumerAssignment是作为入参传入的
                             .toArray(TaskStateAssignment[]::new);
         }
         return downstreamAssignments;
@@ -154,12 +189,17 @@ class TaskStateAssignment {
         if (upstreamAssignments == null) {
             upstreamAssignments =
                     executionJobVertex.getInputs().stream()
-                            .map(result -> vertexAssignments.get(result.getProducer()))
+                            .map(result -> vertexAssignments.get(result.getProducer()))  // 跟getDownstreamAssignments类似
                             .toArray(TaskStateAssignment[]::new);
         }
         return upstreamAssignments;
     }
 
+    /**
+     * 查询子状态
+     * @param instanceID
+     * @return
+     */
     public OperatorSubtaskState getSubtaskState(OperatorInstanceID instanceID) {
         checkState(
                 subManagedKeyedState.containsKey(instanceID)
@@ -170,6 +210,8 @@ class TaskStateAssignment {
                 getState(instanceID, inputChannelStates);
         final StateObjectCollection<ResultSubpartitionStateHandle> outputState =
                 getState(instanceID, resultSubpartitionStates);
+
+        // 按照实例id 从各容器加载数据 并产生OperatorSubtaskState
         return OperatorSubtaskState.builder()
                 .setManagedOperatorState(getState(instanceID, subManagedOperatorState))
                 .setRawOperatorState(getState(instanceID, subRawOperatorState))
@@ -177,12 +219,15 @@ class TaskStateAssignment {
                 .setRawKeyedState(getState(instanceID, subRawKeyedState))
                 .setInputChannelState(inputState)
                 .setResultSubpartitionState(outputState)
+                // 设置输入和输出的重调节描述信息
                 .setInputRescalingDescriptor(
+                        // TODO
                         createRescalingDescriptor(
                                 instanceID,
                                 inputOperatorID,
                                 getUpstreamAssignments(),
                                 (assignment, recompute) -> {
+                                    // 获取本对象在下游assignment的下标
                                     int assignmentIndex =
                                             getAssignmentIndex(
                                                     assignment.getDownstreamAssignments(), this);
@@ -245,6 +290,16 @@ class TaskStateAssignment {
         return descriptor;
     }
 
+    /**
+     * 产生重调节的描述信息
+     * @param instanceID
+     * @param expectedOperatorID
+     * @param connectedAssignments
+     * @param mappingRetriever
+     * @param subtaskGateOrPartitionMappings
+     * @param subtaskMappingCalculator
+     * @return
+     */
     private InflightDataRescalingDescriptor createRescalingDescriptor(
             OperatorInstanceID instanceID,
             OperatorID expectedOperatorID,
@@ -252,10 +307,13 @@ class TaskStateAssignment {
             BiFunction<TaskStateAssignment, Boolean, SubtasksRescaleMapping> mappingRetriever,
             Map<Integer, SubtasksRescaleMapping> subtaskGateOrPartitionMappings,
             Function<Integer, SubtasksRescaleMapping> subtaskMappingCalculator) {
+
+        // id不匹配
         if (!expectedOperatorID.equals(instanceID.getOperatorId())) {
             return InflightDataRescalingDescriptor.NO_RESCALE;
         }
 
+        // 这里会找到一个匹配的重映射对象
         SubtasksRescaleMapping[] rescaledChannelsMappings =
                 Arrays.stream(connectedAssignments)
                         .map(assignment -> mappingRetriever.apply(assignment, false))
@@ -267,6 +325,7 @@ class TaskStateAssignment {
             return InflightDataRescalingDescriptor.NO_RESCALE;
         }
 
+        // 产生描述对象
         InflightDataGateOrPartitionRescalingDescriptor[] gateOrPartitionDescriptors =
                 createGateOrPartitionRescalingDescriptors(
                         instanceID,
@@ -356,6 +415,12 @@ class TaskStateAssignment {
         return value != null ? new StateObjectCollection<>(value) : StateObjectCollection.empty();
     }
 
+    /**
+     *
+     * @param assignmentIndex  这是本对象的下标
+     * @param recompute
+     * @return
+     */
     private SubtasksRescaleMapping getOutputMapping(int assignmentIndex, boolean recompute) {
         SubtasksRescaleMapping mapping = outputSubtaskMappings.get(assignmentIndex);
         if (recompute && mapping == null) {
@@ -442,6 +507,9 @@ class TaskStateAssignment {
                 mapping, oldMapping.mayHaveAmbiguousSubtasks || mayHaveAmbiguousSubtasks);
     }
 
+    /**
+     * 该对象对分区进行重映射
+     */
     static class SubtasksRescaleMapping {
         private final RescaleMappings rescaleMappings;
         /**

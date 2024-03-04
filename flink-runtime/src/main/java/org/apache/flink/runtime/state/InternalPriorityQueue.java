@@ -31,6 +31,8 @@ import java.util.Collection;
  * Interface for collection that gives in order access to elements w.r.t their priority.
  *
  * @param <T> type of elements in the ordered set.
+ *
+ *           就是优先队列
  */
 @Internal
 public interface InternalPriorityQueue<T> {

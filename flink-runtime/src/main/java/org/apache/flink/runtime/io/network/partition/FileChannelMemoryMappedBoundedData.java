@@ -52,6 +52,8 @@ import static org.apache.flink.util.Preconditions.checkState;
  *
  * <p>This class performs absolutely no synchronization and relies on single threaded access or
  * externally synchronized access. Concurrent access around disposal may cause segmentation faults!
+ *
+ * 这个也是用了文件映射
  */
 final class FileChannelMemoryMappedBoundedData implements BoundedData {
 
@@ -76,7 +78,9 @@ final class FileChannelMemoryMappedBoundedData implements BoundedData {
      */
     private long pos;
 
-    /** The position where the current memory mapped region must end. */
+    /** The position where the current memory mapped region must end.
+     * 当前内存块还可以使用的空间
+     * */
     private long endOfCurrentRegion;
 
     /** The position where the current memory mapped started. */
@@ -96,12 +100,18 @@ final class FileChannelMemoryMappedBoundedData implements BoundedData {
         this.endOfCurrentRegion = maxSizePerMappedRegion;
     }
 
+    /**
+     * 写入一个buffer数据
+     * @param buffer
+     * @throws IOException
+     */
     @Override
     public void writeBuffer(Buffer buffer) throws IOException {
         if (tryWriteBuffer(buffer)) {
             return;
         }
 
+        // 此时空间不够了   切换到下个buffer
         mapRegionAndStartNext();
 
         if (!tryWriteBuffer(buffer)) {
@@ -109,12 +119,21 @@ final class FileChannelMemoryMappedBoundedData implements BoundedData {
         }
     }
 
+    /**
+     * 尝试写入buffer数据
+     * @param buffer
+     * @return
+     * @throws IOException
+     */
     private boolean tryWriteBuffer(Buffer buffer) throws IOException {
         final long spaceLeft = endOfCurrentRegion - pos;
+
+        // 只允许写入这些数据
         final long bytesWritten =
                 BufferReaderWriterUtil.writeToByteChannelIfBelowSize(
                         fileChannel, buffer, headerAndBufferArray, spaceLeft);
 
+        // 写入了数据 推进pos
         if (bytesWritten >= 0) {
             pos += bytesWritten;
             return true;
@@ -152,6 +171,7 @@ final class FileChannelMemoryMappedBoundedData implements BoundedData {
     public void close() throws IOException {
         IOUtils.closeQuietly(fileChannel);
 
+        // 释放所有映射的区域
         for (ByteBuffer bb : memoryMappedRegions) {
             PlatformDependent.freeDirectBuffer(bb);
         }
@@ -175,11 +195,18 @@ final class FileChannelMemoryMappedBoundedData implements BoundedData {
         return filePath;
     }
 
+    /**
+     * 切换到下个buffer
+     * @throws IOException
+     */
     private void mapRegionAndStartNext() throws IOException {
+
+        // 为当前文件区域创建只读映射
         final ByteBuffer region =
                 fileChannel.map(
                         MapMode.READ_ONLY, startOfCurrentRegion, pos - startOfCurrentRegion);
         region.order(ByteOrder.nativeOrder());
+        // 加入到regions中
         memoryMappedRegions.add(region);
 
         startOfCurrentRegion = pos;

@@ -75,6 +75,7 @@ public class ChainedMapDriver<IT, OT> extends ChainedDriver<IT, OT> {
     public void collect(IT record) {
         try {
             this.numRecordsIn.inc();
+            // map处理后 就交给下游的采集器
             this.outputCollector.collect(this.mapper.map(record));
         } catch (Exception ex) {
             throw new ExceptionInChainedStubException(this.taskName, ex);

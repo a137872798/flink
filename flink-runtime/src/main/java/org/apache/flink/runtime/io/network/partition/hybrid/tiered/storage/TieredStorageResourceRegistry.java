@@ -28,6 +28,7 @@ import java.util.Map;
 /**
  * A registry that maintains local or remote resources that correspond to a certain set of data in
  * the Tiered Storage.
+ * 该对象用于注册/维护资源
  */
 public class TieredStorageResourceRegistry {
 

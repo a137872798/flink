@@ -38,6 +38,10 @@ import java.util.concurrent.CompletableFuture;
  * overall location retrieval becomes synchronous without blocking.
  */
 class DefaultSyncPreferredLocationsRetriever implements SyncPreferredLocationsRetriever {
+
+    /**
+     * 该对象包含为Execution选择合适TMLocation的能力
+     */
     private final PreferredLocationsRetriever asyncPreferredLocationsRetriever;
 
     DefaultSyncPreferredLocationsRetriever(
@@ -46,9 +50,16 @@ class DefaultSyncPreferredLocationsRetriever implements SyncPreferredLocationsRe
         this.asyncPreferredLocationsRetriever =
                 new DefaultPreferredLocationsRetriever(
                         stateLocationRetriever,
+                        // 这里还包装一层
                         new AvailableInputsLocationsRetriever(inputsLocationsRetriever));
     }
 
+    /**
+     * 获取更合适的位置
+     * @param executionVertexId id of the execution vertex
+     * @param producersToIgnore producer vertices to ignore when calculating input locations
+     * @return
+     */
     @Override
     public Collection<TaskManagerLocation> getPreferredLocations(
             ExecutionVertexID executionVertexId, Set<ExecutionVertexID> producersToIgnore) {
@@ -58,6 +69,7 @@ class DefaultSyncPreferredLocationsRetriever implements SyncPreferredLocationsRe
         Preconditions.checkState(preferredLocationsFuture.isDone());
         // it is safe to do the blocking call here
         // as the underlying InputsLocationsRetriever returns only immediately available locations
+        // 等待结果
         return preferredLocationsFuture.join();
     }
 }

@@ -30,11 +30,16 @@ import java.io.OutputStream;
  * user code.
  *
  * @param <T> type of the returned state handle.
+ *           该对象可以被共享 当没有共享者时 才能被关闭
  */
 public abstract class NonClosingCheckpointOutputStream<T extends StreamStateHandle>
         extends OutputStream {
 
     protected final CheckpointStateOutputStream delegate;
+
+    /**
+     * 无法手动关闭
+     */
     private final ResourceGuard resourceGuard = new ResourceGuard();
 
     public NonClosingCheckpointOutputStream(CheckpointStateOutputStream delegate) {

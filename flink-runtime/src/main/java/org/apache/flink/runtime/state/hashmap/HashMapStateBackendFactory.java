@@ -23,7 +23,9 @@ import org.apache.flink.configuration.IllegalConfigurationException;
 import org.apache.flink.configuration.ReadableConfig;
 import org.apache.flink.runtime.state.StateBackendFactory;
 
-/** A factory that creates an {@link HashMapStateBackend} from a configuration. */
+/** A factory that creates an {@link HashMapStateBackend} from a configuration.
+ * 使用hashMap作为状态存储
+ * */
 @PublicEvolving
 public class HashMapStateBackendFactory implements StateBackendFactory<HashMapStateBackend> {
 

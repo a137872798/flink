@@ -34,6 +34,7 @@ import java.util.concurrent.RunnableFuture;
  *     operation.
  * @see SnapshotStrategy
  * @see SnapshotStrategyRunner
+ * 表示可以对持有state的对象生成快照
  */
 @Internal
 public interface Snapshotable<S extends StateObject> {
@@ -50,12 +51,14 @@ public interface Snapshotable<S extends StateObject> {
      * @param streamFactory The factory that we can use for writing our state to streams.
      * @param checkpointOptions Options for how to perform this checkpoint.
      * @return A runnable future that will yield a {@link StateObject}.
+     *
+     * 对某个检查点创建快照
      */
     @Nonnull
     RunnableFuture<S> snapshot(
             long checkpointId,
             long timestamp,
-            @Nonnull CheckpointStreamFactory streamFactory,
+            @Nonnull CheckpointStreamFactory streamFactory,  // 该对象可以产生输出流 用于写入状态
             @Nonnull CheckpointOptions checkpointOptions)
             throws Exception;
 }

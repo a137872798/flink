@@ -30,6 +30,7 @@ import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
  * used by other job subtasks. The bulk gets canceled if the timeout occurs and the bulk is not
  * fulfillable. The timeout timer is not running while the bulk is fulfillable but not fulfilled
  * yet.
+ * 启动检查器
  */
 public interface PhysicalSlotRequestBulkChecker {
     /**
@@ -45,6 +46,7 @@ public interface PhysicalSlotRequestBulkChecker {
      * @param bulk {@link PhysicalSlotRequestBulk} to track
      * @param timeout timeout after which the bulk should be canceled if it is still not
      *     fulfillable.
+     *                检查请求是否超时
      */
     void schedulePendingRequestBulkTimeoutCheck(PhysicalSlotRequestBulk bulk, Time timeout);
 }

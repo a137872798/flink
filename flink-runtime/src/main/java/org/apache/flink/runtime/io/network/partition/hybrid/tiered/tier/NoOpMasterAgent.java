@@ -20,7 +20,9 @@ package org.apache.flink.runtime.io.network.partition.hybrid.tiered.tier;
 
 import org.apache.flink.runtime.io.network.partition.hybrid.tiered.common.TieredStoragePartitionId;
 
-/** The empty implementation for {@link TierMasterAgent}. */
+/** The empty implementation for {@link TierMasterAgent}.
+ * 对应master探针
+ * */
 public class NoOpMasterAgent implements TierMasterAgent {
 
     public static final NoOpMasterAgent INSTANCE = new NoOpMasterAgent();

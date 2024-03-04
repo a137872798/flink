@@ -26,6 +26,7 @@ import javax.annotation.Nullable;
 /**
  * A special operator state implementation representing the operators whose instances are all
  * finished.
+ * 表示一个完全完成的状态
  */
 public class FullyFinishedOperatorState extends OperatorState {
 
@@ -40,6 +41,11 @@ public class FullyFinishedOperatorState extends OperatorState {
         return true;
     }
 
+    /**
+     * 因为已经完成 无法再添加state
+     * @param subtaskIndex
+     * @param subtaskState
+     */
     @Override
     public void putState(int subtaskIndex, OperatorSubtaskState subtaskState) {
         throw new UnsupportedOperationException(

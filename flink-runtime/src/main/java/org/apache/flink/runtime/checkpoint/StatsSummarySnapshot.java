@@ -24,7 +24,9 @@ import javax.annotation.Nullable;
 
 import java.io.Serializable;
 
-/** Immutable snapshot of {@link StatsSummary}. */
+/** Immutable snapshot of {@link StatsSummary}.
+ * 快照对象 记录某个时间点的StatsSummary
+ * */
 @Internal
 public class StatsSummarySnapshot implements Serializable {
     private static final long serialVersionUID = 1L;

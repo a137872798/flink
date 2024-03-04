@@ -39,16 +39,28 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  */
 public class FileChannelInputView extends AbstractPagedInputView {
 
+    /**
+     * 通过往该channel发送读取请求 可以将数据读取到MemorySegment 中
+     */
     private final BlockChannelReader<MemorySegment> reader;
 
+    /**
+     * 通过该对象来分配内存
+     */
     private final MemoryManager memManager;
 
     private final List<MemorySegment> memory;
 
     private final int sizeOfLastBlock;
 
+    /**
+     * 表示要发送多少个请求
+     */
     private int numRequestsRemaining;
 
+    /**
+     * 表示需要读取多少个内存块
+     */
     private int numBlocksRemaining;
 
     // --------------------------------------------------------------------------------------------
@@ -83,6 +95,7 @@ public class FileChannelInputView extends AbstractPagedInputView {
 
             this.numRequestsRemaining = numBlocksRemaining;
 
+            // 先使用现有的内存块发送请求
             for (int i = 0; i < memory.size(); i++) {
                 sendReadRequest(memory.get(i));
             }
@@ -118,6 +131,13 @@ public class FileChannelInputView extends AbstractPagedInputView {
         }
     }
 
+    /**
+     * 等待读取结果
+     * @param current The current page that was read to its limit. May be {@code null}, if this
+     *     method is invoked for the first time.
+     * @return
+     * @throws IOException
+     */
     @Override
     protected MemorySegment nextSegment(MemorySegment current) throws IOException {
         // check for end-of-stream

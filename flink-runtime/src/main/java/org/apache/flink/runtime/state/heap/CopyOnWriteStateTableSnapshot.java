@@ -34,14 +34,19 @@ import java.util.List;
  * @param <K> type of key
  * @param <N> type of namespace
  * @param <S> type of state
+ * 对应CopyOnWriteStateTable的快照
  */
 @Internal
 public class CopyOnWriteStateTableSnapshot<K, N, S> extends AbstractStateTableSnapshot<K, N, S> {
 
-    /** The offset to the contiguous key groups. */
+    /** The offset to the contiguous key groups.
+     * 当前数到的下标
+     * */
     private final int keyGroupOffset;
 
-    /** Snapshots of state partitioned by key-group. */
+    /** Snapshots of state partitioned by key-group.
+     * 每个 StateMap对应一个快照
+     * */
     @Nonnull private final List<CopyOnWriteStateMapSnapshot<K, N, S>> stateMapSnapshots;
 
     /**
@@ -67,6 +72,11 @@ public class CopyOnWriteStateTableSnapshot<K, N, S> extends AbstractStateTableSn
         this.stateMapSnapshots = owningStateTable.getStateMapSnapshotList();
     }
 
+    /**
+     * 计算下标 返回对应的快照
+     * @param keyGroup
+     * @return
+     */
     @Override
     protected StateMapSnapshot<K, N, S, ? extends StateMap<K, N, S>> getStateMapSnapshotForKeyGroup(
             int keyGroup) {

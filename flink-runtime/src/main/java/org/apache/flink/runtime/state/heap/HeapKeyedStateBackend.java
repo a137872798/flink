@@ -71,11 +71,16 @@ import java.util.stream.Stream;
  * streams provided by a {@link CheckpointStreamFactory} upon checkpointing.
  *
  * @param <K> The key by which state is keyed.
+ *           每个状态后端应该是对应一个task
+ *           由于创建state的方法由子类实现  该对象代表创建的state都是 HeapXXXState类型
  */
 public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
 
     private static final Logger LOG = LoggerFactory.getLogger(HeapKeyedStateBackend.class);
 
+    /**
+     * 预先填充各种构造工厂
+     */
     private static final Map<StateDescriptor.Type, StateCreateFactory> STATE_CREATE_FACTORIES =
             Stream.of(
                             Tuple2.of(
@@ -95,6 +100,9 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
                                     (StateCreateFactory) HeapReducingState::create))
                     .collect(Collectors.toMap(t -> t.f0, t -> t.f1));
 
+    /**
+     * 用于更新state
+     */
     private static final Map<StateDescriptor.Type, StateUpdateFactory> STATE_UPDATE_FACTORIES =
             Stream.of(
                             Tuple2.of(
@@ -114,23 +122,37 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
                                     (StateUpdateFactory) HeapReducingState::update))
                     .collect(Collectors.toMap(t -> t.f0, t -> t.f1));
 
-    /** Map of created Key/Value states. */
+    /** Map of created Key/Value states.
+     * 维护所有创建的state
+     * */
     private final Map<String, State> createdKVStates;
 
-    /** Map of registered Key/Value states. */
+    /** Map of registered Key/Value states.
+     * 每个state 对应一个stateTable 该stateTable下kv中的value都是同一类型
+     * */
     private final Map<String, StateTable<K, ?, ?>> registeredKVStates;
 
-    /** The configuration for local recovery. */
+    /** The configuration for local recovery.
+     * 用于产生目录的对象
+     * */
     private final LocalRecoveryConfig localRecoveryConfig;
 
-    /** The snapshot strategy for this backend. */
+    /** The snapshot strategy for this backend.
+     * 该对象可以将state的所有相关数据持久化
+     * 持久化的操作叫做生成检查点
+     * */
     private final SnapshotStrategy<KeyedStateHandle, ?> checkpointStrategy;
 
     private final SnapshotExecutionType snapshotExecutionType;
 
+    /**
+     * 该对象用于生成存储state的容器
+     */
     private final StateTableFactory<K> stateTableFactory;
 
-    /** Factory for state that is organized as priority queue. */
+    /** Factory for state that is organized as priority queue.
+     * 该对象维护所有基于优先队列的state
+     * */
     private final HeapPriorityQueuesManager priorityQueuesManager;
 
     public HeapKeyedStateBackend(
@@ -198,6 +220,17 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
                 stateName, byteOrderedElementSerializer, allowFutureMetadataUpdates);
     }
 
+    /**
+     * 生成某个state相关的StateTable并注册
+     * @param namespaceSerializer
+     * @param stateDesc
+     * @param snapshotTransformFactory
+     * @param allowFutureMetadataUpdates
+     * @param <N>
+     * @param <V>
+     * @return
+     * @throws StateMigrationException
+     */
     private <N, V> StateTable<K, N, V> tryRegisterStateTable(
             TypeSerializer<N> namespaceSerializer,
             StateDescriptor<?, V> stateDesc,
@@ -205,6 +238,7 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
             boolean allowFutureMetadataUpdates)
             throws StateMigrationException {
 
+        // 先查看table是否存在
         @SuppressWarnings("unchecked")
         StateTable<K, N, V> stateTable =
                 (StateTable<K, N, V>) registeredKVStates.get(stateDesc.getName());
@@ -215,6 +249,7 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
             RegisteredKeyValueStateBackendMetaInfo<N, V> restoredKvMetaInfo =
                     stateTable.getMetaInfo();
 
+            // 更新原来的状态元数据
             restoredKvMetaInfo.updateSnapshotTransformFactory(snapshotTransformFactory);
 
             // fetch current serializer now because if it is incompatible, we can't access
@@ -257,8 +292,10 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
                             ? restoredKvMetaInfo.withSerializerUpgradesAllowed()
                             : restoredKvMetaInfo;
 
+            // 更新元数据
             stateTable.setMetaInfo(restoredKvMetaInfo);
         } else {
+            // 将相关信息包装成元数据对象
             RegisteredKeyValueStateBackendMetaInfo<N, V> newMetaInfo =
                     new RegisteredKeyValueStateBackendMetaInfo<>(
                             stateDesc.getType(),
@@ -272,6 +309,7 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
                             ? newMetaInfo.withSerializerUpgradesAllowed()
                             : newMetaInfo;
 
+            // 每个"状态"使用一个StateTable来存储内部的值
             stateTable = stateTableFactory.newStateTable(keyContext, newMetaInfo, keySerializer);
             registeredKVStates.put(stateDesc.getName(), stateTable);
         }
@@ -279,6 +317,14 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
         return stateTable;
     }
 
+    /**
+     * 通过stateName定位状态  然后通过ns配合currentKey来找到状态内的某个kv (v存储了真正的数据)
+     * @param state State variable for which existing keys will be returned.
+     * @param namespace Namespace for which existing keys will be returned.
+     *
+     * @param <N>
+     * @return
+     */
     @SuppressWarnings("unchecked")
     @Override
     public <N> Stream<K> getKeys(String state, N namespace) {
@@ -291,6 +337,12 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
         return table.getKeys(namespace);
     }
 
+    /**
+     * 返回某状态下所有entries的key以及ns   按照key划分的每组entries可以根据ns进一步划分
+     * @param state State variable for which existing keys will be returned.
+     * @param <N>
+     * @return
+     */
     @SuppressWarnings("unchecked")
     @Override
     public <N> Stream<Tuple2<K, N>> getKeysAndNamespaces(String state) {
@@ -314,6 +366,20 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
                 namespaceSerializer, stateDesc, snapshotTransformFactory, false);
     }
 
+    /**
+     * 使用描述信息创建或者更新已有的状态
+     * @param namespaceSerializer TypeSerializer for the state namespace.
+     * @param stateDesc The {@code StateDescriptor} that contains the name of the state.
+     * @param snapshotTransformFactory factory of state snapshot transformer.
+     * @param allowFutureMetadataUpdates whether allow metadata to update in the future or not.   表示是否允许元数据在以后发生变化
+     * @param <N>
+     * @param <SV>
+     * @param <SEV>
+     * @param <S>
+     * @param <IS>
+     * @return
+     * @throws Exception
+     */
     @Override
     @Nonnull
     public <N, SV, SEV, S extends State, IS extends S> IS createOrUpdateInternalState(
@@ -322,6 +388,8 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
             @Nonnull StateSnapshotTransformFactory<SEV> snapshotTransformFactory,
             boolean allowFutureMetadataUpdates)
             throws Exception {
+
+        // 完成更新 或者仅创建StateTable
         StateTable<K, N, SV> stateTable =
                 tryRegisterStateTable(
                         namespaceSerializer,
@@ -329,6 +397,7 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
                         getStateSnapshotTransformFactory(stateDesc, snapshotTransformFactory),
                         allowFutureMetadataUpdates);
 
+        // 根据state类型产生不同的  heapState对象
         @SuppressWarnings("unchecked")
         IS createdState = (IS) createdKVStates.get(stateDesc.getName());
         if (createdState == null) {
@@ -339,6 +408,7 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
             createdState =
                     stateCreateFactory.createState(stateDesc, stateTable, getKeySerializer());
         } else {
+            // 走更新逻辑
             StateUpdateFactory stateUpdateFactory = STATE_UPDATE_FACTORIES.get(stateDesc.getType());
             if (stateUpdateFactory == null) {
                 throw new FlinkRuntimeException(stateNotSupportedMessage(stateDesc));
@@ -356,10 +426,20 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
                 "State %s is not supported by %s", stateDesc.getClass(), this.getClass());
     }
 
+
+    /**
+     * 产生不同的快照转换对象
+     * @param stateDesc
+     * @param snapshotTransformFactory
+     * @param <SV>
+     * @param <SEV>
+     * @return
+     */
     @SuppressWarnings("unchecked")
     private <SV, SEV> StateSnapshotTransformFactory<SV> getStateSnapshotTransformFactory(
             StateDescriptor<?, SV> stateDesc,
             StateSnapshotTransformFactory<SEV> snapshotTransformFactory) {
+        // 这2种是组合类型 所以逻辑不同
         if (stateDesc instanceof ListStateDescriptor) {
             return (StateSnapshotTransformFactory<SV>)
                     new StateSnapshotTransformers.ListStateSnapshotTransformFactory<>(
@@ -373,15 +453,25 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
         }
     }
 
+    /**
+     * 为当前状态产生快照
+     * @param checkpointId The ID of the checkpoint.
+     * @param timestamp The timestamp of the checkpoint.
+     * @param streamFactory The factory that we can use for writing our state to streams.
+     * @param checkpointOptions Options for how to perform this checkpoint.
+     * @return
+     * @throws Exception
+     */
     @Nonnull
     @Override
     public RunnableFuture<SnapshotResult<KeyedStateHandle>> snapshot(
             final long checkpointId,
             final long timestamp,
-            @Nonnull final CheckpointStreamFactory streamFactory,
+            @Nonnull final CheckpointStreamFactory streamFactory,  // 用于产生输出流
             @Nonnull CheckpointOptions checkpointOptions)
             throws Exception {
 
+        // 包装快照操作
         SnapshotStrategyRunner<KeyedStateHandle, ?> snapshotStrategyRunner =
                 new SnapshotStrategyRunner<>(
                         "Heap backend snapshot",
@@ -392,10 +482,15 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
                 checkpointId, timestamp, streamFactory, checkpointOptions);
     }
 
+    /**
+     * 产生保存点
+     * @return
+     */
     @Nonnull
     @Override
     public SavepointResources<K> savepoint() {
 
+        // 生成快照资源对象  生成可以理解为保存点  应该是可以随时还原成该状态
         HeapSnapshotResources<K> snapshotResources =
                 HeapSnapshotResources.create(
                         registeredKVStates,
@@ -418,6 +513,18 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
         // nothing to do
     }
 
+    /**
+     * 将函数作用在某个key/ns下的所有 value上
+     * @param namespace
+     * @param namespaceSerializer
+     * @param stateDescriptor
+     * @param function
+     * @param partitionStateFactory
+     * @param <N>
+     * @param <S>
+     * @param <T>
+     * @throws Exception
+     */
     @Override
     public <N, S extends State, T> void applyToAllKeys(
             final N namespace,
@@ -437,6 +544,7 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
                     partitionStateFactory.get(namespace, namespaceSerializer, stateDescriptor);
 
             for (K key : keys) {
+                // 在执行相关函数前 先切换当前key  照理说fun会自动查找当前ns/key下的value值
                 setCurrentKey(key);
                 function.process(key, state);
             }
@@ -474,6 +582,10 @@ public class HeapKeyedStateBackend<K> extends AbstractKeyedStateBackend<K> {
         return localRecoveryConfig;
     }
 
+
+    /**
+     * 根据state的描述信息 可以产生不同的  HeapState对象
+     */
     private interface StateCreateFactory {
         <K, N, SV, S extends State, IS extends S> IS createState(
                 StateDescriptor<S, SV> stateDesc,

@@ -42,15 +42,22 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * This {@link SubpartitionRemoteCacheManager} is responsible for managing the buffers in a single
  * subpartition.
+ * 子分区级别的缓存   remote就代表跨机器了
  */
 class SubpartitionRemoteCacheManager {
 
     private static final Logger LOG = LoggerFactory.getLogger(SubpartitionRemoteCacheManager.class);
 
+    /**
+     * 对应的分区
+     */
     private final TieredStoragePartitionId partitionId;
 
     private final int subpartitionId;
 
+    /**
+     * 往文件中写入数据
+     */
     private final PartitionFileWriter partitionFileWriter;
 
     /**
@@ -59,6 +66,7 @@ class SubpartitionRemoteCacheManager {
      *
      * <p>Note that this field can be accessed by the task thread or the flushing thread, so the
      * thread safety should be ensured.
+     * 记录buffer的编号
      */
     @GuardedBy("allBuffers")
     private final Deque<Tuple2<Buffer, Integer>> allBuffers = new LinkedList<>();
@@ -98,6 +106,10 @@ class SubpartitionRemoteCacheManager {
     //  Called by RemoteCacheManager
     // ------------------------------------------------------------------------
 
+    /**
+     * 开启一个新的seg
+     * @param segmentId
+     */
     void startSegment(int segmentId) {
         synchronized (allBuffers) {
             checkState(allBuffers.isEmpty(), "There are un-flushed buffers.");
@@ -112,14 +124,20 @@ class SubpartitionRemoteCacheManager {
         }
     }
 
+    /**
+     * 表示某个seg的数据写完了
+     * @param segmentId
+     */
     void finishSegment(int segmentId) {
         // Only task thread can modify the segmentId, and the method can only be called by the task
         // thread, so accessing segmentId is not guarded here.
         //noinspection FieldAccessNotGuarded
         checkState(this.segmentId == segmentId, "Wrong segment id.");
         // Flush the buffers belonging to the current segment
+        // 每当一个seg的数据处理完前  都要触发flush
         flushBuffers();
 
+        // 写入一个空记录 segmentFinished为true  表示该seg写完了
         PartitionFileWriter.SubpartitionBufferContext bufferContext =
                 new PartitionFileWriter.SubpartitionBufferContext(
                         subpartitionId,
@@ -159,6 +177,9 @@ class SubpartitionRemoteCacheManager {
     //  Internal Methods
     // ------------------------------------------------------------------------
 
+    /**
+     * 当收到回收buffer的请求时  尝试刷盘
+     */
     private void flushBuffers() {
         synchronized (allBuffers) {
             List<Tuple2<Buffer, Integer>> allBuffersToFlush = new ArrayList<>(allBuffers);

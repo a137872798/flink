@@ -25,6 +25,7 @@ import org.apache.flink.api.common.JobID;
  * <p>This interface must only be used for updating data-structures, NOT for initiating new resource
  * allocations. The event that caused the state transition may also have triggered a series of
  * transitions, which new allocations would interfere with.
+ * 更新slot状态的监听器
  */
 interface SlotStatusUpdateListener {
 
@@ -35,7 +36,7 @@ interface SlotStatusUpdateListener {
      * the slot was allocated for. If the slot was already acquired by a job ({@code current !=
      * FREE}, then {@code jobId} is the ID of this very job.
      *
-     * @param slot slot whose status has changed
+     * @param slot slot whose status has changed   描述该slot的信息
      * @param previous state before the change
      * @param current state after the change
      * @param jobId job for which the slot was/is allocated for

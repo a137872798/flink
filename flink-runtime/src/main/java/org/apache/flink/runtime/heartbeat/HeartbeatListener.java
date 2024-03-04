@@ -40,6 +40,7 @@ public interface HeartbeatListener<I, O> {
      * times out.
      *
      * @param resourceID Resource ID of the machine whose heartbeat has timed out
+     *                   通知target发送心跳包超时
      */
     void notifyHeartbeatTimeout(ResourceID resourceID);
 
@@ -48,6 +49,7 @@ public interface HeartbeatListener<I, O> {
      * reachable.
      *
      * @param resourceID resourceID identifying the target that is no longer reachable
+     *                   通知某个target无法与发送心跳的目的地通信
      */
     void notifyTargetUnreachable(ResourceID resourceID);
 

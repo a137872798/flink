@@ -29,6 +29,7 @@ import java.io.IOException;
  * for regular {@link #emit(IOReadableWritable)}.
  *
  * @param <T> the type of the record that can be emitted with this record writer
+ *           实现父类2个抽象方法
  */
 public final class BroadcastRecordWriter<T extends IOReadableWritable> extends RecordWriter<T> {
 
@@ -36,6 +37,11 @@ public final class BroadcastRecordWriter<T extends IOReadableWritable> extends R
         super(writer, timeout, taskName);
     }
 
+    /**
+     * 默认发射就是广播发射
+     * @param record
+     * @throws IOException
+     */
     @Override
     public void emit(T record) throws IOException {
         broadcastEmit(record);

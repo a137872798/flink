@@ -29,17 +29,26 @@ import static org.apache.flink.util.Preconditions.checkArgument;
  * SubtaskState}, and {@link PendingCheckpoint}.
  *
  * <p>This is the smallest immutable unit of the stats.
+ * 子任务状态统计信息
+ * 起辅助作用
  */
 public class SubtaskStateStats implements Serializable {
 
     private static final long serialVersionUID = 8928594531621862214L;
 
+    /**
+     * 子任务下标
+     */
     private final int subtaskIndex;
 
-    /** Timestamp when the ack from this sub task was received at the coordinator. */
+    /** Timestamp when the ack from this sub task was received at the coordinator.
+     * 最近一次从coordinator收到ack的时间
+     * */
     private final long ackTimestamp;
 
-    /** Size of the checkpointed state at this subtask. */
+    /** Size of the checkpointed state at this subtask.
+     * 该状态大小
+     * */
     private final long stateSize;
 
     private final long checkpointedSize;
@@ -50,22 +59,41 @@ public class SubtaskStateStats implements Serializable {
     /** Checkpoint duration at the operator (async part) in milliseconds. */
     private final long asyncCheckpointDuration;
 
+    /**
+     * 已经处理的数据
+     */
     private final long processedData;
 
+    /**
+     * 已经持久化的数据
+     */
     private final long persistedData;
 
-    /** Alignment duration in milliseconds. */
+    /** Alignment duration in milliseconds.
+     * 对齐时间
+     * */
     private final long alignmentDuration;
 
-    /** Checkpoint start delay in milliseconds. */
+    /** Checkpoint start delay in milliseconds.
+     * 检查点启动延时
+     * */
     private final long checkpointStartDelay;
 
-    /** Is the checkpoint completed as an unaligned checkpoint. */
+    /** Is the checkpoint completed as an unaligned checkpoint.
+     * 该检查点完成时 是否为非对齐的
+     * */
     private final boolean unalignedCheckpoint;
 
-    /** Is the checkpoint completed by this subtask. */
+    /** Is the checkpoint completed by this subtask.
+     * 子任务检查点是否已经完成
+     * */
     private final boolean completed;
 
+    /**
+     * 这样初始化 代表已经完成了
+     * @param subtaskIndex
+     * @param ackTimestamp
+     */
     SubtaskStateStats(int subtaskIndex, long ackTimestamp) {
         this(subtaskIndex, ackTimestamp, 0, 0, 0, 0, 0, 0, 0, 0, false, true);
     }

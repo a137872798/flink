@@ -673,8 +673,17 @@ public class JobManagerOptions {
 
     /** Constraints of upstream hybrid partition data consumption by downstream. */
     public enum HybridPartitionDataConsumeConstraint {
+        /**
+         * 所有数据产生完
+         */
         ALL_PRODUCERS_FINISHED(true),
+        /**
+         * 至少有某个生产者数据产生完
+         */
         ONLY_FINISHED_PRODUCERS(true),
+        /**
+         * 一边产生一边消费
+         */
         UNFINISHED_PRODUCERS(false);
 
         private final boolean onlyConsumeFinishedPartition;

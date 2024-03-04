@@ -47,17 +47,28 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *   <li>{@link #getNextBuffer()}
  *   <li>{@link #releaseAllResources()}
  * </ol>
+ *
+ * 一个channel对应一个子分区
  */
 public abstract class InputChannel {
-    /** The info of the input channel to identify it globally within a task. */
+    /** The info of the input channel to identify it globally within a task.
+     * 描述该channel的下标
+     * */
     protected final InputChannelInfo channelInfo;
 
-    /** The parent partition of the subpartition consumed by this channel. */
+    /** The parent partition of the subpartition consumed by this channel.
+     * 此时相关的一个结果集  对应一个分区 一个分区下有很多子分区
+     * */
     protected final ResultPartitionID partitionId;
 
-    /** The index of the subpartition consumed by this channel. */
+    /** The index of the subpartition consumed by this channel.
+     * 对应的子分区
+     * */
     protected final int consumedSubpartitionIndex;
 
+    /**
+     * 该channel所属的gate
+     */
     protected final SingleInputGate inputGate;
 
     // - Asynchronous error notification --------------------------------------
@@ -66,7 +77,9 @@ public abstract class InputChannel {
 
     // - Partition request backoff --------------------------------------------
 
-    /** The initial backoff (in ms). */
+    /** The initial backoff (in ms).
+     * 初始的补偿时间
+     * */
     protected final int initialBackoff;
 
     /** The maximum backoff (in ms). */
@@ -76,9 +89,22 @@ public abstract class InputChannel {
 
     protected final Counter numBuffersIn;
 
-    /** The current backoff (in ms). */
+    /** The current backoff (in ms).
+     * 当前补偿时间
+     * */
     private int currentBackoff;
 
+    /**
+     *
+     * @param inputGate  channel所属的gate
+     * @param channelIndex
+     * @param partitionId
+     * @param consumedSubpartitionIndex
+     * @param initialBackoff
+     * @param maxBackoff
+     * @param numBytesIn
+     * @param numBuffersIn
+     */
     protected InputChannel(
             SingleInputGate inputGate,
             int channelIndex,
@@ -97,6 +123,8 @@ public abstract class InputChannel {
         checkArgument(initial >= 0 && initial <= max);
 
         this.inputGate = checkNotNull(inputGate);
+
+        // gateIndex + channelIndex 组成channelInfo
         this.channelInfo = new InputChannelInfo(inputGate.getGateIndex(), channelIndex);
         this.partitionId = checkNotNull(partitionId);
 
@@ -164,10 +192,19 @@ public abstract class InputChannel {
         inputGate.notifyChannelNonEmpty(this);
     }
 
+    /**
+     * 通知收到了一个优先级事件
+     * @param priorityBufferNumber
+     */
     public void notifyPriorityEvent(int priorityBufferNumber) {
         inputGate.notifyPriorityEvent(this, priorityBufferNumber);
     }
 
+    /**
+     * 通知此时有多少buffer可用
+     * @param numAvailableBuffers
+     * @throws IOException
+     */
     protected void notifyBufferAvailable(int numAvailableBuffers) throws IOException {}
 
     // ------------------------------------------------------------------------
@@ -177,12 +214,14 @@ public abstract class InputChannel {
     /**
      * Requests the subpartition specified by {@link #partitionId} and {@link
      * #consumedSubpartitionIndex}.
+     * 请求指定子分区
      */
     abstract void requestSubpartition() throws IOException, InterruptedException;
 
     /**
      * Returns the next buffer from the consumed subpartition or {@code Optional.empty()} if there
      * is no data to return.
+     * 获取下个包含数据的buffer
      */
     public abstract Optional<BufferAndAvailability> getNextBuffer()
             throws IOException, InterruptedException;
@@ -190,12 +229,20 @@ public abstract class InputChannel {
     /**
      * Called by task thread when checkpointing is started (e.g., any input channel received
      * barrier).
+     * 表示开始产生检查点了    本channel会收到一个屏障  在此时应该会暂停数据的消费
      */
     public void checkpointStarted(CheckpointBarrier barrier) throws CheckpointException {}
 
-    /** Called by task thread on cancel/complete to clean-up temporary data. */
+    /** Called by task thread on cancel/complete to clean-up temporary data.
+     * 表示检查点完成或者取消
+     * */
     public void checkpointStopped(long checkpointId) {}
 
+    /**
+     * 通过编号查找buffer 里面存储了优先级事件
+     * @param sequenceNumber
+     * @throws IOException
+     */
     public void convertToPriorityEvent(int sequenceNumber) throws IOException {}
 
     // ------------------------------------------------------------------------
@@ -209,6 +256,7 @@ public abstract class InputChannel {
      * events. This means that the result type needs to be pipelined and the task logic has to
      * ensure that the producer will wait for all backwards events. Otherwise, this will lead to an
      * Exception at runtime.
+     * 往channel发送一个事件  (既可以从channel读取数据 也可以往内部发送事件)
      */
     abstract void sendTaskEvent(TaskEvent event) throws IOException;
 
@@ -216,11 +264,21 @@ public abstract class InputChannel {
     // Life cycle
     // ------------------------------------------------------------------------
 
+    /**
+     * 表示该channel是否已经被释放了
+     * @return
+     */
     abstract boolean isReleased();
 
-    /** Releases all resources of the channel. */
+    /** Releases all resources of the channel.
+     * 释放channel的所有资源
+     * */
     abstract void releaseAllResources() throws IOException;
 
+    /**
+     * 更新buffer的大小
+     * @param newBufferSize
+     */
     abstract void announceBufferSize(int newBufferSize);
 
     abstract int getBuffersInUseCount();
@@ -274,6 +332,7 @@ public abstract class InputChannel {
      * Increases the current backoff and returns whether the operation was successful.
      *
      * @return <code>true</code>, iff the operation was successful. Otherwise, <code>false</code>.
+     * 增加惩罚时间
      */
     protected boolean increaseBackoff() {
         // Backoff is disabled
@@ -315,6 +374,7 @@ public abstract class InputChannel {
      * Notify the upstream the id of required segment that should be sent to netty connection.
      *
      * @param segmentId segment id indicates the id of segment.
+     *                  通知当前访问的段发生了变化
      */
     public void notifyRequiredSegmentId(int segmentId) throws IOException {}
 
@@ -323,12 +383,27 @@ public abstract class InputChannel {
     /**
      * A combination of a {@link Buffer} and a flag indicating availability of further buffers, and
      * the backlog length indicating how many non-event buffers are available in the subpartition.
+     *
+     * 从channel中获得的对象
      */
     public static final class BufferAndAvailability {
 
+        /**
+         * 存储数据的容器
+         */
         private final Buffer buffer;
+        /**
+         * 表示下个数据类型
+         */
         private final Buffer.DataType nextDataType;
+        /**
+         * buffer中还有多少记录
+         */
         private final int buffersInBacklog;
+
+        /**
+         * 每个buffer有序列号
+         */
         private final int sequenceNumber;
 
         public BufferAndAvailability(
@@ -350,6 +425,10 @@ public abstract class InputChannel {
             return nextDataType != Buffer.DataType.NONE;
         }
 
+        /**
+         * 下条记录类型包含优先级属性 就代表是优先级事件
+         * @return
+         */
         public boolean morePriorityEvents() {
             return nextDataType.hasPriority();
         }
@@ -358,6 +437,10 @@ public abstract class InputChannel {
             return buffersInBacklog;
         }
 
+        /**
+         * 是否是优先数据
+         * @return
+         */
         public boolean hasPriority() {
             return buffer.getDataType().hasPriority();
         }

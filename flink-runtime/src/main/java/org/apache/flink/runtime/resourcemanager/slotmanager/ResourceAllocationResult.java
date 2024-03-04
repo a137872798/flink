@@ -31,11 +31,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** Contains the results of the {@link ResourceAllocationStrategy}. */
+/** Contains the results of the {@link ResourceAllocationStrategy}.
+ * 表示资源分配的结果
+ * */
 public class ResourceAllocationResult {
     private final Set<JobID> unfulfillableJobs;
+
+    /**
+     * 记录某个job需要的资源由哪个TaskManager提供  又提供了什么资源
+     */
     private final Map<JobID, Map<InstanceID, ResourceCounter>> allocationsOnRegisteredResources;
+
     private final List<PendingTaskManager> pendingTaskManagersToAllocate;
+    /**
+     * 表示通过一个预分配的TaskManager 来提供资源
+     */
     private final Map<PendingTaskManagerId, Map<JobID, ResourceCounter>>
             allocationsOnPendingResources;
 
@@ -79,11 +89,21 @@ public class ResourceAllocationResult {
         private final Map<PendingTaskManagerId, Map<JobID, ResourceCounter>>
                 allocationsOnPendingResources = new HashMap<>();
 
+        /**
+         * 表示该job有资源未满足
+         * @param jobId
+         * @return
+         */
         public Builder addUnfulfillableJob(JobID jobId) {
             this.unfulfillableJobs.add(jobId);
             return this;
         }
 
+        /**
+         * 添加要申请的 TM
+         * @param pendingTaskManager
+         * @return
+         */
         public Builder addPendingTaskManagerAllocate(PendingTaskManager pendingTaskManager) {
             this.pendingTaskManagersToAllocate.add(pendingTaskManager);
             return this;
@@ -107,6 +127,13 @@ public class ResourceAllocationResult {
             return this;
         }
 
+        /**
+         * 当确定 由哪个TaskManager分配资源给job后 触发
+         * @param jobId
+         * @param instanceId
+         * @param resourceProfile
+         * @return
+         */
         public Builder addAllocationOnRegisteredResource(
                 JobID jobId, InstanceID instanceId, ResourceProfile resourceProfile) {
             this.allocationsOnRegisteredResources

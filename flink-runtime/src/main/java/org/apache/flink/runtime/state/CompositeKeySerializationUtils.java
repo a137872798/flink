@@ -40,6 +40,15 @@ public class CompositeKeySerializationUtils {
         return keyGroup;
     }
 
+    /**
+     * 读取key
+     * @param keySerializer
+     * @param inputView
+     * @param ambiguousKeyPossible
+     * @param <K>
+     * @return
+     * @throws IOException
+     */
     public static <K> K readKey(
             TypeSerializer<K> keySerializer,
             DataInputDeserializer inputView,
@@ -49,11 +58,21 @@ public class CompositeKeySerializationUtils {
         K key = keySerializer.deserialize(inputView);
         if (ambiguousKeyPossible) {
             int length = inputView.getPosition() - beforeRead;
+            // 变长类型 还会读取数据
             readVariableIntBytes(inputView, length);
         }
         return key;
     }
 
+    /**
+     * 读取ns 一样的套路
+     * @param namespaceSerializer
+     * @param inputView
+     * @param ambiguousKeyPossible
+     * @param <N>
+     * @return
+     * @throws IOException
+     */
     public static <N> N readNamespace(
             TypeSerializer<N> namespaceSerializer,
             DataInputDeserializer inputView,
@@ -72,7 +91,7 @@ public class CompositeKeySerializationUtils {
             N namespace,
             TypeSerializer<N> namespaceSerializer,
             DataOutputSerializer keySerializationDataOutputView,
-            boolean ambiguousKeyPossible)
+            boolean ambiguousKeyPossible) // 表示长度是否固定
             throws IOException {
 
         int beforeWrite = keySerializationDataOutputView.length();
@@ -99,6 +118,7 @@ public class CompositeKeySerializationUtils {
             int keyGroupPrefixBytes,
             DataOutputView keySerializationDateDataOutputView)
             throws IOException {
+        /// 只写入keyGroup前缀的长度
         for (int i = keyGroupPrefixBytes; --i >= 0; ) {
             keySerializationDateDataOutputView.writeByte(extractByteAtPosition(keyGroup, i));
         }
@@ -130,7 +150,9 @@ public class CompositeKeySerializationUtils {
     private static void writeLengthFrom(
             int fromPosition, DataOutputSerializer keySerializationDateDataOutputView)
             throws IOException {
+        // 表示记录的长度
         int length = keySerializationDateDataOutputView.length() - fromPosition;
+        // 写入长度
         writeVariableIntBytes(length, keySerializationDateDataOutputView);
     }
 
@@ -150,6 +172,12 @@ public class CompositeKeySerializationUtils {
         }
     }
 
+    /**
+     * 根据下标读取value的byte值
+     * @param value
+     * @param byteIdx
+     * @return
+     */
     private static byte extractByteAtPosition(int value, int byteIdx) {
         return (byte) ((value >>> (byteIdx << 3)));
     }

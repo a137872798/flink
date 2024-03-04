@@ -35,7 +35,9 @@ import java.util.function.Consumer;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** The checkpoint failure manager which centralized manage checkpoint failure processing logic. */
+/** The checkpoint failure manager which centralized manage checkpoint failure processing logic.
+ *
+ * */
 public class CheckpointFailureManager {
 
     private static final Logger LOG = LoggerFactory.getLogger(CheckpointFailureManager.class);
@@ -46,11 +48,28 @@ public class CheckpointFailureManager {
     private static final int UNKNOWN_CHECKPOINT_ID = -1;
 
     private final int tolerableCpFailureNumber;
+
+    /**
+     * 该对象用于通知job失败
+     */
     private final FailJobCallback failureCallback;
     private final AtomicInteger continuousFailureCounter;
+
+    /**
+     * 记录失败的检查点
+     */
     private final Set<Long> countedCheckpointIds;
+
+    /**
+     * 记录最近成功的检查点
+     */
     private long lastSucceededCheckpointId = Long.MIN_VALUE;
 
+    /**
+     *
+     * @param tolerableCpFailureNumber  表示容忍的失败次数
+     * @param failureCallback
+     */
     public CheckpointFailureManager(int tolerableCpFailureNumber, FailJobCallback failureCallback) {
         checkArgument(
                 tolerableCpFailureNumber >= 0,
@@ -81,14 +100,15 @@ public class CheckpointFailureManager {
      *       problem).
      * </ul>
      *
-     * @param pendingCheckpoint the failed checkpoint if it was initialized already.
+     * @param pendingCheckpoint the failed checkpoint if it was initialized already.   表示一个进行中的检查点
      * @param checkpointProperties the checkpoint properties in order to determinate which handle
      *     strategy can be used.
-     * @param exception the checkpoint exception.
+     * @param exception the checkpoint exception.    产生的异常
      * @param executionAttemptID the execution attempt id, as a safe guard.
-     * @param job the JobID.
-     * @param pendingCheckpointStats the pending checkpoint statistics.
-     * @param statsTracker the tracker for checkpoint statistics.
+     * @param job the JobID.                          关联的id
+     * @param pendingCheckpointStats the pending checkpoint statistics.    维护一些统计信息
+     * @param statsTracker the tracker for checkpoint statistics.   追踪检查点 里面维护了各种统计数据  还基于这些统计数据绘制图表
+     *                     处理检查点异常
      */
     public void handleCheckpointException(
             @Nullable PendingCheckpoint pendingCheckpoint,
@@ -102,6 +122,8 @@ public class CheckpointFailureManager {
                 pendingCheckpoint == null
                         ? UNKNOWN_CHECKPOINT_ID
                         : pendingCheckpoint.getCheckpointID();
+
+        // 使用失败的检查点更新统计数据
         updateStatsAfterCheckpointFailed(pendingCheckpointStats, statsTracker, exception);
 
         if (CheckpointFailureReason.NOT_ALL_REQUIRED_TASKS_RUNNING.equals(
@@ -119,8 +141,10 @@ public class CheckpointFailureManager {
                     exception);
         }
         if (isJobManagerFailure(exception, executionAttemptID)) {
+            // 处理job级别的异常
             handleJobLevelCheckpointException(checkpointProperties, exception, checkpointId);
         } else {
+            // 处理task级别的异常
             handleTaskLevelCheckpointException(
                     checkNotNull(pendingCheckpoint), exception, checkNotNull(executionAttemptID));
         }
@@ -131,6 +155,7 @@ public class CheckpointFailureManager {
      *
      * @param pendingCheckpointStats the pending checkpoint statistics.
      * @param exception the checkpoint exception.
+     *                  更新统计数据
      */
     private void updateStatsAfterCheckpointFailed(
             @Nullable PendingCheckpointStats pendingCheckpointStats,
@@ -141,10 +166,17 @@ public class CheckpointFailureManager {
             statsTracker.reportFailedCheckpoint(
                     pendingCheckpointStats.toFailedCheckpoint(failureTimestamp, exception));
         } else {
+            // 表示本次失败的检查点 甚至还未来得及产生任何数据
             statsTracker.reportFailedCheckpointsWithoutInProgress();
         }
     }
 
+    /**
+     * 判断本地失败原因是否与 JobManager有关
+     * @param exception
+     * @param executionAttemptID
+     * @return
+     */
     private boolean isJobManagerFailure(
             CheckpointException exception, @Nullable ExecutionAttemptID executionAttemptID) {
         // TODO: Try to get rid of checking nullability of executionAttemptID because false value of
@@ -160,6 +192,7 @@ public class CheckpointFailureManager {
      *     based on checkpoint id sequence. In trigger phase, we may not get the checkpoint id when
      *     the failure happens before the checkpoint id generation. In this case, it will be
      *     specified a negative latest generated checkpoint id as a special flag.
+     *                     处理job级别的异常
      */
     void handleJobLevelCheckpointException(
             CheckpointProperties checkpointProperties,
@@ -179,28 +212,41 @@ public class CheckpointFailureManager {
      *     specified a negative latest generated checkpoint id as a special flag.
      * @param exception the checkpoint exception.
      * @param executionAttemptID the execution attempt id, as a safe guard.
+     *                           处理任务级别的异常
      */
     void handleTaskLevelCheckpointException(
             PendingCheckpoint pendingCheckpoint,
             CheckpointException exception,
             ExecutionAttemptID executionAttemptID) {
         CheckpointProperties checkpointProps = pendingCheckpoint.getProps();
+
+        // 这种情况立即触发失败
         if (checkpointProps.isSavepoint() && checkpointProps.isSynchronous()) {
             failureCallback.failJob(exception);
         } else {
             checkFailureAgainstCounter(
                     exception,
                     pendingCheckpoint.getCheckpointID(),
+                    // 通知由于某个task检查点失败 而导致job失败
                     e -> failureCallback.failJobDueToTaskFailure(e, executionAttemptID));
         }
     }
 
+    /**
+     *
+     * @param exception
+     * @param checkpointId
+     * @param errorHandler
+     */
     private void checkFailureAgainstCounter(
             CheckpointException exception,
             long checkpointId,
             Consumer<FlinkRuntimeException> errorHandler) {
         if (checkpointId == UNKNOWN_CHECKPOINT_ID || checkpointId > lastSucceededCheckpointId) {
+            // 先记录失败次数
             checkFailureCounter(exception, checkpointId);
+
+            // 当失败次数超过容忍值时
             if (continuousFailureCounter.get() > tolerableCpFailureNumber) {
                 clearCount();
                 String exceptionMessage =
@@ -209,11 +255,18 @@ public class CheckpointFailureManager {
                                         + " or the Job Manager log to find out why continuous checkpoints failed.",
                                 EXCEEDED_CHECKPOINT_TOLERABLE_FAILURE_MESSAGE,
                                 exception.getCheckpointFailureReason().message());
+
+                // 通知callback   执行失败   也就是本对象具备一定的错误容忍能力
                 errorHandler.accept(new FlinkRuntimeException(exceptionMessage));
             }
         }
     }
 
+    /**
+     * 更新失败次数
+     * @param exception
+     * @param checkpointId
+     */
     public void checkFailureCounter(CheckpointException exception, long checkpointId) {
         if (tolerableCpFailureNumber == UNLIMITED_TOLERABLE_FAILURE_NUMBER) {
             return;
@@ -253,6 +306,7 @@ public class CheckpointFailureManager {
                 // we should make sure one checkpoint only be counted once
                 if (checkpointId == UNKNOWN_CHECKPOINT_ID
                         || countedCheckpointIds.add(checkpointId)) {
+                    // 增加失败次数
                     continuousFailureCounter.incrementAndGet();
                 }
 
@@ -273,6 +327,7 @@ public class CheckpointFailureManager {
     public void handleCheckpointSuccess(long checkpointId) {
         if (checkpointId > lastSucceededCheckpointId) {
             lastSucceededCheckpointId = checkpointId;
+            // 表示一旦成功就可以重置之前的失败次数了
             clearCount();
         }
     }
@@ -289,7 +344,9 @@ public class CheckpointFailureManager {
                 .orElse(false);
     }
 
-    /** A callback interface about how to fail a job. */
+    /** A callback interface about how to fail a job.
+     * 通知job失败
+     * */
     public interface FailJobCallback {
 
         /**

@@ -29,6 +29,7 @@ import java.io.IOException;
  *
  * @param <K> The key type of the elements in the {@link BroadcastState Broadcast State}.
  * @param <V> The value type of the elements in the {@link BroadcastState Broadcast State}.
+ *           可以将状态写入输出流
  */
 public interface BackendWritableBroadcastState<K, V> extends BroadcastState<K, V> {
 
@@ -36,6 +37,10 @@ public interface BackendWritableBroadcastState<K, V> extends BroadcastState<K, V
 
     long write(FSDataOutputStream out) throws IOException;
 
+    /**
+     * 设置相关的元数据
+     * @param stateMetaInfo
+     */
     void setStateMetaInfo(RegisteredBroadcastStateBackendMetaInfo<K, V> stateMetaInfo);
 
     RegisteredBroadcastStateBackendMetaInfo<K, V> getStateMetaInfo();

@@ -23,13 +23,21 @@ import org.apache.flink.util.Preconditions;
 import java.io.Serializable;
 import java.util.Objects;
 
-/** Represents the number of required resources for a specific {@link ResourceProfile}. */
+/** Represents the number of required resources for a specific {@link ResourceProfile}.
+ * 标记某个对象需要的资源
+ * */
 public class ResourceRequirement implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 该对象描述资源
+     */
     private final ResourceProfile resourceProfile;
 
+    /**
+     * 表示该slot需要多少这样的资源
+     */
     private final int numberOfRequiredSlots;
 
     private ResourceRequirement(ResourceProfile resourceProfile, int numberOfRequiredSlots) {

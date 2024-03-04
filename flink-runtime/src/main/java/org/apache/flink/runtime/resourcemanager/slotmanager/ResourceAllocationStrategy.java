@@ -25,7 +25,9 @@ import org.apache.flink.runtime.slots.ResourceRequirement;
 import java.util.Collection;
 import java.util.Map;
 
-/** Strategy for allocating slots and task managers to fulfill the unfulfilled requirements. */
+/** Strategy for allocating slots and task managers to fulfill the unfulfilled requirements.
+ * 资源分配策略
+ * */
 public interface ResourceAllocationStrategy {
 
     /**
@@ -41,6 +43,7 @@ public interface ResourceAllocationStrategy {
      * @param blockedTaskManagerChecker blocked task manager checker
      * @return a {@link ResourceAllocationResult} based on the current status, which contains
      *     whether the requirements can be fulfilled and the actions to take
+     *     尝试全部分配
      */
     ResourceAllocationResult tryFulfillRequirements(
             Map<JobID, Collection<ResourceRequirement>> missingResources,
@@ -56,6 +59,7 @@ public interface ResourceAllocationStrategy {
      *     current cluster
      * @return a {@link ResourceReconcileResult} based on the current status, which contains the
      *     actions to take
+     *     尝试调节集群资源
      */
     ResourceReconcileResult tryReconcileClusterResources(
             TaskManagerResourceInfoProvider taskManagerResourceInfoProvider);

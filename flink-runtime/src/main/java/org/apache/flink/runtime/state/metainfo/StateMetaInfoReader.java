@@ -35,6 +35,7 @@ public interface StateMetaInfoReader {
      * @param userCodeClassLoader user classloader to deserialize the objects in the snapshot.
      * @return the deserialized snapshot.
      * @throws IOException on deserialization problems.
+     * 通过字节流还原元数据快照
      */
     @Nonnull
     StateMetaInfoSnapshot readStateMetaInfoSnapshot(

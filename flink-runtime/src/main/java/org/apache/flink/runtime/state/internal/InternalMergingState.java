@@ -32,6 +32,7 @@ import java.util.Collection;
  * @param <IN> The type of elements added to the state
  * @param <SV> The type of elements in the state
  * @param <OUT> The type of elements
+ *             表示可以合并
  */
 public interface InternalMergingState<K, N, IN, SV, OUT>
         extends InternalAppendingState<K, N, IN, SV, OUT>, MergingState<IN, OUT> {

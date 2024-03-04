@@ -62,40 +62,64 @@ import static org.apache.flink.util.Preconditions.checkState;
  *
  * <p>The method calls to create readers, dispose readers, and dispose the partition are thread-safe
  * vis-a-vis each other.
+ *
+ * 表示存储子分区数据的对象  并且存储的是算子产生的结果数据   该数据会被下游消费 (下游会拉取数据)
  */
 final class BoundedBlockingSubpartition extends ResultSubpartition {
 
     /** This lock guards the creation of readers and disposal of the memory mapped file. */
     private final Object lock = new Object();
 
-    /** The current buffer, may be filled further over time. */
+    /** The current buffer, may be filled further over time.
+     * 该对象维护了pos
+     * */
     @Nullable private BufferConsumer currentBuffer;
 
-    /** The bounded data store that we store the data in. */
+    /** The bounded data store that we store the data in.
+     * BoundedData 作为子分区数据载体
+     * */
     private final BoundedData data;
 
-    /** All created and not yet released readers. */
+    /** All created and not yet released readers.
+     * 针对同一份数据 可以创建多个reader对象 只要单独维护pos即可
+     * */
     @GuardedBy("lock")
     private final Set<ResultSubpartitionView> readers;
 
     /**
      * Flag to transfer file via FileRegion way in network stack if partition type is file without
      * SSL enabled.
+     * 是否直接读取文件
      */
     private final boolean useDirectFileTransfer;
 
-    /** Counter for the number of data buffers (not events!) written. */
+    /** Counter for the number of data buffers (not events!) written.
+     * 记录写入了多少data buffer  注意不包含events
+     * */
     private int numDataBuffersWritten;
 
-    /** The counter for the number of data buffers and events. */
+    /** The counter for the number of data buffers and events.
+     * 包含buffer 和events
+     * */
     private int numBuffersAndEventsWritten;
 
-    /** Flag indicating whether the writing has finished and this is now available for read. */
+    /** Flag indicating whether the writing has finished and this is now available for read.
+     * finished代表数据已经全部生成完  并且可以进行读取了
+     * */
     private boolean isFinished;
 
-    /** Flag indicating whether the subpartition has been released. */
+    /** Flag indicating whether the subpartition has been released.
+     * 本对象已经被关闭
+     * */
     private boolean isReleased;
 
+    /**
+     *
+     * @param index  子分区下标
+     * @param parent   父分区下标
+     * @param data
+     * @param useDirectFileTransfer
+     */
     public BoundedBlockingSubpartition(
             int index, ResultPartition parent, BoundedData data, boolean useDirectFileTransfer) {
 
@@ -121,14 +145,24 @@ final class BoundedBlockingSubpartition extends ResultSubpartition {
         return isReleased;
     }
 
+    /**
+     * @param bufferConsumer the buffer to add (transferring ownership to this writer)    对象内部是有buffer的
+     * @param partialRecordLength the length of bytes to skip in order to start with a complete
+     *     record, from position index 0 of the underlying {@cite MemorySegment}.
+     * @return
+     * @throws IOException
+     */
     @Override
     public int add(BufferConsumer bufferConsumer, int partialRecordLength) throws IOException {
+        // 本子分区已经禁止写入了    关闭consumer内的buffer
         if (isFinished()) {
             bufferConsumer.close();
             return ADD_BUFFER_ERROR_CODE;
         }
 
+        // 因为要切换buffer了  先将之前的刷盘
         flushCurrentBuffer();
+        // 更换当前buffer
         currentBuffer = bufferConsumer;
         return Integer.MAX_VALUE;
     }
@@ -144,6 +178,10 @@ final class BoundedBlockingSubpartition extends ResultSubpartition {
         }
     }
 
+    /**
+     * 当前数据刷盘
+     * @throws IOException
+     */
     private void flushCurrentBuffer() throws IOException {
         if (currentBuffer != null) {
             writeAndCloseBufferConsumer(currentBuffer);
@@ -155,17 +193,22 @@ final class BoundedBlockingSubpartition extends ResultSubpartition {
         try {
             final Buffer buffer = bufferConsumer.build();
             try {
+                // 判断能否压缩数据
                 if (parent.canBeCompressed(buffer)) {
                     final Buffer compressedBuffer =
                             parent.bufferCompressor.compressToIntermediateBuffer(buffer);
+
+                    // 将压缩后的数据转移到 data 中
                     data.writeBuffer(compressedBuffer);
                     if (compressedBuffer != buffer) {
                         compressedBuffer.recycleBuffer();
                     }
                 } else {
+                    // 否则直接写入
                     data.writeBuffer(buffer);
                 }
 
+                // 增加计数值
                 numBuffersAndEventsWritten++;
                 if (buffer.isBuffer()) {
                     numDataBuffersWritten++;
@@ -178,6 +221,11 @@ final class BoundedBlockingSubpartition extends ResultSubpartition {
         }
     }
 
+    /**
+     * 表示写入结束了  内部的数据可以用于读取了
+     * @return
+     * @throws IOException
+     */
     @Override
     public int finish() throws IOException {
         checkState(!isReleased, "data partition already released");
@@ -192,6 +240,10 @@ final class BoundedBlockingSubpartition extends ResultSubpartition {
         return eventBufferConsumer.getWrittenBytes();
     }
 
+    /**
+     * 释放该对象
+     * @throws IOException
+     */
     @Override
     public void release() throws IOException {
         synchronized (lock) {
@@ -210,6 +262,12 @@ final class BoundedBlockingSubpartition extends ResultSubpartition {
         }
     }
 
+    /**
+     * 创建该子分区对应的视图   (也就是reader对象)
+     * @param availability  每当有新数据可用时 触发监听器
+     * @return
+     * @throws IOException
+     */
     @Override
     public ResultSubpartitionView createReadView(BufferAvailabilityListener availability)
             throws IOException {
@@ -222,6 +280,8 @@ final class BoundedBlockingSubpartition extends ResultSubpartition {
             }
 
             final ResultSubpartitionView reader;
+
+            // 直接从文件读取数据
             if (useDirectFileTransfer) {
                 reader =
                         new BoundedBlockingSubpartitionDirectTransferReader(
@@ -230,15 +290,23 @@ final class BoundedBlockingSubpartition extends ResultSubpartition {
                                 numDataBuffersWritten,
                                 numBuffersAndEventsWritten);
             } else {
+                // 还是会先将数据读取到缓冲区
                 reader =
                         new BoundedBlockingSubpartitionReader(
                                 this, data, numDataBuffersWritten, availability);
             }
+
+            // 针对同一份数据可以创建多个reader对象
             readers.add(reader);
             return reader;
         }
     }
 
+    /**
+     * 表示某个reader对象被释放了
+     * @param reader
+     * @throws IOException
+     */
     void releaseReaderReference(ResultSubpartitionView reader) throws IOException {
         onConsumedSubpartition();
 
@@ -249,6 +317,10 @@ final class BoundedBlockingSubpartition extends ResultSubpartition {
         }
     }
 
+    /**
+     * 只有所有reader对象都读取完后 才能释放数据
+     * @throws IOException
+     */
     @GuardedBy("lock")
     private void checkReaderReferencesAndDispose() throws IOException {
         assert Thread.holdsLock(lock);
@@ -313,6 +385,7 @@ final class BoundedBlockingSubpartition extends ResultSubpartition {
     /**
      * Creates a BoundedBlockingSubpartition that simply stores the partition data in a file. Data
      * is eagerly spilled (written to disk) and readers directly read from the file.
+     * 根据相关信息创建子分区
      */
     public static BoundedBlockingSubpartition createWithFileChannel(
             int index,

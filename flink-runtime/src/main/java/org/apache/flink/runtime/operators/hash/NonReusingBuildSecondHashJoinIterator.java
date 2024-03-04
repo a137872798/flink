@@ -38,6 +38,7 @@ import java.util.List;
  * An implementation of the {@link org.apache.flink.runtime.operators.util.JoinTaskIterator} that
  * uses a hybrid-hash-join internally to match the records with equal key. The build side of the
  * hash is the second input of the match.
+ * 与first类似 但是插入hash桶的数据 和探测数据做了交换
  */
 public class NonReusingBuildSecondHashJoinIterator<V1, V2, O> extends HashJoinIteratorBase
         implements JoinTaskIterator<V1, V2, O> {

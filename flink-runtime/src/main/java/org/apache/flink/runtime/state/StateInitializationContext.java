@@ -38,12 +38,14 @@ public interface StateInitializationContext extends FunctionInitializationContex
     /**
      * Returns an iterable to obtain input streams for previously stored operator state partitions
      * that are assigned to this operator.
+     * 每个StatePartitionStreamProvider 仅包含单个分区的数据
      */
     Iterable<StatePartitionStreamProvider> getRawOperatorStateInputs();
 
     /**
      * Returns an iterable to obtain input streams for previously stored keyed state partitions that
      * are assigned to this operator.
+     * 单分区  并且包含keyGroupId
      */
     Iterable<KeyGroupStatePartitionStreamProvider> getRawKeyedStateInputs();
 }

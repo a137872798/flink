@@ -29,7 +29,9 @@ import javax.annotation.Nullable;
 
 import java.util.List;
 
-/** A bounded LIFO-queue of {@link CompletedCheckpoint} instances. */
+/** A bounded LIFO-queue of {@link CompletedCheckpoint} instances.
+ * 表示CompletedCheckpoint的仓库 支持添加和清理检查点
+ * */
 public interface CompletedCheckpointStore {
 
     Logger LOG = LoggerFactory.getLogger(CompletedCheckpointStore.class);
@@ -55,14 +57,16 @@ public interface CompletedCheckpointStore {
      */
     @Nullable
     CompletedCheckpoint addCheckpointAndSubsumeOldestOne(
-            CompletedCheckpoint checkpoint,
-            CheckpointsCleaner checkpointsCleaner,
-            Runnable postCleanup)
+            CompletedCheckpoint checkpoint,   // 内部存储了状态数据
+            CheckpointsCleaner checkpointsCleaner,  // 该对象负责清理检查点
+            Runnable postCleanup)  // 后置函数
             throws Exception;
 
     /**
      * Returns the latest {@link CompletedCheckpoint} instance or <code>null</code> if none was
      * added.
+     *
+     * 获取最新的检查点
      */
     default CompletedCheckpoint getLatestCheckpoint() throws Exception {
         List<CompletedCheckpoint> allCheckpoints = getAllCheckpoints();
@@ -97,6 +101,8 @@ public interface CompletedCheckpointStore {
      *
      * @param jobStatus Job state on shut down
      * @param checkpointsCleaner that will cleanup completed checkpoints if needed
+     *
+     *                           根据job的状态决定是否要终止检查点
      */
     void shutdown(JobStatus jobStatus, CheckpointsCleaner checkpointsCleaner) throws Exception;
 
@@ -107,10 +113,14 @@ public interface CompletedCheckpointStore {
      */
     List<CompletedCheckpoint> getAllCheckpoints() throws Exception;
 
-    /** Returns the current number of retained checkpoints. */
+    /** Returns the current number of retained checkpoints.
+     * 获取当前保留的检查点数量
+     * */
     int getNumberOfRetainedCheckpoints();
 
-    /** Returns the max number of retained checkpoints. */
+    /** Returns the max number of retained checkpoints.
+     * 最多保留多少检查点
+     * */
     int getMaxNumberOfRetainedCheckpoints();
 
     /**
@@ -120,9 +130,13 @@ public interface CompletedCheckpointStore {
      *
      * @return True, if the store requires that checkpoints are externalized before being added,
      *     false if the store stores the metadata itself.
+     *
+     *     表示保存的检查点是否要外部化
      */
     boolean requiresExternalizedCheckpoints();
 
-    /** Returns the {@link SharedStateRegistry} used to register the shared state. */
+    /** Returns the {@link SharedStateRegistry} used to register the shared state.
+     * 用于注册共享状态
+     * */
     SharedStateRegistry getSharedStateRegistry();
 }

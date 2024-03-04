@@ -32,6 +32,13 @@ import org.apache.flink.runtime.state.KeyGroupRange;
 public interface StateChangelogStorage<Handle extends ChangelogStateHandle>
         extends StateChangelogStorageView<Handle> {
 
+    /**
+     * view 提供产生reader的api  作为storage就还要提供产生writer的api 用于写入stateChange
+     * @param operatorID  表示哪次操作导致的state变化
+     * @param keyGroupRange   该状态关联的key范围
+     * @param mailboxExecutor
+     * @return
+     */
     StateChangelogWriter<Handle> createWriter(
             String operatorID, KeyGroupRange keyGroupRange, MailboxExecutor mailboxExecutor);
 

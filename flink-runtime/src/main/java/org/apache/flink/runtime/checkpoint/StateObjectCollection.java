@@ -39,6 +39,8 @@ import java.util.function.Predicate;
  * #getStateSize()} as sum of the state sizes of all contained objects.
  *
  * @param <T> type of the contained state objects.
+ *
+ *           表示一个集合 其中每个对象都关联一个状态 并可以提供释放状态的api
  */
 public class StateObjectCollection<T extends StateObject> implements Collection<T>, StateObject {
 
@@ -137,6 +139,7 @@ public class StateObjectCollection<T extends StateObject> implements Collection<
 
     @Override
     public void discardState() throws Exception {
+        // 触发所有元素的 discard
         StateUtil.bestEffortDiscardAllStateObjects(stateObjects);
     }
 

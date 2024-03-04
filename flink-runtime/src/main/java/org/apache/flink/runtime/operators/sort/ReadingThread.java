@@ -26,7 +26,9 @@ import java.io.IOException;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** The thread that consumes the input data and puts it into a buffer that will be sorted. */
+/** The thread that consumes the input data and puts it into a buffer that will be sorted.
+ * 该线程专门负责读取数据
+ * */
 final class ReadingThread<E> extends ThreadBase<E> {
 
     /** The input channels to read from. */
@@ -64,12 +66,14 @@ final class ReadingThread<E> extends ThreadBase<E> {
     public void go() throws IOException, InterruptedException {
         final MutableObjectIterator<E> reader = this.reader;
 
+        // 读取所有数据并借助网关写入
         E current = reader.next(readTarget);
         while (isRunning() && (current != null)) {
             sorterGateway.writeRecord(current);
             current = reader.next(current);
         }
 
+        // 当写入完成时 触发 finishReading
         sorterGateway.finishReading();
     }
 }

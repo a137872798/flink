@@ -58,13 +58,23 @@ import static org.apache.flink.runtime.state.StateUtil.unexpectedStateHandleExce
  * Implementation of heap restore operation.
  *
  * @param <K> The data type that the serializer serializes.
+ *
+ *           利用一组已经存在的 stateHandle 进行数据恢复  (加载到registeredKVStates/registeredPQStates中)
  */
 public class HeapRestoreOperation<K> implements RestoreOperation<Void> {
     private static final Logger LOG = LoggerFactory.getLogger(HeapRestoreOperation.class);
 
+    /**
+     * 这组handle中维护了state数据
+     */
     private final Collection<KeyedStateHandle> restoreStateHandles;
+    /**
+     * 用于还原数据
+     */
     private final StateSerializerProvider<K> keySerializerProvider;
     private final ClassLoader userCodeClassLoader;
+
+    // 存放state
     private final Map<String, StateTable<K, ?, ?>> registeredKVStates;
     private final Map<String, HeapPriorityQueueSnapshotRestoreWrapper<?>> registeredPQStates;
     private final CloseableRegistry cancelStreamRegistry;
@@ -90,6 +100,8 @@ public class HeapRestoreOperation<K> implements RestoreOperation<Void> {
         this.registeredPQStates = registeredPQStates;
         this.cancelStreamRegistry = cancelStreamRegistry;
         this.keyGroupRange = keyGroupRange;
+
+        // 该对象用于加载状态的元数据
         this.heapMetaInfoRestoreOperation =
                 new HeapMetaInfoRestoreOperation<>(
                         keySerializerProvider,
@@ -100,9 +112,15 @@ public class HeapRestoreOperation<K> implements RestoreOperation<Void> {
                         keyContext);
     }
 
+    /**
+     * 调用该方法 进行数据恢复
+     * @return
+     * @throws Exception
+     */
     @Override
     public Void restore() throws Exception {
 
+        // 清除之前加载到内存的数据
         registeredKVStates.clear();
         registeredPQStates.clear();
 
@@ -114,6 +132,7 @@ public class HeapRestoreOperation<K> implements RestoreOperation<Void> {
                 continue;
             }
 
+            // 在产生检查点的时候 可以确定 stateHandle都会被转换成 KeyGroupsStateHandle
             if (!(keyedStateHandle instanceof KeyGroupsStateHandle)) {
                 throw unexpectedStateHandleException(
                         KeyGroupsStateHandle.class, keyedStateHandle.getClass());
@@ -128,6 +147,7 @@ public class HeapRestoreOperation<K> implements RestoreOperation<Void> {
                 DataInputViewStreamWrapper inView =
                         new DataInputViewStreamWrapper(fsDataInputStream);
 
+                // 这个对象用于读取 状态元数据
                 KeyedBackendSerializationProxy<K> serializationProxy =
                         new KeyedBackendSerializationProxy<>(userCodeClassLoader);
 
@@ -140,6 +160,7 @@ public class HeapRestoreOperation<K> implements RestoreOperation<Void> {
                             keySerializerProvider.currentSchemaSerializer();
                     // check for key serializer compatibility; this also reconfigures the
                     // key serializer to be compatible, if it is required and is possible
+                    // 从serializationProxy还原出序列化快照后 再用它生成 TypeSerializerSchemaCompatibility
                     TypeSerializerSchemaCompatibility<K> keySerializerSchemaCompat =
                             keySerializerProvider.setPreviousSerializerSnapshotForRestoredState(
                                     serializationProxy.getKeySerializerSnapshot());
@@ -156,13 +177,16 @@ public class HeapRestoreOperation<K> implements RestoreOperation<Void> {
                     keySerializerRestored = true;
                 }
 
+                // 这里是恢复的所有state元数据快照
                 List<StateMetaInfoSnapshot> restoredMetaInfos =
                         serializationProxy.getStateMetaInfoSnapshots();
 
+                // createOrCheckStateForMetaInfo 还原了 StateTable/HeapPriorityQueueSnapshotRestoreWrapper结构
                 final Map<Integer, StateMetaInfoSnapshot> kvStatesById =
                         this.heapMetaInfoRestoreOperation.createOrCheckStateForMetaInfo(
                                 restoredMetaInfos, registeredKVStates, registeredPQStates);
 
+                // 开始还原内部的数据
                 readStateHandleStateData(
                         fsDataInputStream,
                         inView,
@@ -181,6 +205,17 @@ public class HeapRestoreOperation<K> implements RestoreOperation<Void> {
         return null;
     }
 
+    /**
+     * 恢复state的数据
+     * @param fsDataInputStream
+     * @param inView
+     * @param keyGroupOffsets
+     * @param kvStatesById
+     * @param numStates
+     * @param readVersion
+     * @param isCompressed
+     * @throws IOException
+     */
     private void readStateHandleStateData(
             FSDataInputStream fsDataInputStream,
             DataInputViewStreamWrapper inView,
@@ -196,10 +231,12 @@ public class HeapRestoreOperation<K> implements RestoreOperation<Void> {
                         ? SnappyStreamCompressionDecorator.INSTANCE
                         : UncompressedStreamCompressionDecorator.INSTANCE;
 
+        // 记录了每个key的起始偏移量
         for (Tuple2<Integer, Long> groupOffset : keyGroupOffsets) {
             int keyGroupIndex = groupOffset.f0;
             long offset = groupOffset.f1;
 
+            // 忽略无效的数据
             if (!keyGroupRange.contains(keyGroupIndex)) {
                 LOG.debug(
                         "Key group {} doesn't belong to this backend with key group range: {}",
@@ -208,6 +245,7 @@ public class HeapRestoreOperation<K> implements RestoreOperation<Void> {
                 continue;
             }
 
+            // 定位到目标位置
             fsDataInputStream.seek(offset);
 
             int writtenKeyGroupIndex = inView.readInt();
@@ -217,12 +255,22 @@ public class HeapRestoreOperation<K> implements RestoreOperation<Void> {
             try (InputStream kgCompressionInStream =
                     streamCompressionDecorator.decorateWithCompression(fsDataInputStream)) {
 
+                // 解析数据
                 readKeyGroupStateData(
                         kgCompressionInStream, kvStatesById, keyGroupIndex, numStates, readVersion);
             }
         }
     }
 
+    /**
+     * 读取state每个字段的数据
+     * @param inputStream
+     * @param kvStatesById
+     * @param keyGroupIndex
+     * @param numStates
+     * @param readVersion
+     * @throws IOException
+     */
     private void readKeyGroupStateData(
             InputStream inputStream,
             Map<Integer, StateMetaInfoSnapshot> kvStatesById,
@@ -253,6 +301,7 @@ public class HeapRestoreOperation<K> implements RestoreOperation<Void> {
                                     + ".");
             }
 
+            // 产生reader对象 专门读取state内的数据
             StateSnapshotKeyGroupReader keyGroupReader =
                     registeredState.keyGroupReader(readVersion);
             keyGroupReader.readMappingsInKeyGroup(inView, keyGroupIndex);

@@ -34,6 +34,7 @@ import java.util.Iterator;
 /**
  * An implementation of the {@link org.apache.flink.runtime.operators.util.JoinTaskIterator} that
  * realizes the joining through a sort-merge join strategy.
+ * AbstractMergeIterator 简单来说就是提供了交叉合并的逻辑
  */
 public abstract class AbstractMergeInnerJoinIterator<T1, T2, O>
         extends AbstractMergeIterator<T1, T2, O> {
@@ -82,6 +83,8 @@ public abstract class AbstractMergeInnerJoinIterator<T1, T2, O>
     public boolean callWithNextKey(
             final FlatJoinFunction<T1, T2, O> joinFunction, final Collector<O> collector)
             throws Exception {
+
+        // 只要任意一个流没有数据了  直接消费掉另一个数据
         if (!this.iterator1.nextKey() || !this.iterator2.nextKey()) {
             // consume all remaining keys (hack to prevent remaining inputs during iterations, lets
             // get rid of this soon)
@@ -91,6 +94,7 @@ public abstract class AbstractMergeInnerJoinIterator<T1, T2, O>
             return false;
         }
 
+        // 该对象可以比较2个不同类型的对象
         final TypePairComparator<T1, T2> comparator = this.pairComparator;
         comparator.setReference(this.iterator1.getCurrent());
         T2 current2 = this.iterator2.getCurrent();
@@ -100,10 +104,12 @@ public abstract class AbstractMergeInnerJoinIterator<T1, T2, O>
             // determine the relation between the (possibly composite) keys
             final int comp = comparator.compareToReference(current2);
 
+            // 相同 退出循环
             if (comp == 0) {
                 break;
             }
 
+            // 推进不同的对象 追求equals为0
             if (comp < 0) {
                 if (!this.iterator2.nextKey()) {
                     return false;
@@ -119,6 +125,7 @@ public abstract class AbstractMergeInnerJoinIterator<T1, T2, O>
 
         // here, we have a common key! call the join function with the cross product of the
         // values
+        // 当key相同时 将他们的values 交叉合并   注意这个是内连接 所以跳过不同的key
         final Iterator<T1> values1 = this.iterator1.getValues();
         final Iterator<T2> values2 = this.iterator2.getValues();
 

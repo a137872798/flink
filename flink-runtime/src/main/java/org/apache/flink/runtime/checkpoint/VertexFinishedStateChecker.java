@@ -53,8 +53,15 @@ import java.util.stream.Collectors;
  */
 public class VertexFinishedStateChecker {
 
+    /**
+     * 简单看就是一组job
+     * 简单理解ExecutionJobVertex 对应一个job
+     */
     private final Set<ExecutionJobVertex> vertices;
 
+    /**
+     * 每个OperatorState包含多个子任务的数据
+     */
     private final Map<OperatorID, OperatorState> operatorStates;
 
     public VertexFinishedStateChecker(
@@ -63,10 +70,16 @@ public class VertexFinishedStateChecker {
         this.operatorStates = operatorStates;
     }
 
+    /**
+     * 检查operators是否处于结束状态
+     */
     public void validateOperatorsFinishedState() {
+        // 产生一个缓存对象
         VerticesFinishedStatusCache verticesFinishedCache =
                 new VerticesFinishedStatusCache(operatorStates);
+
         for (ExecutionJobVertex vertex : vertices) {
+            // 获取各job的结束状态
             VertexFinishedState vertexFinishedState = verticesFinishedCache.getOrUpdate(vertex);
 
             if (vertexFinishedState == VertexFinishedState.FULLY_FINISHED) {
@@ -77,8 +90,15 @@ public class VertexFinishedStateChecker {
         }
     }
 
+    /**
+     * 检查是否全都完成了
+     * @param vertex   本次检查的job
+     * @param verticesFinishedStatusCache  里面维护的是缓存数据
+     */
     private void checkPredecessorsOfFullyFinishedVertex(
             ExecutionJobVertex vertex, VerticesFinishedStatusCache verticesFinishedStatusCache) {
+
+        // 确保作为input的任务都已经完成了
         boolean allPredecessorsFinished =
                 vertex.getInputs().stream()
                         .map(IntermediateResult::getProducer)
@@ -99,12 +119,21 @@ public class VertexFinishedStateChecker {
         }
     }
 
+    /**
+     * 检验部分完成
+     * @param vertex
+     * @param verticesFinishedStatusCache
+     */
     private void checkPredecessorsOfPartiallyFinishedVertex(
             ExecutionJobVertex vertex, VerticesFinishedStatusCache verticesFinishedStatusCache) {
         // Computes the distribution pattern from each predecessor. If there are multiple edges
         // from a single predecessor, ALL_TO_ALL edges would have a higher priority since it
         // implies stricter limitation (must be fully finished).
+
+        // 存储匹配模式
         Map<JobVertexID, DistributionPattern> predecessorDistribution = new HashMap<>();
+
+        // 遍历输入数据
         for (JobEdge jobEdge : vertex.getJobVertex().getInputs()) {
             predecessorDistribution.compute(
                     jobEdge.getSource().getProducer().getID(),
@@ -121,6 +150,7 @@ public class VertexFinishedStateChecker {
             DistributionPattern distribution =
                     predecessorDistribution.get(predecessor.getJobVertexId());
 
+            // TODO 有关pattern的先忽略
             if (distribution == DistributionPattern.ALL_TO_ALL
                     && predecessorState != VertexFinishedState.FULLY_FINISHED) {
                 throw new FlinkRuntimeException(
@@ -157,8 +187,19 @@ public class VertexFinishedStateChecker {
         FULLY_FINISHED
     }
 
+    /**
+     * 这是一个缓存对象
+     */
     private static class VerticesFinishedStatusCache {
+
+        /**
+         * 初始化时的原始状态
+         */
         private final Map<OperatorID, OperatorState> operatorStates;
+
+        /**
+         * 当传入vertex 会根据operatorStates信息 判断当前的任务状态 并缓存
+         */
         private final Map<JobVertexID, VertexFinishedState> finishedCache = new HashMap<>();
 
         private VerticesFinishedStatusCache(Map<OperatorID, OperatorState> operatorStates) {
@@ -171,8 +212,16 @@ public class VertexFinishedStateChecker {
                     ignored -> calculateFinishedState(vertex, operatorStates));
         }
 
+        /**
+         * 检查是否有新的状态已经被完成
+         * @param vertex  包含新状态的对象
+         * @param operatorStates
+         * @return
+         */
         private VertexFinishedState calculateFinishedState(
                 ExecutionJobVertex vertex, Map<OperatorID, OperatorState> operatorStates) {
+
+            // 获取本对象此时的状态
             Set<VertexFinishedState> operatorFinishedStates =
                     vertex.getOperatorIDs().stream()
                             .map(idPair -> checkOperatorFinishedStatus(operatorStates, idPair))
@@ -193,6 +242,12 @@ public class VertexFinishedStateChecker {
             return operatorFinishedStates.iterator().next();
         }
 
+        /**
+         * 检查某个id对应的状态是否已经完成
+         * @param operatorStates  本对象维护的状态
+         * @param idPair   用于查询的id
+         * @return
+         */
         private VertexFinishedState checkOperatorFinishedStatus(
                 Map<OperatorID, OperatorState> operatorStates, OperatorIDPair idPair) {
             OperatorID operatorId =
@@ -201,11 +256,13 @@ public class VertexFinishedStateChecker {
                             .orElse(idPair.getGeneratedOperatorID());
             return Optional.ofNullable(operatorStates.get(operatorId))
                     .map(
+                            // 拿到本对象此时对应的状态
                             operatorState -> {
                                 if (operatorState.isFullyFinished()) {
                                     return VertexFinishedState.FULLY_FINISHED;
                                 }
 
+                                // 表示部分完成了
                                 boolean hasFinishedSubtasks =
                                         operatorState.getSubtaskStates().values().stream()
                                                 .anyMatch(OperatorSubtaskState::isFinished);

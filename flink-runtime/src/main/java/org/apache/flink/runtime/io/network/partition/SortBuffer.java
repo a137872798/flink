@@ -54,6 +54,7 @@ public abstract class SortBuffer implements DataBuffer {
     /**
      * Size of an index entry: 4 bytes for record length, 4 bytes for data type and 8 bytes for
      * pointer to next entry.
+     * 这个是索引信息
      */
     protected static final int INDEX_ENTRY_SIZE = 4 + 4 + 8;
 
@@ -101,7 +102,9 @@ public abstract class SortBuffer implements DataBuffer {
     // For writing
     // ---------------------------------------------------------------------------------------------
 
-    /** Array index in the segment list of the current available buffer for writing. */
+    /** Array index in the segment list of the current available buffer for writing.
+     * 记录当前写到第几个segment
+     * */
     private int writeSegmentIndex;
 
     /** Next position in the current available buffer for writing. */
@@ -114,10 +117,14 @@ public abstract class SortBuffer implements DataBuffer {
     /** Data of different subpartitions in this sort buffer will be read in this order. */
     protected final int[] subpartitionReadOrder;
 
-    /** Index entry address of the current record or event to be read. */
+    /** Index entry address of the current record or event to be read.
+     * 记录上次读取的位置
+     * */
     protected long readIndexEntryAddress;
 
-    /** Record bytes remaining after last copy, which must be read first in next copy. */
+    /** Record bytes remaining after last copy, which must be read first in next copy.
+     * 当前记录还剩余多少数据未拷贝
+     * */
     protected int recordRemainingBytes;
 
     /** Used to index the current available channel to read data from. */
@@ -159,6 +166,7 @@ public abstract class SortBuffer implements DataBuffer {
     /**
      * No partial record will be written to this {@link SortBasedDataBuffer}, which means that
      * either all data of target record will be written or nothing will be written.
+     * 追加数据
      */
     @Override
     public boolean append(ByteBuffer source, int targetChannel, Buffer.DataType dataType)
@@ -171,10 +179,12 @@ public abstract class SortBuffer implements DataBuffer {
 
         // return true directly if it can not allocate enough buffers for the given record
         if (!allocateBuffersForRecord(totalBytes)) {
+            // 表示空间不足
             return true;
         }
 
         // write the index entry and record or event data
+        // 数据写入分为2部分  一个是索引信息  一个是record
         writeIndex(targetChannel, totalBytes, dataType);
         writeRecord(source);
 
@@ -184,31 +194,48 @@ public abstract class SortBuffer implements DataBuffer {
         return false;
     }
 
+    /**
+     * 写入索引信息
+     * @param channelIndex
+     * @param numRecordBytes
+     * @param dataType
+     */
     private void writeIndex(int channelIndex, int numRecordBytes, Buffer.DataType dataType) {
+        // 当前在写入的segment
         MemorySegment segment = segments.get(writeSegmentIndex);
 
         // record length takes the high 32 bits and data type takes the low 32 bits
+        // 记录长度 以及类型
         segment.putLong(writeSegmentOffset, ((long) numRecordBytes << 32) | dataType.ordinal());
 
         // segment index takes the high 32 bits and segment offset takes the low 32 bits
+        // 生成位置信息
         long indexEntryAddress = ((long) writeSegmentIndex << 32) | writeSegmentOffset;
 
+        // 记录每个channel最新记录的位置
         long lastIndexEntryAddress = lastIndexEntryAddresses[channelIndex];
         lastIndexEntryAddresses[channelIndex] = indexEntryAddress;
 
         if (lastIndexEntryAddress >= 0) {
             // link the previous index entry of the given channel to the new index entry
             segment = segments.get(getSegmentIndexFromPointer(lastIndexEntryAddress));
+            // 找到上个entry 写入indexEntryAddress  这个位置是提前预留的
             segment.putLong(
                     getSegmentOffsetFromPointer(lastIndexEntryAddress) + 8, indexEntryAddress);
         } else {
+            // 记录第一个位置
             firstIndexEntryAddresses[channelIndex] = indexEntryAddress;
         }
 
         // move the write position forward so as to write the corresponding record
+        // 空出INDEX_ENTRY_SIZE的大小 并判断是否要切换seg
         updateWriteSegmentIndexAndOffset(INDEX_ENTRY_SIZE);
     }
 
+    /**
+     * 写入记录
+     * @param source
+     */
     private void writeRecord(ByteBuffer source) {
         while (source.hasRemaining()) {
             MemorySegment segment = segments.get(writeSegmentIndex);
@@ -220,24 +247,36 @@ public abstract class SortBuffer implements DataBuffer {
         }
     }
 
+    /**
+     * 判断是否有足够的空间
+     * @param numRecordBytes
+     * @return
+     */
     private boolean allocateBuffersForRecord(int numRecordBytes) {
+        // 本次需要的总大小
         int numBytesRequired = INDEX_ENTRY_SIZE + numRecordBytes;
+
+        // bufferSize - writeSegmentOffset 是当前buffer的剩余长度
         int availableBytes =
                 writeSegmentIndex == segments.size() ? 0 : bufferSize - writeSegmentOffset;
 
         // return directly if current available bytes is adequate
+        // 空间足够
         if (availableBytes >= numBytesRequired) {
             return true;
         }
 
         // skip the remaining free space if the available bytes is not enough for an index entry
+        // 空间不足的情况 首先查看能否写入一个index  不能则重置指标
         if (availableBytes < INDEX_ENTRY_SIZE) {
             updateWriteSegmentIndexAndOffset(availableBytes);
             availableBytes = 0;
         }
 
+        // 重新计算
         if (availableBytes + (numGuaranteedBuffers - segments.size()) * (long) bufferSize
                 < numBytesRequired) {
+            // 空间不足
             return false;
         }
 
@@ -269,12 +308,22 @@ public abstract class SortBuffer implements DataBuffer {
         writeSegmentOffset += numBytes;
 
         // using the next available free buffer if the current is full
+        // 表示切换到下个buffer
         if (writeSegmentOffset == bufferSize) {
             ++writeSegmentIndex;
             writeSegmentOffset = 0;
         }
     }
 
+    /**
+     * 拷贝数据
+     * @param targetSegment
+     * @param targetSegmentOffset
+     * @param sourceSegmentIndex
+     * @param sourceSegmentOffset
+     * @param recordLength
+     * @return
+     */
     protected int copyRecordOrEvent(
             MemorySegment targetSegment,
             int targetSegmentOffset,
@@ -288,6 +337,7 @@ public abstract class SortBuffer implements DataBuffer {
             sourceSegmentIndex += (position / bufferSize);
             sourceSegmentOffset = (int) (position % bufferSize);
         } else {
+            // 设置需要读取的长度
             recordRemainingBytes = recordLength;
         }
 
@@ -296,6 +346,7 @@ public abstract class SortBuffer implements DataBuffer {
                 Math.min(targetSegmentSize - targetSegmentOffset, recordRemainingBytes);
         do {
             // move to next data buffer if all data of the current buffer has been copied
+            // 切换到下个seg
             if (sourceSegmentOffset == bufferSize) {
                 ++sourceSegmentIndex;
                 sourceSegmentOffset = 0;

@@ -20,8 +20,12 @@ package org.apache.flink.runtime.blob;
 
 import java.io.Closeable;
 
-/** A simple store and retrieve binary large objects (BLOBs). */
+/** A simple store and retrieve binary large objects (BLOBs).
+ * blob可以提供的服务
+ * */
 public interface BlobService extends Closeable {
+
+    // 一个是持久的blob服务 一个是临时的blob服务
 
     /**
      * Returns a BLOB service for accessing permanent BLOBs.
@@ -41,6 +45,7 @@ public interface BlobService extends Closeable {
      * Returns the port of the BLOB server that this BLOB service is working with.
      *
      * @return the port of the blob server.
+     * 获取服务器端口
      */
     int getPort();
 }

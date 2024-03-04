@@ -29,10 +29,14 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 
-/** A factory that creates all the components of a tier. */
+/** A factory that creates all the components of a tier.
+ * 可以创建3种探针
+ * */
 public interface TierFactory {
 
-    /** Creates the master-side agent of a Tier. */
+    /** Creates the master-side agent of a Tier.
+     * 传入资源管理对象  产生agent
+     * */
     TierMasterAgent createMasterAgent(TieredStorageResourceRegistry tieredStorageResourceRegistry);
 
     /** Creates the producer-side agent of a Tier. */

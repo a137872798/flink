@@ -38,25 +38,34 @@ import java.util.Iterator;
  * This class represents the snapshot of an {@link HeapPriorityQueueSet}.
  *
  * @param <T> type of the state elements.
+ *           使用优先队列的结构存储状态时 对应的快照
  */
 public class HeapPriorityQueueStateSnapshot<T> implements StateSnapshot {
 
     /** Function that extracts keys from elements. */
     @Nonnull private final KeyExtractorFunction<T> keyExtractor;
 
-    /** Copy of the heap array containing all the (immutable or deeply copied) elements. */
+    /** Copy of the heap array containing all the (immutable or deeply copied) elements.
+     * 这个就是优先队列的二叉堆
+     * */
     @Nonnull private final T[] heapArrayCopy;
 
-    /** The meta info of the state. */
+    /** The meta info of the state.
+     * 元数据对象 一般就是存储写序列化对象
+     * */
     @Nonnull private final RegisteredPriorityQueueStateBackendMetaInfo<T> metaInfo;
 
-    /** The key-group range covered by this snapshot. */
+    /** The key-group range covered by this snapshot.
+     * 表示 key的范围
+     * */
     @Nonnull private final KeyGroupRange keyGroupRange;
 
     /** The total number of key-groups in the job. */
     @Nonnegative private final int totalKeyGroups;
 
-    /** Result of partitioning the snapshot by key-group. */
+    /** Result of partitioning the snapshot by key-group.
+     * 可以使用keyGroup对该对象进行分区   进而得到部分数据
+     * */
     @Nullable private PartitioningResult<T> partitioningResult;
 
     HeapPriorityQueueStateSnapshot(
@@ -83,10 +92,15 @@ public class HeapPriorityQueueStateSnapshot<T> implements StateSnapshot {
         return getPartitioningResult().iterator(keyGroupId);
     }
 
+    /**
+     * 产生一个基于keyGroup分区的对象
+     * @return
+     */
     @SuppressWarnings("unchecked")
     private PartitioningResult<T> getPartitioningResult() {
         if (partitioningResult == null) {
 
+            // 生成一个新数组
             T[] partitioningOutput =
                     (T[])
                             Array.newInstance(

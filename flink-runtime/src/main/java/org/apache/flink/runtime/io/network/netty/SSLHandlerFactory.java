@@ -26,7 +26,9 @@ import javax.net.ssl.SSLEngine;
 
 import static java.util.Objects.requireNonNull;
 
-/** Creates and configures {@link SslHandler} instances. */
+/** Creates and configures {@link SslHandler} instances. *
+ * 该对象提供 SSL 解析能力
+ */
 public class SSLHandlerFactory {
 
     private final SslContext sslContext;

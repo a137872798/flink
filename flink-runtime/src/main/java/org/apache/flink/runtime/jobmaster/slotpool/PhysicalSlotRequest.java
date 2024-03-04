@@ -21,13 +21,21 @@ package org.apache.flink.runtime.jobmaster.slotpool;
 import org.apache.flink.runtime.clusterframework.types.SlotProfile;
 import org.apache.flink.runtime.jobmaster.SlotRequestId;
 
-/** Represents a request for a physical slot. */
+/** Represents a request for a physical slot.
+ * 表示请求一个物理slot
+ * */
 public class PhysicalSlotRequest {
 
     private final SlotRequestId slotRequestId;
 
+    /**
+     * slot的描述信息
+     */
     private final SlotProfile slotProfile;
 
+    /**
+     * 表示slot是否会被永久占用
+     */
     private final boolean slotWillBeOccupiedIndefinitely;
 
     public PhysicalSlotRequest(
@@ -52,7 +60,9 @@ public class PhysicalSlotRequest {
         return slotWillBeOccupiedIndefinitely;
     }
 
-    /** Result of a {@link PhysicalSlotRequest}. */
+    /** Result of a {@link PhysicalSlotRequest}.
+     * 表示某个请求得到的 物理slot
+     * */
     public static class Result {
 
         private final SlotRequestId slotRequestId;

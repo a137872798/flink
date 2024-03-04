@@ -52,19 +52,32 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-/** This class is responsible for managing data in memory. */
+/** This class is responsible for managing data in memory.
+ * */
 public class HsMemoryDataManager implements HsSpillingInfoProvider, HsMemoryDataManagerOperation {
 
     private static final Logger LOG = LoggerFactory.getLogger(HsMemoryDataManager.class);
 
     private final int numSubpartitions;
 
+    /**
+     * 每个子分区对应一个对象   每个子分区可以设置多个消费者
+     */
     private final HsSubpartitionMemoryDataManager[] subpartitionMemoryDataManagers;
 
+    /**
+     * 数据通过该对象后 会转换成 spilledBuffer
+     */
     private final HsMemoryDataSpiller spiller;
 
+    /**
+     * 表示数据倾倒策略
+     */
     private final HsSpillingStrategy spillStrategy;
 
+    /**
+     * 传入index 可以找到对应的region
+     */
     private final HsFileDataIndex fileDataIndex;
 
     private final BufferPool bufferPool;
@@ -78,6 +91,8 @@ public class HsMemoryDataManager implements HsSpillingInfoProvider, HsMemoryData
     /**
      * Each element of the list is all views of the subpartition corresponding to its index, which
      * are stored in the form of a map that maps consumer id to its subpartition view.
+     * HsSubpartitionConsumerInternalOperations 表示可以对消费者发起的操作
+     * 目前就是 HsSubpartitionConsumer
      */
     private final List<Map<HsConsumerId, HsSubpartitionConsumerInternalOperations>>
             subpartitionViewOperationsMap;
@@ -99,6 +114,18 @@ public class HsMemoryDataManager implements HsSpillingInfoProvider, HsMemoryData
      */
     private TimerGauge hardBackPressuredTimePerSecond = new TimerGauge();
 
+    /**
+     * 管理内存数据
+     * @param numSubpartitions
+     * @param bufferSize
+     * @param bufferPool
+     * @param spillStrategy
+     * @param fileDataIndex
+     * @param dataFilePath
+     * @param bufferCompressor
+     * @param poolSizeCheckInterval
+     * @throws IOException
+     */
     public HsMemoryDataManager(
             int numSubpartitions,
             int bufferSize,
@@ -127,7 +154,7 @@ public class HsMemoryDataManager implements HsSpillingInfoProvider, HsMemoryData
                             bufferSize,
                             readWriteLock.readLock(),
                             bufferCompressor,
-                            this);
+                            this);  // 本对象作为钩子 设置到HsSubpartitionMemoryDataManager中
             subpartitionViewOperationsMap.add(new ConcurrentHashMap<>());
         }
 
@@ -135,11 +162,14 @@ public class HsMemoryDataManager implements HsSpillingInfoProvider, HsMemoryData
 
         if (poolSizeCheckInterval > 0) {
             poolSizeChecker.scheduleAtFixedRate(
+                    // 定期触发检测
                     () -> {
                         int newSize = this.bufferPool.getNumBuffers();
                         int oldSize = poolSize.getAndSet(newSize);
+                        // 代表buffer数量减少
                         if (oldSize > newSize) {
                             // pass Optional.empty to trigger global decision.
+                            // 因为全局信息发生了变化 可能会产生决策信息  通过决策信息进行buffer的释放和倾倒
                             handleDecision(Optional.empty());
                         }
                     },
@@ -160,6 +190,7 @@ public class HsMemoryDataManager implements HsSpillingInfoProvider, HsMemoryData
      * @param record to be managed by this class.
      * @param targetChannel target subpartition of this record.
      * @param dataType the type of this record. In other words, is it data or event.
+     *                 追加一条记录  通过targetChannel 定位到子分区  然后追加数据
      */
     public void append(ByteBuffer record, int targetChannel, Buffer.DataType dataType)
             throws IOException {
@@ -174,6 +205,7 @@ public class HsMemoryDataManager implements HsSpillingInfoProvider, HsMemoryData
      * Register {@link HsSubpartitionConsumerInternalOperations} to {@link
      * #subpartitionViewOperationsMap}. It is used to obtain the consumption progress of the
      * subpartition.
+     * 为某个子分区 添加一个消费者
      */
     public HsDataView registerNewConsumer(
             int subpartitionId,
@@ -183,6 +215,7 @@ public class HsMemoryDataManager implements HsSpillingInfoProvider, HsMemoryData
                 subpartitionViewOperationsMap.get(subpartitionId).put(consumerId, viewOperations);
         Preconditions.checkState(
                 oldView == null, "Each subpartition view should have unique consumerId.");
+        // 在这里也添加一个消费者
         return getSubpartitionMemoryDataManager(subpartitionId).registerNewConsumer(consumerId);
     }
 
@@ -235,6 +268,7 @@ public class HsMemoryDataManager implements HsSpillingInfoProvider, HsMemoryData
     }
 
     // Write lock should be acquired before invoke this method.
+    // 找到满足条件的所有buffer
     @Override
     public Deque<BufferIndexAndChannel> getBuffersInOrder(
             int subpartitionId, SpillStatus spillStatus, ConsumeStatusWithId consumeStatusWithId) {
@@ -248,6 +282,7 @@ public class HsMemoryDataManager implements HsSpillingInfoProvider, HsMemoryData
     @Override
     public List<Integer> getNextBufferIndexToConsume(HsConsumerId consumerId) {
         ArrayList<Integer> consumeIndexes = new ArrayList<>(numSubpartitions);
+        // 获取该消费者在每个子分区下的消费偏移量
         for (int channel = 0; channel < numSubpartitions; channel++) {
             HsSubpartitionConsumerInternalOperations viewOperation =
                     subpartitionViewOperationsMap.get(channel).get(consumerId);
@@ -281,6 +316,7 @@ public class HsMemoryDataManager implements HsSpillingInfoProvider, HsMemoryData
             hardBackPressuredTimePerSecond.markEnd();
         }
 
+        // 内存使用量发生了变化 查看是否要释放buffer或者倾倒buffer
         Optional<Decision> decisionOpt =
                 spillStrategy.onMemoryUsageChanged(
                         numRequestedBuffers.incrementAndGet(), getPoolSize());
@@ -302,6 +338,11 @@ public class HsMemoryDataManager implements HsSpillingInfoProvider, HsMemoryData
         handleDecision(decision);
     }
 
+    /**
+     * 通知某个子分区 的一组 消费者  有数据可用了
+     * @param subpartitionId the subpartition's identifier that this consumer belongs to.
+     * @param consumerIds the consumer's identifier which need notify data available.
+     */
     @Override
     public void onDataAvailable(int subpartitionId, Collection<HsConsumerId> consumerIds) {
         Map<HsConsumerId, HsSubpartitionConsumerInternalOperations> consumerViewMap =
@@ -329,6 +370,7 @@ public class HsMemoryDataManager implements HsSpillingInfoProvider, HsMemoryData
     // Attention: Do not call this method within the read lock and subpartition lock, otherwise
     // deadlock may occur as this method maybe acquire write lock and other subpartition's lock
     // inside.
+    // 基于当前信息产生决策对象
     private void handleDecision(
             @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
                     Optional<Decision> decisionOpt) {
@@ -351,6 +393,7 @@ public class HsMemoryDataManager implements HsSpillingInfoProvider, HsMemoryData
      * to maintain thread safety itself.
      *
      * @param toSpill All buffers that need to be spilled in a decision.
+     *                触发数据倾倒逻辑
      */
     private void spillBuffers(Map<Integer, List<BufferIndexAndChannel>> toSpill) {
         CompletableFuture<Void> spillingCompleteFuture = new CompletableFuture<>();
@@ -366,9 +409,11 @@ public class HsMemoryDataManager implements HsSpillingInfoProvider, HsMemoryData
                     numUnSpillBuffers.getAndAdd(-bufferIndexAndChannels.size());
                 });
         FutureUtils.assertNoException(
+                // 这里其实就是将数据写入 fileChannel
                 spiller.spillAsync(bufferWithIdentities)
                         .thenAccept(
                                 spilledBuffers -> {
+                                    // 添加索引数据
                                     fileDataIndex.addBuffers(spilledBuffers);
                                     spillingCompleteFuture.complete(null);
                                 }));

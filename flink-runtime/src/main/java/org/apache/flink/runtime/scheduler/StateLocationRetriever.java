@@ -33,6 +33,7 @@ public interface StateLocationRetriever {
      * @param executionVertexId id of the execution vertex
      * @return optional that is assigned with the vertex's state location if the location exists,
      *     otherwise empty
+     *     executionVertexId 可以定位到一个子任务 子任务在分配slot时会注册slot所属的TM 这样就有TM的位置信息了 这也是state的存储位置
      */
     Optional<TaskManagerLocation> getStateLocation(ExecutionVertexID executionVertexId);
 }

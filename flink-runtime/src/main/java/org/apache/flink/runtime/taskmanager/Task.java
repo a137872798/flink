@@ -145,7 +145,9 @@ public class Task
     /** The thread group that contains all task threads. */
     private static final ThreadGroup TASK_THREADS_GROUP = new ThreadGroup("Flink Task Threads");
 
-    /** For atomic state updates. */
+    /** For atomic state updates.
+     * 原子更新当前task 状态
+     * */
     private static final AtomicReferenceFieldUpdater<Task, ExecutionState> STATE_UPDATER =
             AtomicReferenceFieldUpdater.newUpdater(
                     Task.class, ExecutionState.class, "executionState");
@@ -160,13 +162,19 @@ public class Task
     /** The vertex in the JobGraph whose code the task executes. */
     private final JobVertexID vertexId;
 
-    /** The execution attempt of the parallel subtask. */
+    /** The execution attempt of the parallel subtask.
+     * 通过该对象可以定位到子任务
+     * */
     private final ExecutionAttemptID executionId;
 
-    /** ID which identifies the slot in which the task is supposed to run. */
+    /** ID which identifies the slot in which the task is supposed to run.
+     * 对应一个被分配的slot slot代表资源的载体
+     * */
     private final AllocationID allocationId;
 
-    /** TaskInfo object for this task. */
+    /** TaskInfo object for this task.
+     * 描述该任务的信息
+     * */
     private final TaskInfo taskInfo;
 
     /** The name of the task, including subtask indexes. */
@@ -178,74 +186,112 @@ public class Task
     /** The task-specific configuration. */
     private final Configuration taskConfiguration;
 
-    /** The jar files used by this task. */
+    /** The jar files used by this task.
+     * 用于检索jar文件的
+     * */
     private final Collection<PermanentBlobKey> requiredJarFiles;
 
-    /** The classpaths used by this task. */
+    /** The classpaths used by this task.
+     * 表示该task用到的jar包 对应的路径
+     * */
     private final Collection<URL> requiredClasspaths;
 
     /** The name of the class that holds the invokable code. */
     private final String nameOfInvokableClass;
 
-    /** Access to task manager configuration and host names. */
+    /** Access to task manager configuration and host names.
+     * 提供运行时信息
+     * */
     private final TaskManagerRuntimeInfo taskManagerConfig;
 
     /** The memory manager to be used by this task. */
     private final MemoryManager memoryManager;
 
-    /** Shared memory manager provided by the task manager. */
+    /** Shared memory manager provided by the task manager.
+     * 表示可被共享的资源
+     * */
     private final SharedResources sharedResources;
 
-    /** The I/O manager to be used by this task. */
+    /** The I/O manager to be used by this task.
+     * 这个是管理文件的
+     * */
     private final IOManager ioManager;
 
-    /** The BroadcastVariableManager to be used by this task. */
+    /** The BroadcastVariableManager to be used by this task.
+     * 管理广播变量
+     * */
     private final BroadcastVariableManager broadcastVariableManager;
 
+    /**
+     * 可以通过该对象分发事件
+     */
     private final TaskEventDispatcher taskEventDispatcher;
 
     /** Information provider for external resources. */
     private final ExternalResourceInfoProvider externalResourceInfoProvider;
 
-    /** The manager for state of operators running in this task/slot. */
+    /** The manager for state of operators running in this task/slot.
+     * 维护state
+     * */
     private final TaskStateManager taskStateManager;
 
     /**
      * Serialized version of the job specific execution configuration (see {@link ExecutionConfig}).
+     * 表示执行时的配置
      */
     private final SerializedValue<ExecutionConfig> serializedExecutionConfig;
 
+    /**
+     * 用于向分区写入数据
+     */
     private final ResultPartitionWriter[] partitionWriters;
 
+    /**
+     * 可以从gate读取数据
+     */
     private final IndexedInputGate[] inputGates;
 
     /** Connection to the task manager. */
     private final TaskManagerActions taskManagerActions;
 
-    /** Input split provider for the task. */
+    /** Input split provider for the task.
+     * 为task提供已经拆分过的数据
+     * */
     private final InputSplitProvider inputSplitProvider;
 
-    /** Checkpoint notifier used to communicate with the CheckpointCoordinator. */
+    /** Checkpoint notifier used to communicate with the CheckpointCoordinator.
+     * 通过该对象可以将结果通知给 CheckpointCoordinator
+     * */
     private final CheckpointResponder checkpointResponder;
 
     /**
      * The gateway for operators to send messages to the operator coordinators on the Job Manager.
+     * 借助网关对象可以将一组事件通知到operator
      */
     private final TaskOperatorEventGateway operatorCoordinatorEventGateway;
 
-    /** GlobalAggregateManager used to update aggregates on the JobMaster. */
+    /** GlobalAggregateManager used to update aggregates on the JobMaster.
+     * 用于维护全局的累加值
+     * */
     private final GlobalAggregateManager aggregateManager;
 
-    /** The library cache, from which the task can request its class loader. */
+    /** The library cache, from which the task can request its class loader.
+     * */
     private final LibraryCacheManager.ClassLoaderHandle classLoaderHandle;
 
-    /** The cache for user-defined files that the invokable requires. */
+    /** The cache for user-defined files that the invokable requires.
+     * 用于缓存文件
+     * */
     private final FileCache fileCache;
 
-    /** The service for kvState registration of this task. */
+    /** The service for kvState registration of this task.
+     * 通过该对象与 KV 服务交互
+     * */
     private final KvStateService kvStateService;
 
-    /** The registry of this task which enables live reporting of accumulators. */
+    /** The registry of this task which enables live reporting of accumulators.
+     * 该对象维护累加数据
+     * */
     private final AccumulatorRegistry accumulatorRegistry;
 
     /** The thread that executes the task. */
@@ -254,7 +300,9 @@ public class Task
     /** Parent group for all metrics of this task. */
     private final TaskMetricGroup metrics;
 
-    /** Partition producer state checker to request partition states from. */
+    /** Partition producer state checker to request partition states from.
+     * 通过分区可以找到ExecutionState
+     * */
     private final PartitionProducerStateChecker partitionProducerStateChecker;
 
     /** Executor to run future callbacks. */
@@ -263,7 +311,9 @@ public class Task
     /** Future that is completed once {@link #run()} exits. */
     private final CompletableFuture<ExecutionState> terminationFuture = new CompletableFuture<>();
 
-    /** The factory of channel state write request executor. */
+    /** The factory of channel state write request executor.
+     * 可以创建处理检查点请求的对象
+     * */
     private final ChannelStateWriteRequestExecutorFactory channelStateExecutorFactory;
 
     // ------------------------------------------------------------------------
@@ -272,11 +322,14 @@ public class Task
     //  proper happens-before semantics on parallel modification
     // ------------------------------------------------------------------------
 
-    /** atomic flag that makes sure the invokable is canceled exactly once upon error. */
+    /** atomic flag that makes sure the invokable is canceled exactly once upon error.
+     * 被设置后 在出错时 会取消一次
+     * */
     private final AtomicBoolean invokableHasBeenCanceled;
     /**
      * The invokable of this task, if initialized. All accesses must copy the reference and check
      * for null, as this field is cleared as part of the disposal logic.
+     * 通过该对象可以执行任务
      */
     @Nullable private volatile TaskInvokable invokable;
 
@@ -353,6 +406,7 @@ public class Task
         this.requiredJarFiles = jobInformation.getRequiredJarFileBlobKeys();
         this.requiredClasspaths = jobInformation.getRequiredClasspathURLs();
         this.nameOfInvokableClass = taskInformation.getInvokableClassName();
+        // 执行时配置 会覆盖部分TM配置
         this.serializedExecutionConfig = jobInformation.getSerializedExecutionConfig();
 
         Configuration tmConfig = taskManagerConfig.getConfiguration();
@@ -393,11 +447,13 @@ public class Task
 
         final String taskNameWithSubtaskAndId = taskNameWithSubtask + " (" + executionId + ')';
 
+        // 产生洗牌的上下文对象
         final ShuffleIOOwnerContext taskShuffleContext =
                 shuffleEnvironment.createShuffleIOOwnerContext(
                         taskNameWithSubtaskAndId, executionId, metrics.getIOMetricGroup());
 
         // produced intermediate result partitions
+        // 产生存储中间结果集的分区
         final ResultPartitionWriter[] resultPartitionWriters =
                 shuffleEnvironment
                         .createResultPartitionWriters(
@@ -416,6 +472,7 @@ public class Task
         int counter = 0;
         for (IndexedInputGate gate : gates) {
             inputGates[counter++] =
+                    // 包装统计数据
                     new InputGateWithMetrics(
                             gate, metrics.getIOMetricGroup().getNumBytesInCounter());
         }
@@ -501,7 +558,12 @@ public class Task
         return invokable;
     }
 
+    /**
+     * 是否需要背压
+     * @return
+     */
     public boolean isBackPressured() {
+        // 表示都还没启动呢
         if (invokable == null
                 || partitionWriters.length == 0
                 || (executionState != ExecutionState.INITIALIZING
@@ -509,6 +571,7 @@ public class Task
             return false;
         }
         for (int i = 0; i < partitionWriters.length; ++i) {
+            // 一旦某个writer无法写入数据 代表内存不足  开启背压
             if (!partitionWriters[i].isAvailable()) {
                 return true;
             }
@@ -565,6 +628,9 @@ public class Task
         }
     }
 
+    /**
+     * task 简单理解就是一个后台任务
+     */
     private void doRun() {
         // ----------------------------
         //  Initial State transition
@@ -572,16 +638,19 @@ public class Task
         while (true) {
             ExecutionState current = this.executionState;
             if (current == ExecutionState.CREATED) {
+                // 进行状态机切换
                 if (transitionState(ExecutionState.CREATED, ExecutionState.DEPLOYING)) {
                     // success, we can start our work
                     break;
                 }
+                // 此时进入了一个完结的状态
             } else if (current == ExecutionState.FAILED) {
                 // we were immediately failed. tell the TaskManager that we reached our final state
                 notifyFinalState();
                 if (metrics != null) {
                     metrics.close();
                 }
+                // 退出循环
                 return;
             } else if (current == ExecutionState.CANCELING) {
                 if (transitionState(ExecutionState.CANCELING, ExecutionState.CANCELED)) {
@@ -602,6 +671,8 @@ public class Task
             }
         }
 
+        // 此时进入了部署阶段
+
         // all resource acquisitions and registrations from here on
         // need to be undone in the end
         Map<String, Future<Path>> distributedCacheEntries = new HashMap<>();
@@ -615,16 +686,23 @@ public class Task
 
             // activate safety net for task thread
             LOG.debug("Creating FileSystem stream leak safety net for task {}", this);
+
+            // 该对象用于维护closable对象
             FileSystemSafetyNet.initializeSafetyNetForThread();
 
             // first of all, get a user-code classloader
             // this may involve downloading the job's JAR files and/or classes
             LOG.info("Loading JAR files for task {}.", this);
 
+            // 获取类加载器
             userCodeClassLoader = createUserCodeClassloader();
+
+            // 反序列化 得到执行配置
             final ExecutionConfig executionConfig =
                     serializedExecutionConfig.deserializeValue(userCodeClassLoader.asClassLoader());
             Configuration executionConfigConfiguration = executionConfig.toConfiguration();
+
+            // 覆盖默认配置
 
             // override task cancellation interval from Flink config if set in ExecutionConfig
             taskCancellationInterval =
@@ -638,6 +716,7 @@ public class Task
                             .getOptional(TaskManagerOptions.TASK_CANCELLATION_TIMEOUT)
                             .orElse(taskCancellationTimeout);
 
+            // 发现此时任务已经被取消 或失败
             if (isCanceledOrFailed()) {
                 throw new CancelTaskException();
             }
@@ -651,17 +730,22 @@ public class Task
 
             LOG.debug("Registering task at network: {}.", this);
 
+            // 触发各对象的 setup
             setupPartitionsAndGates(partitionWriters, inputGates);
 
             for (ResultPartitionWriter partitionWriter : partitionWriters) {
+                // 注册到分发器上 这样产生相关事件就可以通知 相关监听器
                 taskEventDispatcher.registerPartition(partitionWriter.getPartitionId());
             }
 
             // next, kick off the background copying of files for the distributed cache
             try {
+                // 从配置中加载缓存数据
                 for (Map.Entry<String, DistributedCache.DistributedCacheEntry> entry :
                         DistributedCache.readFileInfoFromConfig(jobConfiguration)) {
                     LOG.info("Obtaining local cache file for '{}'.", entry.getKey());
+
+                    // 产生本地文件 并返回路径
                     Future<Path> cp =
                             fileCache.createTmpFile(
                                     entry.getKey(), entry.getValue(), jobId, executionId);
@@ -683,9 +767,11 @@ public class Task
             //  call the user code initialization methods
             // ----------------------------------------------------------------
 
+            // 为该task创建用于存储 KvState的容器
             TaskKvStateRegistry kvStateRegistry =
                     kvStateService.createKvStateTaskRegistry(jobId, getJobVertexId());
 
+            // 创建环境对象
             Environment env =
                     new RuntimeEnvironment(
                             jobId,
@@ -728,6 +814,7 @@ public class Task
             FlinkSecurityManager.monitorUserSystemExitForCurrentThread();
             try {
                 // now load and instantiate the task's invokable code
+                // 开始加载 任务对象
                 invokable =
                         loadAndInstantiateInvokable(
                                 userCodeClassLoader.asClassLoader(), nameOfInvokableClass, env);
@@ -743,6 +830,7 @@ public class Task
             // by the time we switched to running.
             this.invokable = invokable;
 
+            // 在这里完成了 restore invoke
             restoreAndInvoke(invokable);
 
             // make sure, we enter the catch block if the task leaves the invoke() method due
@@ -756,14 +844,17 @@ public class Task
             // ----------------------------------------------------------------
 
             // finish the produced partitions. if this fails, we consider the execution failed.
+            // 此时数据已经写入分区了
             for (ResultPartitionWriter partitionWriter : partitionWriters) {
                 if (partitionWriter != null) {
+                    // 比如流水线模式  会发送一条表示end的记录
                     partitionWriter.finish();
                 }
             }
 
             // try to mark the task as finished
             // if that fails, the task was canceled/failed in the meantime
+            // 转换成finished
             if (!transitionState(ExecutionState.RUNNING, ExecutionState.FINISHED)) {
                 throw new CancelTaskException();
             }
@@ -786,6 +877,7 @@ public class Task
                     if (current == ExecutionState.RUNNING
                             || current == ExecutionState.INITIALIZING
                             || current == ExecutionState.DEPLOYING) {
+                        // 表示是被取消的
                         if (ExceptionUtils.findThrowable(t, CancelTaskException.class)
                                 .isPresent()) {
                             if (transitionState(current, ExecutionState.CANCELED, t)) {
@@ -793,6 +885,7 @@ public class Task
                                 break;
                             }
                         } else {
+                            // 转换成failed
                             if (transitionState(current, ExecutionState.FAILED, t)) {
                                 cancelInvokable(invokable);
                                 break;
@@ -835,14 +928,17 @@ public class Task
                 this.invokable = null;
 
                 // free the network resources
+                // 释放资源
                 releaseResources();
 
                 // free memory resources
+                // 释放内存
                 if (invokable != null) {
                     memoryManager.releaseAll(invokable);
                 }
 
                 // remove all of the tasks resources
+                // 解除引用
                 fileCache.releaseJob(jobId, executionId);
 
                 // close and de-activate safety net for task thread
@@ -875,7 +971,9 @@ public class Task
         }
     }
 
-    /** Unwrap, enrich and handle fatal errors. */
+    /** Unwrap, enrich and handle fatal errors.
+     * 处理异常前的检测
+     * */
     private Throwable preProcessException(Throwable t) {
         // unwrap wrapped exceptions to make stack traces more compact
         if (t instanceof WrappingRuntimeException) {
@@ -905,10 +1003,16 @@ public class Task
         return t;
     }
 
+    /**
+     * 准备执行 Invokable
+     * @param finalInvokable
+     * @throws Exception
+     */
     private void restoreAndInvoke(TaskInvokable finalInvokable) throws Exception {
         try {
             // switch to the INITIALIZING state, if that fails, we have been canceled/failed in the
             // meantime
+            // 部署阶段就是 Invoke 和 env的准备阶段  此时进入初始化阶段
             if (!transitionState(ExecutionState.DEPLOYING, ExecutionState.INITIALIZING)) {
                 throw new CancelTaskException();
             }
@@ -919,8 +1023,10 @@ public class Task
             // make sure the user code classloader is accessible thread-locally
             executingThread.setContextClassLoader(userCodeClassLoader.asClassLoader());
 
+            // 先进行数据恢复
             runWithSystemExitMonitoring(finalInvokable::restore);
 
+            // 进入running状态
             if (!transitionState(ExecutionState.INITIALIZING, ExecutionState.RUNNING)) {
                 throw new CancelTaskException();
             }
@@ -929,6 +1035,7 @@ public class Task
             taskManagerActions.updateTaskExecutionState(
                     new TaskExecutionState(executionId, ExecutionState.RUNNING));
 
+            // 执行invoke
             runWithSystemExitMonitoring(finalInvokable::invoke);
         } catch (Throwable throwable) {
             try {
@@ -938,6 +1045,7 @@ public class Task
             }
             throw throwable;
         }
+        // 进行清理
         runWithSystemExitMonitoring(() -> finalInvokable.cleanUp(null));
     }
 
@@ -974,6 +1082,7 @@ public class Task
     /**
      * Releases resources before task exits. We should also fail the partition to release if the
      * task has failed, is canceled, or is being canceled at the moment.
+     * 释放资源
      */
     private void releaseResources() {
         LOG.debug(
@@ -982,6 +1091,7 @@ public class Task
                 getExecutionState());
 
         for (ResultPartitionWriter partitionWriter : partitionWriters) {
+            // 移除掉handler
             taskEventDispatcher.unregisterPartition(partitionWriter.getPartitionId());
         }
 
@@ -999,12 +1109,18 @@ public class Task
         }
     }
 
+    /**
+     * 通知所有分区 写入失败
+     */
     private void failAllResultPartitions() {
         for (ResultPartitionWriter partitionWriter : partitionWriters) {
             partitionWriter.fail(getFailureCause());
         }
     }
 
+    /**
+     * 关闭writer
+     */
     private void closeAllResultPartitions() {
         for (ResultPartitionWriter partitionWriter : partitionWriters) {
             try {
@@ -1017,6 +1133,9 @@ public class Task
         }
     }
 
+    /**
+     * 关闭所有gate
+     */
     private void closeAllInputGates() {
         TaskInvokable invokable = this.invokable;
         if (invokable == null || !invokable.isUsingNonBlockingInput()) {
@@ -1034,11 +1153,17 @@ public class Task
         }
     }
 
+    /**
+     * 获取用户类加载器
+     * @return
+     * @throws Exception
+     */
     private UserCodeClassLoader createUserCodeClassloader() throws Exception {
         long startDownloadTime = System.currentTimeMillis();
 
         // triggers the download of all missing jar files from the job manager
         final UserCodeClassLoader userCodeClassLoader =
+                // 该类加载器会从特殊的路径加载类
                 classLoaderHandle.getOrResolveClassLoader(requiredJarFiles, requiredClasspaths);
 
         LOG.debug(
@@ -1049,6 +1174,9 @@ public class Task
         return userCodeClassLoader;
     }
 
+    /**
+     * 通知TM 当前task进入finish状态
+     */
     private void notifyFinalState() {
         checkState(executionState.isTerminal());
         taskManagerActions.updateTaskExecutionState(
@@ -1077,6 +1205,8 @@ public class Task
      * @param newState of the execution
      * @param cause of the transition change or null
      * @return true if the transition was successful, otherwise false
+     *
+     * 进行状态切换
      */
     private boolean transitionState(
             ExecutionState currentState, ExecutionState newState, Throwable cause) {
@@ -1135,6 +1265,7 @@ public class Task
      * that aborts that code.
      *
      * <p>This method never blocks.
+     * 取消执行
      */
     public void cancelExecution() {
         LOG.info("Attempting to cancel task {} ({}).", taskNameWithSubtask, executionId);
@@ -1156,6 +1287,11 @@ public class Task
         cancelOrFailAndCancelInvokable(ExecutionState.FAILED, cause);
     }
 
+    /**
+     * 取消或者让执行失败
+     * @param targetState
+     * @param cause
+     */
     private void cancelOrFailAndCancelInvokable(ExecutionState targetState, Throwable cause) {
         try {
             cancelOrFailAndCancelInvokableInternal(targetState, cause);
@@ -1172,6 +1308,11 @@ public class Task
         }
     }
 
+    /**
+     * 取消或者让执行失败
+     * @param targetState
+     * @param cause
+     */
     @VisibleForTesting
     void cancelOrFailAndCancelInvokableInternal(ExecutionState targetState, Throwable cause) {
         cause = preProcessException(cause);
@@ -1214,6 +1355,7 @@ public class Task
                         // case the canceling could not continue
 
                         // The canceller calls cancel and interrupts the executing thread once
+                        // 产生一个取消对象
                         Runnable canceler =
                                 new TaskCanceler(
                                         LOG, invokable, executingThread, taskNameWithSubtask);
@@ -1255,6 +1397,7 @@ public class Task
 
                         // if a cancellation timeout is set, the watchdog thread kills the process
                         // if graceful cancellation does not succeed
+                        // 如果取消有时间
                         if (taskCancellationTimeout > 0) {
                             Runnable cancelWatchdog =
                                     new TaskCancelerWatchDog(
@@ -1291,12 +1434,20 @@ public class Task
     //  Partition State Listeners
     // ------------------------------------------------------------------------
 
+    /**
+     * 查看中间结果集某个分区的状态
+     * @param intermediateDataSetId ID of the parent intermediate data set.
+     * @param resultPartitionId ID of the result partition to check. This identifies the producing
+     *     execution and partition.
+     * @param responseConsumer consumer for the response handle.  用于处理查询的结果
+     */
     @Override
     public void requestPartitionProducerState(
             final IntermediateDataSetID intermediateDataSetId,
             final ResultPartitionID resultPartitionId,
             Consumer<? super ResponseHandle> responseConsumer) {
 
+        // 会转发给 jobMaster
         final CompletableFuture<ExecutionState> futurePartitionState =
                 partitionProducerStateChecker.requestPartitionProducerState(
                         jobId, intermediateDataSetId, resultPartitionId);
@@ -1317,6 +1468,7 @@ public class Task
      * @param checkpointID The ID identifying the checkpoint.
      * @param checkpointTimestamp The timestamp associated with the checkpoint.
      * @param checkpointOptions Options for performing this checkpoint.
+     *                          让其产生一个检查点
      */
     public void triggerCheckpointBarrier(
             final long checkpointID,
@@ -1324,6 +1476,8 @@ public class Task
             final CheckpointOptions checkpointOptions) {
 
         final TaskInvokable invokable = this.invokable;
+
+        // 根据相关信息产生元数据
         final CheckpointMetaData checkpointMetaData =
                 new CheckpointMetaData(
                         checkpointID, checkpointTimestamp, System.currentTimeMillis());
@@ -1331,11 +1485,13 @@ public class Task
         if (executionState == ExecutionState.RUNNING) {
             checkState(invokable instanceof CheckpointableTask, "invokable is not checkpointable");
             try {
+                // 产生检查点
                 ((CheckpointableTask) invokable)
                         .triggerCheckpointAsync(checkpointMetaData, checkpointOptions)
                         .handle(
                                 (triggerResult, exception) -> {
                                     if (exception != null || !triggerResult) {
+                                        // 表示产生失败
                                         declineCheckpoint(
                                                 checkpointID,
                                                 CheckpointFailureReason.TASK_FAILURE,
@@ -1380,6 +1536,7 @@ public class Task
                     executionId);
 
             // send back a message that we did not do the checkpoint
+            // 只有在running状态 才能产生检查点  所以这里要返回失败
             declineCheckpoint(
                     checkpointID, CheckpointFailureReason.CHECKPOINT_DECLINED_TASK_NOT_READY);
         }
@@ -1423,6 +1580,12 @@ public class Task
                 NotifyCheckpointOperation.SUBSUME);
     }
 
+    /**
+     * 通知检查点的3种情况
+     * @param checkpointId
+     * @param latestCompletedCheckpointId
+     * @param notifyCheckpointOperation
+     */
     private void notifyCheckpoint(
             long checkpointId,
             long latestCompletedCheckpointId,
@@ -1432,6 +1595,7 @@ public class Task
         if (executionState == ExecutionState.RUNNING && invokable != null) {
             checkState(invokable instanceof CheckpointableTask, "invokable is not checkpointable");
             try {
+                // 3种情况执行不同的钩子
                 switch (notifyCheckpointOperation) {
                     case ABORT:
                         ((CheckpointableTask) invokable)
@@ -1491,12 +1655,14 @@ public class Task
      *
      * @throws FlinkException This method throws exceptions indicating the reason why delivery did
      *     not succeed.
+     *     将一些事件投递给 operator
      */
     public void deliverOperatorEvent(OperatorID operator, SerializedValue<OperatorEvent> evt)
             throws FlinkException {
         final TaskInvokable invokable = this.invokable;
         final ExecutionState currentState = this.executionState;
 
+        // 必须在 invokable 还在运行的时候
         if (invokable == null
                 || (currentState != ExecutionState.RUNNING
                         && currentState != ExecutionState.INITIALIZING)) {
@@ -1505,6 +1671,7 @@ public class Task
 
         if (invokable instanceof CoordinatedTask) {
             try {
+                // 投递事件
                 ((CoordinatedTask) invokable).dispatchOperatorEvent(operator, evt);
             } catch (Throwable t) {
                 ExceptionUtils.rethrowIfFatalErrorOrOOM(t);
@@ -1584,6 +1751,7 @@ public class Task
      * @return The instantiated invokable task object.
      * @throws Throwable Forwards all exceptions that happen during initialization of the task. Also
      *     throws an exception if the task class misses the necessary constructor.
+     *     就是类加载那套
      */
     private static TaskInvokable loadAndInstantiateInvokable(
             ClassLoader classLoader, String className, Environment environment) throws Throwable {
@@ -1639,6 +1807,7 @@ public class Task
     /**
      * This runner calls cancel() on the invokable, closes input-/output resources, and initially
      * interrupts the task thread.
+     * 该对象用于取消invokable
      */
     private class TaskCanceler implements Runnable {
 
@@ -1746,6 +1915,7 @@ public class Task
      * Watchdog for the cancellation. If the task thread does not go away gracefully within a
      * certain time, we trigger a hard cancel action (notify TaskManager of fatal error, which in
      * turn kills the process).
+     * 检查在一定时间后任务是否被取消
      */
     private static class TaskCancelerWatchDog implements Runnable {
 

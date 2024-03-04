@@ -77,24 +77,37 @@ import java.util.concurrent.Executor;
 /**
  * Abstract state class which contains an {@link ExecutionGraph} and the required handlers to
  * execute common operations.
+ * 表示包含执行图的状态  把几个状态的共有部分抽出来
  */
 abstract class StateWithExecutionGraph implements State {
     private final Context context;
 
+    /**
+     * 执行图 执行图应该只有一个job
+     */
     private final ExecutionGraph executionGraph;
 
     private final ExecutionGraphHandler executionGraphHandler;
 
     private final OperatorCoordinatorHandler operatorCoordinatorHandler;
 
+    /**
+     * 一个简单对象 可以查询KvState位置  也可以注册/注销KvState
+     */
     private final KvStateHandler kvStateHandler;
 
     private final Logger logger;
 
     private final ClassLoader userCodeClassLoader;
 
+    /**
+     * 记录一些之前的异常
+     */
     private final List<ExceptionHistoryEntry> failureCollection;
 
+    /**
+     * 该对象会记录subtask是否完成
+     */
     private final VertexEndOfDataListener vertexEndOfDataListener;
 
     StateWithExecutionGraph(
@@ -124,6 +137,7 @@ abstract class StateWithExecutionGraph implements State {
                                         context.runIfState(
                                                 this,
                                                 () -> {
+                                                    // 当完成时
                                                     convertFailures(this.failureCollection)
                                                             .ifPresent(context::archiveFailure);
                                                     onGloballyTerminalState(jobStatus);
@@ -153,6 +167,7 @@ abstract class StateWithExecutionGraph implements State {
     public void onLeave(Class<? extends State> newState) {
         if (!StateWithExecutionGraph.class.isAssignableFrom(newState)) {
             // we are leaving the StateWithExecutionGraph --> we need to dispose temporary services
+            // 其余状态需要清理当前协调者
             operatorCoordinatorHandler.disposeAllOperatorCoordinators();
         }
     }
@@ -185,6 +200,14 @@ abstract class StateWithExecutionGraph implements State {
         return executionGraphHandler.requestPartitionState(intermediateResultId, resultPartitionId);
     }
 
+    /**
+     * 收到检查点 ack 会转交给协调者
+     * @param jobID
+     * @param executionAttemptID
+     * @param checkpointId
+     * @param checkpointMetrics
+     * @param checkpointState
+     */
     void acknowledgeCheckpoint(
             JobID jobID,
             ExecutionAttemptID executionAttemptID,
@@ -200,6 +223,10 @@ abstract class StateWithExecutionGraph implements State {
         executionGraphHandler.declineCheckpoint(decline);
     }
 
+    /**
+     * 记录某个子任务处理完成
+     * @param executionAttemptID
+     */
     void notifyEndOfData(ExecutionAttemptID executionAttemptID) {
         CheckpointCoordinatorConfiguration checkpointCoordinatorConfiguration =
                 executionGraph.getCheckpointCoordinatorConfiguration();
@@ -208,6 +235,7 @@ abstract class StateWithExecutionGraph implements State {
                 && checkpointCoordinatorConfiguration.isEnableCheckpointsAfterTasksFinish()) {
             vertexEndOfDataListener.recordTaskEndOfData(executionAttemptID);
             if (vertexEndOfDataListener.areAllTasksEndOfData()) {
+                // 当所有子任务完成时 触发检查点
                 triggerCheckpoint(CheckpointType.CONFIGURED);
             }
         }
@@ -221,6 +249,10 @@ abstract class StateWithExecutionGraph implements State {
                 executionAttemptID, checkpointId, checkpointMetrics);
     }
 
+    /**
+     * 更新累加器的值
+     * @param accumulatorSnapshot
+     */
     void updateAccumulators(AccumulatorSnapshot accumulatorSnapshot) {
         executionGraph.updateAccumulators(accumulatorSnapshot);
     }
@@ -257,10 +289,19 @@ abstract class StateWithExecutionGraph implements State {
                 jobId, jobVertexId, keyGroupRange, registrationName);
     }
 
+    /**
+     *  触发保存点
+     * @param targetDirectory
+     * @param cancelJob 是否需要先停止之前的检查点
+     * @param formatType
+     * @return
+     */
     CompletableFuture<String> triggerSavepoint(
             String targetDirectory, boolean cancelJob, SavepointFormatType formatType) {
         final CheckpointCoordinator checkpointCoordinator =
                 executionGraph.getCheckpointCoordinator();
+
+        // 检查前置条件
         StopWithSavepointTerminationManager.checkSavepointActionPreconditions(
                 checkpointCoordinator, targetDirectory, getJobId(), logger);
 
@@ -269,6 +310,7 @@ abstract class StateWithExecutionGraph implements State {
                 cancelJob ? "cancel-with-" : "",
                 executionGraph.getJobID());
 
+        // 需要先停止之前的检查点
         if (cancelJob) {
             checkpointCoordinator.stopCheckpointScheduler();
         }
@@ -283,6 +325,7 @@ abstract class StateWithExecutionGraph implements State {
                                     startCheckpointScheduler(checkpointCoordinator);
                                 }
                                 throw new CompletionException(throwable);
+                                // 标记了取消job的情况 转换成cancel状态
                             } else if (cancelJob && context.isState(this)) {
                                 logger.info(
                                         "Savepoint stored in {}. Now cancelling {}.",
@@ -295,6 +338,11 @@ abstract class StateWithExecutionGraph implements State {
                         context.getMainThreadExecutor());
     }
 
+    /**
+     * 触发检查点
+     * @param checkpointType
+     * @return
+     */
     CompletableFuture<CompletedCheckpoint> triggerCheckpoint(CheckpointType checkpointType) {
         final CheckpointCoordinator checkpointCoordinator =
                 executionGraph.getCheckpointCoordinator();
@@ -317,6 +365,10 @@ abstract class StateWithExecutionGraph implements State {
                         context.getMainThreadExecutor());
     }
 
+    /**
+     * 开始周期性触发检查点
+     * @param checkpointCoordinator
+     */
     private void startCheckpointScheduler(final CheckpointCoordinator checkpointCoordinator) {
         if (checkpointCoordinator.isPeriodicCheckpointingConfigured()) {
             try {
@@ -327,6 +379,13 @@ abstract class StateWithExecutionGraph implements State {
         }
     }
 
+    /**
+     * 将某个事件推送给协调者
+     * @param taskExecutionId
+     * @param operatorId
+     * @param evt
+     * @throws FlinkException
+     */
     void deliverOperatorEventToCoordinator(
             ExecutionAttemptID taskExecutionId, OperatorID operatorId, OperatorEvent evt)
             throws FlinkException {
@@ -347,12 +406,14 @@ abstract class StateWithExecutionGraph implements State {
      * Transition to different state when the execution graph reaches a globally terminal state.
      *
      * @param globallyTerminalState globally terminal state which the execution graph reached
+     *                              当job结束时触发钩子
      */
     abstract void onGloballyTerminalState(JobStatus globallyTerminalState);
 
     @Override
     public void handleGlobalFailure(
             Throwable cause, CompletableFuture<Map<String, String>> failureLabels) {
+        // 收集异常
         failureCollection.add(ExceptionHistoryEntry.createGlobal(cause, failureLabels));
         onFailure(cause);
     }
@@ -369,18 +430,24 @@ abstract class StateWithExecutionGraph implements State {
             TaskExecutionStateTransition taskExecutionStateTransition,
             CompletableFuture<Map<String, String>> failureLabels) {
         // collect before updateState, as updateState may deregister the execution
+        // 找到执行对象
         final Optional<AccessExecution> maybeExecution =
                 executionGraph.findExecution(taskExecutionStateTransition.getID());
         final Optional<String> maybeTaskName =
                 executionGraph.findVertexWithAttempt(taskExecutionStateTransition.getID());
 
+        // 表示要转换的状态
         final ExecutionState desiredState = taskExecutionStateTransition.getExecutionState();
+        // 更新成期望的状态
         boolean successfulUpdate = getExecutionGraph().updateState(taskExecutionStateTransition);
+
+        // 表示更新成失败状态
         if (successfulUpdate && desiredState == ExecutionState.FAILED) {
             final AccessExecution execution =
                     maybeExecution.orElseThrow(NoSuchElementException::new);
             final String taskName = maybeTaskName.orElseThrow(NoSuchElementException::new);
             final ExecutionState currentState = execution.getState();
+            // 表示更新成失败状态了
             if (currentState == desiredState) {
                 failureCollection.add(
                         ExceptionHistoryEntry.create(execution, taskName, failureLabels));
@@ -396,6 +463,11 @@ abstract class StateWithExecutionGraph implements State {
         return failureCollection;
     }
 
+    /**
+     * 产生一个异常历史对象
+     * @param failureCollection
+     * @return
+     */
     private static Optional<RootExceptionHistoryEntry> convertFailures(
             List<ExceptionHistoryEntry> failureCollection) {
         if (failureCollection.isEmpty()) {

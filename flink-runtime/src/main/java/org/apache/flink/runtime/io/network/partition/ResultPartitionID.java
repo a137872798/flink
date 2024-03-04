@@ -37,13 +37,20 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * <p>In failure cases the {@link IntermediateResultPartitionID} is not enough to uniquely identify
  * a result partition. It needs to be associated with the producing task as well to ensure correct
  * tracking of failed/restarted tasks.
+ * 表示某个生产者 产生了某个结果分区
  */
 public final class ResultPartitionID implements Serializable {
 
     private static final long serialVersionUID = -902516386203787826L;
 
+    /**
+     * 表示一个被分区的中间结果集
+     */
     private final IntermediateResultPartitionID partitionId;
 
+    /**
+     * 产生结果集的 executionId
+     */
     private final ExecutionAttemptID producerId;
 
     @VisibleForTesting

@@ -52,6 +52,8 @@ import java.util.List;
  * @see org.apache.flink.runtime.operators.GroupReduceCombineDriver
  * @param <IN> The data type consumed by the combiner.
  * @param <OUT> The data type produced by the combiner.
+ *
+ *             同步聚合
  */
 public class SynchronousChainedCombineDriver<IN, OUT> extends ChainedDriver<IN, OUT> {
 
@@ -67,6 +69,9 @@ public class SynchronousChainedCombineDriver<IN, OUT> extends ChainedDriver<IN, 
 
     private InMemorySorter<IN> sorter;
 
+    /**
+     * 该函数用于将多个元素聚合后 下发
+     */
     private GroupCombineFunction<IN, OUT> combiner;
 
     private TypeSerializer<IN> serializer;
@@ -122,6 +127,7 @@ public class SynchronousChainedCombineDriver<IN, OUT> extends ChainedDriver<IN, 
         this.memory = memManager.allocatePages(this.parent, numMemoryPages);
 
         // instantiate a fix-length in-place sorter, if possible, otherwise the out-of-place sorter
+        // 根据不同情况 创建 不同sorter对象
         if (sortingComparator.supportsSerializationWithKeyNormalization()
                 && this.serializer.getLength() > 0
                 && this.serializer.getLength() <= THRESHOLD_FOR_IN_PLACE_SORTING) {
@@ -165,6 +171,10 @@ public class SynchronousChainedCombineDriver<IN, OUT> extends ChainedDriver<IN, 
         return this.taskName;
     }
 
+    /**
+     * 采集数据
+     * @param record The record to collect.
+     */
     @Override
     public void collect(IN record) {
         this.numRecordsIn.inc();
@@ -179,6 +189,7 @@ public class SynchronousChainedCombineDriver<IN, OUT> extends ChainedDriver<IN, 
 
         // do the actual sorting
         try {
+            // 数据满了 触发聚合以及下发
             sortAndCombine();
         } catch (Exception e) {
             throw new ExceptionInChainedStubException(this.taskName, e);
@@ -221,6 +232,10 @@ public class SynchronousChainedCombineDriver<IN, OUT> extends ChainedDriver<IN, 
         }
     }
 
+    /**
+     * 当排序数据满时  聚合数据并下发
+     * @throws Exception
+     */
     private void sortAndCombine() throws Exception {
         final InMemorySorter<IN> sorter = this.sorter;
 
@@ -238,10 +253,13 @@ public class SynchronousChainedCombineDriver<IN, OUT> extends ChainedDriver<IN, 
 
                 // run stub implementation
                 while (this.running && keyIter.nextKey()) {
+                    // 每次处理相同key的一组value  在合并后发往下游
                     stub.combine(keyIter.getValues(), output);
                 }
             }
         } else {
+
+            // 区别就是调用不复用对象的api
             if (!sorter.isEmpty()) {
                 this.sortAlgo.sort(sorter);
                 // run the combiner

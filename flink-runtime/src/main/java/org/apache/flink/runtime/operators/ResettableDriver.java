@@ -37,5 +37,9 @@ public interface ResettableDriver<S extends Function, OT> extends Driver<S, OT> 
 
     void reset() throws Exception;
 
+    /**
+     * 拆卸
+     * @throws Exception
+     */
     void teardown() throws Exception;
 }

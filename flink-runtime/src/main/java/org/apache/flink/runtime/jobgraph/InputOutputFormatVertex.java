@@ -36,6 +36,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * A task vertex that runs an initialization and a finalization on the master. If necessary, it
  * tries to deserialize input and output formats, and initialize and finalize them on master.
+ *
  */
 public class InputOutputFormatVertex extends JobVertex {
 
@@ -49,13 +50,19 @@ public class InputOutputFormatVertex extends JobVertex {
 
     public InputOutputFormatVertex(
             String name, JobVertexID id, List<OperatorIDPair> operatorIDPairs) {
-
         super(name, id, operatorIDPairs);
     }
 
+    /**
+     * 当任务开始时触发
+     * @param context Provides contextual information for the initialization
+     * @throws Exception
+     */
     @Override
     public void initializeOnMaster(InitializeOnMasterContext context) throws Exception {
         ClassLoader loader = context.getClassLoader();
+
+        // 产生存储输入输出格式的容器
         final InputOutputFormatContainer formatContainer = initInputOutputformatContainer(loader);
 
         final ClassLoader original = Thread.currentThread().getContextClassLoader();
@@ -64,8 +71,10 @@ public class InputOutputFormatVertex extends JobVertex {
             Thread.currentThread().setContextClassLoader(loader);
 
             // configure the input format and setup input splits
+            // 获取所有的inputFormat
             Map<OperatorID, UserCodeWrapper<? extends InputFormat<?, ?>>> inputFormats =
                     formatContainer.getInputFormats();
+            // 这里期望只有一个输入
             if (inputFormats.size() > 1) {
                 throw new UnsupportedOperationException(
                         "Multiple input formats are not supported in a job vertex.");
@@ -76,6 +85,7 @@ public class InputOutputFormatVertex extends JobVertex {
 
                 try {
                     inputFormat = entry.getValue().getUserCodeObject();
+                    // 使用operator相关的配置进行处理
                     inputFormat.configure(formatContainer.getParameters(entry.getKey()));
                 } catch (Throwable t) {
                     throw new Exception(
@@ -86,10 +96,12 @@ public class InputOutputFormatVertex extends JobVertex {
                             t);
                 }
 
+                // inputFormatter 作为 输出源  可以产生多个InputSplit
                 setInputSplitSource(inputFormat);
             }
 
             // configure output formats and invoke initializeGlobal()
+            // 对output数量没有限制
             Map<OperatorID, UserCodeWrapper<? extends OutputFormat<?>>> outputFormats =
                     formatContainer.getOutputFormats();
             for (Map.Entry<OperatorID, UserCodeWrapper<? extends OutputFormat<?>>> entry :
@@ -108,6 +120,7 @@ public class InputOutputFormatVertex extends JobVertex {
                             t);
                 }
 
+                // 需要触发钩子
                 if (outputFormat instanceof InitializeOnMaster) {
                     int executionParallelism = context.getExecutionParallelism();
                     ((InitializeOnMaster) outputFormat).initializeGlobal(executionParallelism);
@@ -119,8 +132,15 @@ public class InputOutputFormatVertex extends JobVertex {
         }
     }
 
+    /**
+     * 进行清理工作
+     * @param context Provides contextual information for the initialization
+     * @throws Exception
+     */
     @Override
     public void finalizeOnMaster(FinalizeOnMasterContext context) throws Exception {
+
+        // 一样是初始化容器  容器只是临时使用的
         final ClassLoader loader = context.getClassLoader();
         final InputOutputFormatContainer formatContainer = initInputOutputformatContainer(loader);
 
@@ -148,10 +168,12 @@ public class InputOutputFormatVertex extends JobVertex {
                             t);
                 }
 
+                // 主要是针对outputFormatter    触发相关钩子
                 if (outputFormat instanceof FinalizeOnMaster) {
                     int executionParallelism = context.getExecutionParallelism();
                     ((FinalizeOnMaster) outputFormat)
                             .finalizeGlobal(
+                                    // 相当于把上下文参数传递过去
                                     new FinalizationContext() {
                                         @Override
                                         public int getParallelism() {

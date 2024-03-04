@@ -29,10 +29,16 @@ import java.io.IOException;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
+/**
+ * 表示维护的是netty的连接
+ */
 public class NettyConnectionManager implements ConnectionManager {
 
     private final NettyServer server;
 
+    /**
+     * 使用该对象创建多个连接
+     */
     private final NettyClient client;
 
     private final NettyBufferPool bufferPool;

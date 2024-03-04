@@ -30,8 +30,8 @@ interface SharedSlotProfileRetriever {
     /**
      * Computes a {@link SlotProfile} of an execution slot sharing group.
      *
-     * @param executionSlotSharingGroup executions sharing the slot.
-     * @param physicalSlotResourceProfile {@link ResourceProfile} of the slot.
+     * @param executionSlotSharingGroup executions sharing the slot.   这个是execution的共享组
+     * @param physicalSlotResourceProfile {@link ResourceProfile} of the slot.  资源描述
      * @return {@link SlotProfile} to allocate for the {@code executionSlotSharingGroup}.
      */
     SlotProfile getSlotProfile(

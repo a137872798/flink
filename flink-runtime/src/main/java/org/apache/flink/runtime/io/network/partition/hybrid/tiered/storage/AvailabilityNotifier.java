@@ -24,6 +24,7 @@ import org.apache.flink.runtime.io.network.partition.hybrid.tiered.common.Tiered
 /**
  * {@link AvailabilityNotifier} is used to notify that the data from the specific partition and
  * subpartition in tiered storage is available.
+ * 通知某个子分区有数据可用
  */
 public interface AvailabilityNotifier {
 

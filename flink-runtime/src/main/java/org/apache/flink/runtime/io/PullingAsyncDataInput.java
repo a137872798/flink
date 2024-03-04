@@ -46,6 +46,8 @@ import java.util.concurrent.CompletableFuture;
  * 	input.getAvailableFuture().get();
  * }
  * }</pre>
+ *
+ * 表示可以拉取数据
  */
 @Internal
 public interface PullingAsyncDataInput<T> extends AvailabilityProvider {
@@ -54,10 +56,14 @@ public interface PullingAsyncDataInput<T> extends AvailabilityProvider {
      *
      * @return {@code Optional.empty()} will be returned if there is no data to return or if {@link
      *     #isFinished()} returns true. Otherwise {@code Optional.of(element)}.
+     *
+     *     获取下个数据
      */
     Optional<T> pollNext() throws Exception;
 
-    /** @return true if is finished and for example end of input was reached, false otherwise. */
+    /** @return true if is finished and for example end of input was reached, false otherwise.
+     * 数据是否已经获取完了
+     * */
     boolean isFinished();
 
     /**
@@ -66,13 +72,14 @@ public interface PullingAsyncDataInput<T> extends AvailabilityProvider {
      * <p>Moreover it tells us the reason why there is no more data incoming. If any of the upstream
      * subtasks finished because of the stop-with-savepoint --no-drain, we should not drain the
      * input. See also {@code StopMode}.
+     * 返回状态表示是否读取完了
      */
     EndOfDataStatus hasReceivedEndOfData();
 
     /** Status for describing if we have reached the end of data. */
     enum EndOfDataStatus {
         NOT_END_OF_DATA,
-        DRAINED,
+        DRAINED,  // 读取完了
         STOPPED
     }
 }

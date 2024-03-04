@@ -25,6 +25,7 @@ import org.apache.flink.runtime.state.StateBackend;
  * An interface to delegate state backend.
  *
  * <p>As its name, it should include a state backend to delegate.
+ * 表示一个代理对象
  */
 @Internal
 public interface DelegatingStateBackend extends StateBackend {

@@ -26,6 +26,8 @@ import org.apache.flink.runtime.clusterframework.types.ResourceID;
  *
  * @param <I> Type of the incoming payload
  * @param <O> Type of the outgoing payload
+ *           作为 HeartbeatTarget 表示可以接收和发送心跳包
+ *           HeartbeatManager 是一个更上层的对象可以监控多个 HeartbeatTarget
  */
 public interface HeartbeatManager<I, O> extends HeartbeatTarget<I> {
 

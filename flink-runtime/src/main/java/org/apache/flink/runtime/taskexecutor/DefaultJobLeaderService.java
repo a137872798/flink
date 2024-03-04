@@ -53,15 +53,21 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 
-/** Default implementation of {@link JobLeaderService}. */
+/** Default implementation of {@link JobLeaderService}.
+ * 该对象用于监控job的 Jm leader  并与他们建立连接
+ * */
 public class DefaultJobLeaderService implements JobLeaderService {
 
     private static final Logger LOG = LoggerFactory.getLogger(DefaultJobLeaderService.class);
 
-    /** Self's location, used for the job manager connection. */
+    /** Self's location, used for the job manager connection.
+     * 表示本地地址  用于连接 JobMaster
+     * */
     private final UnresolvedTaskManagerLocation ownLocation;
 
-    /** The leader retrieval service and listener for each registered job. */
+    /** The leader retrieval service and listener for each registered job.
+     * 维护每个job的  LeaderRetrievalService   用于获取当前 JobMaster leader 地址
+     * */
     private final Map<
                     JobID,
                     Tuple2<
@@ -81,13 +87,19 @@ public class DefaultJobLeaderService implements JobLeaderService {
      */
     private String ownerAddress;
 
-    /** Rpc service to use for establishing connections. */
+    /** Rpc service to use for establishing connections.
+     * 通过该服务连接
+     * */
     private RpcService rpcService;
 
-    /** High availability services to create the leader retrieval services from. */
+    /** High availability services to create the leader retrieval services from.
+     * 通过该对象提供 leader查询服务
+     * */
     private HighAvailabilityServices highAvailabilityServices;
 
-    /** Job leader listener listening for job leader changes. */
+    /** Job leader listener listening for job leader changes.
+     * 监听JM leader的变化
+     * */
     private JobLeaderListener jobLeaderListener;
 
     public DefaultJobLeaderService(
@@ -157,6 +169,10 @@ public class DefaultJobLeaderService implements JobLeaderService {
         state = DefaultJobLeaderService.State.STOPPED;
     }
 
+    /**
+     * 不在维护某个job
+     * @param jobId identifying the job to remove from monitoring
+     */
     @Override
     public void removeJob(JobID jobId) {
         Preconditions.checkState(
@@ -183,6 +199,12 @@ public class DefaultJobLeaderService implements JobLeaderService {
         }
     }
 
+    /**
+     * 维护某个job
+     * @param jobId identifying the job to monitor
+     * @param defaultTargetAddress of the job leader
+     * @throws Exception
+     */
     @Override
     public void addJob(final JobID jobId, final String defaultTargetAddress) throws Exception {
         Preconditions.checkState(
@@ -223,7 +245,9 @@ public class DefaultJobLeaderService implements JobLeaderService {
         }
     }
 
-    /** Leader listener which tries to establish a connection to a newly detected job leader. */
+    /** Leader listener which tries to establish a connection to a newly detected job leader.
+     * 通过该对象查看 JobMaster leader 地址
+     * */
     @ThreadSafe
     private final class JobManagerLeaderListener implements LeaderRetrievalListener {
 
@@ -232,7 +256,9 @@ public class DefaultJobLeaderService implements JobLeaderService {
         /** Job id identifying the job to look for a leader. */
         private final JobID jobId;
 
-        /** Rpc connection to the job leader. */
+        /** Rpc connection to the job leader.
+         * 通过该对象去连接 JM
+         * */
         @GuardedBy("lock")
         @Nullable
         private RegisteredRpcConnection<
@@ -269,6 +295,7 @@ public class DefaultJobLeaderService implements JobLeaderService {
                 if (!stopped) {
                     stopped = true;
 
+                    // 断开连接
                     closeRpcConnection();
                 }
             }
@@ -291,6 +318,11 @@ public class DefaultJobLeaderService implements JobLeaderService {
             }
         }
 
+        /**
+         * 当感知到某个地址为最新的 JM leader
+         * @param leaderAddress The address of the new leader  通知新leader的地址
+         * @param leaderId
+         */
         @Override
         public void notifyLeaderAddress(
                 @Nullable final String leaderAddress, @Nullable final UUID leaderId) {
@@ -314,6 +346,7 @@ public class DefaultJobLeaderService implements JobLeaderService {
 
                     if (leaderAddress == null || leaderAddress.isEmpty()) {
                         // the leader lost leadership but there is no other leader yet.
+                        // 没有leader 断开连接
                         jobManagerLostLeadership = Optional.ofNullable(currentJobMasterId);
                         closeRpcConnection();
                     } else {
@@ -324,6 +357,7 @@ public class DefaultJobLeaderService implements JobLeaderService {
                                     jobId);
                         } else {
                             closeRpcConnection();
+                            // 连接到新的leader
                             openRpcConnectionTo(leaderAddress, jobMasterId);
                         }
                     }
@@ -336,6 +370,11 @@ public class DefaultJobLeaderService implements JobLeaderService {
                             jobLeaderListener.jobManagerLostLeadership(jobId, oldJobMasterId));
         }
 
+        /**
+         * 连接到新的JobMaster
+         * @param leaderAddress
+         * @param jobMasterId
+         */
         @GuardedBy("lock")
         private void openRpcConnectionTo(String leaderAddress, JobMasterId jobMasterId) {
             Preconditions.checkState(
@@ -377,7 +416,9 @@ public class DefaultJobLeaderService implements JobLeaderService {
             }
         }
 
-        /** Rpc connection for the job manager <--> task manager connection. */
+        /** Rpc connection for the job manager <--> task manager connection.
+         * 内部包含 RetryingRegistration  用于建立TM与JM之间的连接
+         * */
         private final class JobManagerRegisteredRpcConnection
                 extends RegisteredRpcConnection<
                         JobMasterId,
@@ -390,6 +431,10 @@ public class DefaultJobLeaderService implements JobLeaderService {
                 super(log, targetAddress, jobMasterId, executor);
             }
 
+            /**
+             * 产生一个注册对象 内部包含注册流程
+             * @return
+             */
             @Override
             protected RetryingRegistration<
                             JobMasterId,
@@ -410,6 +455,10 @@ public class DefaultJobLeaderService implements JobLeaderService {
                                 ownerAddress, ownLocation, taskManagerSession));
             }
 
+            /**
+             * 注册成功时
+             * @param success
+             */
             @Override
             protected void onRegistrationSuccess(JMTMRegistrationSuccess success) {
                 runIfValidRegistrationAttemptOrElse(
@@ -419,6 +468,7 @@ public class DefaultJobLeaderService implements JobLeaderService {
                                     getTargetAddress(),
                                     jobId);
 
+                            // 应该是先发现JobMaster leader 地址   之后尝试连接   连接成功后才触发钩子
                             jobLeaderListener.jobManagerGainedLeadership(
                                     jobId, getTargetGateway(), success);
                         },
@@ -478,7 +528,9 @@ public class DefaultJobLeaderService implements JobLeaderService {
         }
     }
 
-    /** Retrying registration for the job manager <--> task manager connection. */
+    /** Retrying registration for the job manager <--> task manager connection.
+     * 该对象用于将自身注册到 JobMaster
+     * */
     private static final class JobManagerRetryingRegistration
             extends RetryingRegistration<
                     JobMasterId,
@@ -516,6 +568,7 @@ public class DefaultJobLeaderService implements JobLeaderService {
         @Override
         protected CompletableFuture<RegistrationResponse> invokeRegistration(
                 JobMasterGateway gateway, JobMasterId fencingToken, long timeoutMillis) {
+            // 调用网关的api完成注册
             return gateway.registerTaskManager(
                     jobId, taskManagerRegistrationInformation, Time.milliseconds(timeoutMillis));
         }

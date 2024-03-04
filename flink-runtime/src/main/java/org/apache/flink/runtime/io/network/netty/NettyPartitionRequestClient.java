@@ -49,6 +49,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>This client is shared by all remote input channels, which request a partition from the same
  * {@link ConnectionID}.
+ * 提供api
  */
 public class NettyPartitionRequestClient implements PartitionRequestClient {
 
@@ -56,10 +57,16 @@ public class NettyPartitionRequestClient implements PartitionRequestClient {
 
     private final Channel tcpChannel;
 
+    /**
+     * 对应的是一条连接   提供 addInputChannel/removeInputChannel 等方法
+     */
     private final NetworkClientHandler clientHandler;
 
     private final ConnectionID connectionId;
 
+    /**
+     * 生成该对象的工厂
+     */
     private final PartitionRequestClientFactory clientFactory;
 
     /** If zero, the underlying TCP channel can be safely closed. */
@@ -80,6 +87,10 @@ public class NettyPartitionRequestClient implements PartitionRequestClient {
         clientHandler.setConnectionId(connectionId);
     }
 
+    /**
+     * 表示本对象可以被丢弃
+     * @return
+     */
     boolean canBeDisposed() {
         return closeReferenceCounter.get() == 0 && !canBeReused();
     }
@@ -104,6 +115,7 @@ public class NettyPartitionRequestClient implements PartitionRequestClient {
      *
      * <p>The request goes to the remote producer, for which this partition request client instance
      * has been created.
+     * 基本都是由 RemoteChannel 转发过来的
      */
     @Override
     public void requestSubpartition(
@@ -121,8 +133,10 @@ public class NettyPartitionRequestClient implements PartitionRequestClient {
                 partitionId,
                 delayMs);
 
+        // 将本channel交给handler
         clientHandler.addInputChannel(inputChannel);
 
+        // 产生一个请求分区数据的req
         final PartitionRequest request =
                 new PartitionRequest(
                         partitionId,
@@ -145,6 +159,7 @@ public class NettyPartitionRequestClient implements PartitionRequestClient {
                                                 connectionId.getConnectionIndex()),
                                         future.channel().localAddress(),
                                         future.cause()));
+                        // 错误信息会被推送到对端
                         sendToChannel(
                                 new ConnectionErrorMessage(
                                         future.cause() == null
@@ -158,6 +173,7 @@ public class NettyPartitionRequestClient implements PartitionRequestClient {
             ChannelFuture f = tcpChannel.writeAndFlush(request);
             f.addListener(listener);
         } else {
+            // 延迟发送
             final ChannelFuture[] f = new ChannelFuture[1];
             tcpChannel
                     .eventLoop()
@@ -177,6 +193,7 @@ public class NettyPartitionRequestClient implements PartitionRequestClient {
      * <p>Backwards task events flow between readers and writers and therefore will only work when
      * both are running at the same time, which is only guaranteed to be the case when both the
      * respective producer and consumer task run pipelined.
+     * 向上游推送一个事件
      */
     @Override
     public void sendTaskEvent(
@@ -212,6 +229,8 @@ public class NettyPartitionRequestClient implements PartitionRequestClient {
                                 });
     }
 
+    // 其余调用 RemoteChannel的api 也都转换成某种消息发往上游
+
     @Override
     public void notifyCreditAvailable(RemoteInputChannel inputChannel) {
         sendToChannel(new AddCreditMessage(inputChannel));
@@ -237,6 +256,10 @@ public class NettyPartitionRequestClient implements PartitionRequestClient {
         sendToChannel(new AcknowledgeAllRecordsProcessedMessage(inputChannel));
     }
 
+    /**
+     * 发送数据
+     * @param message
+     */
     private void sendToChannel(Object message) {
         tcpChannel.eventLoop().execute(() -> tcpChannel.pipeline().fireUserEventTriggered(message));
     }
@@ -254,6 +277,9 @@ public class NettyPartitionRequestClient implements PartitionRequestClient {
         }
     }
 
+    /**
+     * 关闭所有连接
+     */
     public void closeConnection() {
         Preconditions.checkState(
                 canBeDisposed(), "The connection should not be closed before disposed.");

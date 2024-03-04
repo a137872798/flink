@@ -25,18 +25,26 @@ import javax.annotation.Nullable;
 
 import java.util.Collection;
 
-/** {@link JobGraph} instances for recovery. */
+/** {@link JobGraph} instances for recovery.
+ * JobGraphWriter 用于提交job图
+ * 本对象用于恢复job
+ * */
 public interface JobGraphStore extends JobGraphWriter {
 
-    /** Starts the {@link JobGraphStore} service. */
+    /** Starts the {@link JobGraphStore} service.
+     * 传入一个监听器  并启动仓库  该监听器监听job图的新增/移除
+     * */
     void start(JobGraphListener jobGraphListener) throws Exception;
 
-    /** Stops the {@link JobGraphStore} service. */
+    /** Stops the {@link JobGraphStore} service.
+     * 停止仓库服务
+     * */
     void stop() throws Exception;
 
     /**
      * Returns the {@link JobGraph} with the given {@link JobID} or {@code null} if no job was
      * registered.
+     * 还原出job图
      */
     @Nullable
     JobGraph recoverJobGraph(JobID jobId) throws Exception;
@@ -46,12 +54,14 @@ public interface JobGraphStore extends JobGraphWriter {
      *
      * @return Collection of submitted job ids
      * @throws Exception if the operation fails
+     * 返回内部所有jobId
      */
     Collection<JobID> getJobIds() throws Exception;
 
     /**
      * A listener for {@link JobGraph} instances. This is used to react to races between multiple
      * running {@link JobGraphStore} instances (on multiple job managers).
+     * 监听job图的变化
      */
     interface JobGraphListener {
 
@@ -63,6 +73,7 @@ public interface JobGraphStore extends JobGraphWriter {
          * about a job graph, which was added by this instance.
          *
          * @param jobId The {@link JobID} of the added job graph
+         *              当store中添加了新的job图时触发
          */
         void onAddedJobGraph(JobID jobId);
 
@@ -71,6 +82,7 @@ public interface JobGraphStore extends JobGraphWriter {
          * instance.
          *
          * @param jobId The {@link JobID} of the removed job graph
+         *              当store中移除了job图时触发
          */
         void onRemovedJobGraph(JobID jobId);
     }

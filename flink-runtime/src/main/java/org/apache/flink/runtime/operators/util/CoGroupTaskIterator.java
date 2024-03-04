@@ -28,6 +28,7 @@ import java.io.IOException;
  *
  * @param <T1> The generic type of the first input's data type.
  * @param <T2> The generic type of the second input's data type.
+ *            CO 应该是表示二元
  */
 public interface CoGroupTaskIterator<T1, T2> {
 
@@ -54,6 +55,8 @@ public interface CoGroupTaskIterator<T1, T2> {
      * @throws IOException
      */
     boolean next() throws IOException;
+
+    // 下面迭代器针对的是  keyGroup的 group  也就是针对某个key时的一组values
 
     /**
      * Returns an iterable over the left input values for the current key.

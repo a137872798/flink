@@ -26,15 +26,22 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 /**
  * Restart strategy which tries to restart a fixed number of times with a fixed backoff time in
  * between.
+ * 支持固定数量的重启
  */
 public class FixedDelayRestartBackoffTimeStrategy implements RestartBackoffTimeStrategy {
 
+    /**
+     * 允许重试的次数是固定的
+     */
     private final int maxNumberRestartAttempts;
 
     private final long backoffTimeMS;
 
     private final String strategyString;
 
+    /**
+     * 当前已经出现的错误次数
+     */
     private int currentRestartAttempt;
 
     FixedDelayRestartBackoffTimeStrategy(int maxNumberRestartAttempts, long backoffTimeMS) {

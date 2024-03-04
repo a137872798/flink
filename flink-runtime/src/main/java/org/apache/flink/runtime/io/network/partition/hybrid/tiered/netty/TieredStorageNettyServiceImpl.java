@@ -43,7 +43,9 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** The default implementation of {@link TieredStorageNettyService}. */
+/** The default implementation of {@link TieredStorageNettyService}.
+ * 该对象用于管理生产者/消费者
+ * */
 public class TieredStorageNettyServiceImpl implements TieredStorageNettyService {
 
     // ------------------------------------
@@ -57,18 +59,26 @@ public class TieredStorageNettyServiceImpl implements TieredStorageNettyService 
     //          For consumer side
     // ------------------------------------
 
-    /** The initialization in consumer side is thread-safe. */
+    /** The initialization in consumer side is thread-safe.
+     * 细化到子分区级别
+     * */
     private final Map<
                     TieredStoragePartitionId,
                     Map<TieredStorageSubpartitionId, List<NettyConnectionReaderRegistration>>>
             nettyConnectionReaderRegistrations = new HashMap<>();
 
+    /**
+     * 用于管理维护资源
+     */
     private final TieredStorageResourceRegistry resourceRegistry;
 
     public TieredStorageNettyServiceImpl(TieredStorageResourceRegistry resourceRegistry) {
         this.resourceRegistry = resourceRegistry;
     }
 
+    /**
+     * 注册数据生产者
+     */
     @Override
     public void registerProducer(
             TieredStoragePartitionId partitionId, NettyServiceProducer serviceProducer) {
@@ -78,28 +88,39 @@ public class TieredStorageNettyServiceImpl implements TieredStorageNettyService 
                         ignore -> {
                             final TieredStoragePartitionId id = partitionId;
                             resourceRegistry.registerResource(
+                                    // 这里只注册了一个释放函数
                                     id, () -> registeredServiceProducers.remove(id));
                             return new ArrayList<>();
                         })
                 .add(serviceProducer);
     }
 
+    /**
+     * 注册消费者
+     * @param partitionId partition id indicates the unique id of {@link TieredResultPartition}.
+     * @param subpartitionId subpartition id indicates the unique id of subpartition.
+     * @return
+     */
     @Override
     public CompletableFuture<NettyConnectionReader> registerConsumer(
             TieredStoragePartitionId partitionId, TieredStorageSubpartitionId subpartitionId) {
 
+        // 找到子分区对应的一组reader
         List<NettyConnectionReaderRegistration> registrations =
                 getReaderRegistration(partitionId, subpartitionId);
         for (NettyConnectionReaderRegistration registration : registrations) {
             Optional<CompletableFuture<NettyConnectionReader>> futureOpt =
                     registration.trySetConsumer();
+            // 只要一个reader可用即可
             if (futureOpt.isPresent()) {
                 return futureOpt.get();
             }
         }
 
+        // 此时都没有可用的reader
         NettyConnectionReaderRegistration registration = new NettyConnectionReaderRegistration();
         registrations.add(registration);
+        // 等待reader被设置
         return registration.trySetConsumer().get();
     }
 
@@ -110,26 +131,36 @@ public class TieredStorageNettyServiceImpl implements TieredStorageNettyService 
      * @param subpartitionId subpartition id indicates the unique id of subpartition.
      * @param availabilityListener listener is used to listen the available status of data.
      * @return the {@link TieredStorageResultSubpartitionView}.
+     * 产生读取数据的视图对象
      */
     public ResultSubpartitionView createResultSubpartitionView(
             TieredStoragePartitionId partitionId,
             TieredStorageSubpartitionId subpartitionId,
             BufferAvailabilityListener availabilityListener) {
         List<NettyServiceProducer> serviceProducers = registeredServiceProducers.get(partitionId);
+
+        // 没有生产者 产生一个空对象
         if (serviceProducers == null) {
             return new TieredStorageResultSubpartitionView(
                     availabilityListener, new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
         }
         List<NettyPayloadManager> nettyPayloadManagers = new ArrayList<>();
         List<NettyConnectionId> nettyConnectionIds = new ArrayList<>();
+
+        // 此时已经注册了一些生产者
         for (NettyServiceProducer serviceProducer : serviceProducers) {
+            // 每个生产者对应一个manager
             NettyPayloadManager nettyPayloadManager = new NettyPayloadManager();
             NettyConnectionWriterImpl writer =
                     new NettyConnectionWriterImpl(nettyPayloadManager, availabilityListener);
+            // 使用writer建立连接
             serviceProducer.connectionEstablished(subpartitionId, writer);
+            // 每个生产者对应一条连接
             nettyConnectionIds.add(writer.getNettyConnectionId());
             nettyPayloadManagers.add(nettyPayloadManager);
         }
+
+        // 使用多个manager/connectionIds 来进行初始化
         return new TieredStorageResultSubpartitionView(
                 availabilityListener,
                 nettyPayloadManagers,
@@ -147,6 +178,8 @@ public class TieredStorageNettyServiceImpl implements TieredStorageNettyService 
      * @param tieredStorageConsumerSpecs specs indicates {@link TieredResultPartition} and {@link
      *     TieredStorageSubpartitionId}.
      * @param inputChannelProviders it provides input channels for subpartitions.
+     *
+     *                              按照channel 用于读取数据
      */
     public void setupInputChannels(
             List<TieredStorageConsumerSpec> tieredStorageConsumerSpecs,
@@ -161,29 +194,47 @@ public class TieredStorageNettyServiceImpl implements TieredStorageNettyService 
         }
     }
 
+    /**
+     * 根据提示信息设置channel
+     * @param index
+     * @param partitionId
+     * @param subpartitionId
+     * @param inputChannelProvider
+     */
     private void setupInputChannel(
             int index,
             TieredStoragePartitionId partitionId,
             TieredStorageSubpartitionId subpartitionId,
             Supplier<InputChannel> inputChannelProvider) {
+
+        // 找到相关的一组reader
         List<NettyConnectionReaderRegistration> registrations =
                 getReaderRegistration(partitionId, subpartitionId);
         boolean hasSetChannel = false;
+        // 给所有reader注册
         for (NettyConnectionReaderRegistration registration : registrations) {
             if (registration.trySetChannel(index, inputChannelProvider)) {
                 hasSetChannel = true;
             }
         }
+
+        // 只要有一个注册成功  就不再维护该分区的reader信息
         if (hasSetChannel) {
             removeRegistration(partitionId, subpartitionId);
             return;
         }
 
+        // 都没有注册成功的情况下 新建并追加一个
         NettyConnectionReaderRegistration registration = new NettyConnectionReaderRegistration();
         registration.trySetChannel(index, inputChannelProvider);
         registrations.add(registration);
     }
 
+    /**
+     * 移除该子分区下所有reader
+     * @param partitionId
+     * @param subpartitionId
+     */
     private void removeRegistration(
             TieredStoragePartitionId partitionId, TieredStorageSubpartitionId subpartitionId) {
         Map<TieredStorageSubpartitionId, List<NettyConnectionReaderRegistration>>
@@ -212,10 +263,14 @@ public class TieredStorageNettyServiceImpl implements TieredStorageNettyService 
         /** This can be negative iff channel is not yet set. */
         private int channelIndex = -1;
 
-        /** This can be null iff channel is not yet set. */
+        /** This can be null iff channel is not yet set.
+         * reader读取的channel
+         * */
         @Nullable private Supplier<InputChannel> channelSupplier;
 
-        /** This can be null iff reader is not yet set. */
+        /** This can be null iff reader is not yet set.
+         * NettyConnectionReader 用于从InputChannel读取数据
+         * */
         @Nullable private CompletableFuture<NettyConnectionReader> readerFuture;
 
         /**
@@ -225,6 +280,7 @@ public class TieredStorageNettyServiceImpl implements TieredStorageNettyService 
          * @param channelSupplier supplier to provide channel.
          * @return true if the channel is successfully set, or false if the registration already has
          *     an input channel.
+         *     设置channel
          */
         public boolean trySetChannel(int channelIndex, Supplier<InputChannel> channelSupplier) {
             if (isChannelSet()) {
@@ -245,6 +301,7 @@ public class TieredStorageNettyServiceImpl implements TieredStorageNettyService 
          *
          * @return a future that provides the netty connection reader upon its created, or empty if
          *     the registration already has a consumer.
+         *     设置reader
          */
         public Optional<CompletableFuture<NettyConnectionReader>> trySetConsumer() {
             if (!isReaderSet()) {
@@ -257,6 +314,9 @@ public class TieredStorageNettyServiceImpl implements TieredStorageNettyService 
             return Optional.empty();
         }
 
+        /**
+         * 2个同时设置时  为future设置 NettyConnectionReaderImpl
+         */
         void tryCreateNettyConnectionReader() {
             if (isChannelSet() && isReaderSet()) {
                 readerFuture.complete(new NettyConnectionReaderImpl(channelSupplier));

@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * A Channel represents a collection of files that belong logically to the same resource. An example
  * is a collection of files that contain sorted runs of data from the same stream, that will later
  * on be merged together.
+ * 表示连接一个文件
  */
 public interface FileIOChannel {
 
@@ -37,16 +38,20 @@ public interface FileIOChannel {
      * Gets the channel ID of this I/O channel.
      *
      * @return The channel ID.
+     * 管道id
      */
     ID getChannelID();
 
-    /** Gets the size (in bytes) of the file underlying the channel. */
+    /** Gets the size (in bytes) of the file underlying the channel.
+     * 获取文件长度
+     * */
     long getSize() throws IOException;
 
     /**
      * Checks whether the channel has been closed.
      *
      * @return True if the channel has been closed, false otherwise.
+     * 管道是否被关闭
      */
     boolean isClosed();
 
@@ -56,6 +61,7 @@ public interface FileIOChannel {
      * <tt>FileChannel</tt> is closed.
      *
      * @throws IOException Thrown, if an error occurred while waiting for pending requests.
+     * 关闭管道
      */
     void close() throws IOException;
 
@@ -63,9 +69,15 @@ public interface FileIOChannel {
      * Deletes the file underlying this I/O channel.
      *
      * @throws IllegalStateException Thrown, when the channel is still open.
+     * 删除文件
      */
     void deleteChannel();
 
+
+    /**
+     * 转换成 nio channel
+     * @return
+     */
     FileChannel getNioFileChannel();
 
     /**
@@ -79,13 +91,18 @@ public interface FileIOChannel {
     // --------------------------------------------------------------------------------------------
     // --------------------------------------------------------------------------------------------
 
-    /** An ID identifying an underlying file channel. */
+    /** An ID identifying an underlying file channel.
+     * 标识该channel的ID
+     * */
     class ID {
 
         private static final int RANDOM_BYTES_LENGTH = 16;
 
         private final File path;
 
+        /**
+         * 表示第几个线程
+         */
         private final int threadNum;
 
         private ID(File path, int threadNum) {
@@ -139,11 +156,16 @@ public interface FileIOChannel {
         }
     }
 
-    /** An enumerator for channels that logically belong together. */
+    /** An enumerator for channels that logically belong together.
+     * 该对象用于产生id
+     * */
     final class Enumerator {
 
         private static AtomicInteger globalCounter = new AtomicInteger();
 
+        /**
+         * 这是一组目录 一个目录对应一个线程
+         */
         private final File[] paths;
 
         private final String namePrefix;

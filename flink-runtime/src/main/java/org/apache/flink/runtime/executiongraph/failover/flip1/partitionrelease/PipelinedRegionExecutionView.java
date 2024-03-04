@@ -34,15 +34,24 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>A pipelined region can be either finished or unfinished. It is finished iff. all its
  * executions have reached the finished state.
+ * 流水线视图
  */
 class PipelinedRegionExecutionView {
 
+    /**
+     * 表示一个流水线
+     */
     private final SchedulingPipelinedRegion pipelinedRegion;
 
+    /**
+     * 记录还未结束的顶点   只有当所有顶点都结束后 才认为流水线结束了
+     */
     private final Set<ExecutionVertexID> unfinishedVertices;
 
     PipelinedRegionExecutionView(final SchedulingPipelinedRegion pipelinedRegion) {
         this.pipelinedRegion = checkNotNull(pipelinedRegion);
+
+        // 初始化时认为该流水线的所有顶点都处于 unfinished 状态
         this.unfinishedVertices =
                 IterableUtils.toStream(pipelinedRegion.getVertices())
                         .map(SchedulingExecutionVertex::getId)
@@ -53,6 +62,10 @@ class PipelinedRegionExecutionView {
         return unfinishedVertices.isEmpty();
     }
 
+    /**
+     * 某个顶点结束了
+     * @param executionVertexId
+     */
     public void vertexFinished(final ExecutionVertexID executionVertexId) {
         assertVertexInRegion(executionVertexId);
         unfinishedVertices.remove(executionVertexId);

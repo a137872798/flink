@@ -56,13 +56,17 @@ import java.util.Optional;
  *
  * <p>Reported state is tagged by clients so that this class can properly forward to the right
  * receiver for the checkpointed state.
+ *
+ * 对应某个subtask状态
  */
 public class TaskStateManagerImpl implements TaskStateManager {
 
     /** The logger for this class. */
     private static final Logger LOG = LoggerFactory.getLogger(TaskStateManagerImpl.class);
 
-    /** The id of the job for which this manager was created, can report, and recover. */
+    /** The id of the job for which this manager was created, can report, and recover.
+     * 所属的job
+     * */
     private final JobID jobId;
 
     /** The execution attempt id that this manager reports for. */
@@ -71,20 +75,33 @@ public class TaskStateManagerImpl implements TaskStateManager {
     /**
      * The data given by the job manager to restore the job. This is null for a new job without
      * previous state.
+     * 内部包含该subtask某次检查点的快照数据
      */
     @Nullable private final JobManagerTaskRestore jobManagerTaskRestore;
 
-    /** The local state store to which this manager reports local state snapshots. */
+    /** The local state store to which this manager reports local state snapshots.
+     * 存储本地状态的容器
+     * */
     private final TaskLocalStateStore localStateStore;
 
-    /** The changelog storage where the manager reads and writes the changelog */
+    /** The changelog storage where the manager reads and writes the changelog
+     * 存储状态的变更数据
+     * */
     @Nullable private final StateChangelogStorage<?> stateChangelogStorage;
 
+    /**
+     * 维护每个job的changelog
+     */
     private final TaskExecutorStateChangelogStoragesManager changelogStoragesManager;
 
-    /** The checkpoint responder through which this manager can report to the job manager. */
+    /** The checkpoint responder through which this manager can report to the job manager.
+     * 用于与远端的总控对象交互
+     * */
     private final CheckpointResponder checkpointResponder;
 
+    /**
+     * 用于读取数据
+     */
     private final SequentialChannelStateReader sequentialChannelStateReader;
 
     public TaskStateManagerImpl(
@@ -128,6 +145,13 @@ public class TaskStateManagerImpl implements TaskStateManager {
         this.sequentialChannelStateReader = sequentialChannelStateReader;
     }
 
+    /**
+     * 报告某个任务快照已经完成
+     * @param checkpointMetaData meta data from the checkpoint request.
+     * @param checkpointMetrics task level metrics for the checkpoint.
+     * @param acknowledgedState the reported states to acknowledge to the job manager.  表示上报给jobManager的状态
+     * @param localState the reported states for local recovery.  本地的状态
+     */
     @Override
     public void reportTaskStateSnapshots(
             @Nonnull CheckpointMetaData checkpointMetaData,
@@ -137,8 +161,10 @@ public class TaskStateManagerImpl implements TaskStateManager {
 
         long checkpointId = checkpointMetaData.getCheckpointId();
 
+        // 存储快照数据
         localStateStore.storeLocalState(checkpointId, localState);
 
+        // 通知到远端
         checkpointResponder.acknowledgeCheckpoint(
                 jobId, executionAttemptID, checkpointId, checkpointMetrics, acknowledgedState);
     }
@@ -151,6 +177,10 @@ public class TaskStateManagerImpl implements TaskStateManager {
                 jobId, executionAttemptID, checkpointMetaData.getCheckpointId(), checkpointMetrics);
     }
 
+    /**
+     * 获取描述信息
+     * @return
+     */
     @Override
     public InflightDataRescalingDescriptor getInputRescalingDescriptor() {
         if (jobManagerTaskRestore == null) {
@@ -185,6 +215,11 @@ public class TaskStateManagerImpl implements TaskStateManager {
         return Optional.of(jobManagerTaskRestore.getRestoreCheckpointId());
     }
 
+    /**
+     * 仅保留指定的operator状态
+     * @param operatorID the id of the operator for which we request state.
+     * @return
+     */
     @Override
     public PrioritizedOperatorSubtaskState prioritizedOperatorState(OperatorID operatorID) {
 
@@ -204,9 +239,11 @@ public class TaskStateManagerImpl implements TaskStateManager {
 
         long restoreCheckpointId = jobManagerTaskRestore.getRestoreCheckpointId();
 
+        // 找到之前的快照
         TaskStateSnapshot localStateSnapshot =
                 localStateStore.retrieveLocalState(restoreCheckpointId);
 
+        // 删除其他检查点
         localStateStore.pruneMatchingCheckpoints(
                 (long checkpointId) -> checkpointId != restoreCheckpointId);
 
@@ -229,6 +266,7 @@ public class TaskStateManagerImpl implements TaskStateManager {
                 alternativesByPriority,
                 localStateStore);
 
+        // 只保留该operatorSubtaskState
         PrioritizedOperatorSubtaskState.Builder builder =
                 new PrioritizedOperatorSubtaskState.Builder(
                         jobManagerSubtaskState,

@@ -56,6 +56,7 @@ import static org.apache.flink.util.Preconditions.checkArgument;
  * will be combined into 5 regions (separated by '|'):
  *   1-1, 1-2, 1-3 | 2-1, 2-2 | 2-5 | 1-4, 1-5 | 2-6
  * </pre>
+ * 存储分区数据的文件
  */
 public class ProducerMergedPartitionFileIndex {
 
@@ -66,6 +67,7 @@ public class ProducerMergedPartitionFileIndex {
      *
      * <p>Note that the field can be accessed by the writing and reading IO thread, so the lock is
      * to ensure the thread safety.
+     * 缓存region的元数据信息
      */
     @GuardedBy("lock")
     private final FileDataIndexCache<FixedSizeRegion> indexCache;
@@ -78,6 +80,7 @@ public class ProducerMergedPartitionFileIndex {
             int regionGroupSizeInBytes,
             long numRetainedInMemoryRegionsMax) {
         this.indexFilePath = indexFilePath;
+        // 产生了缓存对象
         this.indexCache =
                 new FileDataIndexCache<>(
                         numSubpartitions,
@@ -136,6 +139,11 @@ public class ProducerMergedPartitionFileIndex {
     //  Internal Methods
     // ------------------------------------------------------------------------
 
+    /**
+     * 当一组buffer已经完成刷盘时  构建索引信息
+     * @param buffers
+     * @return
+     */
     private static Map<Integer, List<FixedSizeRegion>> convertToRegions(
             List<FlushedBuffer> buffers) {
         Map<Integer, List<FixedSizeRegion>> subpartitionRegionMap = new HashMap<>();
@@ -144,11 +152,14 @@ public class ProducerMergedPartitionFileIndex {
         FlushedBuffer lastBufferInRegion = firstBufferInRegion;
 
         while (iterator.hasNext()) {
+            // 遍历每个 FlushedBuffer
             FlushedBuffer currentBuffer = iterator.next();
             if (currentBuffer.getSubpartitionId() != firstBufferInRegion.getSubpartitionId()
                     || currentBuffer.getBufferIndex() != lastBufferInRegion.getBufferIndex() + 1) {
                 // The current buffer belongs to a new region, add the current region to the map
+                // buffer可能会不连续  这样就会产生多个FixedSizeRegion  然后仅当buffer不连续或者子分区变化 才触发一次写入
                 addRegionToMap(firstBufferInRegion, lastBufferInRegion, subpartitionRegionMap);
+
                 firstBufferInRegion = currentBuffer;
             }
             lastBufferInRegion = currentBuffer;
@@ -159,6 +170,12 @@ public class ProducerMergedPartitionFileIndex {
         return subpartitionRegionMap;
     }
 
+    /**
+     *
+     * @param firstBufferInRegion  表示region下第一个buffer
+     * @param lastBufferInRegion   上一个buffer
+     * @param subpartitionRegionMap
+     */
     private static void addRegionToMap(
             FlushedBuffer firstBufferInRegion,
             FlushedBuffer lastBufferInRegion,
@@ -170,6 +187,7 @@ public class ProducerMergedPartitionFileIndex {
         subpartitionRegionMap
                 .computeIfAbsent(firstBufferInRegion.getSubpartitionId(), ArrayList::new)
                 .add(
+                        // 为每个子分区添加region信息    每个FixedSizeRegion 对应一个region信息 然后又有regionGroup的概念
                         new FixedSizeRegion(
                                 firstBufferInRegion.getBufferIndex(),
                                 firstBufferInRegion.getFileOffset(),
@@ -184,13 +202,17 @@ public class ProducerMergedPartitionFileIndex {
     //  Internal Classes
     // ------------------------------------------------------------------------
 
-    /** Represents a buffer to be flushed. */
+    /** Represents a buffer to be flushed.
+     * 维护一些刷盘信息
+     * */
     static class FlushedBuffer {
         /** The subpartition id that the buffer belongs to. */
         private final int subpartitionId;
 
         /** The buffer index within the subpartition. */
         private final int bufferIndex;
+
+        // buffer在文件的位置  以及buffer内的数据长度
 
         /** The file offset that the buffer begin with. */
         private final long fileOffset;
@@ -226,6 +248,7 @@ public class ProducerMergedPartitionFileIndex {
      * reading a region from the file.
      *
      * <p>Note that this type of region's length is fixed.
+     * 提供写入/读取 文件数据的能力
      */
     static class ProducerMergedPartitionFileDataIndexRegionHelper
             implements FileDataIndexRegionHelper<FixedSizeRegion> {
@@ -263,11 +286,14 @@ public class ProducerMergedPartitionFileIndex {
      * </ul>
      *
      * <p>Note that the region has a fixed size.
+     * 描述region信息
      */
     public static class FixedSizeRegion implements FileDataIndexRegionHelper.Region {
 
         public static final int REGION_SIZE =
                 Integer.BYTES + Long.BYTES + Integer.BYTES + Long.BYTES;
+
+        // 维护buffer的下标
 
         /** The buffer index of first buffer. */
         private final int firstBufferIndex;

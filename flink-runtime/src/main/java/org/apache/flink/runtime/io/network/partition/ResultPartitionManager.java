@@ -32,16 +32,25 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * The result partition manager keeps track of all currently produced/consumed partitions of a task
  * manager.
+ * 该对象可以查找子分区
  */
 public class ResultPartitionManager implements ResultPartitionProvider {
 
     private static final Logger LOG = LoggerFactory.getLogger(ResultPartitionManager.class);
 
+    /**
+     * key 对应大分区
+     * value ResultPartition 可以创建子分区view   并且可以写入数据
+     */
     private final Map<ResultPartitionID, ResultPartition> registeredPartitions =
             CollectionUtil.newHashMapWithExpectedSize(16);
 
     private boolean isShutdown;
 
+    /**
+     * ResultPartition 在使用前会进行初始化  此时会将自己注册到manager上
+     * @param partition
+     */
     public void registerResultPartition(ResultPartition partition) {
         synchronized (registeredPartitions) {
             checkState(!isShutdown, "Result partition manager already shut down.");
@@ -57,6 +66,14 @@ public class ResultPartitionManager implements ResultPartitionProvider {
         }
     }
 
+    /**
+     * 创建子分区视图
+     * @param partitionId
+     * @param subpartitionIndex
+     * @param availabilityListener
+     * @return
+     * @throws IOException
+     */
     @Override
     public ResultSubpartitionView createSubpartitionView(
             ResultPartitionID partitionId,
@@ -81,6 +98,11 @@ public class ResultPartitionManager implements ResultPartitionProvider {
         return subpartitionView;
     }
 
+    /**
+     * 当ResultPartition 被释放时 会调用该方法
+     * @param partitionId
+     * @param cause
+     */
     public void releasePartition(ResultPartitionID partitionId, Throwable cause) {
         synchronized (registeredPartitions) {
             ResultPartition resultPartition = registeredPartitions.remove(partitionId);
@@ -94,6 +116,9 @@ public class ResultPartitionManager implements ResultPartitionProvider {
         }
     }
 
+    /**
+     * 释放下面管理的所有分区
+     */
     public void shutdown() {
         synchronized (registeredPartitions) {
             LOG.debug(
@@ -116,6 +141,10 @@ public class ResultPartitionManager implements ResultPartitionProvider {
     // Notifications
     // ------------------------------------------------------------------------
 
+    /**
+     * 表示某个分区的数据消费完毕了
+     * @param partition
+     */
     void onConsumedPartition(ResultPartition partition) {
         LOG.debug("Received consume notification from {}.", partition);
 
@@ -123,6 +152,7 @@ public class ResultPartitionManager implements ResultPartitionProvider {
             final ResultPartition previous =
                     registeredPartitions.remove(partition.getPartitionId());
             // Release the partition if it was successfully removed
+            // 表示本对象消费完了  可以释放了
             if (partition == previous) {
                 partition.release();
                 ResultPartitionID partitionId = partition.getPartitionId();
@@ -134,6 +164,10 @@ public class ResultPartitionManager implements ResultPartitionProvider {
         }
     }
 
+    /**
+     * 返回还未释放的所有分区
+     * @return
+     */
     public Collection<ResultPartitionID> getUnreleasedPartitions() {
         synchronized (registeredPartitions) {
             return registeredPartitions.keySet();

@@ -25,7 +25,9 @@ import org.apache.flink.shaded.netty4.io.netty.buffer.ByteBuf;
 
 import java.util.UUID;
 
-/** Id identifying {@link IntermediateDataSet}. */
+/** Id identifying {@link IntermediateDataSet}.
+ * 在这里 中间结果集 实现了 ResultId  表示消耗某个生产数据产生的结果  也就是中间结果集
+ * */
 public class IntermediateDataSetID extends AbstractID implements ResultID {
 
     private static final long serialVersionUID = 1L;

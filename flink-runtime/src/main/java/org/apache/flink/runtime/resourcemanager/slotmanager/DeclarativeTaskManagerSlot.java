@@ -31,6 +31,8 @@ import javax.annotation.Nullable;
  * A DeclarativeTaskManagerSlot represents a slot located in a TaskExecutor. It contains the
  * necessary information for initiating the allocation of the slot, and keeps track of the state of
  * the slot.
+ * 这个叫声明式   就是简单的把几个组件拼接在一起
+ * 包含slot和相关的 TaskExecutor信息
  */
 class DeclarativeTaskManagerSlot implements TaskManagerSlotInformation {
 

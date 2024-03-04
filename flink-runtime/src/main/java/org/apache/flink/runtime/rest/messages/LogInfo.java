@@ -27,7 +27,9 @@ import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.annotation.JsonPro
 import java.io.Serializable;
 import java.util.Objects;
 
-/** Contains information about one log of TaskManager. */
+/** Contains information about one log of TaskManager.
+ * 日志信息
+ * */
 public class LogInfo implements Serializable {
 
     public static final String NAME = "name";

@@ -36,6 +36,9 @@ import java.io.InputStream;
  * {@link PermanentBlobService}.
  *
  * <p>TODO: change API to not rely on local files but return {@link InputStream} objects
+ *
+ * 临时blob服务
+ * 它的实现类 既可以是真正提供能力的 blobServer 也可以是一个本地缓存对象 TransientBlobCache
  */
 public interface TransientBlobService extends Closeable {
 
@@ -51,6 +54,8 @@ public interface TransientBlobService extends Closeable {
      * @return The path to the file.
      * @throws java.io.FileNotFoundException when the path does not exist;
      * @throws IOException if any other error occurs when retrieving the file
+     *
+     * 通过具体类型的key  获取file
      */
     File getFile(TransientBlobKey key) throws IOException;
 
@@ -76,6 +81,7 @@ public interface TransientBlobService extends Closeable {
      * @param value the buffer to upload
      * @return the computed BLOB key identifying the BLOB on the server
      * @throws IOException thrown if an I/O error occurs while uploading the data to the BLOB server
+     * 上传一个临时blob 并返回key
      */
     TransientBlobKey putTransient(byte[] value) throws IOException;
 
@@ -96,6 +102,7 @@ public interface TransientBlobService extends Closeable {
      * @return the computed BLOB key identifying the BLOB on the server
      * @throws IOException thrown if an I/O error occurs while reading the data from the input
      *     stream or uploading the data to the BLOB server
+     *     将输入流内的数据上传
      */
     TransientBlobKey putTransient(InputStream inputStream) throws IOException;
 
@@ -120,6 +127,7 @@ public interface TransientBlobService extends Closeable {
      * @param key associated with the file to be deleted
      * @return <tt>true</tt> if the given blob is successfully deleted or non-existing;
      *     <tt>false</tt> otherwise
+     *     删除缓存中的数据
      */
     boolean deleteFromCache(TransientBlobKey key);
 

@@ -29,7 +29,9 @@ import javax.annotation.Nullable;
 
 import java.util.Map;
 
-/** Container class that transports the result of an accumulator as set of strings. */
+/** Container class that transports the result of an accumulator as set of strings.
+ * 以字符串形式来传递累加器的结果
+ * */
 public class StringifiedAccumulatorResult implements java.io.Serializable {
     private static final Logger LOG = LoggerFactory.getLogger(StringifiedAccumulatorResult.class);
 
@@ -64,6 +66,8 @@ public class StringifiedAccumulatorResult implements java.io.Serializable {
     /**
      * Flatten a map of accumulator names to Accumulator instances into an array of
      * StringifiedAccumulatorResult values.
+     *
+     * 将每个累加器的结果转换成 StringifiedAccumulatorResult 对象
      */
     public static StringifiedAccumulatorResult[] stringifyAccumulatorResults(
             Map<String, OptionalFailure<Accumulator<?, ?>>> accs) {
@@ -86,11 +90,13 @@ public class StringifiedAccumulatorResult implements java.io.Serializable {
             return new StringifiedAccumulatorResult(name, "null", "null");
         } else if (accumulator.isFailure()) {
             return new StringifiedAccumulatorResult(
+                    // 将错误信息作为value 传递下去
                     name, "null", ExceptionUtils.stringifyException(accumulator.getFailureCause()));
         } else {
             Object localValue;
             String simpleName = "null";
             try {
+                // 获取累加值以及类型  并产生result对象
                 simpleName = accumulator.getUnchecked().getClass().getSimpleName();
                 localValue = accumulator.getUnchecked().getLocalValue();
             } catch (RuntimeException exception) {

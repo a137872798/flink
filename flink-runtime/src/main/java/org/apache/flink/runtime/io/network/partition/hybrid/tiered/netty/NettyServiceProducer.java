@@ -24,6 +24,7 @@ import org.apache.flink.runtime.io.network.partition.hybrid.tiered.tier.TierProd
 /**
  * {@link NettyServiceProducer} is used as the callback to register {@link NettyConnectionWriter}
  * and disconnect netty connection in {@link TierProducerAgent}.
+ * 用于建立和销毁连接
  */
 public interface NettyServiceProducer {
 

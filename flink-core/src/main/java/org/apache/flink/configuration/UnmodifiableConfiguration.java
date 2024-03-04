@@ -22,7 +22,9 @@ import org.apache.flink.annotation.Public;
 
 import java.util.Properties;
 
-/** Unmodifiable version of the Configuration class. */
+/** Unmodifiable version of the Configuration class.
+ * 表示一个不可修改的配置
+ * */
 @Public
 public class UnmodifiableConfiguration extends Configuration {
 

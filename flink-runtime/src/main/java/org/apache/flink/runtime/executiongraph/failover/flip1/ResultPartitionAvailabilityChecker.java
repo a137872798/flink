@@ -27,6 +27,8 @@ public interface ResultPartitionAvailabilityChecker {
      *
      * @param resultPartitionID ID of the result partition to query
      * @return whether the given partition is available
+     *
+     * 检查指定的分区是否可用
      */
     boolean isAvailable(IntermediateResultPartitionID resultPartitionID);
 }

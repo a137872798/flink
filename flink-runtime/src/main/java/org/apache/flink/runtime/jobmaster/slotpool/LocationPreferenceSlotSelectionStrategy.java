@@ -41,12 +41,21 @@ public abstract class LocationPreferenceSlotSelectionStrategy implements SlotSel
 
     LocationPreferenceSlotSelectionStrategy() {}
 
+    /**
+     * 基于profile信息 选择合适的slot
+     * @param freeSlotInfoTracker a list of the available slots together with their remaining
+     *     resources to select from.
+     * @param slotProfile a slot profile, describing requirements for the slot selection.
+     * @return
+     */
     @Override
     public Optional<SlotInfoAndLocality> selectBestSlotForProfile(
             @Nonnull FreeSlotInfoTracker freeSlotInfoTracker, @Nonnull SlotProfile slotProfile) {
 
+        // 获取期望的位置信息
         Collection<TaskManagerLocation> locationPreferences = slotProfile.getPreferredLocations();
 
+        // 此时没有可用的slot
         if (freeSlotInfoTracker.getAvailableSlots().isEmpty()) {
             return Optional.empty();
         }
@@ -55,11 +64,19 @@ public abstract class LocationPreferenceSlotSelectionStrategy implements SlotSel
 
         // if we have no location preferences, we can only filter by the additional requirements.
         return locationPreferences.isEmpty()
+                // 表示不需要考虑位置
                 ? selectWithoutLocationPreference(freeSlotInfoTracker, resourceProfile)
                 : selectWithLocationPreference(
                         freeSlotInfoTracker, locationPreferences, resourceProfile);
     }
 
+    /**
+     * 选择匹配的slot
+     * @param freeSlotInfoTracker
+     * @param locationPreferences
+     * @param resourceProfile
+     * @return
+     */
     @Nonnull
     private Optional<SlotInfoAndLocality> selectWithLocationPreference(
             @Nonnull FreeSlotInfoTracker freeSlotInfoTracker,
@@ -74,6 +91,7 @@ public abstract class LocationPreferenceSlotSelectionStrategy implements SlotSel
                 CollectionUtil.newHashMapWithExpectedSize(locationPreferences.size());
 
         for (TaskManagerLocation locationPreference : locationPreferences) {
+            // 记录出现次数
             preferredResourceIDs.merge(locationPreference.getResourceID(), 1, Integer::sum);
             preferredFQHostNames.merge(locationPreference.getFQDNHostname(), 1, Integer::sum);
         }
@@ -85,6 +103,7 @@ public abstract class LocationPreferenceSlotSelectionStrategy implements SlotSel
         for (AllocationID allocationId : freeSlotInfoTracker.getAvailableSlots()) {
             SlotInfo candidate = freeSlotInfoTracker.getSlotInfo(allocationId);
 
+            // 首先资源匹配
             if (candidate.getResourceProfile().isMatching(resourceProfile)) {
 
                 // this gets candidate is local-weigh
@@ -98,6 +117,7 @@ public abstract class LocationPreferenceSlotSelectionStrategy implements SlotSel
                                 candidate.getTaskManagerLocation().getFQDNHostname(), 0);
 
                 double candidateScore =
+                        // 计算权重值
                         calculateCandidateScore(
                                 localWeigh,
                                 hostLocalWeigh,

@@ -34,20 +34,23 @@ import java.util.concurrent.CompletableFuture;
 /**
  * An interface covering all possible {@link State} transitions. The main purpose is to align the
  * transition methods between different contexts.
+ * 表示状态的转换
  */
 public interface StateTransitions {
 
-    /** Interface covering transition to the {@link Canceling} state. */
+    /** Interface covering transition to the {@link Canceling} state.
+     * 转换成取消状态
+     * */
     interface ToCancelling extends StateTransitions {
 
         /**
          * Transitions into the {@link Canceling} state.
          *
-         * @param executionGraph executionGraph to pass to the {@link Canceling} state
-         * @param executionGraphHandler executionGraphHandler to pass to the {@link Canceling} state
+         * @param executionGraph executionGraph to pass to the {@link Canceling} state   对标一个job
+         * @param executionGraphHandler executionGraphHandler to pass to the {@link Canceling} state  可以执行一些函数
          * @param operatorCoordinatorHandler operatorCoordinatorHandler to pass to the {@link
-         *     Canceling} state
-         * @param failureCollection collection of failures that are propagated
+         *     Canceling} state   该对象可以管理多个协调者
+         * @param failureCollection collection of failures that are propagated    记录一组错误信息
          */
         void goToCanceling(
                 ExecutionGraph executionGraph,
@@ -56,23 +59,29 @@ public interface StateTransitions {
                 List<ExceptionHistoryEntry> failureCollection);
     }
 
-    /** Interface covering transition to the {@link CreatingExecutionGraph} state. */
+    /** Interface covering transition to the {@link CreatingExecutionGraph} state.
+     * 可以转换成 创建执行图的状态
+     * */
     interface ToCreatingExecutionGraph extends StateTransitions {
 
-        /** Transitions into the {@link CreatingExecutionGraph} state. */
+        /** Transitions into the {@link CreatingExecutionGraph} state.
+         * 传入上个执行图
+         * */
         void goToCreatingExecutionGraph(@Nullable ExecutionGraph previousExecutionGraph);
     }
 
-    /** Interface covering transition to the {@link Executing} state. */
+    /** Interface covering transition to the {@link Executing} state.
+     * 转换成执行状态
+     * */
     interface ToExecuting extends StateTransitions {
 
         /**
          * Transitions into the {@link Executing} state.
          *
          * @param executionGraph executionGraph to pass to the {@link Executing} state
-         * @param executionGraphHandler executionGraphHandler to pass to the {@link Executing} state
+         * @param executionGraphHandler executionGraphHandler to pass to the {@link Executing} state  这个是跟检查点协调者互动的
          * @param operatorCoordinatorHandler operatorCoordinatorHandler to pass to the {@link
-         *     Executing} state
+         *     Executing} state   这个是算子协调者
          * @param failureCollection collection of failures that are propagated
          */
         void goToExecuting(
@@ -89,7 +98,7 @@ public interface StateTransitions {
          * Transitions into the {@link Finished} state.
          *
          * @param archivedExecutionGraph archivedExecutionGraph which is passed to the {@link
-         *     Finished} state
+         *     Finished} state   使用一个已经归档的执行图
          */
         void goToFinished(ArchivedExecutionGraph archivedExecutionGraph);
     }
@@ -127,7 +136,7 @@ public interface StateTransitions {
          * @param operatorCoordinatorHandler operatorCoordinatorHandler to pas to the {@link
          *     Restarting} state
          * @param backoffTime backoffTime to wait before transitioning to the {@link Restarting}
-         *     state
+         *     state      表示在重启前需要等待的时间
          * @param failureCollection collection of failures that are propagated
          */
         void goToRestarting(
@@ -138,7 +147,9 @@ public interface StateTransitions {
                 List<ExceptionHistoryEntry> failureCollection);
     }
 
-    /** Interface covering transition to the {@link StopWithSavepoint} state. */
+    /** Interface covering transition to the {@link StopWithSavepoint} state.
+     * 终止保存点生成
+     * */
     interface ToStopWithSavepoint extends StateTransitions {
 
         /**
@@ -149,6 +160,7 @@ public interface StateTransitions {
          *     StopWithSavepoint} state
          * @param operatorCoordinatorHandler operatorCoordinatorHandler to pass to the {@link
          *     StopWithSavepoint} state
+         * @param checkpointScheduling   可以开始和终止检查点调度器
          * @param savepointFuture Future for the savepoint to complete.
          * @param failureCollection collection of failures that are propagated
          * @return Location of the savepoint.
@@ -165,7 +177,9 @@ public interface StateTransitions {
     /** Interface covering transition to the {@link WaitingForResources} state. */
     interface ToWaitingForResources extends StateTransitions {
 
-        /** Transitions into the {@link WaitingForResources} state. */
+        /** Transitions into the {@link WaitingForResources} state.
+         * 等待资源
+         * */
         void goToWaitingForResources(@Nullable ExecutionGraph previousExecutionGraph);
     }
 }

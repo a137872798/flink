@@ -35,10 +35,17 @@ import java.util.function.Function;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Default implementation of {@link SchedulingPipelinedRegion}. */
+/** Default implementation of {@link SchedulingPipelinedRegion}.
+ * 表示流水线对象
+ * */
 public class DefaultSchedulingPipelinedRegion implements SchedulingPipelinedRegion {
 
+    /**
+     * 涉及的所有顶点
+     */
     private final Map<ExecutionVertexID, DefaultExecutionVertex> executionVertices;
+
+    // 2组数据集
 
     private Set<ConsumedPartitionGroup> nonPipelinedConsumedPartitionGroups;
 
@@ -77,16 +84,24 @@ public class DefaultSchedulingPipelinedRegion implements SchedulingPipelinedRegi
         return executionVertex;
     }
 
+    /**
+     * 初始化2类数据集
+     */
     private void initializeConsumedPartitionGroups() {
         final Set<ConsumedPartitionGroup> nonPipelinedConsumedPartitionGroupSet = new HashSet<>();
         final Set<ConsumedPartitionGroup> releaseBySchedulerConsumedPartitionGroupSet =
                 new HashSet<>();
         for (DefaultExecutionVertex executionVertex : executionVertices.values()) {
+
+            // 获取每个顶点要消费的所有数据集
             for (ConsumedPartitionGroup consumedPartitionGroup :
                     executionVertex.getConsumedPartitionGroups()) {
+
+                //
                 SchedulingResultPartition consumedPartition =
                         resultPartitionRetriever.apply(consumedPartitionGroup.getFirst());
 
+                // 根据类型存入不同list
                 if (!consumedPartition.getResultType().mustBePipelinedConsumed()) {
                     nonPipelinedConsumedPartitionGroupSet.add(consumedPartitionGroup);
                 }

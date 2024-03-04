@@ -55,6 +55,10 @@ public class RandomAccessInputView extends AbstractPagedInputView implements See
         this.limitInLastSegment = limitInLastSegment;
     }
 
+    /**
+     * 可以设定偏移量
+     * @param position The new read position.
+     */
     @Override
     public void setReadPosition(long position) {
         final int bufferNum = (int) (position >>> this.segmentSizeBits);
@@ -62,6 +66,7 @@ public class RandomAccessInputView extends AbstractPagedInputView implements See
 
         this.currentSegmentIndex = bufferNum;
         seekInput(
+                // 可以设定seg
                 this.segments.get(bufferNum),
                 offset,
                 bufferNum < this.segments.size() - 1 ? this.segmentSize : this.limitInLastSegment);

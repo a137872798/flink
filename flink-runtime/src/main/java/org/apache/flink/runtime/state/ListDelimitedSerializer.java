@@ -31,6 +31,7 @@ import java.util.List;
 /**
  * Encapsulates a logic of serialization and deserialization of a list with a delimiter. Used in the
  * savepoint format.
+ * 表示使用分隔符来序列化list对象
  */
 public final class ListDelimitedSerializer {
 
@@ -48,6 +49,7 @@ public final class ListDelimitedSerializer {
 
         List<T> result = new ArrayList<>();
         T next;
+        // 挨个反序列化 并将元素填充到result中
         while ((next = deserializeNextElement(dataInputView, elementSerializer)) != null) {
             result.add(next);
         }
@@ -80,6 +82,7 @@ public final class ListDelimitedSerializer {
         try {
             if (in.available() > 0) {
                 T element = elementSerializer.deserialize(in);
+                // 这里是读取掉 分隔符
                 if (in.available() > 0) {
                     in.readByte();
                 }

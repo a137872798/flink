@@ -23,7 +23,9 @@ import org.apache.flink.configuration.Configuration;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
 
-/** Configuration for the cluster components. */
+/** Configuration for the cluster components.
+ * 注册失败时 重试配置
+ * */
 public class RetryingRegistrationConfiguration {
 
     private final long initialRegistrationTimeoutMillis;

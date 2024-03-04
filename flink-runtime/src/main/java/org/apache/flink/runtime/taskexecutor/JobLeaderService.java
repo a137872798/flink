@@ -36,10 +36,10 @@ public interface JobLeaderService {
      * Start the job leader service with the given services.
      *
      * @param initialOwnerAddress to be used for establishing connections (source address)
-     * @param initialRpcService to be used to create rpc connections
+     * @param initialRpcService to be used to create rpc connections   通过该对象提供rpc访问能力
      * @param initialHighAvailabilityServices to create leader retrieval services for the different
      *     jobs
-     * @param initialJobLeaderListener listening for job leader changes
+     * @param initialJobLeaderListener listening for job leader changes  通过监听器监听job最新的JobMaster leader
      */
     void start(
             String initialOwnerAddress,

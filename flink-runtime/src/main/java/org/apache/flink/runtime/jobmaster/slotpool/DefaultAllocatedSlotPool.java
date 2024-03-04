@@ -42,12 +42,19 @@ public class DefaultAllocatedSlotPool implements AllocatedSlotPool {
 
     private static final Logger LOG = LoggerFactory.getLogger(DefaultAllocatedSlotPool.class);
 
+    /**
+     * 借用slot不需要从该容器移除
+     */
     private final Map<AllocationID, AllocatedSlot> registeredSlots;
 
-    /** All free slots and since when they are free, index by TaskExecutor. */
+    /** All free slots and since when they are free, index by TaskExecutor.
+     * 该对象内部会维护未被占用的slot  以及他们的free时间
+     * */
     private final FreeSlots freeSlots;
 
-    /** Index containing a mapping between TaskExecutors and their slots. */
+    /** Index containing a mapping between TaskExecutors and their slots.
+     * 每个ResourceID 对应的对象可以占用一组slot
+     * */
     private final Map<ResourceID, Set<AllocationID>> slotsPerTaskExecutor;
 
     public DefaultAllocatedSlotPool() {
@@ -64,6 +71,7 @@ public class DefaultAllocatedSlotPool implements AllocatedSlotPool {
     }
 
     private void addSlot(AllocatedSlot slot, long currentTime) {
+        // 避免重复添加
         Preconditions.checkState(
                 !registeredSlots.containsKey(slot.getAllocationId()),
                 "The slot pool already contains a slot with id %s",
@@ -80,6 +88,11 @@ public class DefaultAllocatedSlotPool implements AllocatedSlotPool {
         freeSlots.addFreeSlot(slot.getAllocationId(), slot.getTaskManagerId(), currentTime);
     }
 
+    /**
+     * 根据id从池中移除slot    移除不是借用
+     * @param allocationId allocationId identifying the slot to remove from the slot pool
+     * @return
+     */
     @Override
     public Optional<AllocatedSlot> removeSlot(AllocationID allocationId) {
         final AllocatedSlot removedSlot = removeSlotInternal(allocationId);
@@ -87,6 +100,7 @@ public class DefaultAllocatedSlotPool implements AllocatedSlotPool {
         if (removedSlot != null) {
             final ResourceID owner = removedSlot.getTaskManagerId();
 
+            // 更新 taskManager关联的slot数量
             slotsPerTaskExecutor.computeIfPresent(
                     owner,
                     (resourceID, allocationIds) -> {
@@ -125,6 +139,7 @@ public class DefaultAllocatedSlotPool implements AllocatedSlotPool {
 
             for (AllocationID allocationId : slotsOfTaskExecutor) {
                 final ReservationStatus reservationStatus =
+                        // 判断slot此时是否空闲  如果slot被借用 该方法会返回false
                         containsFreeSlot(allocationId)
                                 ? ReservationStatus.FREE
                                 : ReservationStatus.RESERVED;
@@ -164,14 +179,22 @@ public class DefaultAllocatedSlotPool implements AllocatedSlotPool {
         AllocatedSlot slot = registeredSlots.get(allocationId);
         Preconditions.checkNotNull(slot, "The slot with id %s was not exists.", allocationId);
         Preconditions.checkState(
+                // 当借用时 会从freeSlots移除该slot
                 freeSlots.removeFreeSlot(allocationId, slot.getTaskManagerId()) != null,
                 "The slot with id %s was not free.",
                 allocationId);
         return registeredSlots.get(allocationId);
     }
 
+    /**
+     * 归还借用的slot
+     * @param allocationId identifying the reserved slot to freed
+     * @param currentTime currentTime when the slot has been freed
+     * @return
+     */
     @Override
     public Optional<AllocatedSlot> freeReservedSlot(AllocationID allocationId, long currentTime) {
+        // 需要先确保该slot 之前已经注册到pool中了   通过 addSlots
         final AllocatedSlot allocatedSlot = registeredSlots.get(allocationId);
 
         if (allocatedSlot != null && !freeSlots.contains(allocationId)) {
@@ -201,6 +224,11 @@ public class DefaultAllocatedSlotPool implements AllocatedSlotPool {
         return registeredSlots.values();
     }
 
+    /**
+     * 计算slot的占用率
+     * @param resourceId
+     * @return
+     */
     private double getTaskExecutorUtilization(ResourceID resourceId) {
         Set<AllocationID> slots = slotsPerTaskExecutor.get(resourceId);
         Preconditions.checkNotNull(slots, "There is no slots on %s", resourceId);
@@ -217,20 +245,38 @@ public class DefaultAllocatedSlotPool implements AllocatedSlotPool {
         return DefaultFreeSlotInfo.create(allocatedSlot, idleSince);
     }
 
+    /**
+     * 该对象会记录所有slot被释放的时间
+     */
     private static final class FreeSlots {
         /** Map containing all free slots and since when they are free. */
         private final Map<AllocationID, Long> freeSlotsSince = new HashMap<>();
 
-        /** Index containing a mapping between TaskExecutors and their free slots number. */
+        /** Index containing a mapping between TaskExecutors and their free slots number.
+         * 记录同一个 ResourceID 关联的slot数量
+         * */
         private final Map<ResourceID, Integer> freeSlotsNumberPerTaskExecutor = new HashMap<>();
 
+        /**
+         * 添加一个未被占用的slot
+         * @param allocationId
+         * @param resourceId
+         * @param currentTime
+         */
         public void addFreeSlot(
                 AllocationID allocationId, ResourceID resourceId, long currentTime) {
             if (freeSlotsSince.put(allocationId, currentTime) == null) {
+                // 表示首次添加
                 freeSlotsNumberPerTaskExecutor.merge(resourceId, 1, Integer::sum);
             }
         }
 
+        /**
+         * 基本是 add的逆操作
+         * @param allocationId
+         * @param resourceId
+         * @return
+         */
         public Long removeFreeSlot(AllocationID allocationId, ResourceID resourceId) {
             Long freeSince = freeSlotsSince.remove(allocationId);
             if (freeSince != null) {
@@ -249,6 +295,11 @@ public class DefaultAllocatedSlotPool implements AllocatedSlotPool {
             return freeSlotsSince.containsKey(allocationId);
         }
 
+        /**
+         * 返回该资源关联的空闲slot数量
+         * @param resourceId
+         * @return
+         */
         public int getFreeSlotsNumberOfTaskExecutor(ResourceID resourceId) {
             return freeSlotsNumberPerTaskExecutor.getOrDefault(resourceId, 0);
         }
@@ -258,10 +309,16 @@ public class DefaultAllocatedSlotPool implements AllocatedSlotPool {
         }
     }
 
+    /**
+     * 表示一个空闲的slot
+     */
     private static final class DefaultFreeSlotInfo implements AllocatedSlotPool.FreeSlotInfo {
 
         private final SlotInfo slotInfo;
 
+        /**
+         * 从该时刻开始空闲
+         */
         private final long freeSince;
 
         private DefaultFreeSlotInfo(SlotInfo slotInfo, long freeSince) {
@@ -284,10 +341,19 @@ public class DefaultAllocatedSlotPool implements AllocatedSlotPool {
         }
     }
 
+    /**
+     * 当通过资源id移除slot时  被移除的slot会组成该对象
+     */
     private static final class DefaultAllocatedSlotsAndReservationStatus
             implements AllocatedSlotsAndReservationStatus {
 
+        /**
+         * 原本被某个resourceId所占用
+         */
         private final Collection<AllocatedSlot> slots;
+        /**
+         * 每个slot此时的状态
+         */
         private final Map<AllocationID, ReservationStatus> reservationStatus;
 
         private DefaultAllocatedSlotsAndReservationStatus(
@@ -310,6 +376,6 @@ public class DefaultAllocatedSlotPool implements AllocatedSlotPool {
 
     private enum ReservationStatus {
         FREE,
-        RESERVED
+        RESERVED  // 表示被占用
     }
 }

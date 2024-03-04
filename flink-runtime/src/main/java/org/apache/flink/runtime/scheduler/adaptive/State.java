@@ -37,6 +37,7 @@ interface State extends LabeledGlobalFailureHandler {
      * This method is called whenever one transitions out of this state.
      *
      * @param newState newState is the state into which the scheduler transitions
+     *                 表示离开当前状态时触发
      */
     default void onLeave(Class<? extends State> newState) {}
 
@@ -46,7 +47,7 @@ interface State extends LabeledGlobalFailureHandler {
     /**
      * Suspends the job execution.
      *
-     * @param cause cause for the suspension
+     * @param cause cause for the suspension  暂停执行
      */
     void suspend(Throwable cause);
 
@@ -55,6 +56,7 @@ interface State extends LabeledGlobalFailureHandler {
      * until the scheduler transitions to a different state.
      *
      * @return the current {@link JobStatus}
+     * 获取job的状态
      */
     JobStatus getJobStatus();
 
@@ -62,6 +64,7 @@ interface State extends LabeledGlobalFailureHandler {
      * Gets the current {@link ArchivedExecutionGraph}.
      *
      * @return the current {@link ArchivedExecutionGraph}
+     * 这是job的执行图
      */
     ArchivedExecutionGraph getJob();
 

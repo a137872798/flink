@@ -46,26 +46,33 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>TODO: make this truly transient by returning file streams to a local copy with the remote
  * being removed upon retrieval and the local copy being deleted at the end of the stream.
+ *
+ * 临时blob数据的缓存
  */
 public class TransientBlobCache extends AbstractBlobCache implements TransientBlobService {
 
     /**
      * Map to store the TTL of each element stored in the local storage, i.e. via one of the {@link
      * #getFile} methods.
+     * 维护每个file的过期时间   因为是瞬时数据
      */
     private final ConcurrentHashMap<Tuple2<JobID, TransientBlobKey>, Long> blobExpiryTimes =
             new ConcurrentHashMap<>();
 
-    /** Time interval (ms) to run the cleanup task; also used as the default TTL. */
+    /** Time interval (ms) to run the cleanup task; also used as the default TTL.
+     * 每多久检查一次ttl时间
+     * */
     private final long cleanupInterval;
 
-    /** Timer task to execute the cleanup at regular intervals. */
+    /** Timer task to execute the cleanup at regular intervals.
+     * 定时器  用于检查
+     * */
     private final Timer cleanupTimer;
 
     @VisibleForTesting
     public TransientBlobCache(
             final Configuration blobClientConfig,
-            final File storageDir,
+            final File storageDir,  // 缓存目录
             @Nullable final InetSocketAddress serverAddress)
             throws IOException {
         this(blobClientConfig, Reference.owned(storageDir), serverAddress);
@@ -90,7 +97,7 @@ public class TransientBlobCache extends AbstractBlobCache implements TransientBl
         super(
                 blobClientConfig,
                 storageDir,
-                new VoidBlobStore(),
+                new VoidBlobStore(),  // 表示BlobView是无效的 只能从blobServer查询
                 LoggerFactory.getLogger(TransientBlobCache.class),
                 serverAddress);
 
@@ -106,6 +113,10 @@ public class TransientBlobCache extends AbstractBlobCache implements TransientBl
         registerBlobExpiryTimes();
     }
 
+    /**
+     * 将目前所有文件插入到map中 同时还有超时时间
+     * @throws IOException
+     */
     private void registerBlobExpiryTimes() throws IOException {
         if (storageDir.deref().exists()) {
             final Collection<BlobUtils.TransientBlob> transientBlobs =
@@ -136,6 +147,7 @@ public class TransientBlobCache extends AbstractBlobCache implements TransientBl
     protected File getFileInternal(@Nullable JobID jobId, BlobKey blobKey) throws IOException {
         File file = super.getFileInternal(jobId, blobKey);
 
+        // 拿到文件后 加入到map中 在一定延时后删除
         readWriteLock.readLock().lock();
         try {
             // regarding concurrent operations, it is not really important which timestamp makes
@@ -199,8 +211,12 @@ public class TransientBlobCache extends AbstractBlobCache implements TransientBl
      * @param key blob key associated with the file to be deleted
      * @return <tt>true</tt> if the given blob is successfully deleted or non-existing;
      *     <tt>false</tt> otherwise
+     *
+     *     当发现超时时执行的清理函数
      */
     private boolean deleteInternal(@Nullable JobID jobId, TransientBlobKey key) {
+
+        // 产生文件路径
         final File localFile =
                 new File(
                         BlobUtils.getStorageLocationPath(

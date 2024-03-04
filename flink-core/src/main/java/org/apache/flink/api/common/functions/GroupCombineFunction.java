@@ -48,7 +48,7 @@ public interface GroupCombineFunction<IN, OUT> extends Function, Serializable {
      * @param out The collector to use to return values from the function.
      * @throws Exception The function may throw Exceptions, which will cause the program to cancel,
      *     and may trigger the recovery logic.
-     *     将多个输入元素分组
+     *     对所有数据进行合并后  并发送到下游
      */
     void combine(Iterable<IN> values, Collector<OUT> out) throws Exception;
 }

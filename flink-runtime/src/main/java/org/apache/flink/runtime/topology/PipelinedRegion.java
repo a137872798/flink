@@ -26,6 +26,8 @@ package org.apache.flink.runtime.topology;
  * @param <RID> the type of the result ids
  * @param <V> the type of the vertices
  * @param <R> the type of the result
+ *
+ *           表示一个流水线  表示内部有多少顶点 并进行数据交换
  */
 public interface PipelinedRegion<
         VID extends VertexID,
@@ -37,6 +39,7 @@ public interface PipelinedRegion<
      * Returns vertices that are in this pipelined region.
      *
      * @return Iterable over all vertices in this pipelined region
+     * 参与该流水线的所有顶点
      */
     Iterable<? extends V> getVertices();
 
@@ -47,6 +50,8 @@ public interface PipelinedRegion<
      * @return the vertex with the specified id
      * @throws IllegalArgumentException if there is no vertex in this pipelined region with the
      *     specified vertex id
+     *
+     *     通过ID精确查找
      */
     V getVertex(VID vertexId);
 
@@ -55,6 +60,7 @@ public interface PipelinedRegion<
      *
      * @param vertexId the vertex id used to look up
      * @return the vertex is in this pipelined region or not
+     * 判断流水线中是否包含某个顶点
      */
     boolean contains(VID vertexId);
 }

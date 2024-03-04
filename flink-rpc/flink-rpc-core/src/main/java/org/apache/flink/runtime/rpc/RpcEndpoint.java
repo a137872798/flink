@@ -86,6 +86,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>The running state can be queried in a RPC method handler or in the main thread by calling
  * {@link #isRunning()} method.
+ *
  */
 public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
 
@@ -93,7 +94,9 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
 
     // ------------------------------------------------------------------------
 
-    /** RPC service to be used to start the RPC server and to obtain rpc gateways. */
+    /** RPC service to be used to start the RPC server and to obtain rpc gateways.
+     * 通过该对象启动 rpc服务器 并获得调用其他rpc服务的网关对象
+     * */
     private final RpcService rpcService;
 
     /** Unique identifier for this rpc endpoint. */
@@ -111,12 +114,14 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
     /**
      * The main thread executor to be used to execute future callbacks in the main thread of the
      * executing rpc server.
+     * 简单看作一个执行器  但是任务会交给主线程
      */
     private final MainThreadExecutor mainThreadExecutor;
 
     /**
      * Register endpoint closeable resource to the registry and close them when the server is
      * stopped.
+     * 维护一组close对象 可以进行批量关闭
      */
     private final CloseableRegistry resourceRegistry;
 
@@ -138,11 +143,15 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
         this.rpcService = checkNotNull(rpcService, "rpcService");
         this.endpointId = checkNotNull(endpointId, "endpointId");
 
+        // 启动服务
         this.rpcServer = rpcService.startServer(this);
         this.resourceRegistry = new CloseableRegistry();
 
         this.mainThreadExecutor =
                 new MainThreadExecutor(rpcServer, this::validateRunsInMainThread, endpointId);
+
+
+        // 把执行器注册到 resourceRegistry 上 这样会自动close
         registerResource(this.mainThreadExecutor);
     }
 
@@ -181,6 +190,7 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
     /**
      * Triggers start of the rpc endpoint. This tells the underlying rpc server that the rpc
      * endpoint is ready to process remote procedure calls.
+     * 启动server对象
      */
     public final void start() {
         rpcServer.start();
@@ -191,6 +201,7 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
      *
      * @throws Exception indicating that the rpc endpoint could not be started. If an exception
      *     occurs, then the rpc endpoint will automatically terminate.
+     *     确保在主线程调用 OnStart
      */
     public final void internalCallOnStart() throws Exception {
         validateRunsInMainThread();
@@ -230,6 +241,7 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
         validateRunsInMainThread();
         CompletableFuture<Void> stopFuture = new CompletableFuture<>();
         try {
+            // 关闭之前注册的closable对象
             resourceRegistry.close();
             stopFuture.complete(null);
         } catch (IOException e) {
@@ -285,6 +297,7 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
      *
      * <p>In order to wait on the completion of the shut down, obtain the termination future via
      * {@link #getTerminationFuture()}} and wait on its completion.
+     * 停止 server
      */
     @Override
     public final CompletableFuture<Void> closeAsync() {
@@ -369,6 +382,7 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
      * Execute the runnable in the main thread of the underlying RPC endpoint.
      *
      * @param runnable Runnable to be executed in the main thread of the underlying RPC endpoint
+     *                 将任务委托给 rpcServer
      */
     protected void runAsync(Runnable runnable) {
         rpcServer.runAsync(runnable);
@@ -391,6 +405,7 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
      *
      * @param runnable Runnable to be executed
      * @param delay The delay after which the runnable will be executed
+     *                   将任务委托给 rpcServer
      */
     protected void scheduleRunAsync(Runnable runnable, long delay, TimeUnit unit) {
         rpcServer.scheduleRunAsync(runnable, unit.toMillis(delay));
@@ -447,11 +462,19 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
     //  Utilities
     // ------------------------------------------------------------------------
 
-    /** Executor which executes runnables in the main thread context. */
+    /** Executor which executes runnables in the main thread context.
+     * */
     protected static class MainThreadExecutor implements ComponentMainThreadExecutor, Closeable {
         private static final Logger log = LoggerFactory.getLogger(MainThreadExecutor.class);
 
+        /**
+         * 表示使用主线程执行操作
+         */
         private final MainThreadExecutable gateway;
+
+        /**
+         * 用于检查当前是否在主线程
+         */
         private final Runnable mainThreadCheck;
         /**
          * The main scheduled executor manages the scheduled tasks and send them to gateway when
@@ -478,6 +501,10 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
             this.mainScheduledExecutor = mainScheduledExecutor;
         }
 
+        /**
+         * 提交给主线程
+         * @param command
+         */
         @Override
         public void execute(@Nonnull Runnable command) {
             gateway.runAsync(command);
@@ -501,6 +528,7 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
                         "The scheduled executor service is shutdown and ignores the command {}",
                         command);
             } else {
+                // 定时器在到时时  转交给主线程执行
                 mainScheduledExecutor.schedule(
                         () -> gateway.runAsync(ft), delayMillis, TimeUnit.MILLISECONDS);
             }
@@ -531,6 +559,8 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
             }
             return new ScheduledFutureAdapter<>(ft, delayMillis, TimeUnit.MILLISECONDS);
         }
+
+        // 不支持周期性调度
 
         @Override
         public ScheduledFuture<?> scheduleAtFixedRate(

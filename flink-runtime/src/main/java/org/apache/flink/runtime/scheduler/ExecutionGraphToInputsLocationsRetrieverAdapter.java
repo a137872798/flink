@@ -35,7 +35,9 @@ import java.util.stream.Collectors;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** An implementation of {@link InputsLocationsRetriever} based on the {@link ExecutionGraph}. */
+/** An implementation of {@link InputsLocationsRetriever} based on the {@link ExecutionGraph}.
+ * 借助执行图 提供检索能力
+ * */
 public class ExecutionGraphToInputsLocationsRetrieverAdapter implements InputsLocationsRetriever {
 
     private final ExecutionGraph executionGraph;
@@ -47,6 +49,7 @@ public class ExecutionGraphToInputsLocationsRetrieverAdapter implements InputsLo
     @Override
     public Collection<ConsumedPartitionGroup> getConsumedPartitionGroups(
             ExecutionVertexID executionVertexId) {
+        // 直接有提供api 查询该顶点消费的数据
         return getExecutionVertex(executionVertexId).getAllConsumedPartitionGroups();
     }
 
@@ -58,7 +61,7 @@ public class ExecutionGraphToInputsLocationsRetrieverAdapter implements InputsLo
                         partition ->
                                 executionGraph
                                         .getResultPartitionOrThrow(partition)
-                                        .getProducer()
+                                        .getProducer()  // 获得产生该数据的上游顶点
                                         .getID())
                 .collect(Collectors.toList());
     }
@@ -68,6 +71,7 @@ public class ExecutionGraphToInputsLocationsRetrieverAdapter implements InputsLo
             ExecutionVertexID executionVertexId) {
         ExecutionVertex ev = getExecutionVertex(executionVertexId);
 
+        // 创建阶段还没有位置信息
         if (ev.getExecutionState() != ExecutionState.CREATED) {
             return Optional.of(ev.getCurrentTaskManagerLocationFuture());
         } else {
@@ -75,6 +79,11 @@ public class ExecutionGraphToInputsLocationsRetrieverAdapter implements InputsLo
         }
     }
 
+    /**
+     * 定位到某个子任务相关的
+     * @param executionVertexId
+     * @return
+     */
     private ExecutionVertex getExecutionVertex(ExecutionVertexID executionVertexId) {
         ExecutionJobVertex ejv = executionGraph.getJobVertex(executionVertexId.getJobVertexId());
 

@@ -30,17 +30,25 @@ import java.util.Arrays;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
 
-/** The implementation of {@link TierProducerAgent} for the remote tier. */
+/** The implementation of {@link TierProducerAgent} for the remote tier.
+ * 用于产生数据
+ * */
 public class RemoteTierProducerAgent implements TierProducerAgent {
 
     private final int numSubpartitions;
 
     private final int numBuffersPerSegment;
 
+    /**
+     * 同disk 先写入内存 达到一定量后触发刷盘
+     */
     private final RemoteCacheManager cacheDataManager;
 
     private final TieredStorageMemoryManager memoryManager;
 
+    /**
+     * 记录每个子分区此时写入了多少buffer
+     */
     private final int[] currentSubpartitionSegmentWriteBuffers;
 
     RemoteTierProducerAgent(
@@ -70,6 +78,12 @@ public class RemoteTierProducerAgent implements TierProducerAgent {
         resourceRegistry.registerResource(partitionId, this::releaseAllResources);
     }
 
+    /**
+     * 也是转发
+     * @param subpartitionId subpartition id that the new segment belongs to
+     * @param segmentId id of the new segment
+     * @return
+     */
     @Override
     public boolean tryStartNewSegment(TieredStorageSubpartitionId subpartitionId, int segmentId) {
         cacheDataManager.startSegment(subpartitionId.getSubpartitionId(), segmentId);
@@ -81,6 +95,7 @@ public class RemoteTierProducerAgent implements TierProducerAgent {
     public boolean tryWrite(
             TieredStorageSubpartitionId subpartitionId, Buffer buffer, Object bufferOwner) {
         int subpartitionIndex = subpartitionId.getSubpartitionId();
+        // 写入前如果发现 该seg写满了 触发finishSegment
         if (currentSubpartitionSegmentWriteBuffers[subpartitionIndex] + 1 > numBuffersPerSegment) {
             cacheDataManager.finishSegment(subpartitionIndex);
             currentSubpartitionSegmentWriteBuffers[subpartitionIndex] = 0;

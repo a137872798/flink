@@ -23,13 +23,19 @@ import org.apache.flink.runtime.util.event.NotificationListener;
 
 import java.io.IOException;
 
+/**
+ * 该写入对象还可以注册监听器
+ */
 public interface BufferFileWriter extends BlockChannelWriterWithCallback<Buffer> {
 
-    /** Returns the number of outstanding requests. */
+    /** Returns the number of outstanding requests.
+     * 返回囤积的写请求
+     * */
     int getNumberOfOutstandingRequests();
 
     /**
      * Registers a listener, which is notified after all outstanding requests have been processed.
+     * 注册监听器 只有当所有请求处理完时 才触发
      */
     boolean registerAllRequestsProcessedListener(NotificationListener listener) throws IOException;
 }

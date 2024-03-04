@@ -26,8 +26,12 @@ import org.apache.flink.util.SerializedValue;
 
 import javax.annotation.Nullable;
 
-/** RPC Gateway interface for messages to the CheckpointCoordinator. */
+/** RPC Gateway interface for messages to the CheckpointCoordinator.
+ * CheckpointCoordinator 需要与集群中其他节点通信 所以要暴露地址
+ * */
 public interface CheckpointCoordinatorGateway extends RpcGateway {
+
+    // 作为端点收到请求 会转发给 CheckpointCoordinator
 
     void acknowledgeCheckpoint(
             final JobID jobID,

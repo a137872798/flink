@@ -29,6 +29,7 @@ import java.util.List;
 /**
  * Does not release intermediate result partitions during job execution. Relies on partitions being
  * released at the end of the job.
+ * 空对象 啥也不做
  */
 public class NotReleasingPartitionGroupReleaseStrategy implements PartitionGroupReleaseStrategy {
 

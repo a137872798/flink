@@ -24,7 +24,9 @@ import org.apache.flink.util.Preconditions;
 
 import java.util.Map;
 
-/** Container for the set of reserved slots for {@link ExecutionVertexID}. */
+/** Container for the set of reserved slots for {@link ExecutionVertexID}.
+ * 记录已经被分配的slot
+ * */
 public final class ReservedSlots {
     private final Map<ExecutionVertexID, LogicalSlot> slotPerExecutionVertex;
 
@@ -32,6 +34,11 @@ public final class ReservedSlots {
         this.slotPerExecutionVertex = slotPerExecutionVertex;
     }
 
+    /**
+     * 拿到分配给该subtask的slot
+     * @param executionVertexId
+     * @return
+     */
     public LogicalSlot getSlotFor(ExecutionVertexID executionVertexId) {
         return Preconditions.checkNotNull(slotPerExecutionVertex.get(executionVertexId));
     }

@@ -29,13 +29,18 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** A {@link CoLocationGroup} implementation. */
+/** A {@link CoLocationGroup} implementation.
+ * 位置组的实现类  组内包含一系列的顶点
+ * */
 public class CoLocationGroupImpl implements CoLocationGroup, java.io.Serializable {
 
     private static final long serialVersionUID = -2605819490401895297L;
 
     private final AbstractID id = new AbstractID();
 
+    /**
+     * 内部包含一组顶点
+     */
     private final List<JobVertex> vertices = new ArrayList<>();
 
     // --------------------------------------------------------------------------------------------
@@ -61,6 +66,10 @@ public class CoLocationGroupImpl implements CoLocationGroup, java.io.Serializabl
         return new CoLocationConstraint(id, subTaskIndex);
     }
 
+    /**
+     * 合并2个组内的数据
+     * @param other
+     */
     public void mergeInto(CoLocationGroupImpl other) {
         Preconditions.checkNotNull(other);
 

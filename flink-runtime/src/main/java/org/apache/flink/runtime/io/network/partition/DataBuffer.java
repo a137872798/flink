@@ -32,12 +32,14 @@ import java.nio.ByteBuffer;
  *
  * <p>The lifecycle of a {@link DataBuffer} can be: new, write, [read, reset, write], finish, read,
  * release. There can be multiple [read, reset, write] operations before finish.
+ * 存储数据的buffer
  */
 public interface DataBuffer {
 
     /**
      * Appends data of the specified channel to this {@link DataBuffer} and returns true if this
      * {@link DataBuffer} is full.
+     * 将数据添加到指定的channel
      */
     boolean append(ByteBuffer source, int targetChannel, Buffer.DataType dataType)
             throws IOException;
@@ -46,10 +48,13 @@ public interface DataBuffer {
      * Copies data in this {@link DataBuffer} to the target {@link MemorySegment} in channel index
      * order and returns {@link BufferWithChannel} which contains the copied data and the
      * corresponding channel index.
+     * 将数据拷贝到MemorySegment
      */
     BufferWithChannel getNextBuffer(@Nullable MemorySegment transitBuffer);
 
-    /** Returns the total number of records written to this {@link DataBuffer}. */
+    /** Returns the total number of records written to this {@link DataBuffer}.
+     * 获取buffer中的记录总数
+     * */
     long numTotalRecords();
 
     /** Returns the total number of bytes written to this {@link DataBuffer}. */

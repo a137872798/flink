@@ -70,28 +70,59 @@ import java.util.concurrent.CompletableFuture;
  *
  * <p>Implementations can expect that methods will not be invoked concurrently. In fact, all
  * invocations will originate from a thread in the {@link ComponentMainThreadExecutor}.
+ * 该对象用于调度flink的job
  */
 public interface SchedulerNG extends GlobalFailureHandler, AutoCloseableAsync {
 
+    /**
+     * 开始调度
+     */
     void startScheduling();
 
     void cancel();
 
+    /**
+     * 获取job结束时的状态
+     * @return
+     */
     CompletableFuture<JobStatus> getJobTerminationFuture();
 
+    /**
+     * 更新某个Execution的状态
+     * @param taskExecutionState
+     * @return
+     */
     default boolean updateTaskExecutionState(TaskExecutionState taskExecutionState) {
         return updateTaskExecutionState(new TaskExecutionStateTransition(taskExecutionState));
     }
 
     boolean updateTaskExecutionState(TaskExecutionStateTransition taskExecutionState);
 
+    /**
+     * 针对某个execution  请求下一个输入数据
+     * @param vertexID
+     * @param executionAttempt
+     * @return
+     * @throws IOException
+     */
     SerializedInputSplit requestNextInputSplit(
             JobVertexID vertexID, ExecutionAttemptID executionAttempt) throws IOException;
 
+    /**
+     * 通过2个id 可以找到一个execution 并获取state
+     * @param intermediateResultId
+     * @param resultPartitionId
+     * @return
+     * @throws PartitionProducerDisposedException
+     */
     ExecutionState requestPartitionState(
             IntermediateDataSetID intermediateResultId, ResultPartitionID resultPartitionId)
             throws PartitionProducerDisposedException;
 
+    /**
+     * 获取本次处理的job
+     * @return
+     */
     ExecutionGraphInfo requestJob();
 
     /**
@@ -100,8 +131,11 @@ public interface SchedulerNG extends GlobalFailureHandler, AutoCloseableAsync {
      * preferred to {@link SchedulerNG#requestJob()} because it is less expensive.
      *
      * @return checkpoint statistics snapshot for job graph
+     * 获取检查点统计信息
      */
     CheckpointStatsSnapshot requestCheckpointStats();
+
+    // 获取job状态和详情
 
     JobStatus requestJobStatus();
 
@@ -111,9 +145,27 @@ public interface SchedulerNG extends GlobalFailureHandler, AutoCloseableAsync {
     // Methods below do not belong to Scheduler but are included due to historical reasons
     // ------------------------------------------------------------------------------------
 
+    /**
+     * KvState 可以用一个名字注册到job上 这里是获取它的位置
+     * @param jobId
+     * @param registrationName
+     * @return
+     * @throws UnknownKvStateLocation
+     * @throws FlinkJobNotFoundException
+     */
     KvStateLocation requestKvStateLocation(JobID jobId, String registrationName)
             throws UnknownKvStateLocation, FlinkJobNotFoundException;
 
+    /**
+     * 通知某个KvState被注册
+     * @param jobId
+     * @param jobVertexId
+     * @param keyGroupRange  KvState 会按照key被分成多个部分 这里是落在该范围内的数据在 kvStateServerAddress 上
+     * @param registrationName
+     * @param kvStateId
+     * @param kvStateServerAddress
+     * @throws FlinkJobNotFoundException
+     */
     void notifyKvStateRegistered(
             JobID jobId,
             JobVertexID jobVertexId,
@@ -123,6 +175,14 @@ public interface SchedulerNG extends GlobalFailureHandler, AutoCloseableAsync {
             InetSocketAddress kvStateServerAddress)
             throws FlinkJobNotFoundException;
 
+    /**
+     * 注销操作
+     * @param jobId
+     * @param jobVertexId
+     * @param keyGroupRange
+     * @param registrationName
+     * @throws FlinkJobNotFoundException
+     */
     void notifyKvStateUnregistered(
             JobID jobId,
             JobVertexID jobVertexId,
@@ -132,15 +192,39 @@ public interface SchedulerNG extends GlobalFailureHandler, AutoCloseableAsync {
 
     // ------------------------------------------------------------------------
 
+    /**
+     * 使用快照数据来更新累加器
+     * @param accumulatorSnapshot
+     */
     void updateAccumulators(AccumulatorSnapshot accumulatorSnapshot);
 
     // ------------------------------------------------------------------------
 
+    /**
+     * 触发并产生一个保存点
+     * @param targetDirectory
+     * @param cancelJob
+     * @param formatType
+     * @return
+     */
     CompletableFuture<String> triggerSavepoint(
             @Nullable String targetDirectory, boolean cancelJob, SavepointFormatType formatType);
 
+    /**
+     * 触发检查点
+     * @param checkpointType
+     * @return
+     */
     CompletableFuture<CompletedCheckpoint> triggerCheckpoint(CheckpointType checkpointType);
 
+    /**
+     * 当检查点处理完毕时 通知本对象
+     * @param jobID
+     * @param executionAttemptID
+     * @param checkpointId
+     * @param checkpointMetrics
+     * @param checkpointState
+     */
     void acknowledgeCheckpoint(
             JobID jobID,
             ExecutionAttemptID executionAttemptID,
@@ -154,6 +238,10 @@ public interface SchedulerNG extends GlobalFailureHandler, AutoCloseableAsync {
             long checkpointId,
             CheckpointMetrics checkpointMetrics);
 
+    /**
+     * 表示检查点失败了  里面记录了错误信息
+     * @param decline
+     */
     void declineCheckpoint(DeclineCheckpoint decline);
 
     CompletableFuture<String> stopWithSavepoint(
@@ -182,6 +270,7 @@ public interface SchedulerNG extends GlobalFailureHandler, AutoCloseableAsync {
      *
      * @throws FlinkException Thrown, if the task is not running or no operator/coordinator exists
      *     for the given ID.
+     *     将事件发往协调者
      */
     void deliverOperatorEventToCoordinator(
             ExecutionAttemptID taskExecution, OperatorID operator, OperatorEvent evt)
@@ -194,6 +283,7 @@ public interface SchedulerNG extends GlobalFailureHandler, AutoCloseableAsync {
      * @return A future containing the response.
      * @throws FlinkException Thrown, if the task is not running, or no operator/coordinator exists
      *     for the given ID, or the coordinator cannot handle client events.
+     *     将req发往协调者
      */
     CompletableFuture<CoordinationResponse> deliverCoordinationRequestToCoordinator(
             OperatorID operator, CoordinationRequest request) throws FlinkException;
@@ -202,8 +292,11 @@ public interface SchedulerNG extends GlobalFailureHandler, AutoCloseableAsync {
      * Notifies that the task has reached the end of data.
      *
      * @param executionAttemptID The execution attempt id.
+     *                           表示某个task的数据处理完了
      */
     void notifyEndOfData(ExecutionAttemptID executionAttemptID);
+
+    // 获取和更新某个job需要的资源
 
     /**
      * Read current {@link JobResourceRequirements job resource requirements}.

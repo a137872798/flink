@@ -52,6 +52,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>The abstract class is also responsible for determining which component service should be
  * reused. For example, {@link #jobResultStore} is created once and could be reused many times.
+ * 高可用服务骨架
  */
 public abstract class AbstractHaServices implements HighAvailabilityServices {
 
@@ -63,11 +64,19 @@ public abstract class AbstractHaServices implements HighAvailabilityServices {
     /** The runtime configuration. */
     protected final Configuration configuration;
 
-    /** Store for arbitrary blobs. */
+    /** Store for arbitrary blobs.
+     * 这可以看作是一个简单的读写服务
+     * */
     private final BlobStoreService blobStoreService;
 
+    /**
+     * 通过该对象临时存储 JobResult  也是利用文件系统
+     */
     private final JobResultStore jobResultStore;
 
+    /**
+     * 该对象提供选举能力
+     */
     private final DefaultLeaderElectionService leaderElectionService;
 
     protected AbstractHaServices(
@@ -84,6 +93,8 @@ public abstract class AbstractHaServices implements HighAvailabilityServices {
 
         this.leaderElectionService = new DefaultLeaderElectionService(driverFactory);
     }
+
+    // 在ZK中 有关leader的信息是保存在路径下的 所以这里调用不同api 获得存储各leader信息的路径 利用路径创建leader检索服务
 
     @Override
     public LeaderRetrievalService getResourceManagerLeaderRetriever() {
@@ -110,6 +121,8 @@ public abstract class AbstractHaServices implements HighAvailabilityServices {
     public LeaderRetrievalService getClusterRestEndpointLeaderRetriever() {
         return createLeaderRetrievalService(getLeaderPathForRestServer());
     }
+
+    // 创建可以参与选举的 election对象 并设置相关路径
 
     @Override
     public LeaderElection getResourceManagerLeaderElection() {
@@ -151,6 +164,10 @@ public abstract class AbstractHaServices implements HighAvailabilityServices {
         return blobStoreService;
     }
 
+    /**
+     * 关闭各组件
+     * @throws Exception
+     */
     @Override
     public void close() throws Exception {
         Throwable exception = null;
@@ -181,6 +198,10 @@ public abstract class AbstractHaServices implements HighAvailabilityServices {
         }
     }
 
+    /**
+     * 在关闭前清理数据
+     * @throws Exception
+     */
     @Override
     public void closeAndCleanupAllData() throws Exception {
         logger.info("Close and clean up all data for {}.", getClass().getSimpleName());
@@ -236,6 +257,7 @@ public abstract class AbstractHaServices implements HighAvailabilityServices {
                 () -> {
                     logger.info("Clean up the high availability data for job {}.", jobID);
                     try {
+                        // 清理job相关的数据
                         internalCleanupJobData(jobID);
                     } catch (Exception e) {
                         throw new CompletionException(e);
@@ -251,6 +273,7 @@ public abstract class AbstractHaServices implements HighAvailabilityServices {
      *
      * @param leaderName ConfigMap name in Kubernetes or child node path in Zookeeper.
      * @return Return LeaderRetrievalService using Zookeeper or Kubernetes.
+     * 基于leader路径 产生leader检索服务
      */
     protected abstract LeaderRetrievalService createLeaderRetrievalService(String leaderName);
 
@@ -296,6 +319,8 @@ public abstract class AbstractHaServices implements HighAvailabilityServices {
      * @throws Exception when do the cleanup operation on external storage.
      */
     protected abstract void internalCleanupJobData(JobID jobID) throws Exception;
+
+    // 开放4个钩子 用于获取不同路径
 
     /**
      * Get the leader path for ResourceManager.

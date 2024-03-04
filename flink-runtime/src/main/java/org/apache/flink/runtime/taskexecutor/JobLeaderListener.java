@@ -29,6 +29,7 @@ import org.apache.flink.runtime.jobmaster.JobMasterId;
  * leadership for a registered job and the service could establish a connection to it. Furthermore,
  * the listener is notified when a job manager loses leadership for a job. In case of an error, the
  * {@link #handleError(Throwable)}} is called.
+ * 监听job的 jobMaster leader
  */
 public interface JobLeaderListener {
 
@@ -39,6 +40,7 @@ public interface JobLeaderListener {
      * @param jobId identifying the job for which the job manager has gained leadership
      * @param jobManagerGateway to the job leader
      * @param registrationMessage containing further registration information
+     *                            表示某个 JobMaster成为leader
      */
     void jobManagerGainedLeadership(
             JobID jobId,
@@ -50,6 +52,7 @@ public interface JobLeaderListener {
      *
      * @param jobId identifying the job whose leader has lost leadership
      * @param jobMasterId old JobMasterId
+     *                    表示该JobMaster 不再是leader
      */
     void jobManagerLostLeadership(JobID jobId, JobMasterId jobMasterId);
 
@@ -57,6 +60,7 @@ public interface JobLeaderListener {
      * Callback for errors which might occur in the {@link JobLeaderService}.
      *
      * @param throwable cause
+     *                  其他异常情况
      */
     void handleError(Throwable throwable);
 
@@ -66,6 +70,7 @@ public interface JobLeaderListener {
      * @param jobId jobId identifying the job to connect to
      * @param targetAddress targetAddress of the responsible job manager
      * @param rejection rejection containing more information about the rejection
+     *                  本对象想要注册(连接)到JM时  失败了
      */
     void jobManagerRejectedRegistration(
             JobID jobId, String targetAddress, JMTMRegistrationRejection rejection);

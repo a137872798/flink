@@ -22,6 +22,7 @@ import java.util.UUID;
 
 /**
  * A leader election driver that allows to write {@link LeaderInformation} for multiple components.
+ * 通过驱动与选举框架交互
  */
 public interface LeaderElectionDriver extends AutoCloseable {
 
@@ -29,6 +30,7 @@ public interface LeaderElectionDriver extends AutoCloseable {
      * Returns whether the driver has currently leadership.
      *
      * @return {@code true} if the driver has leadership, otherwise {@code false}
+     * 判断当前驱动是否被选为领导
      */
     boolean hasLeadership();
 
@@ -37,6 +39,8 @@ public interface LeaderElectionDriver extends AutoCloseable {
      *
      * @param componentId identifying the component for which to publish the leader information
      * @param leaderInformation leader information of the respective component
+     *                          通知 componentId 对应的对象成为了leader
+     *
      */
     void publishLeaderInformation(String componentId, LeaderInformation leaderInformation);
 
@@ -44,6 +48,7 @@ public interface LeaderElectionDriver extends AutoCloseable {
      * Deletes the leader information for the given component.
      *
      * @param componentId identifying the component for which to delete the leader information
+     *                    删除某个组件相关的信息
      */
     void deleteLeaderInformation(String componentId);
 
@@ -61,6 +66,7 @@ public interface LeaderElectionDriver extends AutoCloseable {
          *
          * @param componentId identifying the component whose leader information has changed
          * @param leaderInformation new leader information
+         *                          表示leader写入的信息变化了
          */
         void onLeaderInformationChange(String componentId, LeaderInformation leaderInformation);
 

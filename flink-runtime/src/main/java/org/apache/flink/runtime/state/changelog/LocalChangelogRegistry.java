@@ -21,7 +21,9 @@ import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.checkpoint.CompletedCheckpointStore;
 import org.apache.flink.runtime.state.StreamStateHandle;
 
-/** This registry is responsible for deleting changlog's local handles which are not in use. */
+/** This registry is responsible for deleting changlog's local handles which are not in use.
+ * 表示changelog在本地使用
+ * */
 @Internal
 public interface LocalChangelogRegistry {
     LocalChangelogRegistry NO_OP =
@@ -51,14 +53,14 @@ public interface LocalChangelogRegistry {
      * are unregistered when the checkpoint completes, because only one checkpoint is kept for local
      * recovery.
      *
-     * @param upTo lowest CheckpointID which is still valid.
+     * @param upTo lowest CheckpointID which is still valid.  表示在此之下的检查点都无效了
      */
     void discardUpToCheckpoint(long upTo);
 
     /**
      * Called upon ChangelogKeyedStateBackend#notifyCheckpointAborted.
      *
-     * @param checkpointID to abort
+     * @param checkpointID to abort  删除某个检查点对应的所有state
      */
     void prune(long checkpointID);
 }

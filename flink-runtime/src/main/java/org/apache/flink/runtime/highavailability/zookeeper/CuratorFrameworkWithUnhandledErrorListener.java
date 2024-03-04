@@ -33,6 +33,9 @@ public class CuratorFrameworkWithUnhandledErrorListener implements Closeable {
 
     private final CuratorFramework client;
 
+    /**
+     * 该对象是绑定在ZK client上 监听并处理异常的
+     */
     private final UnhandledErrorListener listener;
 
     public CuratorFrameworkWithUnhandledErrorListener(
@@ -41,6 +44,9 @@ public class CuratorFrameworkWithUnhandledErrorListener implements Closeable {
         this.listener = Preconditions.checkNotNull(listener);
     }
 
+    /**
+     * 当对象关闭时  会注销监听器 以及关闭client
+     */
     @Override
     public void close() {
         client.getUnhandledErrorListenable().removeListener(listener);

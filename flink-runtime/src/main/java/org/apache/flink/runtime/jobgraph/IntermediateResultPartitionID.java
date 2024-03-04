@@ -24,7 +24,9 @@ import org.apache.flink.runtime.topology.ResultID;
 
 import org.apache.flink.shaded.netty4.io.netty.buffer.ByteBuf;
 
-/** Id identifying {@link IntermediateResultPartition}. */
+/** Id identifying {@link IntermediateResultPartition}.
+ * 表示被分区的结果集id
+ * */
 public class IntermediateResultPartitionID implements ResultID {
 
     private static final long serialVersionUID = 1L;
@@ -35,6 +37,10 @@ public class IntermediateResultPartitionID implements ResultID {
     private static final int BYTEBUF_LEN = 20;
 
     private final IntermediateDataSetID intermediateDataSetID;
+
+    /**
+     * 分区的序号
+     */
     private final int partitionNum;
 
     /** Creates an new random intermediate result partition ID for testing. */

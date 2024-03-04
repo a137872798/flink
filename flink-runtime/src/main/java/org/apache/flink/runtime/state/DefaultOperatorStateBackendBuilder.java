@@ -32,6 +32,7 @@ import static org.apache.flink.runtime.state.SnapshotExecutionType.SYNCHRONOUS;
 /**
  * Builder class for {@link DefaultOperatorStateBackend} which handles all necessary initializations
  * and clean ups.
+ * 创建存储  operatorState类型的后端
  */
 public class DefaultOperatorStateBackendBuilder
         implements StateBackendBuilder<DefaultOperatorStateBackend, BackendBuildingException> {
@@ -41,7 +42,9 @@ public class DefaultOperatorStateBackendBuilder
     @VisibleForTesting protected final ExecutionConfig executionConfig;
     /** Flag to de/activate asynchronous snapshots. */
     @VisibleForTesting protected final boolean asynchronousSnapshots;
-    /** State handles for restore. */
+    /** State handles for restore.
+     * 在恢复阶段得到的state
+     * */
     @VisibleForTesting protected final Collection<OperatorStateHandle> restoreStateHandles;
 
     @VisibleForTesting protected final CloseableRegistry cancelStreamRegistry;
@@ -74,6 +77,8 @@ public class DefaultOperatorStateBackendBuilder
                         registeredOperatorStates,
                         registeredBroadcastStates,
                         compressionDecorator);
+
+        // 进行数据恢复  与生成快照对应
         OperatorStateRestoreOperation restoreOperation =
                 new OperatorStateRestoreOperation(
                         cancelStreamRegistry,

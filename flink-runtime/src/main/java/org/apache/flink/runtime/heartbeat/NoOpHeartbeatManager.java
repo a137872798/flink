@@ -28,6 +28,7 @@ import java.util.concurrent.CompletableFuture;
  *
  * @param <I> ignored
  * @param <O> ignored
+ *           表示一个空的心跳管理器
  */
 public class NoOpHeartbeatManager<I, O> implements HeartbeatManager<I, O> {
     private static final NoOpHeartbeatManager<Object, Object> INSTANCE =

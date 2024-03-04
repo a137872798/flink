@@ -24,21 +24,31 @@ import java.io.Serializable;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** A snapshot of the checkpoint stats. */
+/** A snapshot of the checkpoint stats.
+ * 表示一个统计信息快照
+ * */
 public class CheckpointStatsSnapshot implements Serializable {
 
     private static final long serialVersionUID = 8914278419087217964L;
 
-    /** Snapshot of the checkpoint counts. */
+    /** Snapshot of the checkpoint counts.
+     * 这个是各种计数值
+     * */
     private final CheckpointStatsCounts counts;
 
-    /** Snapshot of the completed checkpoints summary stats. */
+    /** Snapshot of the completed checkpoints summary stats.
+     * 针对已经完成的检查点统计信息
+     * */
     private final CompletedCheckpointStatsSummarySnapshot summary;
 
-    /** Snapshot of the checkpoint history. */
+    /** Snapshot of the checkpoint history.
+     * 维护一个以往的检查点统计数据
+     * */
     private final CheckpointStatsHistory history;
 
-    /** The latest restored checkpoint operation. */
+    /** The latest restored checkpoint operation.
+     * 维护一个最近恢复的检查点数据
+     * */
     @Nullable private final RestoredCheckpointStats latestRestoredCheckpoint;
 
     public static CheckpointStatsSnapshot empty() {

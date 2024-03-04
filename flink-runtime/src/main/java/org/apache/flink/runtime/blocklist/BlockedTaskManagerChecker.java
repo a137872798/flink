@@ -19,7 +19,9 @@ package org.apache.flink.runtime.blocklist;
 
 import org.apache.flink.runtime.clusterframework.types.ResourceID;
 
-/** This checker helps to query whether a given task manager is blocked. */
+/** This checker helps to query whether a given task manager is blocked.
+ * 检查器用于判断某个节点的 taskManager是否被阻塞
+ * */
 public interface BlockedTaskManagerChecker {
 
     /**

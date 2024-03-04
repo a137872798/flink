@@ -44,11 +44,14 @@ import static org.apache.flink.runtime.blob.BlobUtils.writeLength;
 /**
  * The BLOB output stream is a special implementation of an {@link OutputStream} to send data vi PUT
  * to the BLOB server.
+ *
+ * 包装套接字输出流 用于往服务器推送blob数据
  */
 final class BlobOutputStream extends OutputStream {
 
     private static final Logger LOG = LoggerFactory.getLogger(BlobOutputStream.class);
 
+    // 关联的blob类型  数据存储在服务端
     private final BlobKey.BlobType blobType;
     private final OutputStream socketStream;
     private final Socket socket;
@@ -99,11 +102,12 @@ final class BlobOutputStream extends OutputStream {
     }
 
     public BlobKey finish() throws IOException {
-        // send -1 as the stream end
+        // send -1 as the stream end  表示写完了
         writeLength(-1, socketStream);
 
         // Receive blob key and compare
         final InputStream is = this.socket.getInputStream();
+        // 接收推送的结果
         return receiveAndCheckPutResponse(is, md, blobType);
     }
 
@@ -115,6 +119,8 @@ final class BlobOutputStream extends OutputStream {
      * @param blobType whether the BLOB should become permanent or transient
      * @throws IOException thrown if an I/O error occurs while writing the header data to the output
      *     stream
+     *
+     *     在推送数据前 要写入头部信息
      */
     private static void sendPutHeader(
             OutputStream outputStream, @Nullable JobID jobId, BlobKey.BlobType blobType)

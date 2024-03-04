@@ -34,6 +34,7 @@ import java.util.Map;
 /**
  * Simple registry, which maps {@link InternalKvState} registration notifications to {@link
  * KvStateLocation} instances.
+ * 使用该对象存储keyState的位置
  */
 public class KvStateLocationRegistry {
 

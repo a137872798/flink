@@ -35,6 +35,8 @@ import javax.annotation.Nullable;
  * backend. A local state object that is not null also requires a state to report to the job manager
  * that is not null, because the Job Manager always owns the ground truth about the checkpointed
  * state.
+ *
+ * 表示状态的快照
  */
 public class SnapshotResult<T extends StateObject> implements StateObject {
 
@@ -46,12 +48,15 @@ public class SnapshotResult<T extends StateObject> implements StateObject {
     /**
      * This is the state snapshot that will be reported to the Job Manager to acknowledge a
      * checkpoint.
+     * 表示  Job Manager的快照
      */
     private final T jobManagerOwnedSnapshot;
 
     /**
      * This is the state snapshot that will be reported to the Job Manager to acknowledge a
      * checkpoint.
+     *
+     * 产生的快照
      */
     private final T taskLocalSnapshot;
 
@@ -84,11 +89,16 @@ public class SnapshotResult<T extends StateObject> implements StateObject {
         return taskLocalSnapshot;
     }
 
+    /**
+     * 作为状态的持有者 丢弃状态
+     * @throws Exception
+     */
     @Override
     public void discardState() throws Exception {
 
         Exception aggregatedExceptions = null;
 
+        // 通知2个对象丢弃
         if (jobManagerOwnedSnapshot != null) {
             try {
                 jobManagerOwnedSnapshot.discardState();

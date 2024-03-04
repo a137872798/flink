@@ -26,18 +26,25 @@ import java.util.Optional;
 /**
  * A {@link StateObject} that represents state that was written to a stream. The data can be read
  * back via {@link #openInputStream()}.
+ *
  */
 public interface StreamStateHandle extends StateObject {
 
     /**
      * Returns an {@link FSDataInputStream} that can be used to read back the data that was
      * previously written to the stream.
+     *
+     * 可以以stream的方式读取state
      */
     FSDataInputStream openInputStream() throws IOException;
 
-    /** @return Content of this handle as bytes array if it is already in memory. */
+    /** @return Content of this handle as bytes array if it is already in memory.
+     * 如果状态以字节数组形式存在内存中 直接返回
+     * */
     Optional<byte[]> asBytesIfInMemory();
 
-    /** @return a unique identifier of this handle. */
+    /** @return a unique identifier of this handle.
+     * 返回handle的id
+     * */
     PhysicalStateHandleID getStreamStateHandleID();
 }

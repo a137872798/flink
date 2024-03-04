@@ -45,6 +45,7 @@ public interface LocallyCleanableResource {
      * @param jobId The {@link JobID} of the job for which the local data should be cleaned up.
      * @param cleanupExecutor The fallback executor for IO-heavy operations.
      * @return The cleanup result future.
+     * 清理某个job相关的本地资源  并且使用指定的执行器
      */
     CompletableFuture<Void> localCleanupAsync(JobID jobId, Executor cleanupExecutor);
 }

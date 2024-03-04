@@ -32,9 +32,12 @@ import java.util.function.Consumer;
  *
  * <p>In order to access the disk as sequentially as possible {@link HsSubpartitionFileReader} need
  * to be able to compare priorities.
+ * 该对象用于读取某个子分区数据
  */
 public interface HsSubpartitionFileReader extends Comparable<HsSubpartitionFileReader>, HsDataView {
-    /** Do prep work before this {@link HsSubpartitionFileReader} is scheduled to read data. */
+    /** Do prep work before this {@link HsSubpartitionFileReader} is scheduled to read data.
+     * 需要做一些准备工作
+     * */
     void prepareForScheduling();
 
     /**
@@ -43,6 +46,7 @@ public interface HsSubpartitionFileReader extends Comparable<HsSubpartitionFileR
      * @param buffers for reading, note that the ownership of the buffer taken out from the queue is
      *     transferred to this class, and the unused buffer must be returned.
      * @param recycler to return buffer to read buffer pool.
+     *                 将数据读取到buffer中
      */
     void readBuffers(Queue<MemorySegment> buffers, BufferRecycler recycler) throws IOException;
 

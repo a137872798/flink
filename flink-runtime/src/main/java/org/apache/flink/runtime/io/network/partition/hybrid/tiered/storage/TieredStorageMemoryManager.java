@@ -42,6 +42,7 @@ import java.util.List;
  * can request. Instead, it only simply provides memory usage hints to memory users. It is very
  * <b>important</b> to note that <b>only</b> users with non-reclaimable should check the memory
  * hints by calling {@code getMaxNonReclaimableBuffers} before requesting buffers.
+ * 分层存储 内存管理器
  */
 public interface TieredStorageMemoryManager {
 
@@ -51,7 +52,8 @@ public interface TieredStorageMemoryManager {
      * tiered storage's memory requirement specs.
      *
      * @param bufferPool the local buffer pool
-     * @param storageMemorySpecs the memory specs for different tiered storages
+     * @param storageMemorySpecs the memory specs for different tiered storages   描述对象的内存需要
+     *                           初始化时 传入内存池
      */
     void setup(BufferPool bufferPool, List<TieredStorageMemorySpec> storageMemorySpecs);
 
@@ -70,6 +72,8 @@ public interface TieredStorageMemoryManager {
      * TieredStorageMemoryManager} will try to reclaim the buffers from the memory owners.
      *
      * @param onBufferReclaimRequest a {@link Runnable} to process the buffer reclaim request
+     *
+     *                               针对内存归还时的钩子
      */
     void listenBufferReclaimRequest(Runnable onBufferReclaimRequest);
 
@@ -84,6 +88,7 @@ public interface TieredStorageMemoryManager {
      *
      * @param owner the owner to request buffer
      * @return the requested buffer
+     * 某个对象申请内存
      */
     BufferBuilder requestBufferBlocking(Object owner);
 
@@ -98,6 +103,7 @@ public interface TieredStorageMemoryManager {
      * occasionally be negative. This is due to the possibility of the buffer pool size shrinking to
      * a point where it is smaller than the buffers owned by other users. In such cases, the maximum
      * non-reclaimable buffer value returned may be negative.
+     * 最多允许多少内存不归还
      */
     int getMaxNonReclaimableBuffers(Object owner);
 
@@ -106,6 +112,7 @@ public interface TieredStorageMemoryManager {
      *
      * @param owner the owner of requesting buffers
      * @return the number of requested buffers belonging to the owner.
+     * 返回该对象申请的buffer数量
      */
     int numOwnerRequestedBuffer(Object owner);
 
@@ -116,6 +123,7 @@ public interface TieredStorageMemoryManager {
      * @param oldOwner the old owner of one buffer
      * @param newOwner the new owner of one buffer
      * @param buffer the buffer to transfer the ownership
+     *               更改buffer的所有权
      */
     void transferBufferOwnership(Object oldOwner, Object newOwner, Buffer buffer);
 

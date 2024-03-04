@@ -27,6 +27,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * This actor listens to changes in the JobStatus and activates or deactivates the periodic
  * checkpoint scheduler.
+ * 监听job状态 并通知CheckpointCoordinator
  */
 public class CheckpointCoordinatorDeActivator implements JobStatusListener {
 

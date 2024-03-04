@@ -20,7 +20,9 @@ package org.apache.flink.runtime.io.network.buffer;
 
 import org.apache.flink.core.memory.MemorySegment;
 
-/** A simple buffer recycler that frees the memory segments. */
+/** A simple buffer recycler that frees the memory segments.
+ * 该对象的回收 就是释放内存
+ * */
 public class FreeingBufferRecycler implements BufferRecycler {
 
     public static final BufferRecycler INSTANCE = new FreeingBufferRecycler();

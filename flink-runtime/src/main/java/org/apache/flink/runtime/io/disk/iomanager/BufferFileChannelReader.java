@@ -26,9 +26,19 @@ import java.nio.channels.FileChannel;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
 
-/** Helper class to read {@link Buffer}s from files into objects. */
+/** Helper class to read {@link Buffer}s from files into objects.
+ * 该对象可以从channel读取数据到buffer
+ * */
 public class BufferFileChannelReader {
+
+    /**
+     * 存储头部信息
+     */
     private final ByteBuffer header = ByteBuffer.allocateDirect(8);
+
+    /**
+     * 待读取的channel
+     */
     private final FileChannel fileChannel;
 
     BufferFileChannelReader(FileChannel fileChannel) {
@@ -49,6 +59,7 @@ public class BufferFileChannelReader {
         fileChannel.read(header);
         header.flip();
 
+        // 获得元数据信息
         final boolean isBuffer = header.getInt() == 1;
         final int size = header.getInt();
 
@@ -62,8 +73,10 @@ public class BufferFileChannelReader {
         }
         checkArgument(buffer.getSize() == 0, "Buffer not empty");
 
+        // 读取到buffer中
         fileChannel.read(buffer.getNioBuffer(0, size));
         buffer.setSize(size);
+        // 设置类型
         buffer.setDataType(isBuffer ? Buffer.DataType.DATA_BUFFER : Buffer.DataType.EVENT_BUFFER);
 
         return fileChannel.size() - fileChannel.position() == 0;

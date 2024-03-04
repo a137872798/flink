@@ -53,16 +53,24 @@ import static org.apache.flink.runtime.blob.BlobUtils.writeLength;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** A BLOB connection handles a series of requests from a particular BLOB client. */
+/** A BLOB connection handles a series of requests from a particular BLOB client.
+ * 表示一个客户端-服务器连接
+ * 作为server在接收到client连接后 就会产生一个该对象 并使用该对象进行交互
+ * 不过由于每个连接使用一个线程 而不是基于选择器进行io读取  所以性能较差 也就是该server的连接数应当是比较少的
+ * */
 class BlobServerConnection extends Thread {
 
     /** The log object used for debugging. */
     private static final Logger LOG = LoggerFactory.getLogger(BlobServerConnection.class);
 
-    /** The socket to communicate with the client. */
+    /** The socket to communicate with the client.
+     * 客户端套接字
+     * */
     private final Socket clientSocket;
 
-    /** The BLOB server. */
+    /** The BLOB server.
+     * 表示由哪个服务器产生的
+     * */
     private final BlobServer blobServer;
 
     /** Read lock to synchronize file accesses. */
@@ -105,6 +113,7 @@ class BlobServerConnection extends Thread {
                     return;
                 }
 
+                // 自旋等待指令
                 switch (operation) {
                     case PUT_OPERATION:
                         put(inputStream, outputStream, new byte[BUFFER_SIZE]);
@@ -126,6 +135,7 @@ class BlobServerConnection extends Thread {
                     t);
         } finally {
             closeSilently(clientSocket, LOG);
+            // 交互结束 关闭连接 并从server注销   server应该是要统一管理这些连接的
             blobServer.unregisterConnection(this);
         }
     }
@@ -152,6 +162,8 @@ class BlobServerConnection extends Thread {
      * @param buf an auxiliary buffer for data serialization/deserialization
      * @throws IOException thrown if an I/O error occurs while reading/writing data from/to the
      *     respective streams
+     *
+     *     接收一个读取blob的请求
      */
     private void get(InputStream inputStream, OutputStream outputStream, byte[] buf)
             throws IOException {
@@ -176,8 +188,10 @@ class BlobServerConnection extends Thread {
             }
 
             // Receive the jobId and key
+            // 表示无jobid  一般就是瞬时blob
             if (mode == JOB_UNRELATED_CONTENT) {
                 jobId = null;
+                // 有关 所以读取jobId
             } else if (mode == JOB_RELATED_CONTENT) {
                 byte[] jidBytes = new byte[JobID.SIZE];
                 readFully(inputStream, jidBytes, 0, JobID.SIZE, "JobID");
@@ -214,6 +228,7 @@ class BlobServerConnection extends Thread {
 
         try {
 
+            // 通过 jobId blobKey
             readLock.lock();
             try {
                 // copy the file to local store if it does not exist yet
@@ -226,6 +241,7 @@ class BlobServerConnection extends Thread {
                         throw new IOException("BLOB size exceeds the maximum size (2 GB).");
                     }
 
+                    // 表示要开始返回数据了
                     outputStream.write(RETURN_OKAY);
                 } catch (Throwable t) {
                     LOG.error(
@@ -268,9 +284,11 @@ class BlobServerConnection extends Thread {
             }
 
             // on successful transfer, delete transient files
+            // 读取client的确认结果
             int result = inputStream.read();
             if (result < 0) {
                 throw new EOFException("Premature end of GET request");
+                // 当临时blob被取走后 就可以删除本地blob了
             } else if (blobKey instanceof TransientBlobKey && result == RETURN_OKAY) {
                 // ignore the result from the operation
                 if (!blobServer.deleteInternal(jobId, (TransientBlobKey) blobKey)) {
@@ -299,6 +317,7 @@ class BlobServerConnection extends Thread {
      * @param buf An auxiliary buffer for data serialization/deserialization
      * @throws IOException thrown if an I/O error occurs while reading/writing data from/to the
      *     respective streams
+     *     接收put指令
      */
     private void put(InputStream inputStream, OutputStream outputStream, byte[] buf)
             throws IOException {
@@ -324,6 +343,7 @@ class BlobServerConnection extends Thread {
 
             final BlobKey.BlobType blobType;
             {
+                // 读取blob类型
                 final int read = inputStream.read();
                 if (read < 0) {
                     throw new EOFException("Read an incomplete BLOB type");
@@ -331,6 +351,7 @@ class BlobServerConnection extends Thread {
                     blobType = TRANSIENT_BLOB;
                 } else if (read == PERMANENT_BLOB.ordinal()) {
                     blobType = PERMANENT_BLOB;
+                    // 持久化blob必须有jobId
                     checkArgument(jobId != null, "Invalid BLOB addressing for permanent BLOBs");
                 } else {
                     throw new IOException("Invalid data received for the BLOB type: " + read);
@@ -344,13 +365,16 @@ class BlobServerConnection extends Thread {
                         clientSocket.getInetAddress());
             }
 
+            // 产生临时文件 存储数据
             incomingFile = blobServer.createTemporaryFilename();
             byte[] digest = readFileFully(inputStream, incomingFile, buf);
 
+            // 从临时文件存储到 blobServer中
             BlobKey blobKey = blobServer.moveTempFileToStore(incomingFile, jobId, digest, blobType);
 
             // Return computed key to client for validation
             outputStream.write(RETURN_OKAY);
+            // 写入key
             blobKey.writeToOutputStream(outputStream);
         } catch (SocketException e) {
             // happens when the other side disconnects

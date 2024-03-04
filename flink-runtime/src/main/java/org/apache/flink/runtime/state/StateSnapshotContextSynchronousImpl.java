@@ -30,7 +30,9 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.concurrent.RunnableFuture;
 
-/** This class is a default implementation for StateSnapshotContext. */
+/** This class is a default implementation for StateSnapshotContext.
+ * 表示快照的上下文
+ * */
 public class StateSnapshotContextSynchronousImpl implements StateSnapshotContext {
 
     /** Checkpoint id of the snapshot. */
@@ -39,7 +41,9 @@ public class StateSnapshotContextSynchronousImpl implements StateSnapshotContext
     /** Checkpoint timestamp of the snapshot. */
     private final long checkpointTimestamp;
 
-    /** Factory for the checkpointing stream. */
+    /** Factory for the checkpointing stream.
+     * 获取检查点的输出流
+     * */
     private final CheckpointStreamFactory streamFactory;
 
     /** Key group range for the operator that created this context. Only for keyed operators. */
@@ -57,6 +61,7 @@ public class StateSnapshotContextSynchronousImpl implements StateSnapshotContext
     /** Output stream for the raw operator state. */
     private OperatorStateCheckpointOutputStream operatorStateCheckpointOutputStream;
 
+    // 对应2种不同类型的状态
     protected RunnableFuture<SnapshotResult<KeyedStateHandle>> keyedStateCheckpointClosingFuture;
     protected RunnableFuture<SnapshotResult<OperatorStateHandle>>
             operatorStateCheckpointClosingFuture;

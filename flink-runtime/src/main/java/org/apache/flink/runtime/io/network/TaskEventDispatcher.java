@@ -39,6 +39,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>Backwards events only work for tasks, which produce pipelined results, where both the
  * producing and consuming task are running at the same time.
+ * 该对象可以将某个事件发送给handler
  */
 public class TaskEventDispatcher implements TaskEventPublisher {
     private static final Logger LOG = LoggerFactory.getLogger(TaskEventDispatcher.class);
@@ -50,12 +51,14 @@ public class TaskEventDispatcher implements TaskEventPublisher {
      * #subscribeToEvent(ResultPartitionID, EventListener, Class)}.
      *
      * @param partitionId the partition ID
+     *                    注册分区
      */
     public void registerPartition(ResultPartitionID partitionId) {
         checkNotNull(partitionId);
 
         synchronized (registeredHandlers) {
             LOG.debug("registering {}", partitionId);
+            // handler内部可以注册多个监听器
             if (registeredHandlers.put(partitionId, new TaskEventHandler()) != null) {
                 throw new IllegalStateException(
                         "Partition "
@@ -70,6 +73,7 @@ public class TaskEventDispatcher implements TaskEventPublisher {
      * {@link #subscribeToEvent(ResultPartitionID, EventListener, Class)}.
      *
      * @param partitionId the partition ID
+     *                    移除某个分区的handler  handler内部有一组监听器
      */
     public void unregisterPartition(ResultPartitionID partitionId) {
         checkNotNull(partitionId);
@@ -90,6 +94,7 @@ public class TaskEventDispatcher implements TaskEventPublisher {
      *     #registerPartition(ResultPartitionID)} first!)
      * @param eventListener the event listener to subscribe
      * @param eventType event type to subscribe to
+     *                  为某个分区的handler 追加一个监听器
      */
     public void subscribeToEvent(
             ResultPartitionID partitionId,
@@ -118,6 +123,7 @@ public class TaskEventDispatcher implements TaskEventPublisher {
      *
      * @return whether the event was published to a registered event handler (initiated via {@link
      *     #registerPartition(ResultPartitionID)}) or not
+     *     将事件通知到监听器
      */
     @Override
     public boolean publish(ResultPartitionID partitionId, TaskEvent event) {

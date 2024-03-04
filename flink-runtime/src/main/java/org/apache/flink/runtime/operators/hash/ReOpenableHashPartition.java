@@ -30,6 +30,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 
+/**
+ * 可以恢复最初数据
+ * @param <BT>
+ * @param <PT>
+ */
 public class ReOpenableHashPartition<BT, PT> extends HashPartition<BT, PT> {
 
     protected int initialPartitionBuffersCount =
@@ -51,6 +56,16 @@ public class ReOpenableHashPartition<BT, PT> extends HashPartition<BT, PT> {
         return initialPartitionBuffersCount;
     }
 
+    /**
+     * 初始化是一样的
+     * @param buildSideAccessors
+     * @param probeSideAccessors
+     * @param partitionNumber
+     * @param recursionLevel
+     * @param initialBuffer
+     * @param memSource
+     * @param segmentSize
+     */
     ReOpenableHashPartition(
             TypeSerializer<BT> buildSideAccessors,
             TypeSerializer<PT> probeSideAccessors,
@@ -69,6 +84,15 @@ public class ReOpenableHashPartition<BT, PT> extends HashPartition<BT, PT> {
                 segmentSize);
     }
 
+    /**
+     * 结束探测阶段
+     * @param freeMemory
+     * @param spilledPartitions 收集需要处理的分区数据
+     * @param keepUnprobedSpilledPartitions If true then partitions that were spilled but received
+     *     no further probe requests will be retained; used for build-side outer joins.
+     * @return
+     * @throws IOException
+     */
     @Override
     public int finalizeProbePhase(
             List<MemorySegment> freeMemory,
@@ -76,8 +100,10 @@ public class ReOpenableHashPartition<BT, PT> extends HashPartition<BT, PT> {
             boolean keepUnprobedSpilledPartitions)
             throws IOException {
         if (furtherPartitioning || recursionLevel != 0 || isRestored) {
+            // 表示还没有复原过
             if (isInMemory() && initialBuildSideChannel != null && !isRestored) {
                 // return the overflow segments
+                // 仅重置 overflow相关的数据  原始数据还可以恢复
                 for (int k = 0; k < this.numOverflowSegments; k++) {
                     freeMemory.add(this.overflowSegments[k]);
                 }
@@ -110,18 +136,22 @@ public class ReOpenableHashPartition<BT, PT> extends HashPartition<BT, PT> {
      * Spills this partition to disk. This method is invoked once after the initial open() method
      *
      * @return Number of memorySegments in the writeBehindBuffers!
+     * 开始倾泻数据
      */
     int spillInMemoryPartition(
             FileIOChannel.ID targetChannel,
             IOManager ioManager,
             LinkedBlockingQueue<MemorySegment> writeBehindBuffers)
             throws IOException {
+
+        // 记录第一次倾泻时的 分区数据和文件channel
         this.initialPartitionBuffersCount = partitionBuffers.length; // for ReOpenableHashMap
         this.initialBuildSideChannel = targetChannel;
 
         initialBuildSideWriter =
                 ioManager.createBlockChannelWriter(targetChannel, writeBehindBuffers);
 
+        // 将所有数据写入文件channel
         final int numSegments = this.partitionBuffers.length;
         for (int i = 0; i < numSegments; i++) {
             initialBuildSideWriter.writeBlock(partitionBuffers[i]);
@@ -139,6 +169,7 @@ public class ReOpenableHashPartition<BT, PT> extends HashPartition<BT, PT> {
      * @param ioManager
      * @param availableMemory
      * @throws IOException
+     * 恢复之前写入的数据  也就体现了reopen
      */
     void restorePartitionBuffers(IOManager ioManager, List<MemorySegment> availableMemory)
             throws IOException {
@@ -148,6 +179,8 @@ public class ReOpenableHashPartition<BT, PT> extends HashPartition<BT, PT> {
                         availableMemory,
                         this.initialPartitionBuffersCount);
         reader.close();
+
+        // 复原到之前的状态
         final List<MemorySegment> partitionBuffersFromDisk = reader.getFullSegments();
         this.partitionBuffers =
                 (MemorySegment[])
@@ -160,6 +193,10 @@ public class ReOpenableHashPartition<BT, PT> extends HashPartition<BT, PT> {
         this.isRestored = true;
     }
 
+    /**
+     * 该对象被废弃 那么之前写入的数据也要丢弃 (文件也要删除)
+     * @param target
+     */
     @Override
     public void clearAllMemory(List<MemorySegment> target) {
         if (initialBuildSideChannel != null) {

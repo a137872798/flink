@@ -31,6 +31,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * intermediate operation.
  *
  * <p>Intermediate data sets may be read by other operators, materialized, or discarded.
+ * 表示一个中间结果集
  */
 public class IntermediateDataSet implements java.io.Serializable {
 
@@ -38,14 +39,23 @@ public class IntermediateDataSet implements java.io.Serializable {
 
     private final IntermediateDataSetID id; // the identifier
 
+    /**
+     * 表示该结果是由哪个生产数据导致的
+     */
     private final JobVertex producer; // the operation that produced this data set
 
     // All consumers must have the same partitioner and parallelism
+    // 存储消耗中间结果集的对象
     private final List<JobEdge> consumers = new ArrayList<>();
 
-    // The type of partition to use at runtime
+    // The type of partition to use at runtime  描述结果类型
     private final ResultPartitionType resultType;
 
+    // 这2个属性都是由添加的第一条edge决定的
+
+    /**
+     * 当本对象作为生产时  下游如何消费
+     */
     private DistributionPattern distributionPattern;
 
     private boolean isBroadcast;
@@ -87,11 +97,16 @@ public class IntermediateDataSet implements java.io.Serializable {
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 添加消费者
+     * @param edge
+     */
     public void addConsumer(JobEdge edge) {
         // sanity check
         checkState(id.equals(edge.getSourceId()), "Incompatible dataset id.");
 
         if (consumers.isEmpty()) {
+            // 当添加第一个消费者时 进行赋值
             distributionPattern = edge.getDistributionPattern();
             isBroadcast = edge.isBroadcast();
         } else {

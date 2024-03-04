@@ -23,6 +23,7 @@ import org.apache.flink.annotation.Internal;
 /**
  * Interface for objects that can be managed by a {@link HeapPriorityQueue}. Such an object can only
  * be contained in at most one {@link HeapPriorityQueue} at a time.
+ * 表示在优先队列内的元素
  */
 @Internal
 public interface HeapPriorityQueueElement {
@@ -37,6 +38,7 @@ public interface HeapPriorityQueueElement {
 
     /**
      * Returns the current index of this object in the internal array of {@link HeapPriorityQueue}.
+     * 获取该元素在队列的下标
      */
     int getInternalIndex();
 
@@ -45,6 +47,7 @@ public interface HeapPriorityQueueElement {
      * called by the owning {@link HeapPriorityQueue}.
      *
      * @param newIndex the new index in the timer heap.
+     *                 设置元素的下标
      */
     void setInternalIndex(int newIndex);
 }

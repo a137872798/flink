@@ -29,6 +29,8 @@ import java.io.IOException;
  * rather thancdata files.
  *
  * <p>This stream always creates a file, regardless of the amount of data written.
+ *
+ * 用于读取检查点的元数据
  */
 public abstract class CheckpointMetadataOutputStream extends FSDataOutputStream {
 
@@ -37,6 +39,7 @@ public abstract class CheckpointMetadataOutputStream extends FSDataOutputStream 
      *
      * @return An object representing a finalized checkpoint storage location.
      * @throws IOException Thrown, if the stream cannot be closed or the finalization fails.
+     * 当数据写完后 关闭流
      */
     public abstract CompletedCheckpointStorageLocation closeAndFinalizeCheckpoint()
             throws IOException;

@@ -34,6 +34,7 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * An implementation of {@link Buffer} which contains multiple partial buffers for network data
  * communication.
+ * 使用一个header进行初始化   因为一个buffer的数据可能不够  需要维护多个partialBuffer
  */
 public class CompositeBuffer implements Buffer {
 
@@ -94,6 +95,10 @@ public class CompositeBuffer implements Buffer {
         this.allocator = allocator;
     }
 
+    /**
+     * 将内部的多个buffer转换成CompositeByteBuf
+     * @return
+     */
     @Override
     public ByteBuf asByteBuf() {
         CompositeByteBuf compositeByteBuf = checkNotNull(allocator).compositeDirectBuffer();
@@ -135,6 +140,8 @@ public class CompositeBuffer implements Buffer {
             segment.put(offset, buffer.getNioBufferReadable(), buffer.readableBytes());
             offset += buffer.readableBytes();
         }
+
+        // 将所有数据都收集到segment后  回收了所有buffer
         recycleBuffer();
         return new NetworkBuffer(
                 segment,

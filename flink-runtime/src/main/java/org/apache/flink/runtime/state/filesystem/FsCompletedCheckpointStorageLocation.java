@@ -27,6 +27,8 @@ import java.io.IOException;
 /**
  * A {@link CompletedCheckpointStorageLocation} that resides on a file system. This location is
  * internally represented through the checkpoint directory plus the metadata file.
+ *
+ * 表示一个已经完成的检查点的位置
  */
 public class FsCompletedCheckpointStorageLocation implements CompletedCheckpointStorageLocation {
 

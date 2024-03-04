@@ -29,6 +29,8 @@ import java.io.IOException;
  * currently in use.
  *
  * <p>TODO Refactor I/O manager setup and refactor this into it
+ *
+ * 直接访问文件管道
  */
 public class SynchronousBufferFileReader extends SynchronousFileIOChannel
         implements BufferFileReader {

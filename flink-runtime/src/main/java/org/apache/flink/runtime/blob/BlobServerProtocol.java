@@ -21,6 +21,7 @@ package org.apache.flink.runtime.blob;
 /**
  * Defines constants for the protocol between the BLOB {@link BlobServer server} and the {@link
  * AbstractBlobCache caches}.
+ * 记录了一些协议标识
  */
 public class BlobServerProtocol {
 

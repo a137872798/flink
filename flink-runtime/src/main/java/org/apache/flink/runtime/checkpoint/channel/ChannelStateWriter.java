@@ -31,11 +31,18 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-/** Writes channel state during checkpoint/savepoint. */
+/** Writes channel state during checkpoint/savepoint.
+ * 该对象负责写入channel的state信息
+ * 为检查点/保存点服务
+ * */
 @Internal
 public interface ChannelStateWriter extends Closeable {
 
-    /** Channel state write result. */
+    /** Channel state write result.
+     * 首先一个检查点 包含多个子任务的数据
+     * 然后一个子任务又有input/output的分别
+     * 当检查点生成完毕时 会为每个子任务有关input/output产生结果
+     * */
     class ChannelStateWriteResult {
         final CompletableFuture<Collection<InputChannelStateHandle>> inputChannelStateHandles;
         final CompletableFuture<Collection<ResultSubpartitionStateHandle>>
@@ -77,6 +84,9 @@ public interface ChannelStateWriter extends Closeable {
             return inputChannelStateHandles.isDone() && resultSubpartitionStateHandles.isDone();
         }
 
+        /**
+         * 等待该子分区检查点完成
+         */
         @VisibleForTesting
         public void waitForDone() {
             try {
@@ -103,7 +113,9 @@ public interface ChannelStateWriter extends Closeable {
      */
     int SEQUENCE_NUMBER_UNKNOWN = -2;
 
-    /** Initiate write of channel state for the given checkpoint id. */
+    /** Initiate write of channel state for the given checkpoint id.
+     * 开始产生检查点
+     * */
     void start(long checkpointId, CheckpointOptions checkpointOptions);
 
     /**
@@ -150,6 +162,7 @@ public interface ChannelStateWriter extends Closeable {
      *
      * <p>The method will be called when the unaligned checkpoint is enabled and received an aligned
      * barrier.
+     * 写入future对象
      */
     void addOutputDataFuture(
             long checkpointId,

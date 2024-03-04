@@ -21,16 +21,21 @@ package org.apache.flink.runtime.jobmanager;
 import org.apache.flink.runtime.jobmaster.JobMaster;
 import org.apache.flink.runtime.scheduler.ExecutionGraphInfo;
 
-/** Interface for completion actions once a Flink job has reached a terminal state. */
+/** Interface for completion actions once a Flink job has reached a terminal state.
+ * 表示当某个job结束时触发
+ * */
 public interface OnCompletionActions {
 
     /**
      * Job reached a globally terminal state.
      *
      * @param executionGraphInfo contains information about the terminated job
+     *                           到达一个全局的终止状态时触发
      */
     void jobReachedGloballyTerminalState(ExecutionGraphInfo executionGraphInfo);
 
-    /** The {@link JobMaster} failed while executing the job. */
+    /** The {@link JobMaster} failed while executing the job.
+     * 以失败形式触发
+     * */
     void jobMasterFailed(Throwable cause);
 }

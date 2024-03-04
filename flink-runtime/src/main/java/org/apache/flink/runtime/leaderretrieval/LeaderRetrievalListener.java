@@ -25,6 +25,7 @@ import java.util.UUID;
 /**
  * Classes which want to be notified about a changing leader by the {@link LeaderRetrievalService}
  * have to implement this interface.
+ * leader检索监听器
  */
 public interface LeaderRetrievalListener {
 
@@ -34,8 +35,9 @@ public interface LeaderRetrievalListener {
      * <p>If both arguments are null then it signals that leadership was revoked without a new
      * leader having been elected.
      *
-     * @param leaderAddress The address of the new leader
+     * @param leaderAddress The address of the new leader  通知新leader的地址
      * @param leaderSessionID The new leader session ID
+     *                        当选举出一个新的leader时
      */
     void notifyLeaderAddress(@Nullable String leaderAddress, @Nullable UUID leaderSessionID);
 

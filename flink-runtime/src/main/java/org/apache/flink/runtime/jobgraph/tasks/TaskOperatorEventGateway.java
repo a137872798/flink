@@ -50,12 +50,14 @@ public interface TaskOperatorEventGateway {
     /**
      * Sends an event from the operator (identified by the given operator ID) to the operator
      * coordinator (identified by the same ID).
+     * 可以将一组operatorEvent 发送给指定的operator
      */
     void sendOperatorEventToCoordinator(OperatorID operator, SerializedValue<OperatorEvent> event);
 
     /**
      * Sends a request from current operator to a specified operator coordinator which is identified
      * by the given operator ID and return the response.
+     * 表示发送一个请求 并返回结果
      */
     CompletableFuture<CoordinationResponse> sendRequestToCoordinator(
             OperatorID operator, SerializedValue<CoordinationRequest> request);

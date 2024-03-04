@@ -25,6 +25,7 @@ import java.util.Iterator;
 /**
  * A {@link StateSnapshot} that can return an iterator over all contained {@link StateEntry
  * StateEntries}.
+ * 可以按照keyGroup来读取状态的部分数据
  */
 @Internal
 public interface IterableStateSnapshot<K, N, S> extends StateSnapshot {

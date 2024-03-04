@@ -20,6 +20,9 @@ package org.apache.flink.runtime.io.disk.iomanager;
 
 import java.nio.channels.FileChannel;
 
+/**
+ * 此时要读取的数据 还在channel中 不过已经通过pos和length 限定了数据的范围
+ */
 public class FileSegment {
 
     private final FileChannel fileChannel;
@@ -27,6 +30,13 @@ public class FileSegment {
     private final int length;
     private final boolean isBuffer;
 
+    /**
+     *
+     * @param fileChannel  待操作的目标文件
+     * @param position
+     * @param length
+     * @param isBuffer
+     */
     public FileSegment(FileChannel fileChannel, long position, int length, boolean isBuffer) {
         this.fileChannel = fileChannel;
         this.position = position;

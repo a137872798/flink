@@ -28,13 +28,28 @@ import java.util.List;
 /**
  * Input, with just basic methods for blocking and resuming consumption. It can be for example an
  * {@link InputGate} or a chained source.
+ * 表示支持产生检查点
  */
 @Internal
 public interface CheckpointableInput {
+
+    /**
+     * 可能是因为要生成检查点的关系  暂停某个channel的数据消费
+     * @param channelInfo
+     */
     void blockConsumption(InputChannelInfo channelInfo);
 
+    /**
+     * 恢复消费
+     * @param channelInfo
+     * @throws IOException
+     */
     void resumeConsumption(InputChannelInfo channelInfo) throws IOException;
 
+    /**
+     * 获取相关的所有channel信息
+     * @return
+     */
     List<InputChannelInfo> getChannelInfos();
 
     int getNumberOfInputChannels();
@@ -45,5 +60,11 @@ public interface CheckpointableInput {
 
     int getInputGateIndex();
 
+    /**
+     * 将某个事件转换成优先事件
+     * @param channelIndex
+     * @param sequenceNumber
+     * @throws IOException
+     */
     void convertToPriorityEvent(int channelIndex, int sequenceNumber) throws IOException;
 }

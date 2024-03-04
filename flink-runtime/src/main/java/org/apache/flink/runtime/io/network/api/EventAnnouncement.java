@@ -29,6 +29,7 @@ import java.util.Objects;
 /**
  * {@link EventAnnouncement} is announcing presence or receiving of an {@link AbstractEvent}. That
  * {@link #announcedEvent} is identified by it's sequence number.
+ * 事件公告对象
  */
 public class EventAnnouncement extends RuntimeEvent {
 

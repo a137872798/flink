@@ -25,13 +25,21 @@ import javax.annotation.concurrent.GuardedBy;
 
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** The factory of {@link ChannelStateWriteRequestExecutor}. */
+/** The factory of {@link ChannelStateWriteRequestExecutor}.
+ * 在TaskExecutorChannelStateExecutorFactoryManager中被引用 每个对标一个job
+ * */
 public class ChannelStateWriteRequestExecutorFactory {
 
+    /**
+     * 标记关联的job
+     */
     private final JobID jobID;
 
     private final Object lock = new Object();
 
+    /**
+     * 该对象是检查点的门面对象
+     */
     @GuardedBy("lock")
     private ChannelStateWriteRequestExecutor executor;
 

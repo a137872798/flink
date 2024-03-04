@@ -25,7 +25,9 @@ import org.apache.flink.runtime.jobmaster.SlotInfo;
 import java.util.Collection;
 import java.util.Optional;
 
-/** The slot pool is responsible for maintaining a set of {@link AllocatedSlot AllocatedSlots}. */
+/** The slot pool is responsible for maintaining a set of {@link AllocatedSlot AllocatedSlots}.
+ * 这个是 slotPool
+ * */
 public interface AllocatedSlotPool {
 
     /**
@@ -34,6 +36,7 @@ public interface AllocatedSlotPool {
      * @param slots slots to add to the slot pool
      * @param currentTime currentTime when the slots have been added to the slot pool
      * @throws IllegalStateException if the slot pool already contains a to be added slot
+     *
      */
     void addSlots(Collection<AllocatedSlot> slots, long currentTime);
 
@@ -43,6 +46,7 @@ public interface AllocatedSlotPool {
      * @param allocationId allocationId identifying the slot to remove from the slot pool
      * @return the removed slot if there was a slot with the given allocationId; otherwise {@link
      *     Optional#empty()}
+     *     通过id移除slot
      */
     Optional<AllocatedSlot> removeSlot(AllocationID allocationId);
 
@@ -51,6 +55,9 @@ public interface AllocatedSlotPool {
      *
      * @param owner owner identifies the TaskExecutor whose slots shall be removed
      * @return the collection of removed slots and for each slot whether it was currently free
+     * 移除某个资源相关的所有slot
+     * 这些slot组成 AllocatedSlotsAndReservationStatus 对象
+     * AllocatedSlotsAndReservationStatus 可以获取内部的slot  以及判断某个slot是否是空闲的
      */
     AllocatedSlotsAndReservationStatus removeSlots(ResourceID owner);
 
@@ -60,6 +67,7 @@ public interface AllocatedSlotPool {
      * @param owner owner for which to check whether the slot pool contains slots
      * @return {@code true} if the slot pool contains a slot from the given owner; otherwise {@code
      *     false}
+     *     判断当前pool中是否有slot属于该资源
      */
     boolean containsSlots(ResourceID owner);
 
@@ -99,6 +107,7 @@ public interface AllocatedSlotPool {
      * @param currentTime currentTime when the slot has been freed
      * @return the freed {@link AllocatedSlot} if there was an allocated with the given
      *     allocationId; otherwise {@link Optional#empty()}.
+     *     归还一个之前被占用的slot
      */
     Optional<AllocatedSlot> freeReservedSlot(AllocationID allocationId, long currentTime);
 
@@ -124,7 +133,9 @@ public interface AllocatedSlotPool {
      */
     Collection<? extends SlotInfo> getAllSlotsInformation();
 
-    /** Information about a free slot. */
+    /** Information about a free slot.
+     * 获取一个空闲的slot
+     * */
     interface FreeSlotInfo {
         SlotInfo asSlotInfo();
 
@@ -132,6 +143,7 @@ public interface AllocatedSlotPool {
          * Returns since when this slot is free.
          *
          * @return the time since when the slot is free
+         * 表示从该时间开始空闲
          */
         long getFreeSince();
 

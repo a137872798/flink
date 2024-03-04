@@ -25,7 +25,9 @@ import org.apache.flink.runtime.clusterframework.types.SlotID;
 
 import java.util.Objects;
 
-/** Model to save local slot allocation info. */
+/** Model to save local slot allocation info.
+ * 表示某个slot的分配结果
+ * */
 public class SlotAllocationSnapshot implements java.io.Serializable {
 
     private static final long serialVersionUID = 1L;

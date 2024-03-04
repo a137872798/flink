@@ -63,8 +63,14 @@ public class KeyedBackendSerializationProxy<K> extends VersionedIOReadableWritab
     /** This specifies if we use a compressed format write the key-groups */
     private boolean usingKeyGroupCompression;
 
+    /**
+     * 序列化对象快照
+     */
     private TypeSerializerSnapshot<K> keySerializerSnapshot;
 
+    /**
+     * 状态的元数据快照
+     */
     private List<StateMetaInfoSnapshot> stateMetaInfoSnapshots;
 
     private ClassLoader userCodeClassLoader;
@@ -74,12 +80,13 @@ public class KeyedBackendSerializationProxy<K> extends VersionedIOReadableWritab
     }
 
     public KeyedBackendSerializationProxy(
-            TypeSerializer<K> keySerializer,
-            List<StateMetaInfoSnapshot> stateMetaInfoSnapshots,
-            boolean compression) {
+            TypeSerializer<K> keySerializer,  // 用于key的序列化
+            List<StateMetaInfoSnapshot> stateMetaInfoSnapshots,  // 状态的元数据快照
+            boolean compression) {  // 是否开启压缩
 
         this.usingKeyGroupCompression = compression;
 
+        // 序列化对象的快照
         this.keySerializerSnapshot =
                 Preconditions.checkNotNull(keySerializer.snapshotConfiguration());
 
@@ -110,6 +117,11 @@ public class KeyedBackendSerializationProxy<K> extends VersionedIOReadableWritab
         return new int[] {VERSION};
     }
 
+    /**
+     * 检查版本兼容性
+     * @param readVersion
+     * @return
+     */
     @Override
     public Optional<String> getAdditionalDetailsForIncompatibleVersion(int readVersion) {
         if (readVersion <= 5) {
@@ -122,14 +134,17 @@ public class KeyedBackendSerializationProxy<K> extends VersionedIOReadableWritab
 
     @Override
     public void write(DataOutputView out) throws IOException {
+        // 先写入版本号
         super.write(out);
 
         // write the compression format used to write each key-group
         out.writeBoolean(usingKeyGroupCompression);
 
+        // 写入class信息
         TypeSerializerSnapshotSerializationUtil.writeSerializerSnapshot(out, keySerializerSnapshot);
 
         // write individual registered keyed state metainfos
+        // 接着写入state元数据快照
         out.writeShort(stateMetaInfoSnapshots.size());
         for (StateMetaInfoSnapshot metaInfoSnapshot : stateMetaInfoSnapshots) {
             StateMetaInfoSnapshotReadersWriters.getWriter()
@@ -144,6 +159,7 @@ public class KeyedBackendSerializationProxy<K> extends VersionedIOReadableWritab
 
         final int readVersion = getReadVersion();
 
+        // 根据版本判断是否支持压缩
         if (readVersion >= 4) {
             usingKeyGroupCompression = in.readBoolean();
         } else {
@@ -155,6 +171,8 @@ public class KeyedBackendSerializationProxy<K> extends VersionedIOReadableWritab
                 readVersion >= 6,
                 "Unsupported readVersion [%s], please migrate using Flink 1.16",
                 readVersion);
+
+        // 解出序列化对象
         this.keySerializerSnapshot =
                 TypeSerializerSnapshotSerializationUtil.readSerializerSnapshot(
                         in, userCodeClassLoader);
@@ -166,6 +184,8 @@ public class KeyedBackendSerializationProxy<K> extends VersionedIOReadableWritab
                     "Cannot determine corresponding meta info snapshot version for keyed backend serialization readVersion="
                             + readVersion);
         }
+
+        // 按照版本获取读取元数据快照的对象
         final StateMetaInfoReader stateMetaInfoReader =
                 StateMetaInfoSnapshotReadersWriters.getReader(metaInfoSnapshotVersion);
 

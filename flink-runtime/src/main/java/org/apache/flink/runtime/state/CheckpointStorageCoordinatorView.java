@@ -27,6 +27,7 @@ import java.io.IOException;
  * savepoint is stored.
  *
  * <p>Methods of this interface act as an administration role in checkpoint coordinator.
+ * 以协调者角度查看检查点
  */
 public interface CheckpointStorageCoordinatorView {
 
@@ -36,10 +37,13 @@ public interface CheckpointStorageCoordinatorView {
      * <p>Some state backends may not support highly-available durable storage, with default
      * settings, which makes them suitable for zero-config prototyping, but not for actual
      * production setups.
+     * 是否支持高可用存储
      */
     boolean supportsHighlyAvailableStorage();
 
-    /** Checks whether the storage has a default savepoint location configured. */
+    /** Checks whether the storage has a default savepoint location configured.
+     * 判断是否有默认的保存点位置被配置
+     * */
     boolean hasDefaultSavepointLocation();
 
     /**
@@ -53,6 +57,8 @@ public interface CheckpointStorageCoordinatorView {
      * @return The checkpoint location handle.
      * @throws IOException Thrown, if the state backend does not understand the pointer, or if the
      *     pointer could not be resolved due to an I/O error.
+     *
+     *     读取pointer数据 解析成检查点的位置信息
      */
     CompletedCheckpointStorageLocation resolveCheckpoint(String externalPointer) throws IOException;
 
@@ -65,6 +71,8 @@ public interface CheckpointStorageCoordinatorView {
      *
      * @throws IOException Thrown, if these base storage locations cannot be initialized due to an
      *     I/O exception.
+     *
+     *     为检查点初始化基础位置
      */
     void initializeBaseLocationsForCheckpoint() throws IOException;
 
@@ -78,6 +86,8 @@ public interface CheckpointStorageCoordinatorView {
      * @return A storage location for the data and metadata of the given checkpoint.
      * @throws IOException Thrown if the storage location cannot be initialized due to an I/O
      *     exception.
+     *
+     *     获取该检查点的基础位置
      */
     CheckpointStorageLocation initializeLocationForCheckpoint(long checkpointId) throws IOException;
 
@@ -96,6 +106,8 @@ public interface CheckpointStorageCoordinatorView {
      * @return A storage location for the data and metadata of the savepoint.
      * @throws IOException Thrown if the storage location cannot be initialized due to an I/O
      *     exception.
+     *
+     *     获取存储点的基础位置
      */
     CheckpointStorageLocation initializeLocationForSavepoint(
             long checkpointId, @Nullable String externalLocationPointer) throws IOException;

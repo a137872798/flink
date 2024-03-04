@@ -69,6 +69,7 @@ public final class KeyedStateCheckpointOutputStream
      * given key group id. This id must be within the {@link KeyGroupsList} provided by the stream.
      * Each key-group can only be started once and is considered final/immutable as soon as this
      * method is called again.
+     * 表示切换了keyGroup  同时会记录此时输出流的pos
      */
     public void startNewKeyGroup(int keyGroupId) throws IOException {
         if (isKeyGroupAlreadyStarted(keyGroupId)) {

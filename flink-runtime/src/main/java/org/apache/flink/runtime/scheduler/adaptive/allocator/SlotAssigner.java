@@ -23,10 +23,20 @@ import org.apache.flink.runtime.scheduler.adaptive.JobSchedulingPlan.SlotAssignm
 
 import java.util.Collection;
 
-/** Interface for assigning slots to slot sharing groups. */
+/** Interface for assigning slots to slot sharing groups.
+ * 该对象用于为job分配slot
+ * */
 @Internal
 public interface SlotAssigner {
 
+    /**
+     * 为某个job分配 slot   job包含 jobGraph下所有顶点 (subtask)
+     * @param jobInformation
+     * @param freeSlots  表示此时还空闲的slot
+     * @param vertexParallelism    该job下各顶点的并行度
+     * @param previousAllocations
+     * @return
+     */
     Collection<SlotAssignment> assignSlots(
             JobInformation jobInformation,
             Collection<? extends SlotInfo> freeSlots,

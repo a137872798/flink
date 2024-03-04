@@ -35,7 +35,9 @@ import javax.annotation.Nullable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
-/** Implementation of the {@link LogicalSlot}. */
+/** Implementation of the {@link LogicalSlot}.
+ * 表示逻辑层面的slot
+ * */
 public class SingleLogicalSlot implements LogicalSlot, PhysicalSlot.Payload {
 
     private static final AtomicReferenceFieldUpdater<SingleLogicalSlot, Payload> PAYLOAD_UPDATER =
@@ -45,21 +47,32 @@ public class SingleLogicalSlot implements LogicalSlot, PhysicalSlot.Payload {
     private static final AtomicReferenceFieldUpdater<SingleLogicalSlot, State> STATE_UPDATER =
             AtomicReferenceFieldUpdater.newUpdater(SingleLogicalSlot.class, State.class, "state");
 
+    /**
+     * 关联的 ReqId
+     */
     private final SlotRequestId slotRequestId;
 
+    /**
+     * 这是一个 PhysicalSlot
+     */
     private final SlotContext slotContext;
 
     // locality of this slot wrt the requested preferred locations
     private final Locality locality;
 
     // owner of this slot to which it is returned upon release
+    // 使用该对象可以回收slot
     private final SlotOwner slotOwner;
 
     private final CompletableFuture<Void> releaseFuture;
 
+    /**
+     * 表示当前slot的状态
+     */
     private volatile State state;
 
     // LogicalSlot.Payload of this slot
+    // 占据该slot的负载对象
     private volatile Payload payload;
 
     /** Whether this logical slot will be occupied indefinitely. */
@@ -92,6 +105,8 @@ public class SingleLogicalSlot implements LogicalSlot, PhysicalSlot.Payload {
         this.payload = null;
     }
 
+    // TaskManager相关的属性从context中获得
+
     @Override
     public TaskManagerLocation getTaskManagerLocation() {
         return slotContext.getTaskManagerLocation();
@@ -123,6 +138,11 @@ public class SingleLogicalSlot implements LogicalSlot, PhysicalSlot.Payload {
         return payload;
     }
 
+    /**
+     * 将本对象标记为释放
+     * @param cause why the slot was released or null if none
+     * @return
+     */
     @Override
     public CompletableFuture<?> releaseSlot(@Nullable Throwable cause) {
         if (STATE_UPDATER.compareAndSet(this, State.ALIVE, State.RELEASING)) {
@@ -143,6 +163,15 @@ public class SingleLogicalSlot implements LogicalSlot, PhysicalSlot.Payload {
         return slotRequestId;
     }
 
+    /**
+     * 通过 physicalSlot 创建本对象
+     * @param slotRequestId
+     * @param physicalSlot
+     * @param locality
+     * @param slotOwner
+     * @param slotWillBeOccupiedIndefinitely
+     * @return
+     */
     public static SingleLogicalSlot allocateFromPhysicalSlot(
             final SlotRequestId slotRequestId,
             final PhysicalSlot physicalSlot,
@@ -158,6 +187,7 @@ public class SingleLogicalSlot implements LogicalSlot, PhysicalSlot.Payload {
                         slotOwner,
                         slotWillBeOccupiedIndefinitely);
 
+        // 本对象变成了PhysicalSlot的payload
         if (physicalSlot.tryAssignPayload(singleTaskSlot)) {
             return singleTaskSlot;
         } else {
@@ -191,10 +221,15 @@ public class SingleLogicalSlot implements LogicalSlot, PhysicalSlot.Payload {
     }
 
     private void signalPayloadRelease(Throwable cause) {
+        // 将payload置空  同时用异常通知
         tryAssignPayload(TERMINATED_PAYLOAD);
         payload.fail(cause);
     }
 
+    /**
+     * 将本对象归还
+     * @param terminalStateFuture
+     */
     private void returnSlotToOwner(CompletableFuture<?> terminalStateFuture) {
         FutureUtils.assertNoException(
                 terminalStateFuture.thenRun(
@@ -205,10 +240,14 @@ public class SingleLogicalSlot implements LogicalSlot, PhysicalSlot.Payload {
 
                             markReleased();
 
+                            // 唤醒阻塞对象
                             releaseFuture.complete(null);
                         }));
     }
 
+    /**
+     * 修改成已释放
+     */
     private void markReleased() {
         state = State.RELEASED;
     }

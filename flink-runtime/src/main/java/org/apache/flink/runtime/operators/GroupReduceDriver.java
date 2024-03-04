@@ -134,6 +134,7 @@ public class GroupReduceDriver<IT, OT> implements Driver<GroupReduceFunction<IT,
             final ReusingKeyGroupedIterator<IT> iter =
                     new ReusingKeyGroupedIterator<IT>(this.input, this.serializer, this.comparator);
             // run stub implementation
+            // 将相同keys 对应的一组value reduce后下发
             while (this.running && iter.nextKey()) {
                 stub.reduce(iter.getValues(), output);
             }

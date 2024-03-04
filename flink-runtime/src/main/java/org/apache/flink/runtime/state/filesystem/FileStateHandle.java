@@ -33,12 +33,15 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * {@link StreamStateHandle} for state that was written to a file stream. The written data is
  * identified by the file path. The state can be read again by calling {@link #openInputStream()}.
+ * 使用文件流存储 state
  */
 public class FileStateHandle implements StreamStateHandle {
 
     private static final long serialVersionUID = 350284443258002355L;
 
-    /** The path to the file in the filesystem, fully describing the file system. */
+    /** The path to the file in the filesystem, fully describing the file system.
+     * 绝对路径
+     * */
     private final Path filePath;
 
     /** The size of the state in the file. */
@@ -69,6 +72,10 @@ public class FileStateHandle implements StreamStateHandle {
         return getFileSystem().open(filePath);
     }
 
+    /**
+     * 看来不允许直接返回字节流
+     * @return
+     */
     @Override
     public Optional<byte[]> asBytesIfInMemory() {
         return Optional.empty();
@@ -84,6 +91,8 @@ public class FileStateHandle implements StreamStateHandle {
      * state is empty after deleting the state file, it is also deleted.
      *
      * @throws Exception Thrown, if the file deletion (not the directory deletion) fails.
+     *
+     * 销毁文件   也就丢失了状态
      */
     @Override
     public void discardState() throws Exception {

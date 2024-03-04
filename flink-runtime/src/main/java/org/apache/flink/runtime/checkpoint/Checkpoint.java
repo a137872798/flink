@@ -17,16 +17,23 @@
 
 package org.apache.flink.runtime.checkpoint;
 
-/** A checkpoint, pending or completed. */
+/** A checkpoint, pending or completed.
+ * 检查点
+ * */
 public interface Checkpoint {
     DiscardObject NOOP_DISCARD_OBJECT = () -> {};
 
+    /**
+     * 返回检查点id
+     * @return
+     */
     long getCheckpointID();
 
     /**
      * This method precede the {@link DiscardObject#discard()} method and should be called from the
      * {@link CheckpointCoordinator}(under the lock) while {@link DiscardObject#discard()} can be
      * called from any thread/place.
+     * 将检查点转换成一个可丢弃对象  并暴露discard方法
      */
     DiscardObject markAsDiscarded();
 

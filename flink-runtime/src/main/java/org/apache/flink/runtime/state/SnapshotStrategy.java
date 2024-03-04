@@ -36,6 +36,8 @@ import javax.annotation.Nonnull;
  * @param <S> type of the returned state object that represents the result of the snapshot
  *     operation.
  * @param <SR> type of produced resources in the synchronous part.
+ *
+ *            快照策略
  */
 @Internal
 public interface SnapshotStrategy<S extends StateObject, SR extends SnapshotResources> {
@@ -46,6 +48,7 @@ public interface SnapshotStrategy<S extends StateObject, SR extends SnapshotReso
      *
      * @param checkpointId The ID of the checkpoint.
      * @return Resources needed to finish the snapshot.
+     * 产生快照
      */
     SR syncPrepareResources(long checkpointId) throws Exception;
 
@@ -59,6 +62,7 @@ public interface SnapshotStrategy<S extends StateObject, SR extends SnapshotReso
      * @param streamFactory The factory that we can use for writing our state to streams.
      * @param checkpointOptions Options for how to perform this checkpoint.
      * @return A supplier that will yield a {@link StateObject}.
+     * 产生一个快照
      */
     SnapshotResultSupplier<S> asyncSnapshot(
             SR syncPartResource,
@@ -73,6 +77,7 @@ public interface SnapshotStrategy<S extends StateObject, SR extends SnapshotReso
      *
      * @param <S> type of the returned state object that represents the result of the snapshot *
      *     operation.
+     *           因为是异步调用 当执行get时得到结果
      */
     @FunctionalInterface
     interface SnapshotResultSupplier<S extends StateObject> {

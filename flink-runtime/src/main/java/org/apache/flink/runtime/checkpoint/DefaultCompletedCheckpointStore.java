@@ -52,6 +52,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * same program, it is OK to take any valid successful checkpoint as long as the "history" of
  * checkpoints is consistent. Currently, after recovery we start out with only a single checkpoint
  * to circumvent those situations.
+ *
+ * 检查点仓库的默认实现  在集群中使用
  */
 public class DefaultCompletedCheckpointStore<R extends ResourceVersion<R>>
         extends AbstractCompleteCheckpointStore {
@@ -59,7 +61,9 @@ public class DefaultCompletedCheckpointStore<R extends ResourceVersion<R>>
     private static final Logger LOG =
             LoggerFactory.getLogger(DefaultCompletedCheckpointStore.class);
 
-    /** Completed checkpoints state handle store. */
+    /** Completed checkpoints state handle store.
+     * 简单理解为状态的仓库
+     * */
     private final StateHandleStore<CompletedCheckpoint, R> checkpointStateHandleStore;
 
     /** The maximum number of checkpoints to retain (at least 1). */
@@ -133,8 +137,10 @@ public class DefaultCompletedCheckpointStore<R extends ResourceVersion<R>>
                 completedCheckpointStoreUtil.checkpointIDToName(checkpoint.getCheckpointID());
 
         // Now add the new one. If it fails, we don't want to lose existing data.
+        // 锁住路径 并添加检查点
         checkpointStateHandleStore.addAndLock(path, checkpoint);
 
+        // 本地队列变相变成一个缓存
         completedCheckpoints.addLast(checkpoint);
 
         // Remove completed checkpoint from queue and checkpointStateHandleStore, not discard.
@@ -183,6 +189,7 @@ public class DefaultCompletedCheckpointStore<R extends ResourceVersion<R>>
                 long lowestRetained = Long.MAX_VALUE;
                 for (CompletedCheckpoint checkpoint : completedCheckpoints) {
                     try {
+                        // 没有直接移除 则记录最小检查点 并在之后移除最小检查点之前的数据
                         if (!tryRemoveCompletedCheckpoint(
                                 checkpoint,
                                 checkpoint.shouldBeDiscardedOnShutdown(jobStatus),
@@ -197,7 +204,10 @@ public class DefaultCompletedCheckpointStore<R extends ResourceVersion<R>>
                         }
                     }
                 }
+
+                // 清理本地数据
                 completedCheckpoints.clear();
+                // 单个节点申请shutdown 就可以清理全部数据了
                 checkpointStateHandleStore.clearEntries();
                 // Now discard the shared state of not subsumed checkpoints - only if:
                 // - the job is in a globally terminal state. Otherwise,
@@ -214,6 +224,7 @@ public class DefaultCompletedCheckpointStore<R extends ResourceVersion<R>>
                 LOG.info("Suspending");
                 // Clear the local handles, but don't remove any state
                 completedCheckpoints.clear();
+                // 仅释放锁 相当于清理本地的
                 checkpointStateHandleStore.releaseAll();
             }
         }
@@ -229,6 +240,7 @@ public class DefaultCompletedCheckpointStore<R extends ResourceVersion<R>>
             CheckpointsCleaner checkpointsCleaner,
             Runnable postCleanup)
             throws Exception {
+        // 代表移除成功 进行清理
         if (tryRemove(completedCheckpoint.getCheckpointID())) {
             checkpointsCleaner.cleanCheckpoint(
                     completedCheckpoint, shouldDiscard, postCleanup, ioExecutor);

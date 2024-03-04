@@ -18,7 +18,9 @@
 
 package org.apache.flink.runtime.topology;
 
-/** Extends the {@link BaseTopology} by pipelined regions. */
+/** Extends the {@link BaseTopology} by pipelined regions.
+ * 表示一个拓扑图
+ * */
 public interface Topology<
                 VID extends VertexID,
                 RID extends ResultID,
@@ -31,6 +33,7 @@ public interface Topology<
      * Returns all pipelined regions in this topology.
      *
      * @return Iterable over pipelined regions in this topology
+     * 返回所有的流水线  流水线由多个顶点构成 并进行数据交换
      */
     Iterable<? extends PR> getAllPipelinedRegions();
 
@@ -42,6 +45,8 @@ public interface Topology<
      * @return the pipelined region of the vertex
      * @throws IllegalArgumentException if there is no vertex in this topology with the specified
      *     vertex id
+     *
+     *     返回包含顶点的流水线
      */
     default PR getPipelinedRegionOfVertex(VID vertexId) {
         throw new UnsupportedOperationException();

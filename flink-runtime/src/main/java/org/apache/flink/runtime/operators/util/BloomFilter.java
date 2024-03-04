@@ -50,6 +50,10 @@ public class BloomFilter {
     private static final int BYTE_ARRAY_BASE_OFFSET = UNSAFE.arrayBaseOffset(byte[].class);
 
     protected BitSet bitSet;
+
+    /**
+     * 表示需要被多少个hash函数处理
+     */
     protected int numHashFunctions;
 
     public BloomFilter(int expectedEntries, int byteSize) {
@@ -110,7 +114,12 @@ public class BloomFilter {
         return Math.max(1, (int) Math.round((double) bitSize / expectEntries * Math.log(2)));
     }
 
+    /**
+     * 在bucket
+     * @param hash32
+     */
     public void addHash(int hash32) {
+        // hash拆分成2部分
         int hash1 = hash32;
         int hash2 = hash32 >>> 16;
 
@@ -120,6 +129,7 @@ public class BloomFilter {
             if (combinedHash < 0) {
                 combinedHash = ~combinedHash;
             }
+            // 经过一系列处理变成一位 并设置到位图上 表示该值存在 (会误判 但是不会误判不存在的值)
             int pos = combinedHash % bitSet.bitSize();
             bitSet.set(pos);
         }

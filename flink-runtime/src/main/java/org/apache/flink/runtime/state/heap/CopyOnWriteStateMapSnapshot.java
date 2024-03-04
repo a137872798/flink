@@ -50,6 +50,7 @@ import java.util.Objects;
  * @param <K> type of key
  * @param <N> type of namespace
  * @param <S> type of state
+ *           基于CopyOnWriteStateMap数据产生快照
  */
 public class CopyOnWriteStateMapSnapshot<K, N, S>
         extends StateMapSnapshot<K, N, S, CopyOnWriteStateMap<K, N, S>> {
@@ -65,13 +66,16 @@ public class CopyOnWriteStateMapSnapshot<K, N, S>
      * may not be deep copies of the current entries in the {@link CopyOnWriteStateMap} that created
      * this snapshot. This depends for each entry on whether or not it was subject to copy-on-write
      * operations by the {@link CopyOnWriteStateMap}.
+     * 完整的保留了 StateMap的数据
      */
     @Nonnull private final CopyOnWriteStateMap.StateMapEntry<K, N, S>[] snapshotData;
 
     /** The number of (non-null) entries in snapshotData. */
     @Nonnegative private final int numberOfEntriesInSnapshotData;
 
-    /** Whether this snapshot has been released. */
+    /** Whether this snapshot has been released.
+     * 快照是否已经被释放
+     * */
     private boolean released;
 
     /**
@@ -117,6 +121,7 @@ public class CopyOnWriteStateMapSnapshot<K, N, S>
             @Nonnull TypeSerializer<S> stateSerializer,
             @Nullable final StateSnapshotTransformer<S> stateSnapshotTransformer) {
 
+        // 包装转换器
         return stateSnapshotTransformer == null
                 ? new NonTransformSnapshotIterator<>(numberOfEntriesInSnapshotData, snapshotData)
                 : new TransformedSnapshotIterator<>(
@@ -148,7 +153,9 @@ public class CopyOnWriteStateMapSnapshot<K, N, S>
         }
     }
 
-    /** Iterator over state entries in a {@link CopyOnWriteStateMapSnapshot}. */
+    /** Iterator over state entries in a {@link CopyOnWriteStateMapSnapshot}.
+     * 遍历快照的数据
+     * */
     abstract static class SnapshotIterator<K, N, S> implements Iterator<StateEntry<K, N, S>> {
 
         int numberOfEntriesInSnapshotData;
@@ -205,7 +212,9 @@ public class CopyOnWriteStateMapSnapshot<K, N, S>
         }
     }
 
-    /** Implementation of {@link SnapshotIterator} with no transform. */
+    /** Implementation of {@link SnapshotIterator} with no transform.
+     * 没有转换器
+     * */
     static class NonTransformSnapshotIterator<K, N, S> extends SnapshotIterator<K, N, S> {
 
         NonTransformSnapshotIterator(
@@ -224,9 +233,15 @@ public class CopyOnWriteStateMapSnapshot<K, N, S>
 
         @Override
         Iterator<CopyOnWriteStateMap.StateMapEntry<K, N, S>> getChainIterator() {
+            // 遍历数组
             return Arrays.stream(snapshotData).filter(Objects::nonNull).iterator();
         }
 
+        /**
+         * 遍历链表
+         * @param stateMapEntry The head entry of the chain.
+         * @return
+         */
         @Override
         Iterator<CopyOnWriteStateMap.StateMapEntry<K, N, S>> getEntryIterator(
                 final CopyOnWriteStateMap.StateMapEntry<K, N, S> stateMapEntry) {
@@ -265,6 +280,7 @@ public class CopyOnWriteStateMapSnapshot<K, N, S>
         /**
          * Move the chains in snapshotData to the back of the array, and return the index of the
          * first chain from the front.
+         * 把空槽放到前面
          */
         int moveChainsToBackOfArray() {
             int index = snapshotData.length - 1;
@@ -292,18 +308,27 @@ public class CopyOnWriteStateMapSnapshot<K, N, S>
             return lastNullIndex + 1;
         }
 
+        /**
+         * 使用转换器处理内部所有元素
+         * @param stateSnapshotTransformer
+         */
         @Override
         void transform(@Nullable StateSnapshotTransformer<S> stateSnapshotTransformer) {
             Preconditions.checkNotNull(stateSnapshotTransformer);
+
+            // 该代表对应数组中第一个有元素的位置
             int indexOfFirstChain = moveChainsToBackOfArray();
             int count = 0;
-            // reuse the snapshotData to transform and flatten the entries.
+            // reuse the snapshotData to transform and flatten the entries. 转换和平铺entry 但是一旦数组满了就不处理了
+            // 后面都是有数据的
             for (int i = indexOfFirstChain; i < snapshotData.length; i++) {
                 CopyOnWriteStateMap.StateMapEntry<K, N, S> entry = snapshotData[i];
                 while (entry != null) {
+                    // 通过转换器处理
                     S transformedValue = stateSnapshotTransformer.filterOrTransform(entry.state);
                     if (transformedValue != null) {
                         CopyOnWriteStateMap.StateMapEntry<K, N, S> filteredEntry = entry;
+                        // 发生了变化
                         if (transformedValue != entry.state) {
                             filteredEntry =
                                     new CopyOnWriteStateMap.StateMapEntry<>(
@@ -315,6 +340,7 @@ public class CopyOnWriteStateMapSnapshot<K, N, S>
                     entry = entry.next;
                 }
             }
+            // 实体数量也更新了
             numberOfEntriesInSnapshotData = count;
         }
 

@@ -22,7 +22,10 @@ import org.apache.flink.util.AbstractID;
 
 import org.apache.flink.shaded.netty4.io.netty.buffer.ByteBuf;
 
-/** A class for statistically unique execution graph IDs. */
+/** A class for statistically unique execution graph IDs.
+ * 表示一个执行图的id
+ * 图应该就是描述一整个处理链吧
+ * */
 public class ExecutionGraphID extends AbstractID {
 
     private static final long serialVersionUID = 1L;

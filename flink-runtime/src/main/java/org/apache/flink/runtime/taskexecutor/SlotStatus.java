@@ -27,25 +27,33 @@ import java.io.Serializable;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** This describes the slot current status which located in TaskManager. */
+/** This describes the slot current status which located in TaskManager.
+ * 表示某个slot的状态
+ * */
 public class SlotStatus implements Serializable {
 
     private static final long serialVersionUID = 5099191707339664493L;
 
-    /** SlotID to identify a slot. */
+    /** SlotID to identify a slot.
+     * 标识 slot的id
+     * */
     private final SlotID slotID;
 
-    /** The resource profile of the slot. */
+    /** The resource profile of the slot.
+     * slot所拥有的资源
+     * */
     private final ResourceProfile resourceProfile;
 
     /**
      * If the slot is allocated, allocationId identify its allocation; else, allocationId is null.
+     * slot被分配时会产生一个id
      */
     private final AllocationID allocationID;
 
     /**
      * If the slot is allocated, jobId identify which job this slot is allocated to; else, jobId is
      * null.
+     * 相关的job
      */
     private final JobID jobID;
 

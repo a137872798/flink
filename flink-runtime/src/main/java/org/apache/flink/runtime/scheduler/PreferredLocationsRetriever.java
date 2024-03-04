@@ -35,6 +35,7 @@ public interface PreferredLocationsRetriever {
      * @param executionVertexId id of the execution vertex
      * @param producersToIgnore producer vertices to ignore when calculating input locations
      * @return future of preferred locations
+     * 为Execution选择更好的 TMLocation
      */
     CompletableFuture<Collection<TaskManagerLocation>> getPreferredLocations(
             ExecutionVertexID executionVertexId, Set<ExecutionVertexID> producersToIgnore);

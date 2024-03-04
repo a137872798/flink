@@ -36,6 +36,8 @@ import java.util.stream.IntStream;
  * SubtaskStateMapper} will only produce unique assignments and are thus optimal. Some rescaler,
  * such as {@link #RANGE}, create a mixture of unique and non-unique mappings, where downstream
  * tasks need to filter on some mapped subtasks.
+ *
+ * 子任务状态
  */
 @Internal
 public enum SubtaskStateMapper {
@@ -54,7 +56,9 @@ public enum SubtaskStateMapper {
         }
     },
 
-    /** Restores extra subtasks to the first subtask. */
+    /** Restores extra subtasks to the first subtask.
+     * 仅支持使用最前面的几个
+     * */
     FIRST {
         @Override
         public int[] getOldSubtasks(
@@ -68,6 +72,7 @@ public enum SubtaskStateMapper {
      * relies on filtering the data downstream.
      *
      * <p>This strategy should only be used as a fallback.
+     * 总是返回所有oldsubtask
      */
     FULL {
         @Override
@@ -162,8 +167,12 @@ public enum SubtaskStateMapper {
         @Override
         public int[] getOldSubtasks(
                 int newSubtaskIndex, int oldNumberOfSubtasks, int newNumberOfSubtasks) {
+
+            // 将原并行度/新并行度   表示多少个旧subtask可以对等一个新subtask
             final IntArrayList subtasks =
                     new IntArrayList(oldNumberOfSubtasks / newNumberOfSubtasks + 1);
+
+            // 从目标偏移量开始  往前推进
             for (int subtask = newSubtaskIndex;
                     subtask < oldNumberOfSubtasks;
                     subtask += newNumberOfSubtasks) {
@@ -189,6 +198,7 @@ public enum SubtaskStateMapper {
     /**
      * Returns all old subtask indexes that need to be read to restore all buffers for the given new
      * subtask index on rescale.
+     * 在新旧2侧subtask数量不同的情况下 进行映射
      */
     public abstract int[] getOldSubtasks(
             int newSubtaskIndex, int oldNumberOfSubtasks, int newNumberOfSubtasks);

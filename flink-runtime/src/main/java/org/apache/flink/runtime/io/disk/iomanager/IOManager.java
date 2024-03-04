@@ -36,12 +36,16 @@ import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.stream.Collectors;
 
-/** The facade for the provided I/O manager services. */
+/** The facade for the provided I/O manager services.
+ * */
 public abstract class IOManager implements AutoCloseable {
     protected static final Logger LOG = LoggerFactory.getLogger(IOManager.class);
 
     private static final String DIR_NAME_PREFIX = "io";
 
+    /**
+     * 通过该对象管理所有文件channel
+     */
     private final FileChannelManager fileChannelManager;
 
     // -------------------------------------------------------------------------
@@ -52,6 +56,7 @@ public abstract class IOManager implements AutoCloseable {
      * Constructs a new IOManager.
      *
      * @param tempDirs The basic directories for files underlying anonymous channels.
+     *                 所有文件都会存储在这些目录下
      */
     protected IOManager(String[] tempDirs) {
         this.fileChannelManager =
@@ -144,6 +149,8 @@ public abstract class IOManager implements AutoCloseable {
      * @param channelID The descriptor for the channel to write to.
      * @return A block channel writer that writes to the given channel.
      * @throws IOException Thrown, if the channel for the writer could not be opened.
+     *
+     * 为某个channel创建写入对象
      */
     public BlockChannelWriter<MemorySegment> createBlockChannelWriter(ID channelID)
             throws IOException {

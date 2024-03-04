@@ -22,13 +22,16 @@ import org.apache.flink.util.AutoCloseableAsync;
 
 import java.util.concurrent.CompletableFuture;
 
-/** Interface which specifies the JobMaster service. */
+/** Interface which specifies the JobMaster service.
+ * 这是一个服务
+ * */
 public interface JobMasterService extends AutoCloseableAsync {
 
     /**
      * Get the {@link JobMasterGateway} belonging to this service.
      *
      * @return JobMasterGateway belonging to this service
+     * 通过网关对象与 JobMaster交互
      */
     JobMasterGateway getGateway();
 

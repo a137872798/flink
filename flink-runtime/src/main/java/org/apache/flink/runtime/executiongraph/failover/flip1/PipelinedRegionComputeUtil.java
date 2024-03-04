@@ -32,6 +32,14 @@ import java.util.function.Function;
 /** Common utils for computing pipelined regions. */
 public final class PipelinedRegionComputeUtil {
 
+    /**
+     *
+     * @param topologicallySortedVertices  本次遍历的顶点
+     * @param getMustBePipelinedConsumedResults  找到每个顶点要消费的 必须采用流水线形式消费的数据
+     * @param <V>
+     * @param <R>
+     * @return
+     */
     static <V extends Vertex<?, ?, V, R>, R extends Result<?, ?, V, R>>
             Map<V, Set<V>> buildRawRegions(
                     final Iterable<? extends V> topologicallySortedVertices,
@@ -49,6 +57,7 @@ public final class PipelinedRegionComputeUtil {
             // as a
             // single region.
             for (R consumedResult : getMustBePipelinedConsumedResults.apply(vertex)) {
+                // 找到产生数据的上游顶点
                 final V producerVertex = consumedResult.getProducer();
                 final Set<V> producerRegion = vertexToRegion.get(producerVertex);
 
@@ -65,6 +74,7 @@ public final class PipelinedRegionComputeUtil {
                 // check if it is the same as the producer region, if so skip the merge
                 // this check can significantly reduce compute complexity in All-to-All
                 // PIPELINED edge case
+                // 当2个顶点集不一致时  进行合并
                 if (currentRegion != producerRegion) {
                     currentRegion =
                             VertexGroupComputeUtil.mergeVertexGroups(

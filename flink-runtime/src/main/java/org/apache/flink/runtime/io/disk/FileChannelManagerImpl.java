@@ -40,20 +40,28 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** The manager used for creating/deleting file channels based on config temp dirs. */
+/** The manager used for creating/deleting file channels based on config temp dirs.
+ * 使用该对象管理所有文件
+ * */
 public class FileChannelManagerImpl implements FileChannelManager {
     private static final Logger LOG = LoggerFactory.getLogger(FileChannelManagerImpl.class);
 
-    /** The temporary directories for files. */
+    /** The temporary directories for files.
+     * 被管理的目录
+     * */
     private final File[] paths;
 
     /** A random number generator for the anonymous Channel IDs. */
     private final Random random;
 
-    /** The number of the next path to use. */
+    /** The number of the next path to use.
+     * 下个文件所在的目录
+     * */
     private final AtomicLong nextPath = new AtomicLong(0);
 
-    /** Prefix of the temporary directories to create. */
+    /** Prefix of the temporary directories to create.
+     * 创建目录时使用的前缀
+     * */
     private final String prefix;
 
     /**
@@ -62,7 +70,9 @@ public class FileChannelManagerImpl implements FileChannelManager {
      */
     private final AtomicBoolean isShutdown = new AtomicBoolean();
 
-    /** Shutdown hook to make sure that the directories are removed on exit. */
+    /** Shutdown hook to make sure that the directories are removed on exit.
+     * 注册终结钩子
+     * */
     private final Thread shutdownHook;
 
     public FileChannelManagerImpl(String[] tempDirs, String prefix) {
@@ -81,10 +91,17 @@ public class FileChannelManagerImpl implements FileChannelManager {
         this.paths = createFiles(tempDirs, prefix);
     }
 
+    /**
+     * 携带前缀创建目录
+     * @param tempDirs
+     * @param prefix
+     * @return
+     */
     private static File[] createFiles(String[] tempDirs, String prefix) {
         File[] files = new File[tempDirs.length];
         for (int i = 0; i < tempDirs.length; i++) {
             File baseDir = new File(tempDirs[i]);
+            // 生成名字
             String subfolder = String.format("flink-%s-%s", prefix, UUID.randomUUID().toString());
             File storageDir = new File(baseDir, subfolder);
 
@@ -107,6 +124,7 @@ public class FileChannelManagerImpl implements FileChannelManager {
         checkState(!isShutdown.get(), "File channel manager has shutdown.");
 
         int num = (int) (nextPath.getAndIncrement() % paths.length);
+        // 按照轮询算法 在某个目录下生成文件
         return new ID(paths[num], num, random);
     }
 
@@ -132,6 +150,7 @@ public class FileChannelManagerImpl implements FileChannelManager {
             return;
         }
 
+        // 删除所有临时目录
         IOUtils.closeAll(
                 Arrays.stream(paths)
                         .filter(File::exists)

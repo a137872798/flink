@@ -61,16 +61,29 @@ import java.util.stream.Collectors;
  * shared slot. Once the shared slot has no registered logical slot requests, it calls back its
  * {@link SlotSharingExecutionSlotAllocator} to remove it from the allocator and cancel its
  * underlying physical slot request if the request is not fulfilled yet.
+ * 表示一个被共用的slot
  */
 class SharedSlot implements SlotOwner, PhysicalSlot.Payload {
     private static final Logger LOG = LoggerFactory.getLogger(SharedSlot.class);
 
+    /**
+     * 本次请求id
+     */
     private final SlotRequestId physicalSlotRequestId;
 
+    /**
+     * slot关联的资源
+     */
     private final ResourceProfile physicalSlotResourceProfile;
 
+    /**
+     * 表示相关的共享组  内部包含一组execution
+     */
     private final ExecutionSlotSharingGroup executionSlotSharingGroup;
 
+    /**
+     * 意味着物理意义上的slot
+     */
     private final CompletableFuture<PhysicalSlot> slotContextFuture;
 
     private final DualKeyLinkedMap<
@@ -79,6 +92,9 @@ class SharedSlot implements SlotOwner, PhysicalSlot.Payload {
 
     private final boolean slotWillBeOccupiedIndefinitely;
 
+    /**
+     * 回收slot
+     */
     private final Consumer<ExecutionSlotSharingGroup> externalReleaseCallback;
 
     private State state;
@@ -97,7 +113,7 @@ class SharedSlot implements SlotOwner, PhysicalSlot.Payload {
                 slotContextFuture.thenApply(
                         physicalSlot -> {
                             Preconditions.checkState(
-                                    physicalSlot.tryAssignPayload(this),
+                                    physicalSlot.tryAssignPayload(this), // 申请成功后将本对象作为payload
                                     "Unexpected physical slot payload assignment failure!");
                             return physicalSlot;
                         });
@@ -132,14 +148,17 @@ class SharedSlot implements SlotOwner, PhysicalSlot.Payload {
      * @param executionVertexId {@link ExecutionVertexID} of the execution for which to allocate the
      *     logical slot
      * @return the logical slot future
+     * 为某个Execution分配一个逻辑层面的slot
      */
     CompletableFuture<LogicalSlot> allocateLogicalSlot(ExecutionVertexID executionVertexId) {
+        // 首先这个execution要属于group
         Preconditions.checkArgument(
                 executionSlotSharingGroup.getExecutionVertexIds().contains(executionVertexId),
                 "Trying to allocate a logical slot for execution %s which is not in the ExecutionSlotSharingGroup",
                 executionVertexId);
         CompletableFuture<SingleLogicalSlot> logicalSlotFuture =
                 requestedLogicalSlots.getValueByKeyA(executionVertexId);
+        // 表示已经分配了
         if (logicalSlotFuture != null) {
             LOG.debug("Request for {} already exists", getLogicalSlotString(executionVertexId));
         } else {
@@ -148,6 +167,11 @@ class SharedSlot implements SlotOwner, PhysicalSlot.Payload {
         return logicalSlotFuture.thenApply(Function.identity());
     }
 
+    /**
+     * 分出一个逻辑slot
+     * @param executionVertexId
+     * @return
+     */
     private CompletableFuture<SingleLogicalSlot> allocateNonExistentLogicalSlot(
             ExecutionVertexID executionVertexId) {
         CompletableFuture<SingleLogicalSlot> logicalSlotFuture;
@@ -161,6 +185,8 @@ class SharedSlot implements SlotOwner, PhysicalSlot.Payload {
                             LOG.debug("Allocated {}", logMessageBase);
                             return createLogicalSlot(physicalSlot, logicalSlotRequestId);
                         });
+
+        // 存储分配结果
         requestedLogicalSlots.put(executionVertexId, logicalSlotRequestId, logicalSlotFuture);
 
         // If the physical slot request fails (slotContextFuture), it will also fail the
@@ -199,6 +225,7 @@ class SharedSlot implements SlotOwner, PhysicalSlot.Payload {
      * @param executionVertexID {@link ExecutionVertexID} of the execution for which to cancel the
      *     logical slot
      * @param cause the reason of cancellation or null if it is not available
+     *              取消逻辑分配 但是不能阻止一开始的物理slot
      */
     void cancelLogicalSlotRequest(ExecutionVertexID executionVertexID, @Nullable Throwable cause) {
         Preconditions.checkState(
@@ -274,6 +301,7 @@ class SharedSlot implements SlotOwner, PhysicalSlot.Payload {
     }
 
     private void releaseExternally() {
+        // 所有逻辑slot都归还了 可以触发
         if (state != State.RELEASED && requestedLogicalSlots.values().isEmpty()) {
             state = State.RELEASED;
             LOG.debug("Release shared slot externally ({})", physicalSlotRequestId);

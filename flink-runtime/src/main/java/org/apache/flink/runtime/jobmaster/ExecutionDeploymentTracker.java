@@ -22,14 +22,17 @@ import org.apache.flink.runtime.executiongraph.ExecutionAttemptID;
 
 import java.util.Map;
 
-/** A tracker for deployed executions. */
+/** A tracker for deployed executions.
+ * 该对象可以追踪execution的部署情况
+ * */
 public interface ExecutionDeploymentTracker {
 
     /**
      * Starts tracking the given execution that is being deployed on the given host.
      *
      * @param executionAttemptId execution to start tracking
-     * @param host hosting task executor
+     * @param host hosting task executor   代表被部署的目标 TaskExecutor
+     *             表示开始追踪某个execution的部署情况
      */
     void startTrackingPendingDeploymentOf(ExecutionAttemptID executionAttemptId, ResourceID host);
 
@@ -37,6 +40,7 @@ public interface ExecutionDeploymentTracker {
      * Marks the deployment of the given execution as complete.
      *
      * @param executionAttemptId execution whose deployment to mark as complete
+     *                           表示某个execution已经部署完了
      */
     void completeDeploymentOf(ExecutionAttemptID executionAttemptId);
 
@@ -44,6 +48,7 @@ public interface ExecutionDeploymentTracker {
      * Stops tracking the given execution.
      *
      * @param executionAttemptId execution to stop tracking
+     *                           停止追踪
      */
     void stopTrackingDeploymentOf(ExecutionAttemptID executionAttemptId);
 
@@ -52,6 +57,7 @@ public interface ExecutionDeploymentTracker {
      *
      * @param host hosting task executor
      * @return tracked executions
+     * 获取在某个 taskExecutor上部署的所有execution
      */
     Map<ExecutionAttemptID, ExecutionDeploymentState> getExecutionsOn(ResourceID host);
 }

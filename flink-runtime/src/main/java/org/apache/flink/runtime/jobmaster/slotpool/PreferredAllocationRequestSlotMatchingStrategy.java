@@ -38,19 +38,28 @@ import java.util.stream.Collectors;
 public enum PreferredAllocationRequestSlotMatchingStrategy implements RequestSlotMatchingStrategy {
     INSTANCE;
 
+    /**
+     * 这个匹配需要考虑 preferred
+     * @param slots slots to match
+     * @param pendingRequests slot requests to match
+     * @return
+     */
     @Override
     public Collection<RequestSlotMatch> matchRequestsAndSlots(
             Collection<? extends PhysicalSlot> slots, Collection<PendingRequest> pendingRequests) {
         final Collection<RequestSlotMatch> requestSlotMatches = new ArrayList<>();
 
+        // 取出他们的id
         final Map<AllocationID, PhysicalSlot> freeSlots =
                 slots.stream()
                         .collect(
                                 Collectors.toMap(
                                         PhysicalSlot::getAllocationId, Function.identity()));
 
+        // 表示要匹配preferred
         final Map<SlotRequestId, PendingRequest> pendingRequestsWithPreferredAllocations =
                 new HashMap<>();
+        // 这组就是最后处理
         final List<PendingRequest> unmatchedRequests = new ArrayList<>();
 
         // Split requests into those that have preferred allocations and those that don't have
@@ -65,6 +74,7 @@ public enum PreferredAllocationRequestSlotMatchingStrategy implements RequestSlo
 
         final Iterator<PhysicalSlot> freeSlotsIterator = freeSlots.values().iterator();
         // Match slots and pending requests based on preferred allocation
+        // 优先处理preferred
         while (freeSlotsIterator.hasNext() && !pendingRequestsWithPreferredAllocations.isEmpty()) {
             final PhysicalSlot freeSlot = freeSlotsIterator.next();
 
@@ -76,7 +86,7 @@ public enum PreferredAllocationRequestSlotMatchingStrategy implements RequestSlo
 
                 if (freeSlot.getResourceProfile().isMatching(pendingRequest.getResourceProfile())
                         && pendingRequest
-                                .getPreferredAllocations()
+                                .getPreferredAllocations()  // 找到匹配preferred的
                                 .contains(freeSlot.getAllocationId())) {
                     requestSlotMatches.add(RequestSlotMatch.createFor(pendingRequest, freeSlot));
                     pendingRequestIterator.remove();
@@ -86,6 +96,7 @@ public enum PreferredAllocationRequestSlotMatchingStrategy implements RequestSlo
             }
         }
 
+        // 剩下的直接匹配
         unmatchedRequests.addAll(pendingRequestsWithPreferredAllocations.values());
         if (!freeSlots.isEmpty() && !unmatchedRequests.isEmpty()) {
             requestSlotMatches.addAll(

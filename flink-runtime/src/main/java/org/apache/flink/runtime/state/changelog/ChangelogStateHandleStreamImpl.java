@@ -34,14 +34,18 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-/** {@link ChangelogStateHandle} implementation based on {@link StreamStateHandle}. */
+/** {@link ChangelogStateHandle} implementation based on {@link StreamStateHandle}.
+ * 除了是一个KeyedStateHandle外 还关联一个 changelog存储
+ * */
 @Internal
 public final class ChangelogStateHandleStreamImpl implements ChangelogStateHandle {
 
     private static final long serialVersionUID = -8070326169926626355L;
 
     private final KeyGroupRange keyGroupRange;
-    /** NOTE: order is important as it reflects the order of changes. */
+    /** NOTE: order is important as it reflects the order of changes.
+     * StreamStateHandle 和 offset 的映射关系
+     * */
     private final List<Tuple2<StreamStateHandle, Long>> handlesAndOffsets;
 
     private final long size;
@@ -96,6 +100,11 @@ public final class ChangelogStateHandleStreamImpl implements ChangelogStateHandl
                 stateHandleID);
     }
 
+    /**
+     * 将内部的handle 都注册到SharedStateRegistry 上
+     * @param stateRegistry The registry where shared states are registered.
+     * @param checkpointID
+     */
     @Override
     public void registerSharedStates(SharedStateRegistry stateRegistry, long checkpointID) {
         handlesAndOffsets.forEach(

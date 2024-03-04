@@ -63,6 +63,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>A completed checkpoint writes its metadata into a file '{@value
  * AbstractFsCheckpointStorageAccess#METADATA_FILE_NAME}'.
+ *
+ * 基于文件 提供查看检查点的能力
  */
 public abstract class AbstractFsCheckpointStorageAccess implements CheckpointStorageAccess {
 
@@ -95,7 +97,9 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
     /** The jobId, written into the generated savepoint directories. */
     private final JobID jobId;
 
-    /** The default location for savepoints. Null, if none is configured. */
+    /** The default location for savepoints. Null, if none is configured.
+     * 在加载配置时  一般会有一个defaultSavepointDirectory
+     * */
     @Nullable private final Path defaultSavepointDirectory;
 
     /**
@@ -130,6 +134,12 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
         return defaultSavepointDirectory != null;
     }
 
+    /**
+     * 可能得到数据文件位置  也可能是元数据文件位置
+     * @param checkpointPointer
+     * @return
+     * @throws IOException
+     */
     @Override
     public CompletedCheckpointStorageLocation resolveCheckpoint(String checkpointPointer)
             throws IOException {
@@ -148,6 +158,8 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
      * @param checkpointId The checkpoint ID of the savepoint.
      * @return The checkpoint storage location for the savepoint.
      * @throws IOException Thrown if the target directory could not be created.
+     *
+     * 基于给定的位置创建文件  用于保存点
      */
     @Override
     public CheckpointStorageLocation initializeLocationForSavepoint(
@@ -159,6 +171,7 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
         final Path savepointBasePath;
         if (externalLocationPointer != null) {
             savepointBasePath = new Path(externalLocationPointer);
+            // 没有指定路径且 defaultSavepointDirectory 不为空时
         } else if (defaultSavepointDirectory != null) {
             savepointBasePath = defaultSavepointDirectory;
         } else {
@@ -169,6 +182,8 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
         // generate the savepoint directory
 
         final FileSystem fs = savepointBasePath.getFileSystem();
+
+        // 产生路径
         final String prefix = "savepoint-" + jobId.toString().substring(0, 6) + '-';
 
         Exception latestException = null;
@@ -192,6 +207,13 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
                 "Failed to create savepoint directory at " + savepointBasePath, latestException);
     }
 
+    /**
+     * 创建逻辑由子类实现
+     * @param fs
+     * @param location
+     * @return
+     * @throws IOException
+     */
     protected abstract CheckpointStorageLocation createSavepointLocation(
             FileSystem fs, Path location) throws IOException;
 
@@ -232,6 +254,8 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
      * @return A state handle to checkpoint/savepoint's metadata.
      * @throws IOException Thrown, if the pointer cannot be resolved, the file system not accessed,
      *     or the pointer points to a location that does not seem to be a checkpoint/savepoint.
+     *
+     *     解析并得到位置信息
      */
     @Internal
     public static FsCompletedCheckpointStorageLocation resolveCheckpointPointer(
@@ -281,6 +305,7 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
         final FileStatus metadataFileStatus;
 
         // If this is a directory, we need to find the meta data file
+        // 如果指针指向一个目录 需要加载元数据
         if (status.isDir()) {
             checkpointDir = status.getPath();
             final Path metadataFilePath = new Path(path, METADATA_FILE_NAME);
@@ -298,6 +323,7 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
         } else {
             // this points to a file and we either do no name validation, or
             // the name is actually correct, so we can return the path
+            // 否则此元数据 就是数据文件元数据
             metadataFileStatus = status;
             checkpointDir = status.getPath().getParent();
         }
@@ -321,6 +347,7 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
      *
      * @param path The path to encode.
      * @return The location reference.
+     * 对路径编码后 产生CheckpointStorageLocationReference
      */
     public static CheckpointStorageLocationReference encodePathAsReference(Path path) {
         byte[] refBytes = path.toString().getBytes(StandardCharsets.UTF_8);
@@ -340,6 +367,7 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
      * @param reference The bytes representing the reference.
      * @return The path decoded from the reference.
      * @throws IllegalArgumentException Thrown, if the bytes do not represent a proper reference.
+     * 解码还原路径
      */
     public static Path decodePathFromReference(CheckpointStorageLocationReference reference) {
         if (reference.isDefaultReference()) {
@@ -351,6 +379,7 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
 
         if (bytes.length > headerLen) {
             // compare magic number
+            // 检测魔数
             for (int i = 0; i < headerLen; i++) {
                 if (bytes[i] != REFERENCE_MAGIC_NUMBER[i]) {
                     throw new IllegalArgumentException(
@@ -358,7 +387,7 @@ public abstract class AbstractFsCheckpointStorageAccess implements CheckpointSto
                 }
             }
 
-            // covert to string and path
+            // covert to string and path  剩下的还原成字符串
             try {
                 return new Path(
                         new String(

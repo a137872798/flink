@@ -34,6 +34,7 @@ public interface SchedulingPipelinedRegion
      * Get all distinct blocking {@link ConsumedPartitionGroup}s.
      *
      * @return set of {@link ConsumedPartitionGroup}s
+     * 获取所有以blocking模式消费的中间数据集
      */
     Iterable<ConsumedPartitionGroup> getAllNonPipelinedConsumedPartitionGroups();
 

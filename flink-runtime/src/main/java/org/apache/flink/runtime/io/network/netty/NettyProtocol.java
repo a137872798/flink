@@ -27,10 +27,20 @@ import org.apache.flink.shaded.netty4.io.netty.channel.ChannelHandler;
 /** Defines the server and client channel handlers, i.e. the protocol, used by netty. */
 public class NettyProtocol {
 
+    /**
+     * 这个是消息编码器 用于处理写出的数据
+     */
     private final NettyMessage.NettyMessageEncoder messageEncoder =
             new NettyMessage.NettyMessageEncoder();
 
+    /**
+     * 该对象可以打开本地子分区  并查看内部数据
+     */
     private final ResultPartitionProvider partitionProvider;
+
+    /**
+     * 往某个分区发送事件
+     */
     private final TaskEventPublisher taskEventPublisher;
 
     NettyProtocol(
@@ -38,6 +48,9 @@ public class NettyProtocol {
         this.partitionProvider = partitionProvider;
         this.taskEventPublisher = taskEventPublisher;
     }
+
+
+    // 下面2个api分别获取作为客户端和服务器需要的 netty channel handler
 
     /**
      * Returns the server channel handlers.
@@ -71,6 +84,7 @@ public class NettyProtocol {
      * </pre>
      *
      * @return channel handlers
+     * 获得服务器端的handler
      */
     public ChannelHandler[] getServerChannelHandlers() {
         PartitionRequestQueue queueOfPartitionQueues = new PartitionRequestQueue();
@@ -81,7 +95,7 @@ public class NettyProtocol {
         return new ChannelHandler[] {
             messageEncoder,
             new NettyMessage.NettyMessageDecoder(),
-            serverHandler,
+            serverHandler,  // 处理请求的核心对象  主要会转发给queueOfPartitionQueues
             queueOfPartitionQueues
         };
     }
@@ -119,10 +133,11 @@ public class NettyProtocol {
      * @return channel handlers
      */
     public ChannelHandler[] getClientChannelHandlers() {
+        // 注意每次都是产生新的对象  该对象接收数据解析后 传给RemoteChannel
         NetworkClientHandler networkClientHandler = new CreditBasedPartitionRequestClientHandler();
 
         return new ChannelHandler[] {
-            messageEncoder,
+            messageEncoder,  // 这个是共用的
             new NettyMessageClientDecoderDelegate(networkClientHandler),
             networkClientHandler
         };

@@ -27,7 +27,9 @@ import org.apache.flink.shaded.netty4.io.netty.buffer.ByteBuf;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Id identifying {@link ExecutionVertex}. */
+/** Id identifying {@link ExecutionVertex}.
+ * 顶点 + subtaskIndex  其实就是细化到子任务级别
+ * */
 public class ExecutionVertexID implements VertexID {
 
     private static final long serialVersionUID = 1L;
@@ -38,6 +40,9 @@ public class ExecutionVertexID implements VertexID {
      */
     public static final int SIZE = JobVertexID.SIZE + 4;
 
+    /**
+     * 这是一个顶点 也是一个task
+     */
     private final JobVertexID jobVertexId;
 
     private final int subtaskIndex;

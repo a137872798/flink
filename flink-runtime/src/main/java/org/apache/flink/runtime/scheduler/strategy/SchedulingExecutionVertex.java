@@ -25,7 +25,9 @@ import org.apache.flink.runtime.topology.Vertex;
 
 import java.util.List;
 
-/** Scheduling representation of {@link ExecutionVertex}. */
+/** Scheduling representation of {@link ExecutionVertex}.
+ * 表示在调度过程中的一个顶点对象
+ * */
 public interface SchedulingExecutionVertex
         extends Vertex<
                 ExecutionVertexID,
@@ -37,6 +39,8 @@ public interface SchedulingExecutionVertex
      * Gets the state of the execution vertex.
      *
      * @return state of the execution vertex
+     *
+     * 表示当前顶点的执行状态
      */
     ExecutionState getState();
 
@@ -44,6 +48,8 @@ public interface SchedulingExecutionVertex
      * Gets the {@link ConsumedPartitionGroup}s.
      *
      * @return list of {@link ConsumedPartitionGroup}s
+     *
+     * 应当由本顶点消费的数据
      */
     List<ConsumedPartitionGroup> getConsumedPartitionGroups();
 }

@@ -44,10 +44,16 @@ import java.util.stream.StreamSupport;
  * <p>Note that all element tests are performed by identity.
  *
  * @param <T> the element type.
+ *
+ *           该对象会维护几个优先级高的对象
  */
 @Internal
 public final class PrioritizedDeque<T> implements Iterable<T> {
     private final Deque<T> deque = new ArrayDeque<>();
+
+    /**
+     * 表示当前维护了几个高优先级对象
+     */
     private int numPriorityElements;
 
     /**
@@ -55,6 +61,8 @@ public final class PrioritizedDeque<T> implements Iterable<T> {
      * priority elements but before any non-priority element.
      *
      * @param element the element to add
+     *
+     *                追加一个高优先级对象
      */
     public void addPriorityElement(T element) {
         // priority elements are rather rare and short-lived, so most of there are none
@@ -66,9 +74,12 @@ public final class PrioritizedDeque<T> implements Iterable<T> {
         } else {
             // remove all priority elements
             final ArrayDeque<T> priorPriority = new ArrayDeque<>(numPriorityElements);
+            // 前几个都是高优先级独享
             for (int index = 0; index < numPriorityElements; index++) {
+                // 这里顺序发生了颠倒
                 priorPriority.addFirst(deque.poll());
             }
+            // 这样可以确保该对象在之前优先对象的后满
             deque.addFirst(element);
             // read them before the newly added element
             for (final T priorityEvent : priorPriority) {
@@ -82,6 +93,7 @@ public final class PrioritizedDeque<T> implements Iterable<T> {
      * Adds a non-priority element to this deque, which will be polled last.
      *
      * @param element the element to add
+     *                这个是加到末尾
      */
     public void add(T element) {
         deque.add(element);
@@ -91,17 +103,19 @@ public final class PrioritizedDeque<T> implements Iterable<T> {
      * Convenience method for adding an element with optional priority and prior removal.
      *
      * @param element the element to add
-     * @param priority flag indicating if it's a priority or non-priority element
+     * @param priority flag indicating if it's a priority or non-priority element  表示是否是高优先级对象
      * @param prioritize flag that hints that the element is already in this deque, potentially as
-     *     non-priority element.
+     *     non-priority element.   表示已经在队列中了
      */
     public void add(T element, boolean priority, boolean prioritize) {
         if (!priority) {
             add(element);
         } else {
             if (prioritize) {
+                // 表示要提升优先级
                 prioritize(element);
             } else {
+                // 这里才加入
                 addPriorityElement(element);
             }
         }
@@ -114,10 +128,12 @@ public final class PrioritizedDeque<T> implements Iterable<T> {
      * in general, some optimizations for special cases are used.}
      *
      * @param element the element to prioritize.
+     *                尝试提升优先级
      */
     public void prioritize(T element) {
         final Iterator<T> iterator = deque.iterator();
         // Already prioritized? Then, do not reorder elements.
+        // 已经是高优先级对象了 不需要处理
         for (int i = 0; i < numPriorityElements && iterator.hasNext(); i++) {
             if (iterator.next() == element) {
                 return;
@@ -125,11 +141,12 @@ public final class PrioritizedDeque<T> implements Iterable<T> {
         }
         // If the next non-priority element is the given element, we can simply include it in the
         // priority section
+        // 表示将它提升为 高优先级对象
         if (iterator.hasNext() && iterator.next() == element) {
             numPriorityElements++;
             return;
         }
-        // Remove the given element.
+        // Remove the given element.  移出来再加入
         while (iterator.hasNext()) {
             if (iterator.next() == element) {
                 iterator.remove();
@@ -149,12 +166,14 @@ public final class PrioritizedDeque<T> implements Iterable<T> {
      * PrioritizedDeque} and return it.
      *
      * @return removed element
+     * 移除满足条件的元素
      */
     public T getAndRemove(Predicate<T> preCondition) {
         Iterator<T> iterator = deque.iterator();
         for (int i = 0; iterator.hasNext(); i++) {
             T next = iterator.next();
             if (preCondition.test(next)) {
+                // 表示移除的是高优先级对象
                 if (i < numPriorityElements) {
                     numPriorityElements--;
                 }
@@ -196,6 +215,7 @@ public final class PrioritizedDeque<T> implements Iterable<T> {
 
     /**
      * Returns whether the given element is a known priority element. Test is performed by identity.
+     * 判断该元素是否是高优先级的
      */
     public boolean containsPriorityElement(T element) {
         if (numPriorityElements == 0) {

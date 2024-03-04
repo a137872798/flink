@@ -48,6 +48,9 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  */
 public class BlocklistDeclarativeSlotPool extends DefaultDeclarativeSlotPool {
 
+    /**
+     * 该对象可以判断某个节点是否被阻塞
+     */
     private final BlockedTaskManagerChecker blockedTaskManagerChecker;
 
     BlocklistDeclarativeSlotPool(
@@ -68,6 +71,7 @@ public class BlocklistDeclarativeSlotPool extends DefaultDeclarativeSlotPool {
             TaskManagerGateway taskManagerGateway,
             long currentTime) {
         if (!isBlockedTaskManager(taskManagerLocation.getResourceID())) {
+            // 未被阻塞就走正常逻辑
             return super.offerSlots(offers, taskManagerLocation, taskManagerGateway, currentTime);
         } else {
             return internalOfferSlotsFromBlockedTaskManager(offers, taskManagerLocation);
@@ -87,6 +91,12 @@ public class BlocklistDeclarativeSlotPool extends DefaultDeclarativeSlotPool {
         }
     }
 
+    /**
+     * 表示尝试使用的资源处于被阻塞状态
+     * @param offers
+     * @param taskManagerLocation
+     * @return
+     */
     private Collection<SlotOffer> internalOfferSlotsFromBlockedTaskManager(
             Collection<? extends SlotOffer> offers, TaskManagerLocation taskManagerLocation) {
         final Collection<SlotOffer> acceptedSlotOffers = new ArrayList<>();
@@ -95,6 +105,7 @@ public class BlocklistDeclarativeSlotPool extends DefaultDeclarativeSlotPool {
         // we should accept a duplicate (already accepted) slot, even if it's from a currently
         // blocked task manager. Because the slot may already be assigned to an execution, rejecting
         // it will cause a task failover.
+        // 只返回已经存在的slot    认为此时无法往pool中添加该资源相关的slot
         for (SlotOffer offer : offers) {
             if (slotPool.containsSlot(offer.getAllocationId())) {
                 // we have already accepted this offer
@@ -130,6 +141,7 @@ public class BlocklistDeclarativeSlotPool extends DefaultDeclarativeSlotPool {
             return super.freeReservedSlot(allocationId, cause, currentTime);
         } else {
             log.debug("Free reserved slot {}.", allocationId);
+            // 当被阻塞时 slot无法正常归还到pool中 而是直接释放
             return releaseSlot(
                     allocationId,
                     new FlinkRuntimeException(

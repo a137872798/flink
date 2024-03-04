@@ -22,7 +22,9 @@ import org.apache.flink.runtime.io.network.partition.consumer.RemoteInputChannel
 
 import javax.annotation.Nullable;
 
-/** Abstract class for representing the output message. */
+/** Abstract class for representing the output message.
+ * 表示一条要发出的消息
+ * */
 abstract class ClientOutboundMessage {
     protected final RemoteInputChannel inputChannel;
 

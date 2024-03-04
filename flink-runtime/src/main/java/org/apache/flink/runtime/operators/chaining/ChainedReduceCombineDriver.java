@@ -60,16 +60,31 @@ public class ChainedReduceCombineDriver<T> extends ChainedDriver<T, T> {
 
     private TypeComparator<T> comparator;
 
+    /**
+     * 主要就是reduce函数
+     */
     private ReduceFunction<T> reducer;
 
     private DriverStrategy strategy;
 
+    /**
+     * 存储数据的容器 提供了排序的api
+     */
     private InMemorySorter<T> sorter;
 
+    /**
+     * 提供快速排序算法
+     */
     private QuickSort sortAlgo = new QuickSort();
 
+    /**
+     * 简单理解就是hash表 通过线性探测法解决冲突
+     */
     private InPlaceMutableHashTable<T> table;
 
+    /**
+     * 该对象可以遍历hash桶的数据
+     */
     private InPlaceMutableHashTable<T>.ReduceFacade reduceFacade;
 
     private List<MemorySegment> memory;
@@ -99,6 +114,10 @@ public class ChainedReduceCombineDriver<T> extends ChainedDriver<T, T> {
         FunctionUtils.setFunctionRuntimeContext(reducer, getUdfRuntimeContext());
     }
 
+    /**
+     * 开启任务
+     * @throws Exception
+     */
     @Override
     public void openTask() throws Exception {
         // open the stub first
@@ -112,6 +131,8 @@ public class ChainedReduceCombineDriver<T> extends ChainedDriver<T, T> {
         MemoryManager memManager = parent.getEnvironment().getMemoryManager();
         final int numMemoryPages =
                 memManager.computeNumberOfPages(config.getRelativeMemoryDriver());
+
+        // 申请一定数量的内存块
         memory = memManager.allocatePages(parent, numMemoryPages);
 
         LOG.debug(
@@ -119,6 +140,7 @@ public class ChainedReduceCombineDriver<T> extends ChainedDriver<T, T> {
                         + (objectReuseEnabled ? "ENABLED" : "DISABLED")
                         + ".");
 
+        // 根据不同策略 初始化不同对象
         switch (strategy) {
             case SORTED_PARTIAL_REDUCE:
                 // instantiate a fix-length in-place sorter, if possible, otherwise the out-of-place
@@ -126,6 +148,7 @@ public class ChainedReduceCombineDriver<T> extends ChainedDriver<T, T> {
                 if (comparator.supportsSerializationWithKeyNormalization()
                         && serializer.getLength() > 0
                         && serializer.getLength() <= THRESHOLD_FOR_IN_PLACE_SORTING) {
+                    // 使用固定长度的对象
                     sorter =
                             new FixedLengthRecordSorter<T>(
                                     serializer, comparator.duplicate(), memory);
@@ -157,13 +180,21 @@ public class ChainedReduceCombineDriver<T> extends ChainedDriver<T, T> {
         }
     }
 
+    /**
+     * 基于排序对象采集数据
+     * @param record
+     * @throws Exception
+     */
     private void collectSorted(T record) throws Exception {
         // try writing to the sorter first
         if (!sorter.write(record)) {
             // it didn't succeed; sorter is full
 
             // do the actual sorting, combining, and data writing
+
+            // 表示此时sorter已经写满了   排序后将equals为true的记录合并并下发
             sortAndCombine();
+            // 清空内部数据
             sorter.reset();
 
             // write the value again
@@ -174,21 +205,34 @@ public class ChainedReduceCombineDriver<T> extends ChainedDriver<T, T> {
         }
     }
 
+    /**
+     * 基于hash的形式合并数据
+     * @param record
+     * @throws Exception
+     */
     private void collectHashed(T record) throws Exception {
         try {
+            // insert or update    update时 相同key会进行合并    sorter就是在满了时触发合并 hash是每次插入都可能合并
+            // sorter的内存开销会更大
             reduceFacade.updateTableEntryWithReduce(record);
         } catch (EOFException ex) {
             // the table has run out of memory
+            // 将hash数据发往下游
             reduceFacade.emitAndReset();
             // try again
             reduceFacade.updateTableEntryWithReduce(record);
         }
     }
 
+    /**
+     * 当sorter内部的数据已经写满了后 触发该方法
+     * @throws Exception
+     */
     private void sortAndCombine() throws Exception {
         final InMemorySorter<T> sorter = this.sorter;
 
         if (!sorter.isEmpty()) {
+            // 使用快排算法 将内部数据排序
             sortAlgo.sort(sorter);
 
             final TypeSerializer<T> serializer = this.serializer;
@@ -214,6 +258,7 @@ public class ChainedReduceCombineDriver<T> extends ChainedDriver<T, T> {
 
                     // iterate within a key group
                     while ((reuse2 = input.next(reuse2)) != null) {
+                        // 从sorter中顺序取出元素 当发现与下个元素equals相同时 触发聚合函数
                         if (comparator.equalToReference(reuse2)) {
                             // same group, reduce
                             value = function.reduce(value, reuse2);
@@ -231,9 +276,11 @@ public class ChainedReduceCombineDriver<T> extends ChainedDriver<T, T> {
                         }
                     }
 
+                    // 相同key的值聚合后 发送到下游
                     output.collect(value);
 
                     // swap the value from the new key group into the first object
+                    // 发现了不同的值 将其作为value 进入下轮循环
                     T tmp = reuse1;
                     reuse1 = reuse2;
                     reuse2 = tmp;
@@ -241,6 +288,7 @@ public class ChainedReduceCombineDriver<T> extends ChainedDriver<T, T> {
                     value = reuse1;
                 }
             } else {
+                // 对象不可复用  每次创建新对象
                 T value = input.next();
 
                 // iterate over key groups

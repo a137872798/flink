@@ -27,8 +27,14 @@ import java.util.Optional;
 /**
  * The abstract class of {@link CompletedCheckpointStore}, which holds the {@link
  * SharedStateRegistry} and provides the registration of shared state.
+ *
+ * 检查点存储骨架类
  */
 public abstract class AbstractCompleteCheckpointStore implements CompletedCheckpointStore {
+
+    /**
+     * 使用该对象注册共享状态
+     */
     private final SharedStateRegistry sharedStateRegistry;
 
     public AbstractCompleteCheckpointStore(SharedStateRegistry sharedStateRegistry) {
@@ -43,6 +49,7 @@ public abstract class AbstractCompleteCheckpointStore implements CompletedCheckp
     @Override
     public void shutdown(JobStatus jobStatus, CheckpointsCleaner checkpointsCleaner)
             throws Exception {
+        // job 全局关闭时 关闭sharedStateRegistry  子类应该会处理有关检查点的数据
         if (jobStatus.isGloballyTerminalState()) {
             sharedStateRegistry.close();
         }
@@ -54,6 +61,7 @@ public abstract class AbstractCompleteCheckpointStore implements CompletedCheckp
      * and not used later can be removed).
      */
     protected void unregisterUnusedState(Deque<CompletedCheckpoint> unSubsumedCheckpoints) {
+        // 找到最小的检查点    注销该检查点之前的state
         findLowest(unSubsumedCheckpoints).ifPresent(sharedStateRegistry::unregisterUnusedState);
     }
 

@@ -55,6 +55,9 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>If files for a job are not needed any more, they will enter a staged, i.e. deferred, cleanup.
  * Files may thus still be be accessible upon recovery and do not need to be re-downloaded.
+ *
+ * 对应的是维护持久blob对象的缓存
+ * 只有持久对象跟job挂钩
  */
 public class PermanentBlobCache extends AbstractBlobCache implements JobPermanentBlobService {
 
@@ -73,7 +76,9 @@ public class PermanentBlobCache extends AbstractBlobCache implements JobPermanen
 
     private static final int DEFAULT_SIZE_LIMIT_MB = 100;
 
-    /** Map to store the number of references to a specific job. */
+    /** Map to store the number of references to a specific job.
+     * 表示每个job的引用计数
+     * */
     private final Map<JobID, RefCount> jobRefCounters = new HashMap<>();
 
     /** Time interval (ms) to run the cleanup task; also used as the default TTL. */
@@ -82,6 +87,9 @@ public class PermanentBlobCache extends AbstractBlobCache implements JobPermanen
     /** Timer task to execute the cleanup at regular intervals. */
     private final Timer cleanupTimer;
 
+    /**
+     * 因为该对象存储的是持久的blob  需要tracker来控制缓存大小
+     */
     private final BlobCacheSizeTracker blobCacheSizeTracker;
 
     @VisibleForTesting
@@ -154,6 +162,8 @@ public class PermanentBlobCache extends AbstractBlobCache implements JobPermanen
         this.cleanupTimer = new Timer(true);
 
         this.cleanupInterval = blobClientConfig.getLong(BlobServerOptions.CLEANUP_INTERVAL) * 1000;
+
+        // 也要启动一个后台清理任务
         this.cleanupTimer.schedule(
                 new PermanentBlobCleanupTask(), cleanupInterval, cleanupInterval);
 
@@ -162,6 +172,10 @@ public class PermanentBlobCache extends AbstractBlobCache implements JobPermanen
         registerDetectedJobs();
     }
 
+    /**
+     * 这里job是有过期时间的   当job过期的话 下面的blob就可以删除了吧
+     * @throws IOException
+     */
     private void registerDetectedJobs() throws IOException {
         if (storageDir.deref().exists()) {
             final Collection<JobID> jobIds =
@@ -174,6 +188,11 @@ public class PermanentBlobCache extends AbstractBlobCache implements JobPermanen
         }
     }
 
+    /**
+     * 注册job
+     * @param jobId
+     * @param expiryTimeout
+     */
     private void registerJobWithExpiry(JobID jobId, long expiryTimeout) {
         checkNotNull(jobId);
         synchronized (jobRefCounters) {
@@ -192,6 +211,7 @@ public class PermanentBlobCache extends AbstractBlobCache implements JobPermanen
      *
      * @param jobId ID of the job this blob belongs to
      * @see #releaseJob(JobID)
+     * 一旦job被引用了 就不会被后台自动清理 也就是keepUntil变成-1
      */
     @Override
     public void registerJob(JobID jobId) {
@@ -215,6 +235,7 @@ public class PermanentBlobCache extends AbstractBlobCache implements JobPermanen
      *
      * @param jobId ID of the job this blob belongs to
      * @see #registerJob(JobID)
+     * 减少引用计数
      */
     @Override
     public void releaseJob(JobID jobId) {
@@ -231,6 +252,7 @@ public class PermanentBlobCache extends AbstractBlobCache implements JobPermanen
             }
 
             --ref.references;
+            // 一旦job不再被引用 又可以被后台回收了
             if (ref.references == 0) {
                 ref.keepUntil = System.currentTimeMillis() + cleanupInterval;
             }
@@ -285,6 +307,7 @@ public class PermanentBlobCache extends AbstractBlobCache implements JobPermanen
      * @return The content of the BLOB.
      * @throws java.io.FileNotFoundException if the BLOB does not exist;
      * @throws IOException if any other error occurs when retrieving the file.
+     * 读取某个blob数据
      */
     @Override
     public byte[] readFile(JobID jobId, PermanentBlobKey blobKey) throws IOException {
@@ -305,6 +328,7 @@ public class PermanentBlobCache extends AbstractBlobCache implements JobPermanen
 
         // first try the distributed blob store (if available)
         // use a temporary file (thread-safe without locking)
+        // 本地缓存没有 尝试从view读取
         File incomingFile = createTemporaryFilename();
         try {
             try {
@@ -325,6 +349,7 @@ public class PermanentBlobCache extends AbstractBlobCache implements JobPermanen
 
             final InetSocketAddress currentServerAddress = serverAddress;
 
+            // 尝试从server加载
             if (currentServerAddress != null) {
                 // fallback: download from the BlobServer
                 BlobClient.downloadFromBlobServer(
@@ -359,6 +384,16 @@ public class PermanentBlobCache extends AbstractBlobCache implements JobPermanen
         }
     }
 
+    /**
+     * 检查是否有足够空间存储缓存数据
+     * @param incomingFile
+     * @param jobId
+     * @param blobKey
+     * @param localFile
+     * @param log
+     * @param blobStore
+     * @throws IOException
+     */
     private void checkLimitAndMoveFile(
             File incomingFile,
             JobID jobId,
@@ -373,6 +408,7 @@ public class PermanentBlobCache extends AbstractBlobCache implements JobPermanen
         final List<Tuple2<JobID, BlobKey>> blobsToDelete =
                 blobCacheSizeTracker.checkLimit(sizeOfIncomingFile);
 
+        // 删除最旧未访问的数据
         for (Tuple2<JobID, BlobKey> key : blobsToDelete) {
             if (deleteFile(key.f0, key.f1)) {
                 blobCacheSizeTracker.untrack(key);
@@ -432,6 +468,8 @@ public class PermanentBlobCache extends AbstractBlobCache implements JobPermanen
     /**
      * Cleanup task which is executed periodically to delete BLOBs whose ref-counter reached
      * <tt>0</tt>.
+     *
+     * 定时任务  找到不再被引用的job 并进行释放
      */
     class PermanentBlobCleanupTask extends TimerTask {
         /** Cleans up BLOBs which are not referenced anymore. */
@@ -446,6 +484,7 @@ public class PermanentBlobCache extends AbstractBlobCache implements JobPermanen
                     Map.Entry<JobID, RefCount> entry = entryIter.next();
                     RefCount ref = entry.getValue();
 
+                    // 表示需要被回收
                     if (ref.references <= 0
                             && ref.keepUntil > 0
                             && currentTimeMillis >= ref.keepUntil) {

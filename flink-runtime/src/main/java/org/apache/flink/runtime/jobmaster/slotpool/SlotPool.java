@@ -39,13 +39,22 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
-/** The Interface of a slot pool that manages slots. */
+/** The Interface of a slot pool that manages slots.
+ * 这也是一个slot池 但是是更高维度的
+ * */
 public interface SlotPool extends AllocatedSlotActions, AutoCloseable {
 
     // ------------------------------------------------------------------------
     //  lifecycle
     // ------------------------------------------------------------------------
 
+    /**
+     * 看来该对象启动要连接到 jobManager
+     * @param jobMasterId
+     * @param newJobManagerAddress
+     * @param jmMainThreadScheduledExecutor
+     * @throws Exception
+     */
     void start(
             JobMasterId jobMasterId,
             String newJobManagerAddress,
@@ -63,6 +72,7 @@ public interface SlotPool extends AllocatedSlotActions, AutoCloseable {
      * will be able to request resources from the given ResourceManager.
      *
      * @param resourceManagerGateway The RPC gateway for the resource manager.
+     *                               连接到资源管理器
      */
     void connectToResourceManager(ResourceManagerGateway resourceManagerGateway);
 
@@ -105,6 +115,7 @@ public interface SlotPool extends AllocatedSlotActions, AutoCloseable {
      * @param offers slot offers which are offered to the {@link SlotPool}
      * @return A collection of accepted slot offers. The remaining slot offers are implicitly
      *     rejected.
+     *     往池内添加slot
      */
     Collection<SlotOffer> offerSlots(
             TaskManagerLocation taskManagerLocation,
@@ -141,6 +152,7 @@ public interface SlotPool extends AllocatedSlotActions, AutoCloseable {
      * @param requirementProfile resource profile of the requirement for which to allocate the slot
      * @return the previously available slot with the given allocation id, if a slot with this
      *     allocation id exists
+     *     通过id获取slot
      */
     Optional<PhysicalSlot> allocateAvailableSlot(
             SlotRequestId slotRequestId,

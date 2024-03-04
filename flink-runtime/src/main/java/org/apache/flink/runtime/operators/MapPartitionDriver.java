@@ -41,6 +41,7 @@ import org.slf4j.LoggerFactory;
  * @see MapPartitionFunction
  * @param <IT> The mapper's input data type.
  * @param <OT> The mapper's output data type.
+ *            将数据分区后下发
  */
 public class MapPartitionDriver<IT, OT> implements Driver<MapPartitionFunction<IT, OT>, OT> {
 

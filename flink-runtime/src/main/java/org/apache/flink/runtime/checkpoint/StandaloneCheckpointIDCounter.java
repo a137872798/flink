@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * HighAvailabilityMode#NONE}.
  *
  * <p>Simple wrapper around an {@link AtomicLong}.
+ * 单机id生成器   就是一个AtomicLong
  */
 public class StandaloneCheckpointIDCounter implements CheckpointIDCounter {
 

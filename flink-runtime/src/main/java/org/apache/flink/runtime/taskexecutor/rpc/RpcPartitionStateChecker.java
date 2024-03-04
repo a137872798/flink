@@ -28,6 +28,9 @@ import org.apache.flink.util.Preconditions;
 
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * 实际上通过rpc 请求JM 获取生产者状态
+ */
 public class RpcPartitionStateChecker implements PartitionProducerStateChecker {
 
     private final JobMasterGateway jobMasterGateway;

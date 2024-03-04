@@ -119,7 +119,7 @@ public interface CheckpointListener {
      * @param checkpointId The ID of the checkpoint that has been completed.
      * @throws Exception This method can propagate exceptions, which leads to a failure/recovery for
      *     the task. Note that this will NOT lead to the checkpoint being revoked.
-     *     检查点处理成功  比如将检查点存储到外部系统
+     *     检查点生成成功
      */
     void notifyCheckpointComplete(long checkpointId) throws Exception;
 
@@ -145,7 +145,7 @@ public interface CheckpointListener {
      * @throws Exception This method can propagate exceptions, which leads to a failure/recovery for
      *     the task or job.
      *
-     *     检查点处理失败
+     *     检查点生成失败
      */
     default void notifyCheckpointAborted(long checkpointId) throws Exception {}
 }

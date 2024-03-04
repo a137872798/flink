@@ -72,6 +72,23 @@ public class NonReusingBuildFirstReOpenableHashJoinIterator<V1, V2, O>
         reopenHashTable = (ReOpenableMutableHashTable<V1, V2>) hashJoin;
     }
 
+    /**
+     * 区别就是产生的 hash表不同
+     * @param buildSideSerializer
+     * @param buildSideComparator
+     * @param probeSideSerializer
+     * @param probeSideComparator
+     * @param pairComparator
+     * @param memManager
+     * @param ioManager
+     * @param ownerTask
+     * @param memoryFraction
+     * @param useBitmapFilters
+     * @param <BT>
+     * @param <PT>
+     * @return
+     * @throws MemoryAllocationException
+     */
     @Override
     public <BT, PT> MutableHashTable<BT, PT> getHashJoin(
             TypeSerializer<BT> buildSideSerializer,
@@ -104,6 +121,7 @@ public class NonReusingBuildFirstReOpenableHashJoinIterator<V1, V2, O>
      * Set new input for probe side
      *
      * @throws java.io.IOException
+     * 这里会恢复到一开始的分区数据
      */
     public void reopenProbe(MutableObjectIterator<V2> probeInput) throws IOException {
         reopenHashTable.reopenProbe(probeInput);

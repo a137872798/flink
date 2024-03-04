@@ -57,6 +57,8 @@ import static org.apache.flink.util.Preconditions.checkArgument;
  * <p>This class does limited sanity checks and assumes correct use from {@link
  * BoundedBlockingSubpartition} and {@link BoundedBlockingSubpartitionReader}, such as writing first
  * and reading after. Not obeying these contracts throws NullPointerExceptions.
+ *
+ * 使用内存映射技术
  */
 final class MemoryMappedBoundedData implements BoundedData {
 
@@ -66,22 +68,32 @@ final class MemoryMappedBoundedData implements BoundedData {
     /**
      * The current memory mapped region we are writing to. This value is null once writing has
      * finished or the buffers are disposed.
+     * java.nio buffer
+     * 当前正在使用的buffer
      */
     @Nullable private ByteBuffer currentBuffer;
 
-    /** All memory mapped regions that are already full (completed). */
+    /** All memory mapped regions that are already full (completed).
+     * 已经完成映射的buffer
+     * */
     private final ArrayList<ByteBuffer> fullBuffers;
 
-    /** The file channel backing the memory mapped file. */
+    /** The file channel backing the memory mapped file.
+     * 底层存储数据的文件
+     * */
     private final FileChannel file;
 
     /** The path of the memory mapped file. */
     private final Path filePath;
 
-    /** The offset where the next mapped region should start. */
+    /** The offset where the next mapped region should start.
+     * 下一块应当映射的起点偏移量
+     * */
     private long nextMappingOffset;
 
-    /** The size of each mapped region. */
+    /** The size of each mapped region.
+     * 每个映射区域大小
+     * */
     private final long mappingSize;
 
     MemoryMappedBoundedData(Path filePath, FileChannel fileChannel, int maxSizePerByteBuffer)
@@ -89,12 +101,20 @@ final class MemoryMappedBoundedData implements BoundedData {
 
         this.filePath = filePath;
         this.file = fileChannel;
+
+        // 大小要与page对齐
         this.mappingSize = alignSize(maxSizePerByteBuffer);
         this.fullBuffers = new ArrayList<>(4);
 
+        // 开始映射第一个buffer
         rollOverToNextBuffer();
     }
 
+    /**
+     * 写入某个buffer的数据
+     * @param buffer
+     * @throws IOException
+     */
     @Override
     public void writeBuffer(Buffer buffer) throws IOException {
         assert currentBuffer != null;
@@ -103,13 +123,20 @@ final class MemoryMappedBoundedData implements BoundedData {
             return;
         }
 
+        // 表示当前buffer已经写完了  切换到下一个buffer
         rollOverToNextBuffer();
 
+        // 单次写入的长度不能超过1个buffer
         if (!BufferReaderWriterUtil.writeBuffer(buffer, currentBuffer)) {
             throwTooLargeBuffer(buffer);
         }
     }
 
+    /**
+     * 创建reader对象读取数据
+     * @param ignored
+     * @return
+     */
     @Override
     public BufferSlicer createReader(ResultSubpartitionView ignored) {
         assert currentBuffer == null;
@@ -125,6 +152,7 @@ final class MemoryMappedBoundedData implements BoundedData {
     /**
      * Finishes the current region and prevents further writes. After calling this method, further
      * calls to {@link #writeBuffer(Buffer)} will fail.
+     * 表示数据都已经写完
      */
     @Override
     public void finishWrite() throws IOException {
@@ -139,10 +167,12 @@ final class MemoryMappedBoundedData implements BoundedData {
     /**
      * Unmaps the file from memory and deletes the file. After calling this method, access to any
      * ByteBuffer obtained from this instance will cause a segmentation fault.
+     * 关闭本对象
      */
     public void close() throws IOException {
         IOUtils.closeQuietly(file); // in case we dispose before finishing writes
 
+        // 释放buffer
         for (ByteBuffer bb : fullBuffers) {
             PlatformDependent.freeDirectBuffer(bb);
         }
@@ -158,6 +188,7 @@ final class MemoryMappedBoundedData implements BoundedData {
         // See also
         // https://stackoverflow.com/questions/11099295/file-flag-delete-on-close-and-memory-mapped-files/51649618#51649618
 
+        // 删除底层文件
         Files.delete(filePath);
     }
 
@@ -181,19 +212,30 @@ final class MemoryMappedBoundedData implements BoundedData {
         return filePath;
     }
 
+    /**
+     *
+     * @throws IOException
+     */
     private void rollOverToNextBuffer() throws IOException {
         if (currentBuffer != null) {
             // we need to remember the original buffers, not any slices.
             // slices have no cleaner, which we need to trigger explicit unmapping
+            // 再次调用该方法 说明该buffer已经写完   切换成读取模式
             currentBuffer.flip();
             fullBuffers.add(currentBuffer);
         }
 
+        //  nextMappingOffset 默认从0开始   map会创建直接buffer
         currentBuffer = file.map(MapMode.READ_WRITE, nextMappingOffset, mappingSize);
         currentBuffer.order(ByteOrder.nativeOrder());
         nextMappingOffset += mappingSize;
     }
 
+    /**
+     * 表示buffer内的数据太多了
+     * @param buffer
+     * @throws IOException
+     */
     private void throwTooLargeBuffer(Buffer buffer) throws IOException {
         throw new IOException(
                 String.format(
@@ -230,6 +272,7 @@ final class MemoryMappedBoundedData implements BoundedData {
         /**
          * Further byte buffers, to handle cases where there is more data than fits into one mapped
          * byte buffer (2GB = Integer.MAX_VALUE).
+         * 表示未读取的buffer
          */
         private final Iterator<ByteBuffer> furtherData;
 
@@ -245,6 +288,7 @@ final class MemoryMappedBoundedData implements BoundedData {
             // should not be called any more
             assert currentData != null;
 
+            // 将当前buffer包装成 Buffer
             final Buffer next = BufferReaderWriterUtil.sliceNextBuffer(currentData);
             if (next != null) {
                 return next;
@@ -269,7 +313,9 @@ final class MemoryMappedBoundedData implements BoundedData {
     //  Factories
     // ------------------------------------------------------------------------
 
-    /** Creates new MemoryMappedBoundedData, creating a memory mapped file at the given path. */
+    /** Creates new MemoryMappedBoundedData, creating a memory mapped file at the given path.
+     * 传入需要映射的文件 进行初始化
+     * */
     public static MemoryMappedBoundedData create(Path memMappedFilePath) throws IOException {
         return createWithRegionSize(memMappedFilePath, Integer.MAX_VALUE);
     }

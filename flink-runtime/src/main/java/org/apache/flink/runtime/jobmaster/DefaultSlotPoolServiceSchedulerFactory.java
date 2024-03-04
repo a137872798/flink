@@ -62,7 +62,9 @@ import java.util.Collection;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
-/** Default {@link SlotPoolServiceSchedulerFactory} implementation. */
+/** Default {@link SlotPoolServiceSchedulerFactory} implementation.
+ * 工厂对象 用来创建组件的
+ * */
 public final class DefaultSlotPoolServiceSchedulerFactory
         implements SlotPoolServiceSchedulerFactory {
 
@@ -71,6 +73,9 @@ public final class DefaultSlotPoolServiceSchedulerFactory
 
     private final SlotPoolServiceFactory slotPoolServiceFactory;
 
+    /**
+     * 这个是创建调度对象
+     */
     private final SchedulerNGFactory schedulerNGFactory;
 
     private DefaultSlotPoolServiceSchedulerFactory(

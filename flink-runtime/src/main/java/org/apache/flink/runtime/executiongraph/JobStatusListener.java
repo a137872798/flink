@@ -21,7 +21,9 @@ package org.apache.flink.runtime.executiongraph;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.JobStatus;
 
-/** Interface for observers that monitor the status of a job. */
+/** Interface for observers that monitor the status of a job.
+ * 监听jobStatus的变化
+ * */
 public interface JobStatusListener {
 
     /**

@@ -28,14 +28,21 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * This class encapsulates the connection information of a TaskManager, without resolving the
  * hostname. See also {@link TaskManagerLocation}.
+ * 表示未解析的 TaskManager地址
  */
 public class UnresolvedTaskManagerLocation implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /**
+     * TaskManager作为一个资源   会给予一个唯一标识
+     */
     private final ResourceID resourceID;
     private final String externalAddress;
     private final int dataPort;
+    /**
+     * 这里只有id 而没有地址
+     */
     private final String nodeId;
 
     public UnresolvedTaskManagerLocation(

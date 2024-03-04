@@ -24,14 +24,26 @@ import org.apache.flink.runtime.io.network.api.CheckpointBarrier;
 import java.io.IOException;
 import java.util.List;
 
-/** An {@link InputGate} with a specific index. */
+/** An {@link InputGate} with a specific index.
+ * 整个是二维的  第一维对应的多个gate  第二维是每个gate下有多个channel
+ * 该对象为gate赋予index  并可以根据index处理单个gate
+ * */
 public abstract class IndexedInputGate extends InputGate implements CheckpointableInput {
-    /** Returns the index of this input gate. Only supported on */
+    /** Returns the index of this input gate. Only supported on
+     * 获取当前gate的编号
+     * */
     public abstract int getGateIndex();
 
-    /** Returns the list of channels that have not received EndOfPartitionEvent. */
+    /** Returns the list of channels that have not received EndOfPartitionEvent.
+     * 获取还没有读取完的channel
+     * */
     public abstract List<InputChannelInfo> getUnfinishedChannels();
 
+    /**
+     * 给下面所有channel触发检查点
+     * @param barrier
+     * @throws CheckpointException
+     */
     @Override
     public void checkpointStarted(CheckpointBarrier barrier) throws CheckpointException {
         for (int index = 0, numChannels = getNumberOfInputChannels();

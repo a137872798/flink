@@ -30,9 +30,14 @@ import java.util.Optional;
  *
  * <p>The descriptor is used for the deployment of the partition producer/consumer and their data
  * exchange
+ * 洗牌的描述信息
  */
 public interface ShuffleDescriptor extends Serializable {
 
+    /**
+     * 本次针对的是哪个分区   中间结果集会拆分成多份 并落入不同的分区 每份会对应一个ResultPartitionID
+     * @return
+     */
     ResultPartitionID getResultPartitionID();
 
     /**
@@ -68,6 +73,7 @@ public interface ShuffleDescriptor extends Serializable {
      *
      * @return the resource id of the producing task executor if the partition occupies local
      *     resources there
+     *     相关的资源
      */
     Optional<ResourceID> storesLocalResourcesOn();
 }

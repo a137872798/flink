@@ -20,7 +20,9 @@ package org.apache.flink.runtime.jobgraph;
 
 import java.util.Objects;
 
-/** An ID for physical instance of the operator. */
+/** An ID for physical instance of the operator.
+ * 看来 OperatorId 是针对某个大对象的  subtaskId 对应其中一个小对象
+ * */
 public class OperatorInstanceID {
 
     private final int subtaskId;

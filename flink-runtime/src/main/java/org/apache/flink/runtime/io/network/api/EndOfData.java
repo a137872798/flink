@@ -33,6 +33,7 @@ import java.util.Objects;
  * the upstream task.
  *
  * @see <a href="https://cwiki.apache.org/confluence/x/mw-ZCQ">FLIP-147</a>
+ * 表示数据处理完了
  */
 public class EndOfData extends RuntimeEvent {
 

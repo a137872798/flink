@@ -31,7 +31,9 @@ import java.util.Optional;
 
 import static org.apache.flink.runtime.state.StateSnapshotTransformer.CollectionStateSnapshotTransformer.TransformStrategy.STOP_ON_FIRST_INCLUDED;
 
-/** Collection of common state snapshot transformers and their factories. */
+/** Collection of common state snapshot transformers and their factories.
+ * 用于状态和状态快照之间转换时使用的过滤/转换器
+ * */
 public class StateSnapshotTransformers {
     /**
      * General implementation of list state transformer.
@@ -42,7 +44,15 @@ public class StateSnapshotTransformers {
      */
     public static class ListStateSnapshotTransformer<T>
             implements StateSnapshotTransformer<List<T>> {
+
+        /**
+         * 针对list内部每个元素
+         */
         private final StateSnapshotTransformer<T> entryValueTransformer;
+
+        /**
+         * 描述针对集合类型时  是要处理所有的元素 过滤掉第一个非null之前的数据
+         */
         private final CollectionStateSnapshotTransformer.TransformStrategy transformStrategy;
 
         public ListStateSnapshotTransformer(StateSnapshotTransformer<T> entryValueTransformer) {
@@ -54,6 +64,11 @@ public class StateSnapshotTransformers {
                             : CollectionStateSnapshotTransformer.TransformStrategy.TRANSFORM_ALL;
         }
 
+        /**
+         * 在生成快照前 过滤和转换list内的数据
+         * @param list
+         * @return
+         */
         @Override
         @Nullable
         public List<T> filterOrTransform(@Nullable List<T> list) {
@@ -64,9 +79,11 @@ public class StateSnapshotTransformers {
             boolean anyChange = false;
             for (int i = 0; i < list.size(); i++) {
                 T entry = list.get(i);
+                // 对每个元素进行过滤和转换
                 T transformedEntry = entryValueTransformer.filterOrTransform(entry);
                 if (transformedEntry != null) {
                     if (transformStrategy == STOP_ON_FIRST_INCLUDED) {
+                        // 仅保留后面的数据
                         transformedList = list.subList(i, list.size());
                         anyChange = i > 0;
                         break;
@@ -74,6 +91,7 @@ public class StateSnapshotTransformers {
                         transformedList.add(transformedEntry);
                     }
                 }
+                // 表示发生变化
                 anyChange |= transformedEntry == null || !Objects.equals(entry, transformedEntry);
             }
             transformedList = anyChange ? transformedList : list;
@@ -81,6 +99,10 @@ public class StateSnapshotTransformers {
         }
     }
 
+    /**
+     * 仅覆盖反序列化对象
+     * @param <T>
+     */
     public static class ListStateSnapshotTransformFactory<T>
             extends StateSnapshotTransformFactoryWrapAdaptor<T, List<T>> {
         public ListStateSnapshotTransformFactory(
@@ -100,6 +122,8 @@ public class StateSnapshotTransformers {
      * General implementation of map state transformer.
      *
      * <p>This transformer wraps a transformer per-entry and transforms the whole map state.
+     *
+     * 处理map类型
      */
     public static class MapStateSnapshotTransformer<K, V>
             implements StateSnapshotTransformer<Map<K, V>> {
@@ -145,6 +169,11 @@ public class StateSnapshotTransformers {
         }
     }
 
+    /**
+     * 一层包装对象
+     * @param <S>
+     * @param <T>
+     */
     public abstract static class StateSnapshotTransformFactoryWrapAdaptor<S, T>
             implements StateSnapshotTransformFactory<T> {
         final StateSnapshotTransformFactory<S> originalSnapshotTransformFactory;

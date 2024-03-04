@@ -34,6 +34,8 @@ import java.io.Serializable;
  * <p>Some State Objects are stored in the checkpoint/savepoint metadata. For long-term
  * compatibility, they are not stored via {@link java.io.Serializable Java Serialization}, but
  * through custom serializers.
+ *
+ * 持有状态的对象
  */
 public interface StateObject extends Serializable {
 
@@ -41,6 +43,7 @@ public interface StateObject extends Serializable {
      * Discards the state referred to and solemnly owned by this handle, to free up resources in the
      * persistent storage. This method is called when the state represented by this object will not
      * be used anymore.
+     * 丢弃现有的状态
      */
     void discardState() throws Exception;
 
@@ -61,6 +64,8 @@ public interface StateObject extends Serializable {
      * on the storage system at higher scale.
      *
      * @return Size of the state in bytes.
+     *
+     * 获取状态的大小
      */
     long getStateSize();
 }

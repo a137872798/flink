@@ -23,7 +23,9 @@ import org.apache.flink.runtime.scheduler.strategy.SchedulingStrategy;
 
 import java.util.List;
 
-/** Component which is used by {@link SchedulingStrategy} to commit scheduling decisions. */
+/** Component which is used by {@link SchedulingStrategy} to commit scheduling decisions.
+ * 表示调度操作
+ * */
 public interface SchedulerOperations {
 
     /**
@@ -33,6 +35,7 @@ public interface SchedulerOperations {
      * accepted. Errors will happen if scheduling Non-CREATED vertices.
      *
      * @param verticesToDeploy The execution vertices to deploy
+     *                         为一组顶点分配slot 并进行部署
      */
     void allocateSlotsAndDeploy(List<ExecutionVertexID> verticesToDeploy);
 }

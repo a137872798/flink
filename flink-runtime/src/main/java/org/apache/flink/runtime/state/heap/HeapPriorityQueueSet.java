@@ -49,16 +49,21 @@ import static org.apache.flink.util.Preconditions.checkArgument;
  * </ul>
  *
  * @param <T> type of the contained elements.
+ *
+ *           整个优先队列中包含了各种key 然后每个key对应一组state
  */
 public class HeapPriorityQueueSet<T extends HeapPriorityQueueElement> extends HeapPriorityQueue<T>
         implements KeyGroupedInternalPriorityQueue<T> {
 
-    /** Function to extract the key from contained elements. */
+    /** Function to extract the key from contained elements.
+     * 告知如何从T中抽取出 key
+     * */
     private final KeyExtractorFunction<T> keyExtractor;
 
     /**
      * This array contains one hash set per key-group. The sets are used for fast de-duplication and
      * deletes of elements.
+     * 每个map 对应一个key
      */
     private final HashMap<T, T>[] deduplicationMapsByKeyGroup;
 
@@ -93,8 +98,14 @@ public class HeapPriorityQueueSet<T extends HeapPriorityQueueElement> extends He
         this.keyGroupRange = keyGroupRange;
 
         final int keyGroupsInLocalRange = keyGroupRange.getNumberOfKeyGroups();
+
+        // 按照key分组
         final int deduplicationSetSize = 1 + minimumCapacity / keyGroupsInLocalRange;
+
+        // 每个key 对应一个map
         this.deduplicationMapsByKeyGroup = new HashMap[keyGroupsInLocalRange];
+
+        // 期望每个key 存储一定的数据 每个key分到的应该是不一样的 那么存在map中也合理
         for (int i = 0; i < keyGroupsInLocalRange; ++i) {
             deduplicationMapsByKeyGroup[i] =
                     CollectionUtil.newHashMapWithExpectedSize(deduplicationSetSize);
@@ -104,6 +115,7 @@ public class HeapPriorityQueueSet<T extends HeapPriorityQueueElement> extends He
     @Override
     @Nullable
     public T poll() {
+        // 弹出第一个元素
         final T toRemove = super.poll();
         return toRemove != null ? getDedupMapForElement(toRemove).remove(toRemove) : null;
     }
@@ -119,6 +131,7 @@ public class HeapPriorityQueueSet<T extends HeapPriorityQueueElement> extends He
      */
     @Override
     public boolean add(@Nonnull T element) {
+        // 元素先加入map
         return getDedupMapForElement(element).putIfAbsent(element, element) == null
                 && super.add(element);
     }
@@ -130,9 +143,11 @@ public class HeapPriorityQueueSet<T extends HeapPriorityQueueElement> extends He
      * @return <code>true</code> if the operation changed the head element or if is it unclear if
      *     the head element changed. Only returns <code>false</code> iff the head element was not
      *     changed by this operation.
+     *
      */
     @Override
     public boolean remove(@Nonnull T toRemove) {
+        // 移除也是一样的  先定位到map  然后移除
         T storedElement = getDedupMapForElement(toRemove).remove(toRemove);
         return storedElement != null && super.remove(storedElement);
     }
@@ -140,19 +155,33 @@ public class HeapPriorityQueueSet<T extends HeapPriorityQueueElement> extends He
     @Override
     public void clear() {
         super.clear();
+        // 清除每个map
         for (HashMap<?, ?> elementHashMap : deduplicationMapsByKeyGroup) {
             elementHashMap.clear();
         }
     }
 
+    /**
+     * 这里直接是兑换成下标检索  不需要计算hash了
+     * @param keyGroupId
+     * @return
+     */
     private HashMap<T, T> getDedupMapForKeyGroup(@Nonnegative int keyGroupId) {
         return deduplicationMapsByKeyGroup[globalKeyGroupToLocalIndex(keyGroupId)];
     }
 
+    /**
+     * 找到元素的key对应的map
+     * @param element
+     * @return
+     */
     private HashMap<T, T> getDedupMapForElement(T element) {
+        // 如何判断该元素的key值  不是直接从元素上获得的  而是取到一个可以计算key的字段 计算hash 再/totalNumberOfKeyGroups
+        // 剩下的才是key 因为hash totalNumberOfKeyGroups 都是不变的 或者说只要totalNumberOfKeyGroups这个不变 那么相关的元素计算的key就是不变的
         int keyGroup =
                 KeyGroupRangeAssignment.assignToKeyGroup(
                         keyExtractor.extractKeyFromElement(element), totalNumberOfKeyGroups);
+        // 通过key检索到map
         return getDedupMapForKeyGroup(keyGroup);
     }
 
@@ -165,6 +194,11 @@ public class HeapPriorityQueueSet<T extends HeapPriorityQueueElement> extends He
         return keyGroup - keyGroupRange.getStartKeyGroup();
     }
 
+    /**
+     * 这里就可以通过某个key找到部分状态了
+     * @param keyGroupId
+     * @return
+     */
     @Nonnull
     @Override
     public Set<T> getSubsetForKeyGroup(int keyGroupId) {

@@ -31,21 +31,41 @@ import java.util.function.Supplier;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Default implementation of {@link SchedulingResultPartition}. */
+/** Default implementation of {@link SchedulingResultPartition}.
+ * 表示一个分区结果
+ * */
 class DefaultResultPartition implements SchedulingResultPartition {
 
+    /**
+     * 归于某个分区的中间数据集
+     */
     private final IntermediateResultPartitionID resultPartitionId;
 
+    /**
+     * 数据集id
+     */
     private final IntermediateDataSetID intermediateDataSetId;
 
     private final ResultPartitionType partitionType;
 
+    /**
+     * 传入分区号 可以获得他们的状态
+     */
     private final Supplier<ResultPartitionState> resultPartitionStateSupplier;
 
+    /**
+     * 产生数据集的顶点
+     */
     private DefaultExecutionVertex producer;
 
+    /**
+     * 消费该数据集的对象
+     */
     private final Supplier<List<ConsumerVertexGroup>> consumerVertexGroupsSupplier;
 
+    /**
+     * 所归属的数据集
+     */
     private final Supplier<List<ConsumedPartitionGroup>> consumerPartitionGroupSupplier;
 
     DefaultResultPartition(

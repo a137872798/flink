@@ -33,8 +33,14 @@ import java.util.List;
  */
 public class SimpleCollectingOutputView extends AbstractPagedOutputView {
 
+    /**
+     * 维护得到的所有内存块
+     */
     private final List<MemorySegment> fullSegments;
 
+    /**
+     * 该对象用于提供内存块
+     */
     private final MemorySegmentSource memorySource;
 
     private final int segmentSizeBits;
@@ -51,6 +57,7 @@ public class SimpleCollectingOutputView extends AbstractPagedOutputView {
     }
 
     public void reset() {
+        // 必须要由外部清除数据
         if (this.fullSegments.size() != 0) {
             throw new IllegalStateException("The target list still contains memory segments.");
         }

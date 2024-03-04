@@ -58,9 +58,13 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *      |                 |                    /latest-2
  *      |                 |       /checkpoint_id_counter
  * </pre>
+ *
+ * 记录ZK 实现高可用
  */
 public class ZooKeeperLeaderElectionHaServices extends AbstractHaServices {
-    /** The curator resource to use. */
+    /** The curator resource to use.
+     * 该对象内包含  Zk client  以及 处理异常的监听器
+     * */
     private final CuratorFrameworkWithUnhandledErrorListener curatorFrameworkWrapper;
 
     public ZooKeeperLeaderElectionHaServices(
@@ -92,6 +96,7 @@ public class ZooKeeperLeaderElectionHaServices extends AbstractHaServices {
 
     @Override
     public JobGraphStore createJobGraphStore() throws Exception {
+        // 借助ZK 得到分布式锁能力
         return ZooKeeperUtils.createJobGraphs(
                 curatorFrameworkWrapper.asCuratorFramework(), configuration);
     }
@@ -103,11 +108,13 @@ public class ZooKeeperLeaderElectionHaServices extends AbstractHaServices {
 
     @Override
     protected void internalCleanup() throws Exception {
+        // 删除ZK 下各节点数据
         cleanupZooKeeperPaths();
     }
 
     @Override
     protected void internalCleanupJobData(JobID jobID) throws Exception {
+        // 删除某路径数据
         deleteZNode(ZooKeeperUtils.getLeaderPathForJob(jobID));
     }
 
@@ -179,6 +186,8 @@ public class ZooKeeperLeaderElectionHaServices extends AbstractHaServices {
                 ZooKeeperUtils.getLeaderPath(componentId),
                 configuration);
     }
+
+    // 几个组件路径 以常量形式暴露
 
     @Override
     protected String getLeaderPathForResourceManager() {

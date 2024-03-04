@@ -39,6 +39,7 @@ import java.util.Collection;
  * <p>In order to acquire new resources, users need to increase the required resources. Once they no
  * longer need the resources, users need to decrease the required resources so that superfluous
  * resources can be returned.
+ * 每个slot维护一组资源  并可以使用payload去占用   slotPool 相当于是将slot池化管理了
  */
 public interface DeclarativeSlotPool {
 
@@ -46,6 +47,7 @@ public interface DeclarativeSlotPool {
      * Increases the resource requirements by increment.
      *
      * @param increment increment by which to increase the resource requirements
+     *                  表示要增加这么多资源的开销
      */
     void increaseResourceRequirementsBy(ResourceCounter increment);
 
@@ -53,6 +55,7 @@ public interface DeclarativeSlotPool {
      * Decreases the resource requirements by decrement.
      *
      * @param decrement decrement by which to decrease the resource requirements
+     *                  减少资源开销
      */
     void decreaseResourceRequirementsBy(ResourceCounter decrement);
 
@@ -67,6 +70,7 @@ public interface DeclarativeSlotPool {
      * Returns the current resource requirements.
      *
      * @return current resource requirements
+     * 获取资源开销
      */
     Collection<ResourceRequirement> getResourceRequirements();
 
@@ -79,6 +83,7 @@ public interface DeclarativeSlotPool {
      *     TaskExecutor
      * @param currentTime currentTime is the time the slots are being offered
      * @return collection of accepted slots; the other slot offers are implicitly rejected
+     * 将一组槽加入池内
      */
     Collection<SlotOffer> offerSlots(
             Collection<? extends SlotOffer> offers,
@@ -100,6 +105,7 @@ public interface DeclarativeSlotPool {
      *     TaskExecutor
      * @param currentTime currentTime is the time the slots are being offered
      * @return the successfully registered slots; the other slot offers are implicitly rejected
+     * 将一组槽注册进去
      */
     Collection<SlotOffer> registerSlots(
             Collection<? extends SlotOffer> slots,
@@ -207,6 +213,7 @@ public interface DeclarativeSlotPool {
      * <p>Implementations of the {@link DeclarativeSlotPool} will call {@link
      * #notifyNewSlotsAreAvailable} whenever newly offered slots are accepted or if an allocated
      * slot should become free after it is being {@link #freeReservedSlot freed}.
+     * 当有可用的slot时 触发回调
      */
     interface NewSlotsListener {
 

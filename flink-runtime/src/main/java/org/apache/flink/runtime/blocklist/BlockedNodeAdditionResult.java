@@ -23,7 +23,9 @@ import java.util.Collections;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** The result of adding new blocked nodes. */
+/** The result of adding new blocked nodes.
+ * 表示一个结果 代表需要被阻塞的节点
+ * */
 class BlockedNodeAdditionResult {
 
     private final Collection<BlockedNode> newlyAddedNodes;

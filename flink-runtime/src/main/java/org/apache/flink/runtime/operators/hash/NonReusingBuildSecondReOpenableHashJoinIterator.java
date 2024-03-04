@@ -31,6 +31,12 @@ import org.apache.flink.util.MutableObjectIterator;
 import java.io.IOException;
 import java.util.List;
 
+/**
+ * 同 first对象
+ * @param <V1>
+ * @param <V2>
+ * @param <O>
+ */
 public class NonReusingBuildSecondReOpenableHashJoinIterator<V1, V2, O>
         extends NonReusingBuildSecondHashJoinIterator<V1, V2, O> {
 

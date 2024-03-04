@@ -23,6 +23,7 @@ import java.util.UUID;
 /**
  * {@code LeaderElection} serves as a proxy between {@code LeaderElectionService} and {@link
  * LeaderContender}.
+ * 该对象可以发起选举
  */
 public interface LeaderElection extends AutoCloseable {
 

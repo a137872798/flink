@@ -37,13 +37,19 @@ import java.util.Map;
  *
  * @param <K> The key type of the elements in the {@link BroadcastState Broadcast State}.
  * @param <V> The value type of the elements in the {@link BroadcastState Broadcast State}.
+ *
+ *           表示广播类型的state
  */
 public class HeapBroadcastState<K, V> implements BackendWritableBroadcastState<K, V> {
 
-    /** Meta information of the state, including state name, assignment mode, and serializer. */
+    /** Meta information of the state, including state name, assignment mode, and serializer.
+     * 相关的元数据
+     * */
     private RegisteredBroadcastStateBackendMetaInfo<K, V> stateMetaInfo;
 
-    /** The internal map the holds the elements of the state. */
+    /** The internal map the holds the elements of the state.
+     * 数据使用一个map来存储
+     * */
     private final Map<K, V> backingMap;
 
     /** A serializer that allows to perform deep copies of internal map state. */

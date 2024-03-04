@@ -27,7 +27,9 @@ import java.io.IOException;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
 
-/** A view to consume a {@link ResultSubpartition} instance. */
+/** A view to consume a {@link ResultSubpartition} instance.
+ * 用于读取某个子分区的数据
+ * */
 public interface ResultSubpartitionView {
 
     /**
@@ -43,6 +45,9 @@ public interface ResultSubpartitionView {
     @Nullable
     BufferAndBacklog getNextBuffer() throws IOException;
 
+    /**
+     * 有数据可用了
+     */
     void notifyDataAvailable();
 
     default void notifyPriorityEvent(int priorityBufferNumber) {}
@@ -70,7 +75,8 @@ public interface ResultSubpartitionView {
      * ready to get buffer from it. The backlog represents the number of available data buffers.
      *
      * @param numCreditsAvailable the available credits for this {@link ResultSubpartitionView}.
-     * @return availability and backlog.
+     * @return availability and backlog.  返回 data buffer的数量
+     * 判断当前是否可用
      */
     AvailabilityWithBacklog getAvailabilityAndBacklog(int numCreditsAvailable);
 
@@ -78,6 +84,10 @@ public interface ResultSubpartitionView {
 
     int getNumberOfQueuedBuffers();
 
+    /**
+     * 通知使用新的buffer大小 在gate上会根据吞吐量自动调节
+     * @param newBufferSize
+     */
     void notifyNewBufferSize(int newBufferSize);
 
     /**

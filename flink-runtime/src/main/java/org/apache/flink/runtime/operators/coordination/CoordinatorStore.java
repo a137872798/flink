@@ -31,6 +31,7 @@ import java.util.function.Function;
  * emitted by different sources in order to do the watermark alignment.
  *
  * <p>Implementations of this interface must ensure that all operations are atomic.
+ * 协调者存储 可以看作一个map
  */
 @ThreadSafe
 @Internal

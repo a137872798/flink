@@ -55,15 +55,31 @@ import java.util.concurrent.ScheduledFuture;
  * ExecutionGraph} cannot be executed, the state transitions back into {@link WaitingForResources}.
  * If there are enough slots for the {@link ExecutionGraph} to run, the state transitions to {@link
  * Executing}.
+ * 在等待完资源后 会进入该状态
  */
 public class CreatingExecutionGraph implements State {
 
     private final Context context;
     private final Logger logger;
+
+    /**
+     * 该对象可以产生 OperatorCoordinatorHandler 可以控制一组协调者
+     */
     private final OperatorCoordinatorHandlerFactory operatorCoordinatorHandlerFactory;
 
+    /**
+     * 执行图对象
+     */
     private final @Nullable ExecutionGraph previousExecutionGraph;
 
+    /**
+     *
+     * @param context
+     * @param executionGraphWithParallelismFuture 这里记录了分配的资源
+     * @param logger
+     * @param operatorCoordinatorFactory 通过该对象可以操控一组协调者
+     * @param previousExecutionGraph1
+     */
     public CreatingExecutionGraph(
             Context context,
             CompletableFuture<ExecutionGraphWithVertexParallelism>
@@ -81,6 +97,7 @@ public class CreatingExecutionGraph implements State {
                             context.runIfState(
                                     this,
                                     () ->
+                                            // 开始创建执行图
                                             handleExecutionGraphCreation(
                                                     executionGraphWithVertexParallelism, throwable),
                                     Duration.ZERO);
@@ -89,6 +106,11 @@ public class CreatingExecutionGraph implements State {
         previousExecutionGraph = previousExecutionGraph1;
     }
 
+    /**
+     * 借助分配结果 和执行图对象 创建执行图
+     * @param executionGraphWithVertexParallelism
+     * @param throwable
+     */
     private void handleExecutionGraphCreation(
             @Nullable ExecutionGraphWithVertexParallelism executionGraphWithVertexParallelism,
             @Nullable Throwable throwable) {
@@ -100,18 +122,24 @@ public class CreatingExecutionGraph implements State {
                     throwable);
             context.goToFinished(context.getArchivedExecutionGraph(JobStatus.FAILED, throwable));
         } else {
+            // 获取所有执行对象 (细化到子任务)
             for (ExecutionVertex vertex :
                     executionGraphWithVertexParallelism.executionGraph.getAllExecutionVertices()) {
+                // 将当前执行对象转换成调度转改
                 vertex.getCurrentExecutionAttempt().transitionState(ExecutionState.SCHEDULED);
             }
 
+            // 按照之前的计划分配slot
             final AssignmentResult result =
                     context.tryToAssignSlots(executionGraphWithVertexParallelism);
 
+            // 分配成功 进入下一步
             if (result.isSuccess()) {
                 logger.debug(
                         "Successfully reserved and assigned the required slots for the ExecutionGraph.");
                 final ExecutionGraph executionGraph = result.getExecutionGraph();
+
+                // 该对象可以对 executionGraph 进行一些操作
                 final ExecutionGraphHandler executionGraphHandler =
                         new ExecutionGraphHandler(
                                 executionGraph,
@@ -124,7 +152,10 @@ public class CreatingExecutionGraph implements State {
                         operatorCoordinatorHandlerFactory.create(executionGraph, context);
                 operatorCoordinatorHandler.initializeOperatorCoordinators(
                         context.getMainThreadExecutor());
+                // 启动所有协调者
                 operatorCoordinatorHandler.startAllOperatorCoordinators();
+
+                // 产生了一个json描述的计划
                 final String updatedPlan =
                         JsonPlanGenerator.generatePlan(
                                 executionGraph.getJobID(),
@@ -138,6 +169,8 @@ public class CreatingExecutionGraph implements State {
                                                 .iterator(),
                                 executionGraphWithVertexParallelism.getVertexParallelism());
                 executionGraph.setJsonPlan(updatedPlan);
+
+                // 切换到执行状态
                 context.goToExecuting(
                         result.getExecutionGraph(),
                         executionGraphHandler,
@@ -146,6 +179,7 @@ public class CreatingExecutionGraph implements State {
             } else {
                 logger.debug(
                         "Failed to reserve and assign the required slots. Waiting for new resources.");
+                // 资源不足 回到等待资源阶段
                 context.goToWaitingForResources(previousExecutionGraph);
             }
         }
@@ -182,7 +216,9 @@ public class CreatingExecutionGraph implements State {
         return logger;
     }
 
-    /** Context for the {@link CreatingExecutionGraph} state. */
+    /** Context for the {@link CreatingExecutionGraph} state.
+     * 该状态可以转换成另外3种状态
+     * */
     interface Context
             extends GlobalFailureHandler,
                     StateTransitions.ToExecuting,
@@ -219,6 +255,7 @@ public class CreatingExecutionGraph implements State {
          * @param executionGraphWithVertexParallelism executionGraphWithVertexParallelism to assign
          *     slots to resources
          * @return {@link AssignmentResult} representing the result of the assignment
+         * 根据描述分配slot
          */
         AssignmentResult tryToAssignSlots(
                 ExecutionGraphWithVertexParallelism executionGraphWithVertexParallelism);
@@ -265,11 +302,15 @@ public class CreatingExecutionGraph implements State {
      * Class representing the assignment result of the slots to the {@link ExecutionGraph}. The
      * assignment is either successful or not possible. If it is successful, the assignment also
      * contains the assigned {@link ExecutionGraph}.
+     * 表示分配结果
      */
     static final class AssignmentResult {
 
         private static final AssignmentResult NOT_POSSIBLE = new AssignmentResult(null);
 
+        /**
+         * 分配成功时设置执行图
+         */
         @Nullable private final ExecutionGraph executionGraph;
 
         private AssignmentResult(@Nullable ExecutionGraph executionGraph) {
@@ -339,8 +380,15 @@ public class CreatingExecutionGraph implements State {
     }
 
     static class ExecutionGraphWithVertexParallelism {
+
+        /**
+         * 这个是本次的执行图
+         */
         private final ExecutionGraph executionGraph;
 
+        /**
+         * 这里已经记录了一些slot的分配结果
+         */
         private final JobSchedulingPlan jobSchedulingPlan;
 
         private ExecutionGraphWithVertexParallelism(

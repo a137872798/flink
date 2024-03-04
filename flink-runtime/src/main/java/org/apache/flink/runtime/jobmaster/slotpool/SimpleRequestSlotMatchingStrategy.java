@@ -26,6 +26,7 @@ import java.util.LinkedList;
 /**
  * Simple implementation of the {@link RequestSlotMatchingStrategy} that matches the pending
  * requests in order as long as the resource profile can be fulfilled.
+ * 表示一个简单的匹配对象
  */
 public enum SimpleRequestSlotMatchingStrategy implements RequestSlotMatchingStrategy {
     INSTANCE;
@@ -43,6 +44,7 @@ public enum SimpleRequestSlotMatchingStrategy implements RequestSlotMatchingStra
 
             while (pendingRequestIterator.hasNext()) {
                 final PendingRequest pendingRequest = pendingRequestIterator.next();
+                // 这里将第一个匹配上资源的slot作为结果 也就是仅考虑资源是否匹配
                 if (slot.getResourceProfile().isMatching(pendingRequest.getResourceProfile())) {
                     resultingMatches.add(RequestSlotMatch.createFor(pendingRequest, slot));
                     pendingRequestIterator.remove();

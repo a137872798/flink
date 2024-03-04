@@ -42,6 +42,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * org.apache.flink.runtime.state.filesystem.FsCheckpointStreamFactory.FsCheckpointStateOutputStream},
  * this stream does not have a threshold below which it returns a memory byte stream handle, and
  * does not create random files, but writes to a specified file.
+ * 表示基于文件系统的输出流
  */
 public final class FileBasedStateOutputStream extends CheckpointStateOutputStream {
 
@@ -49,6 +50,9 @@ public final class FileBasedStateOutputStream extends CheckpointStateOutputStrea
 
     // ------------------------------------------------------------------------
 
+    /**
+     * 基于指定文件产生输出流
+     */
     private final FSDataOutputStream out;
 
     private final Path path;

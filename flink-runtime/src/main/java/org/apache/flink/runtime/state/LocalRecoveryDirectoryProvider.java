@@ -47,12 +47,16 @@ import java.io.Serializable;
  * </blockquote>
  *
  * <p>
+ *
+ *     用于提供本地恢复数据的目录
  */
 public interface LocalRecoveryDirectoryProvider extends Serializable {
 
     /**
      * Returns the local state allocation base directory for given checkpoint id w.r.t. our rotation
      * over all available allocation base directories.
+     *
+     * 为检查点分配基础目录
      */
     File allocationBaseDirectory(long checkpointId);
 
@@ -61,6 +65,7 @@ public interface LocalRecoveryDirectoryProvider extends Serializable {
      * rotation over all available available allocation base directories. This directory is
      * contained in the directory returned by {@link #allocationBaseDirectory(long)} for the same
      * checkpoint id.
+     * 分配子任务目录
      */
     File subtaskBaseDirectory(long checkpointId);
 

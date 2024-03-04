@@ -23,7 +23,9 @@ import javax.annotation.Nonnull;
 
 import java.io.Serializable;
 
-/** This class encapsulates the data from the job manager to restore a task. */
+/** This class encapsulates the data from the job manager to restore a task.
+ * 指代某个检查点数据
+ * */
 public class JobManagerTaskRestore implements Serializable {
 
     private static final long serialVersionUID = 1L;

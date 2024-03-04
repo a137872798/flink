@@ -26,22 +26,29 @@ import java.util.Map;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Describes inputs and outputs information of a task. */
+/** Describes inputs and outputs information of a task.
+ * 该对象提供了task 有关输入输出的描述信息
+ * */
 public class TaskInputsOutputsDescriptor {
 
     // Number of input gates
+    // gate数量
     private final int inputGateNums;
 
     // Number of input channels per dataSet.
+    // 表示每个数据集 往下分成了多少channel
     private final Map<IntermediateDataSetID, Integer> inputChannelNums;
 
     // Number of the partitions to be re-consumed.
+    // 每个数据集中可以被重复消费的分区数量
     Map<IntermediateDataSetID, Integer> partitionReuseCount;
 
     // Number of subpartitions per dataSet.
+    // 每个数据集的子分区数量
     private final Map<IntermediateDataSetID, Integer> subpartitionNums;
 
     // Result partition types of input channels.
+    // 记录每个数据集的分区类型
     private final Map<IntermediateDataSetID, ResultPartitionType> inputPartitionTypes;
 
     // ResultPartitionType per dataSet.

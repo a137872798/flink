@@ -26,7 +26,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-/** Utility for tracking and releasing partitions on the ResourceManager. */
+/** Utility for tracking and releasing partitions on the ResourceManager.
+ * 协助ResourceManager 跟踪和释放分区的资源
+ * */
 public interface ResourceManagerPartitionTracker {
 
     /**
@@ -38,6 +40,7 @@ public interface ResourceManagerPartitionTracker {
      *
      * @param taskExecutorId origin of the report
      * @param clusterPartitionReport partition report
+     *                               记录TM上报的分区信息
      */
     void processTaskExecutorClusterPartitionReport(
             ResourceID taskExecutorId, ClusterPartitionReport clusterPartitionReport);
@@ -49,6 +52,7 @@ public interface ResourceManagerPartitionTracker {
      * executors that are hosting partitions of this data set, and issues release calls.
      *
      * @param taskExecutorId task executor that shut down
+     *                       通知某个TM下线了  要移除该TM相关的分区信息
      */
     void processTaskExecutorShutdown(ResourceID taskExecutorId);
 

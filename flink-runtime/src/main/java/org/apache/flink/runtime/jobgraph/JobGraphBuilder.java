@@ -35,11 +35,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Builder for the {@link JobGraph}. */
+/** Builder for the {@link JobGraph}.
+ * job图的构建器
+ * */
 public class JobGraphBuilder {
 
+    /**
+     * 表示创建的是流类型还是批类型
+     */
     private final JobType jobType;
 
+    /**
+     * 图涉及到的一组顶点
+     */
     private final List<JobVertex> jobVertices = new ArrayList<>();
 
     private final Map<String, DistributedCache.DistributedCacheEntry> userArtifacts =

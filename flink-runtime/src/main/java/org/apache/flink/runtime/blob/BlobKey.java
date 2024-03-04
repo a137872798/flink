@@ -35,7 +35,9 @@ import static org.apache.flink.runtime.blob.BlobKey.BlobType.PERMANENT_BLOB;
 import static org.apache.flink.runtime.blob.BlobKey.BlobType.TRANSIENT_BLOB;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** A BLOB key uniquely identifies a BLOB. */
+/** A BLOB key uniquely identifies a BLOB.
+ * 用于唯一标识一个blob
+ * */
 public abstract class BlobKey implements Serializable, Comparable<BlobKey> {
 
     private static final long serialVersionUID = 3847117712521785209L;
@@ -49,7 +51,9 @@ public abstract class BlobKey implements Serializable, Comparable<BlobKey> {
     /** (Internal) BLOB type - to be reflected by the inheriting sub-class. */
     private final BlobType type;
 
-    /** BLOB type, i.e. permanent or transient. */
+    /** BLOB type, i.e. permanent or transient.
+     * blob 分为瞬时和持久 2类
+     * */
     enum BlobType {
         /**
          * Indicates a permanent BLOB whose lifecycle is that of a job and which is made highly
@@ -63,7 +67,8 @@ public abstract class BlobKey implements Serializable, Comparable<BlobKey> {
         TRANSIENT_BLOB
     }
 
-    /** Random component of the key. */
+    /** Random component of the key.
+     * */
     private final AbstractID random;
 
     /**
@@ -248,6 +253,8 @@ public abstract class BlobKey implements Serializable, Comparable<BlobKey> {
      * @param inputStream the input stream to read the BLOB key from
      * @return the read BLOB key
      * @throws IOException throw if an I/O error occurs while reading from the input stream
+     *
+     * 从输入流中读取 blobKey
      */
     static BlobKey readFromInputStream(InputStream inputStream) throws IOException {
 
@@ -304,6 +311,11 @@ public abstract class BlobKey implements Serializable, Comparable<BlobKey> {
         outputStream.write(this.random.getBytes());
     }
 
+    /**
+     * 拆解结构化的字符串 产生blobKey
+     * @param stringRepresentation
+     * @return
+     */
     static BlobKey fromString(String stringRepresentation) {
         final String[] splits = stringRepresentation.split("-");
 

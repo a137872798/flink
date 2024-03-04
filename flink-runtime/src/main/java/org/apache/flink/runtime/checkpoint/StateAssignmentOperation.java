@@ -61,19 +61,29 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * This class encapsulates the operation of assigning restored state when restoring from a
  * checkpoint.
+ * TODO
  */
 @Internal
 public class StateAssignmentOperation {
 
     private static final Logger LOG = LoggerFactory.getLogger(StateAssignmentOperation.class);
 
+    /**
+     * 简单理解就是一组任务
+     */
     private final Set<ExecutionJobVertex> tasks;
+
+    /**
+     * 每个OperatorState 维护一组subtask数据
+     */
     private final Map<OperatorID, OperatorState> operatorStates;
 
     private final long restoreCheckpointId;
     private final boolean allowNonRestoredState;
 
-    /** The state assignments for each ExecutionJobVertex that will be filled in multiple passes. */
+    /** The state assignments for each ExecutionJobVertex that will be filled in multiple passes.
+     * 这里以job为单位  维护分配信息
+     * */
     private final Map<ExecutionJobVertex, TaskStateAssignment> vertexAssignments;
     /**
      * Stores the assignment of a consumer. {@link IntermediateResult} only allows to traverse
@@ -95,24 +105,34 @@ public class StateAssignmentOperation {
         this.vertexAssignments = CollectionUtil.newHashMapWithExpectedSize(tasks.size());
     }
 
+    /**
+     * 分配状态
+     */
     public void assignStates() {
+        // 主要是进行检测
         checkStateMappingCompleteness(allowNonRestoredState, operatorStates, tasks);
 
         Map<OperatorID, OperatorState> localOperators = new HashMap<>(operatorStates);
 
         // find the states of all operators belonging to this task and compute additional
         // information in first pass
+        // 遍历所有task
         for (ExecutionJobVertex executionJobVertex : tasks) {
             List<OperatorIDPair> operatorIDPairs = executionJobVertex.getOperatorIDs();
             Map<OperatorID, OperatorState> operatorStates =
                     CollectionUtil.newHashMapWithExpectedSize(operatorIDPairs.size());
+
+            // 遍历每个id
             for (OperatorIDPair operatorIDPair : operatorIDPairs) {
+
+                // 查看使用存在的id
                 OperatorID operatorID =
                         operatorIDPair
                                 .getUserDefinedOperatorID()
                                 .filter(localOperators::containsKey)
                                 .orElse(operatorIDPair.getGeneratedOperatorID());
 
+                // 查找对应的状态
                 OperatorState operatorState = localOperators.remove(operatorID);
                 if (operatorState == null) {
                     operatorState =
@@ -121,16 +141,21 @@ public class StateAssignmentOperation {
                                     executionJobVertex.getParallelism(),
                                     executionJobVertex.getMaxParallelism());
                 }
+                // 不存在则初始化一个新的表示算子的状态  (并且根据并行度内部包含多个子任务数据)
                 operatorStates.put(operatorIDPair.getGeneratedOperatorID(), operatorState);
             }
 
+            // 根据相关信息产生分配对象
             final TaskStateAssignment stateAssignment =
                     new TaskStateAssignment(
                             executionJobVertex,
                             operatorStates,
                             consumerAssignment,
                             vertexAssignments);
+            // 每个分配对象都会关联到 vertexAssignments  甚至可以查看自己在vertexAssignments的下标
             vertexAssignments.put(executionJobVertex, stateAssignment);
+
+            // 构建反向索引  使得该分配对象能关联到相关的input
             for (final IntermediateResult producedDataSet : executionJobVertex.getInputs()) {
                 consumerAssignment.put(producedDataSet.getId(), stateAssignment);
             }
@@ -138,10 +163,10 @@ public class StateAssignmentOperation {
 
         // repartition state
         for (TaskStateAssignment stateAssignment : vertexAssignments.values()) {
-            if (stateAssignment.hasNonFinishedState
+            if (stateAssignment.hasNonFinishedState   // 有状态未完成
                     // FLINK-31963: We need to run repartitioning for stateless operators that have
                     // upstream output or downstream input states.
-                    || stateAssignment.hasUpstreamOutputStates()
+                    || stateAssignment.hasUpstreamOutputStates()  // 有上游或者下游
                     || stateAssignment.hasDownstreamInputStates()) {
                 assignAttemptState(stateAssignment);
             }
@@ -161,6 +186,10 @@ public class StateAssignmentOperation {
         }
     }
 
+    /**
+     * 分配某个任务
+     * @param taskStateAssignment
+     */
     private void assignAttemptState(TaskStateAssignment taskStateAssignment) {
 
         // 1. first compute the new parallelism
@@ -712,6 +741,7 @@ public class StateAssignmentOperation {
      *     mapped
      * @param operatorStates operator states to map
      * @param tasks task to map to
+     * 验证此时是否允许映射
      */
     private static void checkStateMappingCompleteness(
             boolean allowNonRestoredState,
@@ -721,15 +751,20 @@ public class StateAssignmentOperation {
         Set<OperatorID> allOperatorIDs = new HashSet<>();
         for (ExecutionJobVertex executionJobVertex : tasks) {
             for (OperatorIDPair operatorIDPair : executionJobVertex.getOperatorIDs()) {
+                // 记录出现过的所有operatorId
                 allOperatorIDs.add(operatorIDPair.getGeneratedOperatorID());
+                // 如果有用户自定义的id  也加入容器
                 operatorIDPair.getUserDefinedOperatorID().ifPresent(allOperatorIDs::add);
             }
         }
+
+        // 遍历所有出现的状态
         for (Map.Entry<OperatorID, OperatorState> operatorGroupStateEntry :
                 operatorStates.entrySet()) {
             // ----------------------------------------find operator for
             // state---------------------------------------------
 
+            // 表示这个id不在给予的 task范围内
             if (!allOperatorIDs.contains(operatorGroupStateEntry.getKey())) {
 
                 OperatorState operatorState = operatorGroupStateEntry.getValue();

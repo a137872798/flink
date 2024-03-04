@@ -23,7 +23,9 @@ import org.apache.flink.api.common.JobID;
 import java.io.File;
 import java.io.IOException;
 
-/** A blob store. */
+/** A blob store.
+ * blob的一个存储容器
+ * */
 public interface BlobStore extends BlobView {
 
     /**
@@ -34,6 +36,8 @@ public interface BlobStore extends BlobView {
      * @param blobKey The ID for the file in the blob store
      * @return whether the file was copied (<tt>true</tt>) or not (<tt>false</tt>)
      * @throws IOException If the copy fails
+     *
+     * 将本地文件数据拷贝到 blob存储中
      */
     boolean put(File localFile, JobID jobId, BlobKey blobKey) throws IOException;
 
@@ -46,6 +50,8 @@ public interface BlobStore extends BlobView {
      * @param blobKey The blob ID
      * @return <tt>true</tt> if the given blob is successfully deleted or non-existing;
      *     <tt>false</tt> otherwise
+     *
+     *     从仓库删除某个blob
      */
     boolean delete(JobID jobId, BlobKey blobKey);
 
@@ -57,6 +63,7 @@ public interface BlobStore extends BlobView {
      * @param jobId The JobID part of all blobs to delete
      * @return <tt>true</tt> if the job directory is successfully deleted or non-existing;
      *     <tt>false</tt> otherwise
+     *     删除某个job下所有 blob
      */
     boolean deleteAll(JobID jobId);
 }

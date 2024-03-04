@@ -22,11 +22,16 @@ import org.apache.flink.runtime.jobmaster.ServiceConnectionManager;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 
-/** Base class for service connection managers, taking care of the connection handling. */
+/** Base class for service connection managers, taking care of the connection handling.
+ * 连接管理骨架类
+ * */
 public class AbstractServiceConnectionManager<S> implements ServiceConnectionManager<S> {
 
     protected final Object lock = new Object();
 
+    /**
+     * 该对象只是简单的维护 service
+     */
     @Nullable
     @GuardedBy("lock")
     protected S service;

@@ -29,7 +29,9 @@ import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.Executor;
 
-/** Abstract common base class for implementations of {@link ResourceManagerDriver}. */
+/** Abstract common base class for implementations of {@link ResourceManagerDriver}.
+ * 资源目前可以通过 k8s/yarn 2种方式获取
+ * */
 public abstract class AbstractResourceManagerDriver<WorkerType extends ResourceIDRetrievable>
         implements ResourceManagerDriver<WorkerType> {
 
@@ -38,9 +40,16 @@ public abstract class AbstractResourceManagerDriver<WorkerType extends ResourceI
     protected final Configuration flinkConfig;
     protected final Configuration flinkClientConfig;
 
+    /**
+     * 跟资源交互的驱动 通过handler暴露的接口  影响到应用模块
+     */
     private ResourceEventHandler<WorkerType> resourceEventHandler = null;
     private ScheduledExecutor mainThreadExecutor = null;
     private Executor ioExecutor = null;
+
+    /**
+     * 通过该对象可以发现慢节点
+     */
     private BlockedNodeRetriever blockedNodeRetriever = null;
 
     public AbstractResourceManagerDriver(

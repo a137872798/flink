@@ -46,6 +46,8 @@ import java.util.Optional;
  *
  * <p>This interface also offers the complementary method that provides access to previously saved
  * state of operator instances in the task for restore purposes.
+ *
+ * 每个task 要管理自己的state
  */
 public interface TaskStateManager extends CheckpointListener, AutoCloseable {
 
@@ -54,8 +56,8 @@ public interface TaskStateManager extends CheckpointListener, AutoCloseable {
      *
      * @param checkpointMetaData meta data from the checkpoint request.
      * @param checkpointMetrics task level metrics for the checkpoint.
-     * @param acknowledgedState the reported states to acknowledge to the job manager.
-     * @param localState the reported states for local recovery.
+     * @param acknowledgedState the reported states to acknowledge to the job manager.  表示上报给jobManager的状态
+     * @param localState the reported states for local recovery.  本地的状态
      */
     void reportTaskStateSnapshots(
             @Nonnull CheckpointMetaData checkpointMetaData,

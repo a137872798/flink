@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
  * newly registered timeouts for the same key can be distinguished from older timeouts.
  *
  * @param <K> Type of the key
+ *           该对象可以注册监听器   并从外通知某些key超时了
  */
 public class DefaultTimerService<K> implements TimerService<K> {
 
@@ -43,10 +44,14 @@ public class DefaultTimerService<K> implements TimerService<K> {
     /** Timeout for the shutdown of the service. */
     private final long shutdownTimeout;
 
-    /** Map of currently active timeouts. */
+    /** Map of currently active timeouts.
+     * 此时维护的所有会超时对象
+     * */
     private final Map<K, Timeout<K>> timeouts;
 
-    /** Listener which is notified about occurring timeouts. */
+    /** Listener which is notified about occurring timeouts.
+     * 该对象监听超时事件
+     * */
     private TimeoutListener<K> timeoutListener;
 
     public DefaultTimerService(
@@ -68,6 +73,7 @@ public class DefaultTimerService<K> implements TimerService<K> {
         Preconditions.checkState(!scheduledExecutorService.isShutdown());
         Preconditions.checkState(timeoutListener == null);
 
+        // 设置监听器
         this.timeoutListener = Preconditions.checkNotNull(initialTimeoutListener);
     }
 
@@ -88,6 +94,7 @@ public class DefaultTimerService<K> implements TimerService<K> {
                 "The " + getClass().getSimpleName() + " has not been started.");
 
         if (timeouts.containsKey(key)) {
+            // 取消之前的定时任务
             unregisterTimeout(key);
         }
 
@@ -112,6 +119,12 @@ public class DefaultTimerService<K> implements TimerService<K> {
         timeouts.clear();
     }
 
+    /**
+     * 检查有关该key的某个超时任务是否还存在
+     * @param key for which to check the timeout
+     * @param ticket of the timeout
+     * @return
+     */
     @Override
     public boolean isValid(K key, UUID ticket) {
         if (timeouts.containsKey(key)) {
@@ -132,6 +145,10 @@ public class DefaultTimerService<K> implements TimerService<K> {
     // Static utility classes
     // ---------------------------------------------------------------------
 
+    /**
+     *
+     * @param <K>
+     */
     @VisibleForTesting
     static final class Timeout<K> implements Runnable {
 

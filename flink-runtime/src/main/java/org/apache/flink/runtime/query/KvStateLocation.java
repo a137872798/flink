@@ -34,32 +34,46 @@ import java.util.Arrays;
  *
  * <p>This is populated by the {@link KvStateLocationRegistry} and used by the queryable state to
  * target queries.
+ * 表示kvState的存储位置
  */
 public class KvStateLocation implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /** JobID the KvState instances belong to. */
+    /** JobID the KvState instances belong to.
+     * 该状态属于哪个Job
+     * */
     private final JobID jobId;
 
-    /** JobVertexID the KvState instances belong to. */
+    /** JobVertexID the KvState instances belong to.
+     * Job顶点id
+     * */
     private final JobVertexID jobVertexId;
 
-    /** Number of key groups of the operator the KvState instances belong to. */
+    /** Number of key groups of the operator the KvState instances belong to.
+     * 表示该KvState 有多少个 keyGroup
+     * */
     private final int numKeyGroups;
 
-    /** Name under which the KvState instances have been registered. */
+    /** Name under which the KvState instances have been registered.
+     * 这个状态注册时使用的名字
+     * */
     private final String registrationName;
 
-    /** IDs for each KvState instance where array index corresponds to key group index. */
+    /** IDs for each KvState instance where array index corresponds to key group index.
+     * 每个 keyGroup对应的id
+     * */
     private final KvStateID[] kvStateIds;
 
     /**
      * Server address for each KvState instance where array index corresponds to key group index.
+     * 看来 keyGroup是落在不同的节点上的  所以有一组地址  当然这些地址应该是可以相同的
      */
     private final InetSocketAddress[] kvStateAddresses;
 
-    /** Current number of registered key groups. */
+    /** Current number of registered key groups.
+     * 表示已经注册了多少keyGroup
+     * */
     private int numRegisteredKeyGroups;
 
     /**
@@ -167,6 +181,7 @@ public class KvStateLocation implements Serializable {
      * @param kvStateAddress Server address of the KvState instance at the key group index.
      * @throws IndexOutOfBoundsException If key group range start < 0 or key group range end >=
      *     Number of key groups
+     *     这里是补充一个keyGroup范围的信息
      */
     public void registerKvState(
             KeyGroupRange keyGroupRange, KvStateID kvStateId, InetSocketAddress kvStateAddress) {
@@ -197,6 +212,7 @@ public class KvStateLocation implements Serializable {
      *     Number of key groups
      * @throws IllegalArgumentException If no location information registered for a key group index
      *     in the range.
+     *     反向操作 就是将范围内的keyGroup置空
      */
     void unregisterKvState(KeyGroupRange keyGroupRange) {
         if (keyGroupRange.getStartKeyGroup() < 0

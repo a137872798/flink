@@ -25,6 +25,8 @@ import org.apache.flink.configuration.ReadableConfig;
 /**
  * An interface for checkpoint storage types that pick up additional parameters from a
  * configuration.
+ *
+ * 对检查点存储 进行配置
  */
 @Internal
 public interface ConfigurableCheckpointStorage extends CheckpointStorage {

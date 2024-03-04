@@ -32,6 +32,7 @@ import java.util.List;
  * boundaries with same interval.
  *
  * @param <T>
+ *     该对象就是通过一组初始值来产生分区范围的   之后其他数据就可以按照分区来划入数据了
  */
 public class RangeBoundaryBuilder<T> extends RichMapPartitionFunction<T, Object[][]> {
 
@@ -50,6 +51,8 @@ public class RangeBoundaryBuilder<T> extends RichMapPartitionFunction<T, Object[
         for (T value : values) {
             sampledData.add(value);
         }
+
+        // 先对一组值进行排序
         Collections.sort(
                 sampledData,
                 new Comparator<T>() {
@@ -60,14 +63,19 @@ public class RangeBoundaryBuilder<T> extends RichMapPartitionFunction<T, Object[
                 });
 
         int boundarySize = parallelism - 1;
+
+        // 基于这组值 产生bound
         Object[][] boundaries = new Object[boundarySize][];
         if (sampledData.size() > 0) {
+            // 按照子任务划分
             double avgRange = sampledData.size() / (double) parallelism;
             int numKey = comparator.getFlatComparators().length;
             for (int i = 1; i < parallelism; i++) {
+                // 刚好获得分界线的值
                 T record = sampledData.get((int) (i * avgRange));
                 Object[] keys = new Object[numKey];
                 comparator.extractKeys(record, keys, 0);
+                // 抽取出keys 并设置到边界上
                 boundaries[i - 1] = keys;
             }
         }

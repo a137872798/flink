@@ -32,8 +32,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
 
-/** A simple iterator over the input read though an I/O channel. */
+/** A simple iterator over the input read though an I/O channel.
+ * 表示一个迭代器
+ * */
 public class ChannelReaderInputViewIterator<E> implements MutableObjectIterator<E> {
+
+    /**
+     * 可以从channel读取数据到数据块
+     */
     private final AbstractChannelReaderInputView inView;
 
     private final TypeSerializer<E> accessors;
@@ -111,6 +117,11 @@ public class ChannelReaderInputViewIterator<E> implements MutableObjectIterator<
         }
     }
 
+    /**
+     * 从inView中读取数据块  并反序列化
+     * @return
+     * @throws IOException
+     */
     @Override
     public E next() throws IOException {
         try {

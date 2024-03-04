@@ -32,6 +32,7 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * A pipelined in-memory only subpartition, which allows to reconnect after failure. Only one view
  * is allowed at a time to read teh subpartition.
+ * 近似对象
  */
 public class PipelinedApproximateSubpartition extends PipelinedSubpartition {
 
@@ -60,6 +61,7 @@ public class PipelinedApproximateSubpartition extends PipelinedSubpartition {
         synchronized (buffers) {
             checkState(!isReleased);
 
+            // 先尝试释放之前的对象
             releaseView();
 
             LOG.debug(
@@ -68,6 +70,7 @@ public class PipelinedApproximateSubpartition extends PipelinedSubpartition {
                     getSubPartitionIndex(),
                     parent.getPartitionId());
 
+            // 替换reader对象
             readView = new PipelinedApproximateSubpartitionView(this, availabilityListener);
         }
 
@@ -83,6 +86,9 @@ public class PipelinedApproximateSubpartition extends PipelinedSubpartition {
         return buffer.build();
     }
 
+    /**
+     * 释放视图对象
+     */
     private void releaseView() {
         assert Thread.holdsLock(buffers);
         if (readView != null) {

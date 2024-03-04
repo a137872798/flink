@@ -25,7 +25,9 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Optional;
 
-/** Formed of a mandatory operator ID and optionally a user defined operator ID. */
+/** Formed of a mandatory operator ID and optionally a user defined operator ID.
+ * 包含2个operatorId
+ * */
 public class OperatorIDPair implements Serializable {
 
     private static final long serialVersionUID = 1L;

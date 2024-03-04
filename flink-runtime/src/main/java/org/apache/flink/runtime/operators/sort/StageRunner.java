@@ -23,6 +23,7 @@ import org.apache.flink.util.MutableObjectIterator;
 /**
  * An interface for different stages of the sorting process. Different stages can communicate via
  * the {@link StageMessageDispatcher}.
+ * 表示3种步骤  读取/排序/倾倒
  */
 public interface StageRunner extends AutoCloseable {
     /** Starts the stage. */
@@ -38,6 +39,7 @@ public interface StageRunner extends AutoCloseable {
     /**
      * A dispatcher for inter-stage communication. It allows for returning a result to a {@link
      * Sorter} via {@link StageMessageDispatcher#sendResult(MutableObjectIterator)}
+     * 分发一组数据 并携带一个对应的步骤
      */
     interface StageMessageDispatcher<E> extends AutoCloseable {
         /** Sends a message to the given stage. */
@@ -48,6 +50,7 @@ public interface StageRunner extends AutoCloseable {
          * becomes available.
          *
          * @return the head of the queue
+         * 获取某个步骤对应的数据
          */
         CircularElement<E> take(SortStage stage) throws InterruptedException;
 

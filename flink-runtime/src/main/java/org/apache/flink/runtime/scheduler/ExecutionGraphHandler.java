@@ -51,6 +51,9 @@ import java.util.concurrent.Executor;
 /** Handler for the {@link ExecutionGraph} which offers some common operations. */
 public class ExecutionGraphHandler {
 
+    /**
+     * 这是整个执行图  对应job
+     */
     private final ExecutionGraph executionGraph;
 
     private final Logger log;
@@ -70,6 +73,12 @@ public class ExecutionGraphHandler {
         this.mainThreadExecutor = mainThreadExecutor;
     }
 
+    /**
+     * 报告统计数据
+     * @param attemptId
+     * @param id
+     * @param metrics
+     */
     public void reportCheckpointMetrics(
             ExecutionAttemptID attemptId, long id, CheckpointMetrics metrics) {
         processCheckpointCoordinatorMessage(
@@ -77,6 +86,14 @@ public class ExecutionGraphHandler {
                 coordinator -> coordinator.reportStats(id, attemptId, metrics));
     }
 
+    /**
+     * 收到检查点的ack信息
+     * @param jobID
+     * @param executionAttemptID
+     * @param checkpointId
+     * @param checkpointMetrics
+     * @param checkpointState
+     */
     public void acknowledgeCheckpoint(
             final JobID jobID,
             final ExecutionAttemptID executionAttemptID,
@@ -96,6 +113,10 @@ public class ExecutionGraphHandler {
                                 retrieveTaskManagerLocation(executionAttemptID)));
     }
 
+    /**
+     * 处理检查点失败的消息
+     * @param decline
+     */
     public void declineCheckpoint(final DeclineCheckpoint decline) {
         processCheckpointCoordinatorMessage(
                 "DeclineCheckpoint",
@@ -105,6 +126,11 @@ public class ExecutionGraphHandler {
                                 retrieveTaskManagerLocation(decline.getTaskExecutionId())));
     }
 
+    /**
+     * 将信息报告给协调者
+     * @param messageType
+     * @param process
+     */
     private void processCheckpointCoordinatorMessage(
             String messageType, ThrowingConsumer<CheckpointCoordinator, Exception> process) {
         mainThreadExecutor.assertRunningInMainThread();
@@ -116,6 +142,7 @@ public class ExecutionGraphHandler {
             ioExecutor.execute(
                     () -> {
                         try {
+                            // 执行钩子
                             process.accept(checkpointCoordinator);
                         } catch (Exception t) {
                             log.warn("Error while processing " + messageType + " message", t);
@@ -132,7 +159,13 @@ public class ExecutionGraphHandler {
         }
     }
 
+    /**
+     * 检索 TM的位置
+     * @param executionAttemptID
+     * @return
+     */
     private String retrieveTaskManagerLocation(ExecutionAttemptID executionAttemptID) {
+        // 找到执行对象
         final Optional<Execution> currentExecution =
                 Optional.ofNullable(
                         executionGraph.getRegisteredExecutions().get(executionAttemptID));
@@ -143,16 +176,25 @@ public class ExecutionGraphHandler {
                 .orElse("Unknown location");
     }
 
+    /**
+     * 请求分区状态
+     * @param intermediateResultId
+     * @param resultPartitionId
+     * @return
+     * @throws PartitionProducerDisposedException
+     */
     public ExecutionState requestPartitionState(
             final IntermediateDataSetID intermediateResultId,
             final ResultPartitionID resultPartitionId)
             throws PartitionProducerDisposedException {
 
+        // 从resultPartitionId 找执行对象id  存在则直接返回
         final Execution execution =
                 executionGraph.getRegisteredExecutions().get(resultPartitionId.getProducerId());
         if (execution != null) {
             return execution.getState();
         } else {
+            // 查看中间结果集
             final IntermediateResult intermediateResult =
                     executionGraph.getAllIntermediateResults().get(intermediateResultId);
 
@@ -160,9 +202,9 @@ public class ExecutionGraphHandler {
                 // Try to find the producing execution
                 Execution producerExecution =
                         intermediateResult
-                                .getPartitionById(resultPartitionId.getPartitionId())
+                                .getPartitionById(resultPartitionId.getPartitionId())  // 找到分区对象
                                 .getProducer()
-                                .getCurrentExecutionAttempt();
+                                .getCurrentExecutionAttempt();  // 找到当前执行者
 
                 if (producerExecution.getAttemptId().equals(resultPartitionId.getProducerId())) {
                     return producerExecution.getState();
@@ -176,9 +218,17 @@ public class ExecutionGraphHandler {
         }
     }
 
+    /**
+     * 请求下一个输入流
+     * @param vertexID
+     * @param executionAttempt
+     * @return
+     * @throws IOException
+     */
     public SerializedInputSplit requestNextInputSplit(
             JobVertexID vertexID, ExecutionAttemptID executionAttempt) throws IOException {
 
+        // 找到执行对象
         final Execution execution = executionGraph.getRegisteredExecutions().get(executionAttempt);
         if (execution == null) {
             // can happen when JobManager had already unregistered this execution upon on task
@@ -192,6 +242,7 @@ public class ExecutionGraphHandler {
                     "Can not find Execution for attempt " + executionAttempt);
         }
 
+        // 对标一个task
         final ExecutionJobVertex vertex = executionGraph.getJobVertex(vertexID);
         if (vertex == null) {
             throw new IllegalArgumentException(
@@ -202,6 +253,7 @@ public class ExecutionGraphHandler {
             throw new IllegalStateException("No InputSplitAssigner for vertex ID " + vertexID);
         }
 
+        // 获取下一个输入
         final Optional<InputSplit> optionalNextInputSplit = execution.getNextInputSplit();
 
         final InputSplit nextInputSplit;
@@ -214,6 +266,7 @@ public class ExecutionGraphHandler {
         }
 
         try {
+            // 将InputSplit 序列化
             final byte[] serializedInputSplit = InstantiationUtil.serializeObject(nextInputSplit);
             return new SerializedInputSplit(serializedInputSplit);
         } catch (Exception ex) {

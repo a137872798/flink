@@ -24,7 +24,8 @@ import org.apache.flink.runtime.taskmanager.TaskManagerLocation;
 import java.util.Collection;
 import java.util.Set;
 
-/** Component to retrieve the preferred locations of an execution vertex. */
+/** Component to retrieve the preferred locations of an execution vertex.
+ * */
 @FunctionalInterface
 public interface SyncPreferredLocationsRetriever {
 
@@ -34,6 +35,7 @@ public interface SyncPreferredLocationsRetriever {
      * @param executionVertexId id of the execution vertex
      * @param producersToIgnore producer vertices to ignore when calculating input locations
      * @return future of preferred locations
+     * 返回该 Execution更期待的 TMLocation 
      */
     Collection<TaskManagerLocation> getPreferredLocations(
             ExecutionVertexID executionVertexId, Set<ExecutionVertexID> producersToIgnore);

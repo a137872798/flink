@@ -20,6 +20,10 @@ package org.apache.flink.runtime.io.disk.iomanager;
 
 import java.io.IOException;
 
+/**
+ * 为文件channel追加写入数据块的api
+ * @param <T>
+ */
 public interface BlockChannelWriterWithCallback<T> extends FileIOChannel {
 
     /**

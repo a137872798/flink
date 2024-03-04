@@ -29,7 +29,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-/** This implementation decorates the stream with snappy compression. */
+/** This implementation decorates the stream with snappy compression.
+ * 使用snappy压缩算法
+ * */
 @Internal
 public class SnappyStreamCompressionDecorator extends StreamCompressionDecorator {
 

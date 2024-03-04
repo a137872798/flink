@@ -283,6 +283,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
      * The number of buffers in the write behind queue that are actually not write behind buffers,
      * but regular buffers that only have not yet returned. This is part of an optimization that the
      * spilling code needs not wait until the partition is completely spilled before proceeding.
+     * 这个可以理解为后备的buffer  当可用buffer不足时可以从这里获取
      */
     protected int writeBehindBuffersAvailable;
 
@@ -321,6 +322,16 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
     //                         Construction and Teardown
     // ------------------------------------------------------------------------
 
+    /**
+     * 使用几个序列化对象和 比较器对象 进行初始化
+     * @param buildSideSerializer
+     * @param probeSideSerializer
+     * @param buildSideComparator
+     * @param probeSideComparator
+     * @param comparator
+     * @param memorySegments
+     * @param ioManager  该对象用于创建异步写入对象
+     */
     public MutableHashTable(
             TypeSerializer<BT> buildSideSerializer,
             TypeSerializer<PT> probeSideSerializer,
@@ -361,6 +372,18 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
                 useBloomFilters);
     }
 
+    /**
+     * 初始化
+     * @param buildSideSerializer
+     * @param probeSideSerializer
+     * @param buildSideComparator
+     * @param probeSideComparator
+     * @param comparator
+     * @param memorySegments  用于存储数据的内存块
+     * @param ioManager
+     * @param avgRecordLen
+     * @param useBloomFilters
+     */
     public MutableHashTable(
             TypeSerializer<BT> buildSideSerializer,
             TypeSerializer<PT> probeSideSerializer,
@@ -392,6 +415,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         this.ioManager = ioManager;
         this.useBloomFilters = useBloomFilters;
 
+        // 得到记录的平均长度
         this.avgRecordLen =
                 avgRecordLen > 0
                         ? avgRecordLen
@@ -408,6 +432,8 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
             throw new IllegalArgumentException(
                     "Hash Table requires buffers whose size is a power of 2.");
         }
+
+        // 表示每个segment维护多少个bucket
         int bucketsPerSegment = this.segmentSize >> NUM_INTRA_BUCKET_BITS;
         if (bucketsPerSegment == 0) {
             throw new IllegalArgumentException(
@@ -454,6 +480,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
      * @param probeSide Probe side input.
      * @param buildOuterJoin Whether outer join on build side.
      * @throws IOException Thrown, if an I/O problem occurs while spilling a partition.
+     * 打开本对象 或者说初始化
      */
     public void open(
             final MutableObjectIterator<BT> buildSide,
@@ -470,26 +497,39 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         }
 
         // grab the write behind buffers first
+        // 从内存池中借走内存块   填入 numWriteBehindBuffers
         for (int i = this.numWriteBehindBuffers; i > 0; --i) {
             this.writeBehindBuffers.add(
                     this.availableMemory.remove(this.availableMemory.size() - 1));
         }
         // open builds the initial table by consuming the build-side input
         this.currentRecursionDepth = 0;
+
+        // 使用迭代器来初始化内部表  (完成每个分区的数据构建阶段)
         buildInitialTable(buildSide);
 
         // the first prober is the probe-side input
+        // 基于输入的探测数据 创建探测迭代器
         this.probeIterator =
                 new ProbeIterator<PT>(probeSide, this.probeSideSerializer.createInstance());
 
         // the bucket iterator can remain constant over the time
+        // 使用相关对象初始化 bucket迭代器
         this.bucketIterator =
                 new HashBucketIterator<BT, PT>(
                         this.buildSideSerializer, this.recordComparator, probedSet, buildOuterJoin);
     }
 
+    /**
+     * 只有在可以探测的阶段才能调用该方法
+     * @return
+     * @throws IOException
+     */
     protected boolean processProbeIter() throws IOException {
+
+        // 探测迭代器在open时  会通过探测数据进行初始化
         final ProbeIterator<PT> probeIter = this.probeIterator;
+        // 这个是比较器
         final TypeComparator<PT> probeAccessors = this.probeSideComparator;
 
         if (!this.probeMatchedPhase) {
@@ -497,7 +537,11 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         }
 
         PT next;
+
+        // 迭代探测数据
         while ((next = probeIter.next()) != null) {
+
+            // currentRecursionDepth 在调用open后为0
             final int hash = hash(probeAccessors.hash(next), this.currentRecursionDepth);
             final int posHashCode = hash % this.numBuckets;
 
@@ -511,23 +555,29 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
             final int partitionNumber = bucket.get(bucketInSegmentOffset + HEADER_PARTITION_OFFSET);
             final HashPartition<BT, PT> p = this.partitionsBeingBuilt.get(partitionNumber);
 
+            // 上面都是检索的常规操作
+
             // for an in-memory partition, process set the return iterators, else spill the probe
             // records
             if (p.isInMemory()) {
+                // 设置好记录后 准备使用迭代器寻找记录
                 this.recordComparator.setReference(next);
                 this.bucketIterator.set(bucket, p.overflowSegments, p, hash, bucketInSegmentOffset);
                 return true;
             } else {
                 byte status = bucket.get(bucketInSegmentOffset + HEADER_STATUS_OFFSET);
+                // 数据已经在布隆过滤器里了
                 if (status == BUCKET_STATUS_IN_FILTER) {
                     this.bloomFilter.setBitsLocation(
                             bucket, bucketInSegmentOffset + BUCKET_HEADER_LENGTH);
                     // Use BloomFilter to filter out all the probe records which would not match any
                     // key in spilled build table buckets.
                     if (this.bloomFilter.testHash(hash)) {
+                        // 将命中的数据加入探测容器
                         p.insertIntoProbeBuffer(next);
                     }
                 } else {
+                    // 这种情况代表bucket下没有entry
                     p.insertIntoProbeBuffer(next);
                 }
             }
@@ -537,12 +587,21 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         return false;
     }
 
+    /**
+     * 准备处理某个未探测过的分区
+     * @return
+     * @throws IOException
+     */
     protected boolean processUnmatchedBuildIter() throws IOException {
+        // 表示已经处理过 unmatchedIter了
         if (this.unmatchedBuildVisited) {
             return false;
         }
 
+        // 当初始化尚未探测过的数据时  就自动退出探测阶段
         this.probeMatchedPhase = false;
+
+        // 使用当前分区数据创建迭代器  就是挨个读取bucket的数据
         UnmatchedBuildIterator<BT, PT> unmatchedBuildIter =
                 new UnmatchedBuildIterator<>(
                         this.buildSideSerializer,
@@ -556,6 +615,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 
         // There maybe none unmatched build element, so we add a verification here to make sure we
         // do not return (null, null) to user.
+        // 表示没有数据
         if (unmatchedBuildIter.next() == null) {
             this.unmatchedBuildVisited = true;
             return false;
@@ -571,22 +631,35 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         return true;
     }
 
+    /**
+     * 准备下个分区的数据
+     * @return
+     * @throws IOException
+     */
     protected boolean prepareNextPartition() throws IOException {
         // finalize and cleanup the partitions of the current table
         int buffersAvailable = 0;
+
+        // 先要清理当前的数据
+
+        // 在open时 会将分区数据填充到partitionsBeingBuilt中
         for (int i = 0; i < this.partitionsBeingBuilt.size(); i++) {
             final HashPartition<BT, PT> p = this.partitionsBeingBuilt.get(i);
             p.setFurtherPatitioning(this.furtherPartitioning);
+            // 该方法会将内存块回收到 availableMemory
             buffersAvailable +=
                     p.finalizeProbePhase(
                             this.availableMemory, this.partitionsPending, this.buildSideOuterJoin);
         }
 
+        // 清理当前分区数据
         this.partitionsBeingBuilt.clear();
         this.writeBehindBuffersAvailable += buffersAvailable;
 
+        // 清理bucket数据
         releaseTable();
 
+        // 如果build/probe side数据未清除 进行清除
         if (this.currentSpilledBuildSide != null) {
             this.currentSpilledBuildSide.closeAndDelete();
             this.currentSpilledBuildSide = null;
@@ -597,6 +670,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
             this.currentSpilledProbeSide = null;
         }
 
+        // 表示没有待处理的数据了 partitionsPending 维护的是还未探测数据
         if (this.partitionsPending.isEmpty()) {
             // no more data
             return false;
@@ -605,6 +679,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         // there are pending partitions
         final HashPartition<BT, PT> p = this.partitionsPending.get(0);
 
+        // 表示该分区还没有探测
         if (p.probeSideRecordCounter == 0) {
             // unprobed spilled partitions are only re-processed for a build-side outer join;
             // there is no need to create a hash table since there are no probe-side records
@@ -622,6 +697,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
                         "Attempting to begin reading spilled partition without any memory available");
             }
 
+            // 要把之前刷盘的数据再读取出来  因为该分区的数据还没有探测过
             this.currentSpilledBuildSide =
                     this.ioManager.createBlockChannelReader(p.getBuildSideChannel().getChannelID());
             final ChannelReaderInputView inView =
@@ -631,25 +707,32 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
                             p.getBuildSideBlockCount(),
                             p.getLastSegmentLimit(),
                             false);
+
+            // 通过该对象可以挨个读取记录
             final ChannelReaderInputViewIterator<BT> inIter =
                     new ChannelReaderInputViewIterator<BT>(
                             inView, this.availableMemory, this.buildSideSerializer);
 
             this.unmatchedBuildIterator = inIter;
 
+            // 表示一个未探测过的分区数据已经准备好被重新使用了  从pending中移除
             this.partitionsPending.remove(0);
 
             return true;
         }
 
+        // 表示有未处理的探测
         this.probeMatchedPhase = true;
         this.unmatchedBuildVisited = false;
 
         // build the next table; memory must be allocated after this call
+        // 从channel中读取分区数据 并加载到内存
         buildTableFromSpilledPartition(p);
 
         // set the probe side - gather memory segments for reading
         LinkedBlockingQueue<MemorySegment> returnQueue = new LinkedBlockingQueue<MemorySegment>();
+
+        // 这个是读取探测数据的
         this.currentSpilledProbeSide =
                 this.ioManager.createBlockChannelReader(
                         p.getProbeSideChannel().getChannelID(), returnQueue);
@@ -685,6 +768,11 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         return nextRecord();
     }
 
+    /**
+     * 获取下一条记录
+     * @return
+     * @throws IOException
+     */
     public boolean nextRecord() throws IOException {
         if (buildSideOuterJoin) {
             return processProbeIter() || processUnmatchedBuildIter() || prepareNextPartition();
@@ -693,6 +781,12 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         }
     }
 
+    /**
+     * 获取与record匹配的记录  相当于就是探测了
+     * @param record
+     * @return
+     * @throws IOException
+     */
     public HashBucketIterator<BT, PT> getMatchesFor(PT record) throws IOException {
         final TypeComparator<PT> probeAccessors = this.probeSideComparator;
         final int hash = hash(probeAccessors.hash(record), this.currentRecursionDepth);
@@ -708,8 +802,10 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         final int partitionNumber = bucket.get(bucketInSegmentOffset + HEADER_PARTITION_OFFSET);
         final HashPartition<BT, PT> p = this.partitionsBeingBuilt.get(partitionNumber);
 
+        // 以上也是常规操作
+
         // for an in-memory partition, process set the return iterators, else spill the probe
-        // records
+        // records  要求此时分区数据还维护在内存中
         if (p.isInMemory()) {
             this.recordComparator.setReference(record);
             this.bucketIterator.set(bucket, p.overflowSegments, p, hash, bucketInSegmentOffset);
@@ -741,6 +837,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
      * files and removes them. The call to this method is valid both as a cleanup after the complete
      * inputs were properly processed, and as an cancellation call, which cleans up all resources
      * that are currently held by the hash join.
+     * 关闭本对象
      */
     public void close() {
         // make sure that we close only once
@@ -752,10 +849,10 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         this.bucketIterator = null;
         this.probeIterator = null;
 
-        // release the table structure
+        // release the table structure  释放bucket数据
         releaseTable();
 
-        // clear the memory in the partitions
+        // clear the memory in the partitions  释放分区数据
         clearPartitions();
 
         // clear the current probe side channel, if there is one
@@ -770,12 +867,13 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         }
 
         // clear the partitions that are still to be done (that have files on disk)
+        // 表示有待处理的数据  现在也是直接释放
         for (int i = 0; i < this.partitionsPending.size(); i++) {
             final HashPartition<BT, PT> p = this.partitionsPending.get(i);
             p.clearAllMemory(this.availableMemory);
         }
 
-        // return the write-behind buffers
+        // return the write-behind buffers   归还buffer
         for (int i = 0; i < this.numWriteBehindBuffers + this.writeBehindBuffersAvailable; i++) {
             try {
                 this.availableMemory.add(this.writeBehindBuffers.take());
@@ -809,30 +907,37 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
      * @param input The iterator with the build side data.
      * @throws IOException Thrown, if an element could not be fetched and deserialized from the
      *     iterator, or if serialization fails.
+     *     使用迭代器的数据来初始化 内部表
      */
     protected void buildInitialTable(final MutableObjectIterator<BT> input) throws IOException {
         // create the partitions
+        // 根据可用的内存块数量  产生一定数量的分区
         final int partitionFanOut = getPartitioningFanOutNoEstimates(this.availableMemory.size());
         if (partitionFanOut > MAX_NUM_PARTITIONS) {
             throw new RuntimeException(
                     "Hash join partitions estimate exeeds maximum number of partitions.");
         }
+        // 创建分区
         createPartitions(partitionFanOut, 0);
 
         // set up the table structure. the write behind buffers are taken away, as are one buffer
         // per partition
+        // 根据公式 计算出应该有多少个bucket
         final int numBuckets =
                 getInitialTableSize(
                         this.availableMemory.size(),
                         this.segmentSize,
                         partitionFanOut,
                         this.avgRecordLen);
+
+        // 初始化table  (主要就是初始化bucket)
         initTable(numBuckets, (byte) partitionFanOut);
 
         final TypeComparator<BT> buildTypeComparator = this.buildSideComparator;
         BT record = this.buildSideSerializer.createInstance();
 
         // go over the complete input and insert every element into the hash table
+        // 不断取出数据 用于填充table
         while (this.running && ((record = input.next(record)) != null)) {
             final int hashCode = hash(buildTypeComparator.hash(record), 0);
             insertIntoTable(record, hashCode);
@@ -843,12 +948,18 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         }
 
         // finalize the partitions
+        // 此时已经填充完各分区的数据了
         for (int i = 0; i < this.partitionsBeingBuilt.size(); i++) {
             HashPartition<BT, PT> p = this.partitionsBeingBuilt.get(i);
+            // 表示完成了数据构建阶段
             p.finalizeBuildPhase(this.ioManager, this.currentEnumerator, this.writeBehindBuffers);
         }
     }
 
+    /**
+     * 初始化布隆过滤器   布隆过滤器就是可能会误判存在  但是不会误判不存在
+     * @param numBuckets
+     */
     private void initBloomFilter(int numBuckets) {
         int avgNumRecordsPerBucket =
                 getEstimatedMaxBucketEntries(
@@ -879,9 +990,15 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         return (int) maxNumRecordsPerBucket;
     }
 
+    /**
+     * p中有未处理的探测数据   并且此时分区数据在channel中
+     * @param p   需要处理的分区数据
+     * @throws IOException
+     */
     protected void buildTableFromSpilledPartition(final HashPartition<BT, PT> p)
             throws IOException {
 
+        // 每当将一个磁盘数据恢复到内存中 该分区就要增加一个level
         final int nextRecursionLevel = p.getRecursionLevel() + 1;
         if (nextRecursionLevel > MAX_RECURSION_DEPTH) {
             throw new RuntimeException(
@@ -904,34 +1021,42 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
                     "Hash Join bug in memory management: Memory buffers leaked.");
         }
 
+        // 表示这些记录要消耗多少bucket
         long numBuckets = p.getBuildSideRecordCount() / NUM_ENTRIES_PER_BUCKET + 1;
 
         // we need to consider the worst case where everything hashes to one bucket which needs to
         // overflow by the same
         // number of total buckets again. Also, one buffer needs to remain for the probing
+        // 需要消耗的segment
         final long totalBuffersNeeded =
                 2 * (numBuckets / (this.bucketsPerSegmentMask + 1))
                         + p.getBuildSideBlockCount()
                         + 2;
 
+        // 此时segment足够
         if (totalBuffersNeeded < totalBuffersAvailable) {
             // we are guaranteed to stay in memory
             ensureNumBuffersReturned(p.getBuildSideBlockCount());
 
             // first read the partition in
+            // 该reader用于读取之前写入channel的数据   初始化后就会立即发出read请求 将数据加载到 availableMemory
             final BulkBlockChannelReader reader =
                     this.ioManager.createBulkBlockChannelReader(
                             p.getBuildSideChannel().getChannelID(),
                             this.availableMemory,
                             p.getBuildSideBlockCount());
             // call waits until all is read
+            // 表示要保留分区数据   调用close/closeAndDelete 会等待所有req处理完 也就是已经完成了数据加载
             if (keepBuildSidePartitions && p.recursionLevel == 0) {
                 reader.close(); // keep the partitions
             } else {
+                // 删除下层数据
                 reader.closeAndDelete();
             }
 
             final List<MemorySegment> partitionBuffers = reader.getFullSegments();
+
+            // 重新构建分区对象
             final HashPartition<BT, PT> newPart =
                     new HashPartition<BT, PT>(
                             this.buildSideSerializer,
@@ -946,6 +1071,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
             this.partitionsBeingBuilt.add(newPart);
 
             // erect the buckets
+            // 为该分区分配bucket
             initTable((int) numBuckets, (byte) 1);
 
             // now, index the partition through a hash table
@@ -953,6 +1079,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
                     newPart.getPartitionIterator(this.buildSideComparator);
             BT record = this.buildSideSerializer.createInstance();
 
+            // 迭代分区数据
             while ((record = pIter.next(record)) != null) {
                 final int hashCode = hash(pIter.getCurrentHashCode(), nextRecursionLevel);
                 final int posHashCode = hashCode % this.numBuckets;
@@ -964,6 +1091,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
                         (posHashCode & this.bucketsPerSegmentMask) << NUM_INTRA_BUCKET_BITS;
                 final MemorySegment bucket = this.buckets[bucketArrayPos];
 
+                // 这里是补充bucket信息
                 insertBucketEntry(newPart, bucket, bucketInSegmentPos, hashCode, pointer, false);
             }
         } else {
@@ -983,6 +1111,8 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 
             // compute in how many splits, we'd need to partition the result
             final int splits = (int) (totalBuffersNeeded / totalBuffersAvailable) + 1;
+
+            // 需要拆分成多个分区
             final int partitionFanOut =
                     Math.min(10 * splits /* being conservative */, MAX_NUM_PARTITIONS);
 
@@ -998,6 +1128,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
             segments.add(getNextBuffer());
             segments.add(getNextBuffer());
 
+            // 用于读取之前的分区数据
             final BlockChannelReader<MemorySegment> inReader =
                     this.ioManager.createBlockChannelReader(p.getBuildSideChannel().getChannelID());
             final ChannelReaderInputView inView =
@@ -1013,6 +1144,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
             final TypeComparator<BT> btComparator = this.buildSideComparator;
             BT rec = this.buildSideSerializer.createInstance();
             while ((rec = inIter.next(rec)) != null) {
+                // 将数据重新插入各分区  同时设置bucket
                 final int hashCode = hash(btComparator.hash(rec), nextRecursionLevel);
                 insertIntoTable(rec, hashCode);
             }
@@ -1024,6 +1156,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
             }
 
             // finalize the partitions
+            // 结束构建阶段
             for (int i = 0; i < this.partitionsBeingBuilt.size(); i++) {
                 HashPartition<BT, PT> part = this.partitionsBeingBuilt.get(i);
                 part.finalizeBuildPhase(
@@ -1032,11 +1165,19 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         }
     }
 
+    /**
+     * 将数据插入table
+     * @param record   记录本身
+     * @param hashCode    记录对应的hash值
+     * @throws IOException
+     */
     protected final void insertIntoTable(final BT record, final int hashCode) throws IOException {
         final int posHashCode = hashCode % this.numBuckets;
 
         // get the bucket for the given hash code
+        // 找到所在的segment
         final int bucketArrayPos = posHashCode >> this.bucketsPerSegmentBits;
+        // 找到bucket的起始位置
         final int bucketInSegmentPos =
                 (posHashCode & this.bucketsPerSegmentMask) << NUM_INTRA_BUCKET_BITS;
         final MemorySegment bucket = this.buckets[bucketArrayPos];
@@ -1049,28 +1190,45 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
             throw new RuntimeException(
                     "Error: Hash structures in Hash-Join are corrupt. Invalid partition number for bucket.");
         }
+
+        // 找到存储分区数据的对象
         final HashPartition<BT, PT> p = this.partitionsBeingBuilt.get(partitionNumber);
 
         // --------- Step 1: Get the partition for this pair and put the pair into the buffer
         // ---------
 
+        // 往分区中插入数据
         long pointer = p.insertIntoBuildBuffer(record);
         if (pointer != -1) {
             // record was inserted into an in-memory partition. a pointer must be inserted into the
             // buckets
+            // 将pointer信息保存在bucket中  如果bucket存满了 就利用overflow
             insertBucketEntry(p, bucket, bucketInSegmentPos, hashCode, pointer, true);
         } else {
+            // 当数据被直接写入channel时 返回-1 进入该分支
+
             byte status = bucket.get(bucketInSegmentPos + HEADER_STATUS_OFFSET);
             if (status == BUCKET_STATUS_IN_FILTER) {
                 // While partition has been spilled, relocation bloom filter bits for current
                 // bucket,
                 // and build bloom filter with hashcode.
+                // 加入到布隆过滤器
                 this.bloomFilter.setBitsLocation(bucket, bucketInSegmentPos + BUCKET_HEADER_LENGTH);
                 this.bloomFilter.addHash(hashCode);
             }
         }
     }
 
+    /**
+     * 把某条记录的pointer写入bucket
+     * @param p
+     * @param bucket
+     * @param bucketInSegmentPos
+     * @param hashCode
+     * @param pointer
+     * @param spillingAllowed
+     * @throws IOException
+     */
     final void insertBucketEntry(
             final HashPartition<BT, PT> p,
             final MemorySegment bucket,
@@ -1081,6 +1239,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
             throws IOException {
         // find the position to put the hash code and pointer
         final int count = bucket.getShort(bucketInSegmentPos + HEADER_COUNT_OFFSET);
+        // 还没有达到单个bucket的上限  直接添加
         if (count < NUM_ENTRIES_PER_BUCKET) {
             // we are good in our current bucket, put the values
             bucket.putInt(
@@ -1138,6 +1297,8 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
             if (p.nextOverflowBucket == 0) {
                 // no space left in last bucket, or no bucket yet, so create an overflow segment
                 overflowSeg = getNextBuffer();
+
+                // 这里表示申请不到segment了
                 if (overflowSeg == null) {
                     // no memory available to create overflow bucket. we need to spill a partition
                     if (!spillingAllowed) {
@@ -1145,7 +1306,9 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
                                 "Hashtable memory ran out in a non-spillable situation. "
                                         + "This is probably related to wrong size calculations.");
                     }
+                    // 尝试释放内存
                     final int spilledPart = spillPartition();
+                    // 数据已经不再维护在内存中了  也就不需要维护overflow了
                     if (spilledPart == p.getPartitionNumber()) {
                         // this bucket is no longer in-memory
                         return;
@@ -1211,6 +1374,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
     /**
      * Returns a new inMemoryPartition object. This is required as a plug for
      * ReOpenableMutableHashTable.
+     * 创建分区对象 存储数据
      */
     protected HashPartition<BT, PT> getNewInMemoryPartition(int number, int recursionLevel) {
         return new HashPartition<BT, PT>(
@@ -1223,12 +1387,19 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
                 this.segmentSize);
     }
 
+    /**
+     * 创建分区
+     * @param numPartitions
+     * @param recursionLevel  递归层数  最外层是0
+     */
     protected void createPartitions(int numPartitions, int recursionLevel) {
         // sanity check
         ensureNumBuffersReturned(numPartitions);
 
+        // 该对象可以遍历一组目录 每个目录对应一条线程
         this.currentEnumerator = this.ioManager.createChannelEnumerator();
 
+        // 清空原来的分区
         this.partitionsBeingBuilt.clear();
         for (int i = 0; i < numPartitions; i++) {
             HashPartition<BT, PT> p = getNewInMemoryPartition(i, recursionLevel);
@@ -1241,6 +1412,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
      * memory and deletes all spilled partitions.
      *
      * <p>This method is intended for a hard cleanup in the case that the join is aborted.
+     * 清除所有分区的数据
      */
     protected void clearPartitions() {
         for (int i = this.partitionsBeingBuilt.size() - 1; i >= 0; --i) {
@@ -1254,20 +1426,29 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         this.partitionsBeingBuilt.clear();
     }
 
+    /**
+     * 初始化table
+     * @param numBuckets   总计应当有多少bucket
+     * @param numPartitions   有多少个分区
+     */
     protected void initTable(int numBuckets, byte numPartitions) {
         final int bucketsPerSegment = this.bucketsPerSegmentMask + 1;
         final int numSegs =
                 (numBuckets >>> this.bucketsPerSegmentBits)
                         + ((numBuckets & this.bucketsPerSegmentMask) == 0 ? 0 : 1);
+
+        // 表示总计需要这么多个segment来存储bucket
         final MemorySegment[] table = new MemorySegment[numSegs];
 
         ensureNumBuffersReturned(numSegs);
 
         // go over all segments that are part of the table
+        // 开始进行初始化操作
         for (int i = 0, bucket = 0; i < numSegs && bucket < numBuckets; i++) {
             final MemorySegment seg = getNextBuffer();
 
             // go over all buckets in the segment
+            // 这个操作跟 CompactingHashTable 初始化bucket是一样的
             for (int k = 0; k < bucketsPerSegment && bucket < numBuckets; k++, bucket++) {
                 final int bucketOffset = k * HASH_BUCKET_SIZE;
 
@@ -1276,6 +1457,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 
                 // initialize the header fields
                 seg.put(bucketOffset + HEADER_PARTITION_OFFSET, partition);
+                // 初始状态  该bucket所指向的数据会在内存中
                 seg.put(bucketOffset + HEADER_STATUS_OFFSET, BUCKET_STATUS_IN_MEMORY);
                 seg.putShort(bucketOffset + HEADER_COUNT_OFFSET, (short) 0);
                 seg.putLong(bucketOffset + HEADER_FORWARD_OFFSET, BUCKET_FORWARD_POINTER_NOT_SET);
@@ -1295,6 +1477,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
     /**
      * Releases the table (the array of buckets) and returns the occupied memory segments to the
      * list of free segments.
+     * 释放bucket数据
      */
     protected void releaseTable() {
         // set the counters back
@@ -1316,6 +1499,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
      * Selects a partition and spills it. The number of the spilled partition is returned.
      *
      * @return The number of the spilled partition.
+     * 将分区内存数据倾泻到channel
      */
     protected int spillPartition() throws IOException {
         // find the largest partition
@@ -1323,6 +1507,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         int largestNumBlocks = 0;
         int largestPartNum = -1;
 
+        // 找到占用内存最多的分区  且此时还没有设置channel
         for (int i = 0; i < partitions.size(); i++) {
             HashPartition<BT, PT> p = partitions.get(i);
             if (p.isInMemory() && p.getNumOccupiedMemorySegments() > largestNumBlocks) {
@@ -1332,17 +1517,20 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         }
         final HashPartition<BT, PT> p = partitions.get(largestPartNum);
 
+        // 当某个分区的数据要进入channel后 需要使用分区数据构建布隆过滤器
         if (useBloomFilters) {
             buildBloomFilterForBucketsInPartition(largestPartNum, p);
         }
 
         // spill the partition
+        // 这样操作 将会丢失该分区相关的overflow队列
         int numBuffersFreed =
                 p.spillPartition(
                         this.availableMemory,
                         this.ioManager,
                         this.currentEnumerator.next(),
                         this.writeBehindBuffers);
+        // 返回的代表释放的内存数量
         this.writeBehindBuffersAvailable += numBuffersFreed;
         // grab as many buffers as are available directly
         MemorySegment currBuff;
@@ -1354,6 +1542,11 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         return largestPartNum;
     }
 
+    /**
+     * 当分区数据要进入channel时 就要使用数据来填充布隆过滤器
+     * @param partNum
+     * @param partition
+     */
     protected final void buildBloomFilterForBucketsInPartition(
             int partNum, HashPartition<BT, PT> partition) {
         // Find all the buckets which belongs to this partition, and build bloom filter for each
@@ -1362,14 +1555,18 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 
         int numSegs = this.buckets.length;
         // go over all segments that are part of the table
+        // 外层遍历segment
         for (int i = 0, bucket = 0; i < numSegs && bucket < numBuckets; i++) {
             final MemorySegment segment = this.buckets[i];
             // go over all buckets in the segment
+            // 内层遍历该分区的每个bucket
             for (int k = 0; k < bucketsPerSegment && bucket < numBuckets; k++, bucket++) {
+                // 找到该bucket在segment的位置
                 final int bucketInSegmentOffset = k * HASH_BUCKET_SIZE;
                 byte partitionNumber = segment.get(bucketInSegmentOffset + HEADER_PARTITION_OFFSET);
                 if (partitionNumber == partNum) {
                     byte status = segment.get(bucketInSegmentOffset + HEADER_STATUS_OFFSET);
+                    // 默认就是该状态 现在要开始处理
                     if (status == BUCKET_STATUS_IN_MEMORY) {
                         buildBloomFilterForBucket(bucketInSegmentOffset, segment, partition);
                     }
@@ -1381,10 +1578,12 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
     /**
      * Set all the bucket memory except bucket header as the bit set of bloom filter, and use hash
      * code of build records to build bloom filter.
+     * 使用某个bucket的数据来构建布隆过滤器
      */
     final void buildBloomFilterForBucket(
             int bucketInSegmentPos, MemorySegment bucket, HashPartition<BT, PT> p) {
         final int count = bucket.getShort(bucketInSegmentPos + HEADER_COUNT_OFFSET);
+        // 表示该bucket下没有entry信息 不需要处理
         if (count <= 0) {
             return;
         }
@@ -1392,22 +1591,34 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         int[] hashCodes = new int[count];
         // As the hashcode and bloom filter occupy same bytes, so we read all hashcode out at first
         // and then write back to bloom filter.
+        // 把落在该bucket的hash值加载出来
         for (int i = 0; i < count; i++) {
             hashCodes[i] =
                     bucket.getInt(bucketInSegmentPos + BUCKET_HEADER_LENGTH + i * HASH_CODE_LEN);
         }
+        // 借助该对象为bucket设置特殊值
         this.bloomFilter.setBitsLocation(bucket, bucketInSegmentPos + BUCKET_HEADER_LENGTH);
         for (int hashCode : hashCodes) {
+            // 将hash转换成一位
             this.bloomFilter.addHash(hashCode);
         }
+        // 开始处理overflow的数据
         buildBloomFilterForExtraOverflowSegments(bucketInSegmentPos, bucket, p);
     }
 
+    /**
+     * 将 overflow里的hash值 转换成位图中的bit
+     * @param bucketInSegmentPos
+     * @param bucket
+     * @param p
+     */
     private void buildBloomFilterForExtraOverflowSegments(
             int bucketInSegmentPos, MemorySegment bucket, HashPartition<BT, PT> p) {
         int totalCount = 0;
         boolean skip = false;
         long forwardPointer = bucket.getLong(bucketInSegmentPos + HEADER_FORWARD_OFFSET);
+
+        // 开始遍历overflow的entry
         while (forwardPointer != BUCKET_FORWARD_POINTER_NOT_SET) {
             final int overflowSegNum = (int) (forwardPointer >>> 32);
             if (overflowSegNum < 0 || overflowSegNum >= p.numOverflowSegments) {
@@ -1423,6 +1634,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
             // The bits size of bloom filter per bucket is 112 * 8, while expected input entries is
             // greater than 2048, the fpp would higher than 0.9,
             // which make the bloom filter an overhead instead of optimization.
+            // 当数量过多时  放弃维护索引数据
             if (totalCount > 2048) {
                 skip = true;
                 break;
@@ -1434,6 +1646,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
                                 bucketInOverflowSegmentOffset
                                         + BUCKET_HEADER_LENGTH
                                         + i * HASH_CODE_LEN);
+                // 将hash值转换成bit
                 this.bloomFilter.addHash(hashCode);
             }
 
@@ -1441,6 +1654,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
                     overflowSegment.getLong(bucketInOverflowSegmentOffset + HEADER_FORWARD_OFFSET);
         }
 
+        // 表示bucket有关entry的信息已经转移到布隆过滤器里了 并且只有当分区数据不再维护在内存中时才会这样
         if (!skip) {
             bucket.put(bucketInSegmentPos + HEADER_STATUS_OFFSET, BUCKET_STATUS_IN_FILTER);
         }
@@ -1454,6 +1668,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
      * buffers is reclaimed.
      *
      * @param minRequiredAvailable The minimum number of buffers that needs to be reclaimed.
+     *                             检查能否提供这么多数量的buffer
      */
     final void ensureNumBuffersReturned(final int minRequiredAvailable) {
         if (minRequiredAvailable > this.availableMemory.size() + this.writeBehindBuffersAvailable) {
@@ -1477,6 +1692,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
      * Spilling a partition may free new buffers then.
      *
      * @return The next buffer to be used by the hash-table, or null, if no buffer remains.
+     * 获取一个内存块
      */
     final MemorySegment getNextBuffer() {
         // check if the list directly offers memory
@@ -1486,6 +1702,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         }
 
         // check if there are write behind buffers that actually are to be used for the hash table
+        // 使用后备buffer
         if (this.writeBehindBuffersAvailable > 0) {
             // grab at least one, no matter what
             MemorySegment toReturn;
@@ -1524,6 +1741,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
             return seg;
         } else {
             try {
+                // 当内存块不足时  为各分区设置channel  并将囤积的数据写入 以便释放内存
                 spillPartition();
             } catch (IOException ioex) {
                 throw new RuntimeException(
@@ -1636,7 +1854,9 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 
     // ======================================================================================================
 
-    /** */
+    /**
+     * 借助bucket查找 hash和equals都匹配的数据
+     * */
     public static class HashBucketIterator<BT, PT> implements MutableObjectIterator<BT> {
 
         private final TypeSerializer<BT> accessor;
@@ -1680,6 +1900,14 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
             this.isBuildOuterJoin = isBuildOuterJoin;
         }
 
+        /**
+         * 在每次迭代前 要先设置一些属性
+         * @param bucket   本次扫描的bucket
+         * @param overflowSegments
+         * @param partition  本次处理的分区
+         * @param searchHashCode   本次要检索的hash
+         * @param bucketInSegmentOffset
+         */
         void set(
                 MemorySegment bucket,
                 MemorySegment[] overflowSegments,
@@ -1698,18 +1926,27 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
             this.numInSegment = 0;
         }
 
+        /**
+         * 获取下一条记录
+         * @param reuse The target object into which to place next element if E is mutable.
+         * @return
+         */
         public BT next(BT reuse) {
             // loop over all segments that are involved in the bucket (original bucket plus overflow
             // buckets)
             while (true) {
+                // 设置位图此时处理的segment
                 probedSet.setMemorySegment(
                         bucket, this.bucketInSegmentOffset + HEADER_PROBED_FLAGS_OFFSET);
+
+                // 在set()时 已经确定了bucket的位置
                 while (this.numInSegment < this.countInSegment) {
 
                     final int thisCode = this.bucket.getInt(this.posInSegment);
                     this.posInSegment += HASH_CODE_LEN;
 
                     // check if the hash code matches
+                    // hash匹配 然后获取在partition数据块中的pointer
                     if (thisCode == this.searchHashCode) {
                         // get the pointer to the pair
                         final long pointer =
@@ -1723,9 +1960,12 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
                         // had only a hash collision
                         try {
                             this.partition.setReadPosition(pointer);
+                            // 从分区对象中解析数据
                             reuse = this.accessor.deserialize(reuse, this.partition);
+                            // 在检索前 会先给comparator设置待比较对象  此时表示hash和equal都匹配成功了
                             if (this.comparator.equalToReference(reuse)) {
                                 if (isBuildOuterJoin) {
+                                    // 给bucket/overflow的entry打上标记
                                     probedSet.set(numInSegment - 1);
                                 }
                                 this.lastPointer = pointer;
@@ -1743,6 +1983,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
                 }
 
                 // this segment is done. check if there is another chained bucket
+                // 当bucket内的entry没有找到满足条件的数据  则从overflow中查找
                 final long forwardPointer =
                         this.bucket.getLong(this.bucketInSegmentOffset + HEADER_FORWARD_OFFSET);
                 if (forwardPointer == BUCKET_FORWARD_POINTER_NOT_SET) {
@@ -1759,6 +2000,10 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
             }
         }
 
+        /**
+         * 读取匹配set hash和equals的记录   与上面操作相同
+         * @return
+         */
         public BT next() {
             // loop over all segments that are involved in the bucket (original bucket plus overflow
             // buckets)
@@ -1820,12 +2065,22 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
             }
         }
 
+        /**
+         * 写入数据
+         * @param value
+         * @throws IOException
+         */
         public void writeBack(BT value) throws IOException {
+            // 该视图下是 存储分区数据的内存块
             final SeekableDataOutputView outView = this.partition.getWriteView();
+            // 找到上次next匹配到的位置  并进行覆盖
             outView.setWritePosition(this.lastPointer);
             this.accessor.serialize(value, outView);
         }
 
+        /**
+         * 恢复到set()时的状态
+         */
         public void reset() {
             this.bucket = this.originalBucket;
             this.bucketInSegmentOffset = this.originalBucketInSegmentOffset;
@@ -1836,7 +2091,9 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         }
     } // end HashBucketIterator
 
-    /** Iterate all the elements in memory which has not been probed during probe phase. */
+    /** Iterate all the elements in memory which has not been probed during probe phase.
+     * 生成一个迭代器  内部的数据还没有探测过
+     * */
     public static class UnmatchedBuildIterator<BT, PT> implements MutableObjectIterator<BT> {
 
         private final TypeSerializer<BT> accessor;
@@ -1888,6 +2145,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 
         private void init() {
             scanCount = -1;
+            // 找到首个可用的bucket后 既返回  (如果分区已经使用了channel 就会忽略  也就是说进了磁盘的分区数据无法直接通过bucket来检索了)
             while (!moveToNextBucket()) {
                 if (scanCount >= totalBucketNumber) {
                     break;
@@ -1895,6 +2153,11 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
             }
         }
 
+        /**
+         * 返回数据
+         * @param reuse The target object into which to place next element if E is mutable.
+         * @return
+         */
         public BT next(BT reuse) {
             // search unprobed record in bucket, while none found move to next bucket and search.
             while (true) {
@@ -1914,8 +2177,10 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
             // search unprobed record in bucket, while none found move to next bucket and search.
             while (true) {
                 BT result = nextInBucket();
+                // 表示该bucket中已经没有数据了
                 if (result == null) {
                     // return null while there are no more buckets.
+                    // 切换到下个bucket
                     if (!moveToNextOnHeapBucket()) {
                         return null;
                     }
@@ -1941,6 +2206,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         /**
          * Move to next bucket, return true while move to a on heap bucket, return false while move
          * to a spilled bucket or there is no more bucket.
+         * 挨个检索bucket
          */
         private boolean moveToNextBucket() {
             scanCount++;
@@ -1956,6 +2222,8 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
             final int partitionNumber =
                     currentBucket.get(currentBucketInSegmentOffset + HEADER_PARTITION_OFFSET);
             final HashPartition<BT, PT> p = this.partitionsBeingBuilt.get(partitionNumber);
+
+            // 以上是常规操作  要求分区数据还在内存中
             if (p.isInMemory()) {
                 setBucket(currentBucket, p.overflowSegments, p, currentBucketInSegmentOffset);
                 return true;
@@ -1965,6 +2233,7 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
         }
 
         // update current bucket status.
+        // 设置当前在使用的bucket
         private void setBucket(
                 MemorySegment bucket,
                 MemorySegment[] overflowSegments,
@@ -1981,11 +2250,17 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
                     bucketSegment, this.bucketInSegmentOffset + HEADER_PROBED_FLAGS_OFFSET);
         }
 
+        /**
+         * 返回当前bucket的下个数据
+         * @param reuse
+         * @return
+         */
         private BT nextInBucket(BT reuse) {
             // loop over all segments that are involved in the bucket (original bucket plus overflow
             // buckets)
             while (true) {
                 while (this.numInSegment < this.countInSegment) {
+                    // 如果布隆过滤器没值 表示直接读bucket即可
                     boolean probed = probedSet.get(numInSegment);
                     if (!probed) {
                         final long pointer =
@@ -2008,6 +2283,8 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
                         this.numInSegment++;
                     }
                 }
+
+                // 表示要借助 overflow
 
                 // if all buckets were spilled out of memory
                 if (this.bucketSegment == null) {
@@ -2035,6 +2312,10 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
             }
         }
 
+        /**
+         * 同上
+         * @return
+         */
         private BT nextInBucket() {
             // loop over all segments that are involved in the bucket (original bucket plus overflow
             // buckets)
@@ -2096,10 +2377,17 @@ public class MutableHashTable<BT, PT> implements MemorySegmentSource {
 
     // ======================================================================================================
 
+    /**
+     * 探测迭代器  内部包含一个 MutableObjectIterator
+     * @param <PT>
+     */
     public static final class ProbeIterator<PT> {
 
         private MutableObjectIterator<PT> source;
 
+        /**
+         * 该实例可以重复使用
+         */
         private PT instance;
 
         ProbeIterator(MutableObjectIterator<PT> source, PT instance) {

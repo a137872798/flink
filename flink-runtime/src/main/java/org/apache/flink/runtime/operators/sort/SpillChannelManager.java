@@ -25,7 +25,9 @@ import java.io.File;
 import java.util.HashSet;
 import java.util.Iterator;
 
-/** Channel manager to manage the life cycle of spill channels. */
+/** Channel manager to manage the life cycle of spill channels.
+ * 维护一组channel
+ * */
 final class SpillChannelManager implements AutoCloseable {
 
     /** Collection of all currently open channels, to be closed and deleted during cleanup. */

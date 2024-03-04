@@ -37,9 +37,13 @@ import java.util.concurrent.CompletableFuture;
 /**
  * {@code StopWithSavepointTerminationManager} fulfills the contract given by {@link
  * StopWithSavepointTerminationHandler} to run the stop-with-savepoint steps in a specific order.
+ * 表示因为要生成保存点而停止
  */
 public class StopWithSavepointTerminationManager {
 
+    /**
+     * 该对象包含一些处理逻辑
+     */
     private final StopWithSavepointTerminationHandler stopWithSavepointTerminationHandler;
 
     public StopWithSavepointTerminationManager(
@@ -57,12 +61,14 @@ public class StopWithSavepointTerminationManager {
      * @param mainThreadExecutor The executor the {@code StopWithSavepointTerminationHandler}
      *     operations run on.
      * @return A {@code CompletableFuture} containing the path to the created savepoint.
+     * 产生保存点
      */
     public CompletableFuture<String> stopWithSavepoint(
             CompletableFuture<CompletedCheckpoint> completedSavepointFuture,
-            CompletableFuture<Collection<ExecutionState>> terminatedExecutionStatesFuture,
+            CompletableFuture<Collection<ExecutionState>> terminatedExecutionStatesFuture,  // 等待各子任务结束
             ComponentMainThreadExecutor mainThreadExecutor) {
         FutureUtils.assertNoException(
+                // 监听 triggerSavepoint的结果
                 completedSavepointFuture
                         // the completedSavepointFuture could also be completed by
                         // CheckpointCanceller which doesn't run in the mainThreadExecutor
@@ -87,6 +93,13 @@ public class StopWithSavepointTerminationManager {
         return stopWithSavepointTerminationHandler.getSavepointPath();
     }
 
+    /**
+     * 检查保存点的前置条件
+     * @param checkpointCoordinator
+     * @param targetDirectory
+     * @param jobId
+     * @param logger
+     */
     public static void checkSavepointActionPreconditions(
             CheckpointCoordinator checkpointCoordinator,
             @Nullable String targetDirectory,
@@ -96,6 +109,7 @@ public class StopWithSavepointTerminationManager {
             throw new IllegalStateException(String.format("Job %s is not a streaming job.", jobId));
         }
 
+        // 要求有保存点位置
         if (targetDirectory == null
                 && !checkpointCoordinator.getCheckpointStorage().hasDefaultSavepointLocation()) {
             logger.info(

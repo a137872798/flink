@@ -30,6 +30,7 @@ import static org.apache.flink.util.Preconditions.checkArgument;
  * Statistics for a failed checkpoint.
  *
  * <p>The reported statistics are mutable.
+ * 表示检查点失败了
  */
 public class FailedCheckpointStats extends PendingCheckpointStats {
 

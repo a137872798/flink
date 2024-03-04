@@ -38,6 +38,7 @@ import java.util.ArrayList;
 /**
  * Base class for iterators that fetch a block of data into main memory and offer resettable access
  * to the data in that block.
+ * resettable 意味着可以将指针归0
  */
 abstract class AbstractBlockResettableIterator<T> implements MemoryBlockIterator {
 
@@ -46,6 +47,9 @@ abstract class AbstractBlockResettableIterator<T> implements MemoryBlockIterator
 
     // ------------------------------------------------------------------------
 
+    /**
+     * 可以调整指针读取数据
+     */
     protected final RandomAccessInputView readView;
 
     protected final SimpleCollectingOutputView collectingView;
@@ -73,6 +77,7 @@ abstract class AbstractBlockResettableIterator<T> implements MemoryBlockIterator
             int numPages,
             AbstractInvokable ownerTask)
             throws MemoryAllocationException {
+        // page的值要合法
         if (numPages < 1) {
             throw new IllegalArgumentException(
                     "Block Resettable iterator requires at leat one page of memory");
@@ -83,13 +88,16 @@ abstract class AbstractBlockResettableIterator<T> implements MemoryBlockIterator
 
         this.emptySegments = new ArrayList<MemorySegment>(numPages);
         this.fullSegments = new ArrayList<MemorySegment>(numPages);
+        // 预先分配内存
         memoryManager.allocatePages(ownerTask, emptySegments, numPages);
 
         this.collectingView =
                 new SimpleCollectingOutputView(
-                        this.fullSegments,
+                        this.fullSegments,  // 这样当segment写满后 就会加入fullSegments
                         new ListMemorySegmentSource(this.emptySegments),
                         memoryManager.getPageSize());
+
+        // 可以读取写入的数据
         this.readView = new RandomAccessInputView(this.fullSegments, memoryManager.getPageSize());
 
         if (LOG.isDebugEnabled()) {
@@ -110,10 +118,16 @@ abstract class AbstractBlockResettableIterator<T> implements MemoryBlockIterator
             throw new IllegalStateException("Iterator was closed.");
         }
 
+        // 重置读指针
         this.readView.setReadPosition(0);
         this.numRecordsReturned = 0;
     }
 
+    /**
+     * 一个block应该是对应多个segment 然后要切换到下个block  就要回收当前的segment  并重置output和input
+     * @return
+     * @throws IOException
+     */
     @Override
     public boolean nextBlock() throws IOException {
         this.numRecordsInBuffer = 0;
@@ -123,7 +137,7 @@ abstract class AbstractBlockResettableIterator<T> implements MemoryBlockIterator
             this.emptySegments.add(this.fullSegments.remove(i));
         }
 
-        // reset the views
+        // reset the views   重置读指针
         this.collectingView.reset();
         this.readView.setReadPosition(0);
         return true;
@@ -151,6 +165,7 @@ abstract class AbstractBlockResettableIterator<T> implements MemoryBlockIterator
         }
 
         // release the memory segment
+        // 归还内存
         this.memoryManager.release(this.emptySegments);
         this.emptySegments.clear();
 
@@ -161,6 +176,12 @@ abstract class AbstractBlockResettableIterator<T> implements MemoryBlockIterator
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 将数据写入 output
+     * @param record
+     * @return
+     * @throws IOException
+     */
     protected boolean writeNextRecord(T record) throws IOException {
         try {
             this.serializer.serialize(record, this.collectingView);

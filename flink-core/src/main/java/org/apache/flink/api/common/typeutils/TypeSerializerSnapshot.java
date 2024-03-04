@@ -66,7 +66,7 @@ import java.io.IOException;
  * be able to deserialize the configuration snapshot from its binary form.
  *
  * @param <T> The data type that the originating serializer of this configuration serializes.
- *           可以通过为某个序列化对象生成快照的方式 进行恢复  同时还能还原出序列化对象
+ *           序列化对象的快照
  */
 @PublicEvolving
 public interface TypeSerializerSnapshot<T> {

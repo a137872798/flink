@@ -71,6 +71,7 @@ import java.util.function.Supplier;
  *       JobMasterService} or the completion of a job
  *   <li>{@link Exception} to signal an unexpected failure
  * </ul>
+ * LeaderContender 表示本对象需要使用选举算法 并且在成为leader时会进行一些操作
  */
 public class JobMasterServiceLeadershipRunner implements JobManagerRunner, LeaderContender {
 
@@ -79,18 +80,36 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
 
     private final Object lock = new Object();
 
+    /**
+     * 通过该工厂可以创建 JobMasterServiceProcess  而 JobMasterServiceProcess 内部有JobMaster
+     */
     private final JobMasterServiceProcessFactory jobMasterServiceProcessFactory;
 
+    /**
+     * 该对象用于注册本对象
+     */
     private final LeaderElection leaderElection;
 
+    /**
+     * 用于存储Job的结果
+     */
     private final JobResultStore jobResultStore;
 
+    /**
+     * 可以获取用户类加载器
+     */
     private final LibraryCacheManager.ClassLoaderLease classLoaderLease;
 
+    /**
+     * 异常处理器
+     */
     private final FatalErrorHandler fatalErrorHandler;
 
     private final CompletableFuture<Void> terminationFuture = new CompletableFuture<>();
 
+    /**
+     * 这个是运行结果
+     */
     private final CompletableFuture<JobManagerRunnerResult> resultFuture =
             new CompletableFuture<>();
 
@@ -107,6 +126,9 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
     @GuardedBy("lock")
     private CompletableFuture<JobMasterGateway> jobMasterGatewayFuture = new CompletableFuture<>();
 
+    /**
+     * 表示被对象被调用过cancel
+     */
     @GuardedBy("lock")
     private boolean hasCurrentLeaderBeenCancelled = false;
 
@@ -123,6 +145,10 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
         this.fatalErrorHandler = fatalErrorHandler;
     }
 
+    /**
+     * 关闭本对象
+     * @return
+     */
     @Override
     public CompletableFuture<Void> closeAsync() {
         final CompletableFuture<Void> processTerminationFuture;
@@ -143,6 +169,7 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
                     JobManagerRunnerResult.forSuccess(
                             createExecutionGraphInfoWithJobStatus(JobStatus.SUSPENDED)));
 
+            // 关闭process对象
             processTerminationFuture = jobMasterServiceProcess.closeAsync();
         }
 
@@ -165,6 +192,7 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
     @Override
     public void start() throws Exception {
         LOG.debug("Start leadership runner for job {}.", getJobID());
+        // 将自己注册到选举服务上 等待本对象成为leader
         leaderElection.startLeaderElection(this);
     }
 
@@ -213,6 +241,7 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
         return requestJob(timeout)
                 .thenApply(
                         executionGraphInfo ->
+                                // 从执行图中获取状态
                                 executionGraphInfo.getArchivedExecutionGraph().getState());
     }
 
@@ -225,21 +254,29 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
                                         executionGraphInfo.getArchivedExecutionGraph()));
     }
 
+    /**
+     *
+     * @param timeout for the rpc call
+     * @return
+     */
     @Override
     public CompletableFuture<ExecutionGraphInfo> requestJob(Time timeout) {
         synchronized (lock) {
             if (state == State.RUNNING) {
                 if (jobMasterServiceProcess.isInitializedAndRunning()) {
                     return getJobMasterGateway()
+                            // 通过JobMaster获取运行图
                             .thenCompose(jobMasterGateway -> jobMasterGateway.requestJob(timeout));
                 } else {
                     return CompletableFuture.completedFuture(
+                            // 创建空的图
                             createExecutionGraphInfoWithJobStatus(
                                     hasCurrentLeaderBeenCancelled
                                             ? JobStatus.CANCELLING
                                             : JobStatus.INITIALIZING));
                 }
             } else {
+                // 从结果中获取执行图
                 return resultFuture.thenApply(JobManagerRunnerResult::getExecutionGraphInfo);
             }
         }
@@ -252,6 +289,10 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
         }
     }
 
+    /**
+     * 表示本对象相关的驱动竞选leader成功
+     * @param leaderSessionID New leader session ID
+     */
     @Override
     public void grantLeadership(UUID leaderSessionID) {
         runIfStateRunning(
@@ -275,10 +316,16 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
         handleAsyncOperationError(sequentialOperation, "Could not start the job manager.");
     }
 
+    /**
+     * 当前是leader时触发该方法
+     * @param leaderSessionId
+     * @throws FlinkException
+     */
     @GuardedBy("lock")
     private void verifyJobSchedulingStatusAndCreateJobMasterServiceProcess(UUID leaderSessionId)
             throws FlinkException {
         try {
+            // 表示已经有结果了
             if (jobResultStore.hasJobResultEntry(getJobID())) {
                 jobAlreadyDone(leaderSessionId);
             } else {
@@ -297,6 +344,10 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
                 jobMasterServiceProcessFactory.createArchivedExecutionGraph(jobStatus, null));
     }
 
+    /**
+     * job已经执行完了
+     * @param leaderSessionId
+     */
     private void jobAlreadyDone(UUID leaderSessionId) {
         LOG.info(
                 "{} for job {} was granted leadership with leader id {}, but job was already done.",
@@ -311,6 +362,11 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
                                         new JobAlreadyDoneException(getJobID())))));
     }
 
+    /**
+     * 创建新的job
+     * @param leaderSessionId
+     * @throws FlinkException
+     */
     @GuardedBy("lock")
     private void createNewJobMasterServiceProcess(UUID leaderSessionId) throws FlinkException {
         Preconditions.checkState(jobMasterServiceProcess.closeAsync().isDone());
@@ -322,6 +378,7 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
                 leaderSessionId,
                 JobMasterServiceProcess.class.getSimpleName());
 
+        // 初始化master服务
         jobMasterServiceProcess = jobMasterServiceProcessFactory.create(leaderSessionId);
 
         forwardIfValidLeader(
@@ -329,6 +386,8 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
                 jobMasterServiceProcess.getJobMasterGatewayFuture(),
                 jobMasterGatewayFuture,
                 "JobMasterGatewayFuture from JobMasterServiceProcess");
+
+        // 当Job结束时设置后续操作
         forwardResultFuture(leaderSessionId, jobMasterServiceProcess.getResultFuture());
         confirmLeadership(leaderSessionId, jobMasterServiceProcess.getLeaderAddressFuture());
     }
@@ -367,6 +426,11 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
                 });
     }
 
+    /**
+     * 表示job完成了
+     * @param jobManagerRunnerResult
+     * @param throwable
+     */
     @GuardedBy("lock")
     private void onJobCompletion(
             JobManagerRunnerResult jobManagerRunnerResult, Throwable throwable) {
@@ -399,6 +463,9 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
                 "revoke leadership from JobMasterServiceProcess");
     }
 
+    /**
+     * 当本对象不再是leader时
+     */
     @GuardedBy("lock")
     private void stopJobMasterServiceProcessAsync() {
         sequentialOperation =
@@ -412,6 +479,10 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
         handleAsyncOperationError(sequentialOperation, "Could not suspend the job manager.");
     }
 
+    /**
+     * 本对象不再是leader时 以异常结束job
+     * @return
+     */
     @GuardedBy("lock")
     private CompletableFuture<Void> stopJobMasterServiceProcess() {
         LOG.info(
@@ -488,6 +559,12 @@ public class JobMasterServiceLeadershipRunner implements JobManagerRunner, Leade
         return state == State.RUNNING;
     }
 
+    /**
+     * 确保当前是leader
+     * @param expectedLeaderId
+     * @param action
+     * @param actionDescription
+     */
     private void runIfValidLeader(
             UUID expectedLeaderId, Runnable action, String actionDescription) {
         synchronized (lock) {

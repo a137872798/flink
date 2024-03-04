@@ -34,21 +34,32 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * slot, which can be used to allocate a physical slot when no physical slot is available for this
  * task slot. A matcher can be generated to filter out candidate slots by matching their {@link
  * SlotContext} against the slot profile and, potentially, further requirements.
+ * 在分配slot时起作用 表述期望分配的slot
  */
 public class SlotProfile {
-    /** This specifies the desired resource profile for the task slot. */
+    /** This specifies the desired resource profile for the task slot.
+     * 表示slot需要的资源
+     * */
     private final ResourceProfile taskResourceProfile;
 
-    /** This specifies the desired resource profile for the physical slot to host this task slot. */
+    /** This specifies the desired resource profile for the physical slot to host this task slot.
+     * 表示物理slot需要的资源
+     * */
     private final ResourceProfile physicalSlotResourceProfile;
 
-    /** This specifies the preferred locations for the slot. */
+    /** This specifies the preferred locations for the slot.
+     * 表示该slot最好位于这些位置   slot会关联一个taskManager TaskManagerLocation就是表示taskManager的位置
+     * */
     private final Collection<TaskManagerLocation> preferredLocations;
 
-    /** This contains desired allocation ids of the slot. */
+    /** This contains desired allocation ids of the slot.
+     * 这个slot期望的分配id   每个分配id是可以对应到一个逻辑slot的
+     * */
     private final Collection<AllocationID> preferredAllocations;
 
-    /** This contains all reserved allocation ids from the whole execution graph. */
+    /** This contains all reserved allocation ids from the whole execution graph.
+     * 表示在整个执行图中包含的所有分配id
+     * */
     private final Set<AllocationID> reservedAllocations;
 
     private SlotProfile(

@@ -34,9 +34,14 @@ import java.util.List;
  * the methods from the {@link TypeComparator} class, specifically {@link
  * TypeComparator#setReference(Object)} and {@link
  * TypeComparator#compareToReference(TypeComparator)}.
+ * MutableObjectIterator 开放的接口 基本就是一个普通的迭代器
+ * MergeIterator 内部是一组迭代器 并用二叉堆管理
  */
 public class MergeIterator<E> implements MutableObjectIterator<E> {
 
+    /**
+     * 二叉堆
+     */
     private final PartialOrderPriorityQueue<HeadStream<E>>
             heap; // heap over the head elements of the stream
 
@@ -51,6 +56,7 @@ public class MergeIterator<E> implements MutableObjectIterator<E> {
                 new PartialOrderPriorityQueue<HeadStream<E>>(
                         new HeadStreamComparator<E>(), iterators.size());
 
+        // 将所有迭代器包装后加入二叉堆
         for (MutableObjectIterator<E> iterator : iterators) {
             this.heap.add(new HeadStream<E>(iterator, comparator.duplicate()));
         }
@@ -83,10 +89,11 @@ public class MergeIterator<E> implements MutableObjectIterator<E> {
             final HeadStream<E> top = this.heap.peek();
             E result = top.getHead();
 
-            // read an element
+            // read an element  表示这个迭代器取完了
             if (!top.nextHead(reuse)) {
                 this.heap.poll();
             } else {
+                // 调整二叉堆结构
                 this.heap.adjustTop();
             }
             return result;
@@ -125,6 +132,10 @@ public class MergeIterator<E> implements MutableObjectIterator<E> {
     //                      Internal Classes that wrap the sorted input streams
     // ============================================================================================
 
+    /**
+     * 这个对象可以不断迭代元素作为head 并设置到 comparator 中
+     * @param <E>
+     */
     private static final class HeadStream<E> {
 
         private final MutableObjectIterator<E> iterator;
@@ -147,6 +158,12 @@ public class MergeIterator<E> implements MutableObjectIterator<E> {
             return this.head;
         }
 
+        /**
+         * 更新head
+         * @param reuse
+         * @return
+         * @throws IOException
+         */
         public boolean nextHead(E reuse) throws IOException {
             if ((this.head = this.iterator.next(reuse)) != null) {
                 this.comparator.setReference(this.head);
@@ -156,6 +173,11 @@ public class MergeIterator<E> implements MutableObjectIterator<E> {
             }
         }
 
+        /**
+         * 更新head
+         * @return
+         * @throws IOException
+         */
         public boolean nextHead() throws IOException {
             if ((this.head = this.iterator.next()) != null) {
                 this.comparator.setReference(this.head);

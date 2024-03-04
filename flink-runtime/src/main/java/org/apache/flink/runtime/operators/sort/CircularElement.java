@@ -22,7 +22,9 @@ import org.apache.flink.core.memory.MemorySegment;
 
 import java.util.List;
 
-/** Class representing buffers that circulate between the reading, sorting and spilling stages. */
+/** Class representing buffers that circulate between the reading, sorting and spilling stages.
+ * 存储在队列中的元素  对应一个stage
+ * */
 final class CircularElement<E> {
 
     private final int id;

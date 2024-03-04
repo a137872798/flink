@@ -42,10 +42,13 @@ public class NonReusingSortMergeCoGroupIterator<T1, T2> implements CoGroupTaskIt
 
     private MatchStatus matchStatus;
 
+    // 对应2个数据流
     private Iterable<T1> firstReturn;
-
     private Iterable<T2> secondReturn;
 
+    /**
+     * 用于比较2个流的对象
+     */
     private TypePairComparator<T1, T2> comp;
 
     private NonReusingKeyGroupedIterator<T1> iterator1;
@@ -85,6 +88,11 @@ public class NonReusingSortMergeCoGroupIterator<T1, T2> implements CoGroupTaskIt
         return this.secondReturn;
     }
 
+    /**
+     * 迭代2个流的数据
+     * @return
+     * @throws IOException
+     */
     @Override
     public boolean next() throws IOException {
         boolean firstEmpty = true;
@@ -112,9 +120,12 @@ public class NonReusingSortMergeCoGroupIterator<T1, T2> implements CoGroupTaskIt
             }
         }
 
+        // 表示2个流的数据都读取完了
         if (firstEmpty && secondEmpty) {
             // both inputs are empty
             return false;
+
+            // 表示一边还有数据 不需要比较 直接设置该边数据
         } else if (firstEmpty && !secondEmpty) {
             // input1 is empty, input2 not
             this.firstReturn = Collections.emptySet();
@@ -128,6 +139,8 @@ public class NonReusingSortMergeCoGroupIterator<T1, T2> implements CoGroupTaskIt
             this.matchStatus = MatchStatus.SECOND_EMPTY;
             return true;
         } else {
+            // 此时2个流都还有数据
+
             // both inputs are not empty
             final int comp = this.comp.compareToReference(this.iterator2.getCurrent());
 

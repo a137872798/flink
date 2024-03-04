@@ -43,13 +43,19 @@ import static org.apache.flink.util.Preconditions.checkState;
  *
  * <p><strong>NOTE:</strong> before using this buffer in the netty stack, a buffer allocator must be
  * set via {@link #setAllocator(ByteBufAllocator)}!
+ *
+ * 表示一个包含引用计数的buffer
  */
 public class NetworkBuffer extends AbstractReferenceCountedByteBuf implements Buffer {
 
-    /** The backing {@link MemorySegment} instance. */
+    /** The backing {@link MemorySegment} instance.
+     * 依靠内存块存储数据
+     * */
     private final MemorySegment memorySegment;
 
-    /** The recycler for the backing {@link MemorySegment}. */
+    /** The recycler for the backing {@link MemorySegment}.
+     * 通过该对象回收内存
+     * */
     private BufferRecycler recycler;
 
     /** The {@link DataType} this buffer represents. */

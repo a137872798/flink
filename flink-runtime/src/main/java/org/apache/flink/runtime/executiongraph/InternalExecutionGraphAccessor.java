@@ -41,6 +41,7 @@ import java.util.concurrent.Executor;
 /**
  * This interface encapsulates all methods needed by ExecutionJobVertex / ExecutionVertices /
  * Execution from the DefaultExecutionGraph.
+ * 提供一些图信息
  */
 public interface InternalExecutionGraphAccessor {
 
@@ -48,6 +49,10 @@ public interface InternalExecutionGraphAccessor {
 
     JobID getJobID();
 
+    /**
+     * 该对象用于写入blob数据
+     * @return
+     */
     BlobWriter getBlobWriter();
 
     /**
@@ -60,8 +65,16 @@ public interface InternalExecutionGraphAccessor {
     @Nonnull
     ComponentMainThreadExecutor getJobMasterMainThreadExecutor();
 
+    /**
+     * 获取洗牌对象
+     * @return
+     */
     ShuffleMaster<? extends ShuffleDescriptor> getShuffleMaster();
 
+    /**
+     * 获取分区对象
+     * @return
+     */
     JobMasterPartitionTracker getPartitionTracker();
 
     void registerExecution(Execution exec);

@@ -227,6 +227,13 @@ public class BlobLibraryCacheManager implements LibraryCacheManager {
             this.isReleased = false;
         }
 
+        /**
+         * 解析类加载器
+         * @param libraries
+         * @param classPaths
+         * @return
+         * @throws IOException
+         */
         private UserCodeClassLoader getOrResolveClassLoader(
                 Collection<PermanentBlobKey> libraries, Collection<URL> classPaths)
                 throws IOException {

@@ -27,6 +27,7 @@ import java.time.Duration;
 /**
  * The {@link FailureResult} describes how a failure shall be handled. Currently, there are two
  * alternatives: Either restarting the job or failing it.
+ * 记录失败结果
  */
 class FailureResult {
     @Nullable private final Duration backoffTime;

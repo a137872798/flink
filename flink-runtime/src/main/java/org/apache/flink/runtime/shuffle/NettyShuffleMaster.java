@@ -41,17 +41,31 @@ import static org.apache.flink.configuration.NettyShuffleEnvironmentOptions.NETW
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Default {@link ShuffleMaster} for netty and local file based shuffle implementation. */
+/** Default {@link ShuffleMaster} for netty and local file based shuffle implementation.
+ * 主要就是通过该对象进行洗牌
+ * */
 public class NettyShuffleMaster implements ShuffleMaster<NettyShuffleDescriptor> {
 
+    /**
+     * 表示每个channel 有多少buffer
+     */
     private final int buffersPerInputChannel;
 
+    /**
+     * 每个gate有多少buffer
+     */
     private final int floatingBuffersPerGate;
 
+    /**
+     * 每个gate 最多提供多少buffer
+     */
     private final Optional<Integer> maxRequiredBuffersPerGate;
 
     private final int sortShuffleMinParallelism;
 
+    /**
+     * 洗牌时使用的最小buffer数量
+     */
     private final int sortShuffleMinBuffers;
 
     private final int networkBufferSize;
@@ -74,6 +88,7 @@ public class NettyShuffleMaster implements ShuffleMaster<NettyShuffleDescriptor>
                 conf.getInteger(NettyShuffleEnvironmentOptions.NETWORK_SORT_SHUFFLE_MIN_BUFFERS);
         networkBufferSize = ConfigurationParserUtils.getPageSize(conf);
 
+        // 是否使用杂交洗牌模式
         if (isHybridShuffleNewModeEnabled(conf)) {
             tieredInternalShuffleMaster = new TieredInternalShuffleMaster(conf);
         } else {
@@ -93,6 +108,14 @@ public class NettyShuffleMaster implements ShuffleMaster<NettyShuffleDescriptor>
                         NettyShuffleEnvironmentOptions.NETWORK_EXTRA_BUFFERS_PER_GATE.key()));
     }
 
+    /**
+     * 记录某个生产者 产生的结果集 被分配到了某个分区
+     * @param jobID job ID of the corresponding job which registered the partition
+     * @param partitionDescriptor general job graph information about the partition
+     * @param producerDescriptor general producer information (location, execution id, connection
+     *     info)
+     * @return
+     */
     @Override
     public CompletableFuture<NettyShuffleDescriptor> registerPartitionWithProducer(
             JobID jobID,
@@ -111,6 +134,7 @@ public class NettyShuffleMaster implements ShuffleMaster<NettyShuffleDescriptor>
                                 producerDescriptor, partitionDescriptor.getConnectionIndex()),
                         resultPartitionID);
 
+        // 维护该分区信息
         if (tieredInternalShuffleMaster != null) {
             tieredInternalShuffleMaster.addPartition(resultPartitionID);
         }
@@ -120,12 +144,20 @@ public class NettyShuffleMaster implements ShuffleMaster<NettyShuffleDescriptor>
     @Override
     public void releasePartitionExternally(ShuffleDescriptor shuffleDescriptor) {
         if (tieredInternalShuffleMaster != null) {
+            // 与 tieredInternalShuffleMaster.addPartition(resultPartitionID) 对应
             tieredInternalShuffleMaster.releasePartition(shuffleDescriptor.getResultPartitionID());
         }
     }
 
+    /**
+     * 产生连接信息
+     * @param producerDescriptor
+     * @param connectionIndex
+     * @return
+     */
     private static PartitionConnectionInfo createConnectionInfo(
             ProducerDescriptor producerDescriptor, int connectionIndex) {
+        // 表示生产者与产生的数据不在同一节点
         return producerDescriptor.getDataPort() >= 0
                 ? NetworkPartitionConnectionInfo.fromProducerDescriptor(
                         producerDescriptor, connectionIndex)
@@ -140,6 +172,7 @@ public class NettyShuffleMaster implements ShuffleMaster<NettyShuffleDescriptor>
      * always keep the consistency of configurations between JM, RM and TM in fine-grained resource
      * management, thus to guarantee that the processes of memory announcing and allocating respect
      * each other.
+     * 计算该任务的内存总开销
      */
     @Override
     public MemorySize computeShuffleMemorySizeForTask(TaskInputsOutputsDescriptor desc) {

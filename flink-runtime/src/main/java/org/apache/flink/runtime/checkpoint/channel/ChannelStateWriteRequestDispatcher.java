@@ -17,6 +17,9 @@
 
 package org.apache.flink.runtime.checkpoint.channel;
 
+/**
+ * 请求分发器
+ */
 interface ChannelStateWriteRequestDispatcher {
 
     void dispatch(ChannelStateWriteRequest request) throws Exception;

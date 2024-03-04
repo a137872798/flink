@@ -35,13 +35,18 @@ import java.util.Map;
  * state name, assignment mode, and state partition serializer.
  *
  * @param <S> Type of the state.
+ *           表示  operator类型的state元数据
  */
 public class RegisteredOperatorStateBackendMetaInfo<S> extends RegisteredStateMetaInfoBase {
 
-    /** The mode how elements in this state are assigned to tasks during restore */
+    /** The mode how elements in this state are assigned to tasks during restore
+     * 描述在恢复期间分配状态的模式
+     * */
     @Nonnull private final OperatorStateHandle.Mode assignmentMode;
 
-    /** The type serializer for the elements in the state list */
+    /** The type serializer for the elements in the state list
+     * 通过该对象可以获取序列化对象
+     * */
     @Nonnull private final StateSerializerProvider<S> partitionStateSerializerProvider;
 
     public RegisteredOperatorStateBackendMetaInfo(

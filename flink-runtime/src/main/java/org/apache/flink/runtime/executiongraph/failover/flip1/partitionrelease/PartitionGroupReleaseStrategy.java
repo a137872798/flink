@@ -34,8 +34,9 @@ public interface PartitionGroupReleaseStrategy {
     /**
      * Calling this method informs the strategy that a vertex finished.
      *
-     * @param finishedVertex Id of the vertex that finished the execution
+     * @param finishedVertex Id of the vertex that finished the execution  表示一个消费中间数据集的对象
      * @return A list of {@link ConsumedPartitionGroup ConsumedPartitionGroups} that can be released
+     *
      */
     List<ConsumedPartitionGroup> vertexFinished(ExecutionVertexID finishedVertex);
 

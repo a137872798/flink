@@ -48,25 +48,34 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * The general buffer manager used by {@link InputChannel} to request/recycle exclusive or floating
  * buffers.
+ * 使用本对象管理buffer
  */
 public class BufferManager implements BufferListener, BufferRecycler {
 
-    /** The available buffer queue wraps both exclusive and requested floating buffers. */
+    /** The available buffer queue wraps both exclusive and requested floating buffers.
+     * 内部维护独占/浮动2种buffer
+     * */
     private final AvailableBufferQueue bufferQueue = new AvailableBufferQueue();
 
-    /** The buffer provider for requesting exclusive buffers. */
+    /** The buffer provider for requesting exclusive buffers.
+     * 可以请求内存块  也可以归还内存块
+     * */
     private final MemorySegmentProvider globalPool;
 
-    /** The input channel to own this buffer manager. */
+    /** The input channel to own this buffer manager.
+     * 表示该manager的持有者  也就是channel需要内存块
+     * */
     private final InputChannel inputChannel;
 
     /**
      * The tag indicates whether it is waiting for additional floating buffers from the buffer pool.
+     * 设置为true 代表一旦pool有内存块会自动补充  也就是不需要手动获取
      */
     @GuardedBy("bufferQueue")
     private boolean isWaitingForFloatingBuffers;
 
-    /** The total number of required buffers for the respective input channel. */
+    /** The total number of required buffers for the respective input channel.
+     * */
     @GuardedBy("bufferQueue")
     private int numRequiredBuffers;
 
@@ -103,6 +112,9 @@ public class BufferManager implements BufferListener, BufferRecycler {
                                     + inputChannel.channelInfo
                                     + "] has already been released.");
                 }
+
+                // 未设置监听器  可以直接尝试获取
+                // 在shouldContinueRequest中 会将 isWaitingForFloatingBuffers 设置为true
                 if (!isWaitingForFloatingBuffers) {
                     BufferPool bufferPool = inputChannel.inputGate.getBufferPool();
                     buffer = bufferPool.requestBuffer();
@@ -114,15 +126,24 @@ public class BufferManager implements BufferListener, BufferRecycler {
                 if (buffer != null) {
                     return buffer;
                 }
+
+                // 下次没有就会阻塞
                 bufferQueue.wait();
             }
             return buffer;
         }
     }
 
+    /**
+     * 判断是否还需要请求
+     * @param bufferPool
+     * @return
+     */
     private boolean shouldContinueRequest(BufferPool bufferPool) {
+        // 将自己作为监听器  这样当有内存块时会自动通知
         if (bufferPool.addBufferListener(this)) {
             isWaitingForFloatingBuffers = true;
+            // 每次获取buffer该值会减小   该值也就是期望持有的数量  在空的情况下就是1
             numRequiredBuffers = 1;
             return false;
         } else if (bufferPool.isDestroyed()) {
@@ -132,7 +153,9 @@ public class BufferManager implements BufferListener, BufferRecycler {
         }
     }
 
-    /** Requests exclusive buffers from the provider. */
+    /** Requests exclusive buffers from the provider.
+     * 请求一定量的独占内存块
+     * */
     void requestExclusiveBuffers(int numExclusiveBuffers) throws IOException {
         checkArgument(numExclusiveBuffers >= 0, "Num exclusive buffers must be non-negative.");
         if (numExclusiveBuffers == 0) {
@@ -172,15 +195,22 @@ public class BufferManager implements BufferListener, BufferRecycler {
             }
 
             numRequiredBuffers = numRequired;
+            // 该方法会从pool中移动buffer到浮动pool
             numRequestedBuffers = tryRequestBuffers();
         }
         return numRequestedBuffers;
     }
 
+    /**
+     * 尝试请求buffer
+     */
     private int tryRequestBuffers() {
         assert Thread.holdsLock(bufferQueue);
 
         int numRequestedBuffers = 0;
+
+        // 还没有到上限
+        // isWaitingForFloatingBuffers 为true代表之前pool没有buffer了
         while (bufferQueue.getAvailableBufferSize() < numRequiredBuffers
                 && !isWaitingForFloatingBuffers) {
             BufferPool bufferPool = inputChannel.inputGate.getBufferPool();
@@ -205,6 +235,7 @@ public class BufferManager implements BufferListener, BufferRecycler {
      * floating buffer based on <tt>numRequiredBuffers</tt>.
      *
      * @param segment The exclusive segment of this channel.
+     *                回收内存块
      */
     @Override
     public void recycle(MemorySegment segment) {
@@ -213,10 +244,12 @@ public class BufferManager implements BufferListener, BufferRecycler {
             try {
                 // Similar to notifyBufferAvailable(), make sure that we never add a buffer
                 // after channel released all buffers via releaseAllResources().
+                // channel不可用了  归还到pool中
                 if (inputChannel.isReleased()) {
                     globalPool.recycleUnpooledMemorySegments(Collections.singletonList(segment));
                     return;
                 } else {
+                    // 归还到独占池中
                     releasedFloatingBuffer =
                             bufferQueue.addExclusiveBuffer(
                                     new NetworkBuffer(segment, this), numRequiredBuffers);
@@ -228,10 +261,12 @@ public class BufferManager implements BufferListener, BufferRecycler {
             }
         }
 
+        // 表示多出了buffer 进行回收
         if (releasedFloatingBuffer != null) {
             releasedFloatingBuffer.recycleBuffer();
         } else {
             try {
+                // 表示多一个buffer可用
                 inputChannel.notifyBufferAvailable(1);
             } catch (Throwable t) {
                 ExceptionUtils.rethrow(t);
@@ -239,6 +274,9 @@ public class BufferManager implements BufferListener, BufferRecycler {
         }
     }
 
+    /**
+     * 释放所有浮动buffer
+     */
     void releaseFloatingBuffers() {
         Queue<Buffer> buffers;
         synchronized (bufferQueue) {
@@ -252,7 +290,9 @@ public class BufferManager implements BufferListener, BufferRecycler {
         }
     }
 
-    /** Recycles all the exclusive and floating buffers from the given buffer queue. */
+    /** Recycles all the exclusive and floating buffers from the given buffer queue.
+     * 释放所有buffer
+     * */
     void releaseAllBuffers(ArrayDeque<Buffer> buffers) throws IOException {
         // Gather all exclusive buffers and recycle them to global pool in batch, because
         // we do not want to trigger redistribution of buffers after each recycle.
@@ -280,6 +320,7 @@ public class BufferManager implements BufferListener, BufferRecycler {
             err = firstOrSuppressed(e, err);
         }
         try {
+            // 归还内存块
             if (exclusiveRecyclingSegments.size() > 0) {
                 globalPool.recycleUnpooledMemorySegments(exclusiveRecyclingSegments);
             }
@@ -302,6 +343,8 @@ public class BufferManager implements BufferListener, BufferRecycler {
      *
      * @param buffer Buffer that becomes available in buffer pool.
      * @return true if the buffer is accepted by this listener.
+     *
+     * 需要内存块 而pool无法提供时  注册本对象并在有可用内存块时触发该方法
      */
     @Override
     public boolean notifyBufferAvailable(Buffer buffer) {
@@ -315,6 +358,7 @@ public class BufferManager implements BufferListener, BufferRecycler {
         // other side's
         // bufferQueue lock to cause deadlock. So we check the isReleased state out of synchronized
         // to resolve it.
+        // 因为该channel已经被释放了  就不需要处理buffer了
         if (inputChannel.isReleased()) {
             return false;
         }
@@ -335,14 +379,17 @@ public class BufferManager implements BufferListener, BufferRecycler {
                 // 2) releaseAllBuffers() did not yet release buffers from bufferQueue
                 // -> we may or may not have set isReleased yet but will always wait for the
                 // lock on bufferQueue to release buffers
+                // 此时buffer数已经超过了请求值 不需要处理该buffer
                 if (inputChannel.isReleased()
                         || bufferQueue.getAvailableBufferSize() >= numRequiredBuffers) {
                     return false;
                 }
 
+                // 先加入浮动队列
                 bufferQueue.addFloatingBuffer(buffer);
                 isBufferUsed = true;
                 numBuffers += 1 + tryRequestBuffers();
+                // 唤醒等待buffer的线程
                 bufferQueue.notifyAll();
             }
 
@@ -397,13 +444,18 @@ public class BufferManager implements BufferListener, BufferRecycler {
     /**
      * Manages the exclusive and floating buffers of this channel, and handles the internal buffer
      * related logic.
+     * 使用该对象管理buffer
      */
     static final class AvailableBufferQueue {
 
-        /** The current available floating buffers from the fixed buffer pool. */
+        /** The current available floating buffers from the fixed buffer pool.
+         * 浮动缓冲区
+         * */
         final ArrayDeque<Buffer> floatingBuffers;
 
-        /** The current available exclusive buffers from the global buffer pool. */
+        /** The current available exclusive buffers from the global buffer pool.
+         * 独占缓冲区
+         * */
         final ArrayDeque<Buffer> exclusiveBuffers;
 
         AvailableBufferQueue() {
@@ -421,10 +473,12 @@ public class BufferManager implements BufferListener, BufferRecycler {
          * @param buffer The exclusive buffer to add
          * @param numRequiredBuffers The number of required buffers
          * @return An released floating buffer, may be null if the numRequiredBuffers is not met.
+         * 添加一个独占的buffer
          */
         @Nullable
         Buffer addExclusiveBuffer(Buffer buffer, int numRequiredBuffers) {
             exclusiveBuffers.add(buffer);
+            // 总buffer数量超过限制   弹出一个buffer 总是尝试弹出浮动的
             if (getAvailableBufferSize() > numRequiredBuffers) {
                 return floatingBuffers.poll();
             }
@@ -440,6 +494,7 @@ public class BufferManager implements BufferListener, BufferRecycler {
          *
          * @return An available floating or exclusive buffer, may be null if the channel is
          *     released.
+         *     优先返回浮动的buffer
          */
         @Nullable
         Buffer takeBuffer() {
@@ -455,6 +510,7 @@ public class BufferManager implements BufferListener, BufferRecycler {
          * will be gathered to return to global buffer pool later.
          *
          * @param exclusiveSegments The list that we will add exclusive segments into.
+         *                          释放所有buffer 并将独占的返回
          */
         void releaseAll(List<MemorySegment> exclusiveSegments) {
             Buffer buffer;

@@ -79,6 +79,8 @@ import static org.apache.flink.util.Preconditions.checkArgument;
  * in the application without a default savepoint directory, it will pick up a default savepoint
  * directory specified in the Flink configuration of the running job/cluster. That behavior is
  * implemented via the {@link #configure(ReadableConfig, ClassLoader)} method.
+ *
+ * 也是包含检查点位置信息
  */
 @PublicEvolving
 public class JobManagerCheckpointStorage

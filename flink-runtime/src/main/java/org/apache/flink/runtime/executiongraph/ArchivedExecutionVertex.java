@@ -30,33 +30,55 @@ import java.util.Optional;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** {@code ArchivedExecutionVertex} is a readonly representation of {@link ExecutionVertex}. */
+/** {@code ArchivedExecutionVertex} is a readonly representation of {@link ExecutionVertex}.
+ * 被归档的顶点+subtask信息   每次生命周期都对应一个Execution
+ * */
 public class ArchivedExecutionVertex implements AccessExecutionVertex, Serializable {
 
     private static final long serialVersionUID = -6708241535015028576L;
 
+    /**
+     * 子任务下标
+     */
     private final int subTaskIndex;
 
+    /**
+     * 包含往期的 Execution
+     */
     private final ExecutionHistory executionHistory;
 
     /** The name in the format "myTask (2/7)", cached to avoid frequent string concatenations. */
     private final String taskNameWithSubtask;
 
+    /**
+     * 此时的execution信息
+     */
     private final ArchivedExecution currentExecution; // this field must never be null
 
     private final Collection<AccessExecution> currentExecutions;
 
     // ------------------------------------------------------------------------
 
+
+    /**
+     * 使用一个ExecutionVertex 进行初始化
+     * @param vertex
+     */
     public ArchivedExecutionVertex(ExecutionVertex vertex) {
         this.subTaskIndex = vertex.getParallelSubtaskIndex();
         this.executionHistory = getCopyOfExecutionHistory(vertex);
         this.taskNameWithSubtask = vertex.getTaskNameWithSubtaskIndex();
 
         Execution vertexCurrentExecution = vertex.getCurrentExecutionAttempt();
+
+        // 获取当前正在执行的execution
         ArrayList<AccessExecution> currentExecutionList =
                 new ArrayList<>(vertex.getCurrentExecutions().size());
+
+        // 产生归档对象
         currentExecution = vertexCurrentExecution.archive();
+
+        // 将归档对象追加进去
         currentExecutionList.add(currentExecution);
         for (Execution execution : vertex.getCurrentExecutions()) {
             if (execution != vertexCurrentExecution) {

@@ -25,7 +25,9 @@ import javax.annotation.Nullable;
 
 import java.util.concurrent.CompletableFuture;
 
-/** Service that maintains lifecycle of {@link ResourceManager}. */
+/** Service that maintains lifecycle of {@link ResourceManager}.
+ * 维护ResourceManager的生命周期
+ * */
 public interface ResourceManagerService extends AutoCloseableAsync {
 
     /**
@@ -49,6 +51,7 @@ public interface ResourceManagerService extends AutoCloseableAsync {
      * @param applicationStatus to terminate the application with
      * @param diagnostics additional information about the shut down, can be {@code null}
      * @return Future which is completed once the shut down
+     * 注销某个应用
      */
     CompletableFuture<Void> deregisterApplication(
             final ApplicationStatus applicationStatus, final @Nullable String diagnostics);

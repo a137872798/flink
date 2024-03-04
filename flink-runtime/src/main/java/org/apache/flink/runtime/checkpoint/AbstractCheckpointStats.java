@@ -29,7 +29,9 @@ import java.util.Map;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Base class for checkpoint statistics. */
+/** Base class for checkpoint statistics.
+ * 检查点描述的统计信息
+ * */
 public abstract class AbstractCheckpointStats implements Serializable {
 
     private static final long serialVersionUID = 1041218202028265151L;
@@ -37,16 +39,24 @@ public abstract class AbstractCheckpointStats implements Serializable {
     /** ID of this checkpoint. */
     final long checkpointId;
 
-    /** Timestamp when the checkpoint was triggered at the coordinator. */
+    /** Timestamp when the checkpoint was triggered at the coordinator.
+     * 触发检查点的时间
+     * */
     final long triggerTimestamp;
 
-    /** {@link TaskStateStats} accessible by their ID. */
+    /** {@link TaskStateStats} accessible by their ID.
+     * 此时有哪些job  以及他们的任务统计数据   每个task下有多个subtask
+     * */
     final Map<JobVertexID, TaskStateStats> taskStats;
 
-    /** Total number of subtasks over all tasks. */
+    /** Total number of subtasks over all tasks.
+     * 相关的子任务数量
+     * */
     final int numberOfSubtasks;
 
-    /** Properties of the checkpoint. */
+    /** Properties of the checkpoint.
+     * 检查点的一些属性
+     * */
     final CheckpointProperties props;
 
     AbstractCheckpointStats(
@@ -69,6 +79,8 @@ public abstract class AbstractCheckpointStats implements Serializable {
      * Returns the status of this checkpoint.
      *
      * @return Status of this checkpoint
+     *
+     * 获取当前检查点处理状态
      */
     public abstract CheckpointStatsStatus getStatus();
 
@@ -76,6 +88,7 @@ public abstract class AbstractCheckpointStats implements Serializable {
      * Returns the number of acknowledged subtasks.
      *
      * @return The number of acknowledged subtasks.
+     * 返回此时已经确认ack的subtask数量
      */
     public abstract int getNumberOfAcknowledgedSubtasks();
 
@@ -83,6 +96,7 @@ public abstract class AbstractCheckpointStats implements Serializable {
      * Returns the total checkpoint state size over all subtasks.
      *
      * @return Total checkpoint state size over all subtasks.
+     * 获取state的总大小  (包含所有subtask)
      */
     public abstract long getStateSize();
 
@@ -90,16 +104,24 @@ public abstract class AbstractCheckpointStats implements Serializable {
      * Returns the checkpointed size during that checkpoint.
      *
      * @return The checkpointed size during that checkpoint.
+     *
+     * 此时的检查点大小
      */
     public abstract long getCheckpointedSize();
 
-    /** @return the total number of processed bytes during the checkpoint. */
+    /** @return the total number of processed bytes during the checkpoint.
+     * 返回处理中的数据大小
+     * */
     public abstract long getProcessedData();
 
-    /** @return the total number of persisted bytes during the checkpoint. */
+    /** @return the total number of persisted bytes during the checkpoint.
+     * 已经持久化的数据大小
+     * */
     public abstract long getPersistedData();
 
-    /** @return whether the checkpoint is unaligned. */
+    /** @return whether the checkpoint is unaligned.
+     * 检查点是否非对齐
+     * */
     public abstract boolean isUnalignedCheckpoint();
 
     /**
@@ -107,6 +129,8 @@ public abstract class AbstractCheckpointStats implements Serializable {
      * yet.
      *
      * @return Latest acknowledged subtask stats or <code>null</code>
+     *
+     * 获取最近的子任务状态统计信息
      */
     @Nullable
     public abstract SubtaskStateStats getLatestAcknowledgedSubtaskStats();
@@ -124,6 +148,8 @@ public abstract class AbstractCheckpointStats implements Serializable {
      * Returns the timestamp when the checkpoint was triggered.
      *
      * @return Timestamp when the checkpoint was triggered.
+     *
+     * 触发检查点的时间
      */
     public long getTriggerTimestamp() {
         return triggerTimestamp;
@@ -153,6 +179,8 @@ public abstract class AbstractCheckpointStats implements Serializable {
      *
      * @param jobVertexId Job vertex ID of the task stats to look up.
      * @return The task state stats instance for the given ID or <code>null</code>.
+     *
+     * 获取某个job相关的任务统计信息
      */
     public TaskStateStats getTaskStateStats(JobVertexID jobVertexId) {
         return taskStats.get(jobVertexId);
@@ -187,6 +215,8 @@ public abstract class AbstractCheckpointStats implements Serializable {
      * latest acknowledged subtask or <code>-1</code> if no subtask was acknowledged yet.
      *
      * @return Duration of this checkpoint or <code>-1</code> if no subtask was acknowledged yet.
+     *
+     * 返回自触发检查点到收到最近一个subtask的ack时间差
      */
     public long getEndToEndDuration() {
         SubtaskStateStats subtask = getLatestAcknowledgedSubtaskStats();

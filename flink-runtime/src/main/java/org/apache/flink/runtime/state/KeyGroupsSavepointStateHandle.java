@@ -18,7 +18,9 @@
 
 package org.apache.flink.runtime.state;
 
-/** A {@link KeyGroupsStateHandle} that describes a savepoint in the unified format. */
+/** A {@link KeyGroupsStateHandle} that describes a savepoint in the unified format.
+ * 表示在savepoint场景下产生的  从外面看去与KeyGroupsStateHandle一样
+ * */
 public class KeyGroupsSavepointStateHandle extends KeyGroupsStateHandle
         implements SavepointKeyedStateHandle {
 

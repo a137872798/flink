@@ -56,7 +56,9 @@ class HeartbeatManagerImpl<I, O> implements HeartbeatManager<I, O> {
     /** Resource ID which is used to mark one own's heartbeat signals. */
     private final ResourceID ownResourceID;
 
-    /** Heartbeat listener with which the heartbeat manager has been associated. */
+    /** Heartbeat listener with which the heartbeat manager has been associated.
+     * 心跳相关事件产生时 触发监听器  并且因为携带了 ResourceId 可以辨别出是哪个 HeartbeatTarget
+     * */
     private final HeartbeatListener<I, O> heartbeatListener;
 
     /** Executor service used to run heartbeat timeout notifications. */
@@ -64,7 +66,9 @@ class HeartbeatManagerImpl<I, O> implements HeartbeatManager<I, O> {
 
     protected final Logger log;
 
-    /** Map containing the heartbeat monitors associated with the respective resource ID. */
+    /** Map containing the heartbeat monitors associated with the respective resource ID.
+     * 该对象内部会维护多个target  (他们被monitor包裹)
+     * */
     private final ConcurrentHashMap<ResourceID, HeartbeatMonitor<O>> heartbeatTargets;
 
     private final HeartbeatMonitor.Factory<O> heartbeatMonitorFactory;
@@ -133,6 +137,11 @@ class HeartbeatManagerImpl<I, O> implements HeartbeatManager<I, O> {
     // HeartbeatManager methods
     // ----------------------------------------------------------------------------------------------
 
+    /**
+     * 监控某个target
+     * @param resourceID Resource ID identifying the heartbeat target
+     * @param heartbeatTarget Interface to send heartbeat requests and responses to the heartbeat
+     */
     @Override
     public void monitorTarget(ResourceID resourceID, HeartbeatTarget<O> heartbeatTarget) {
         if (!stopped) {
@@ -141,6 +150,7 @@ class HeartbeatManagerImpl<I, O> implements HeartbeatManager<I, O> {
                         "The target with resource ID {} is already been monitored.",
                         resourceID.getStringWithMetadata());
             } else {
+                // 包装成monitor对象  一旦target没有在时限内发送心跳包就会触发监听器
                 HeartbeatMonitor<O> heartbeatMonitor =
                         heartbeatMonitorFactory.createHeartbeatMonitor(
                                 resourceID,
@@ -162,6 +172,10 @@ class HeartbeatManagerImpl<I, O> implements HeartbeatManager<I, O> {
         }
     }
 
+    /**
+     * 表示不再监控某个 target
+     * @param resourceID Resource ID of the heartbeat target which shall no longer be monitored
+     */
     @Override
     public void unmonitorTarget(ResourceID resourceID) {
         if (!stopped) {
@@ -184,6 +198,11 @@ class HeartbeatManagerImpl<I, O> implements HeartbeatManager<I, O> {
         heartbeatTargets.clear();
     }
 
+    /**
+     * 获取某个target最后的心跳时间
+     * @param resourceId for which to return the last heartbeat
+     * @return
+     */
     @Override
     public long getLastHeartbeatFrom(ResourceID resourceId) {
         HeartbeatMonitor<O> heartbeatMonitor = heartbeatTargets.get(resourceId);
@@ -203,6 +222,13 @@ class HeartbeatManagerImpl<I, O> implements HeartbeatManager<I, O> {
     // HeartbeatTarget methods
     // ----------------------------------------------------------------------------------------------
 
+    /**
+     * 收到心跳包时  通过ResourceID 找到target 并转发
+     * @param heartbeatOrigin Resource ID identifying the machine for which a heartbeat shall be
+     *     reported.
+     * @param heartbeatPayload Payload of the heartbeat. Null indicates an empty payload.
+     * @return
+     */
     @Override
     public CompletableFuture<Void> receiveHeartbeat(
             ResourceID heartbeatOrigin, I heartbeatPayload) {
@@ -211,6 +237,7 @@ class HeartbeatManagerImpl<I, O> implements HeartbeatManager<I, O> {
             reportHeartbeat(heartbeatOrigin);
 
             if (heartbeatPayload != null) {
+                // 通知收到了payload
                 heartbeatListener.reportPayload(heartbeatOrigin, heartbeatPayload);
             }
         }
@@ -218,6 +245,11 @@ class HeartbeatManagerImpl<I, O> implements HeartbeatManager<I, O> {
         return FutureUtils.completedVoidFuture();
     }
 
+    /**
+     * @param requestOrigin Resource ID identifying the machine issuing the heartbeat request.
+     * @param heartbeatPayload Payload of the heartbeat request. Null indicates an empty payload.
+     * @return
+     */
     @Override
     public CompletableFuture<Void> requestHeartbeat(
             final ResourceID requestOrigin, I heartbeatPayload) {
@@ -231,6 +263,7 @@ class HeartbeatManagerImpl<I, O> implements HeartbeatManager<I, O> {
                     heartbeatListener.reportPayload(requestOrigin, heartbeatPayload);
                 }
 
+                // 获取下条要发送的消息推送给target
                 heartbeatTarget
                         .receiveHeartbeat(
                                 getOwnResourceID(),
@@ -242,6 +275,11 @@ class HeartbeatManagerImpl<I, O> implements HeartbeatManager<I, O> {
         return FutureUtils.completedVoidFuture();
     }
 
+    /**
+     * 处理rpc结果
+     * @param heartbeatTarget
+     * @return
+     */
     protected BiConsumer<Void, Throwable> handleHeartbeatRpc(ResourceID heartbeatTarget) {
         return (unused, failure) -> {
             if (failure != null) {

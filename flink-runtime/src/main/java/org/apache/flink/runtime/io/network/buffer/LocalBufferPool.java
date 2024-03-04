@@ -67,16 +67,22 @@ import static org.apache.flink.util.concurrent.FutureUtils.assertNoException;
  * <p>To ensure this contract, the implementation eagerly fetches additional memory segments from
  * {@link NetworkBufferPool} as long as it hasn't reached {@link #maxNumberOfMemorySegments} or one
  * subpartition reached the quota.
+ *
+ * 本地内存buffer   对应的还有网络内存buffer
  */
 public class LocalBufferPool implements BufferPool {
     private static final Logger LOG = LoggerFactory.getLogger(LocalBufferPool.class);
 
     private static final int UNKNOWN_CHANNEL = -1;
 
-    /** Global network buffer pool to get buffers from. */
+    /** Global network buffer pool to get buffers from.
+     * LocalBufferPool是通过NetworkBufferPool创建的  会占用NetworkBufferPool的部分内存块作为本pool内的数据
+     * */
     private final NetworkBufferPool networkBufferPool;
 
-    /** The minimum number of required segments for this pool. */
+    /** The minimum number of required segments for this pool.
+     * 该池内最小限度的内存块
+     * */
     private final int numberOfRequiredMemorySegments;
 
     /**
@@ -88,19 +94,25 @@ public class LocalBufferPool implements BufferPool {
      * code inside this class, e.g. with {@code
      * org.apache.flink.runtime.io.network.partition.consumer.BufferManager#bufferQueue} via the
      * {@link #registeredListeners} callback.
+     * 此时可用的内存块
      */
     private final ArrayDeque<MemorySegment> availableMemorySegments = new ArrayDeque<>();
 
     /**
      * Buffer availability listeners, which need to be notified when a Buffer becomes available.
      * Listeners can only be registered at a time/state where no Buffer instance was available.
+     * 本对象可以监听内存块的变化
      */
     private final ArrayDeque<BufferListener> registeredListeners = new ArrayDeque<>();
 
-    /** Maximum number of network buffers to allocate. */
+    /** Maximum number of network buffers to allocate.
+     * 最多允许存在多少内存块
+     * */
     private final int maxNumberOfMemorySegments;
 
-    /** The current size of this pool. */
+    /** The current size of this pool.
+     * 当前内部数量
+     * */
     @GuardedBy("availableMemorySegments")
     private int currentPoolSize;
 
@@ -108,17 +120,30 @@ public class LocalBufferPool implements BufferPool {
      * Number of all memory segments, which have been requested from the network buffer pool and are
      * somehow referenced through this pool (e.g. wrapped in Buffer instances or as available
      * segments).
+     * 这是此时已经请求到的内存块数量  不应该超过currentPoolSize
      */
     @GuardedBy("availableMemorySegments")
     private int numberOfRequestedMemorySegments;
 
+    /**
+     * 每个channel最多可分配多少buffer
+     */
     private final int maxBuffersPerChannel;
 
+    /**
+     * 记录此时每个channel引用的buffer数量
+     */
     @GuardedBy("availableMemorySegments")
     private final int[] subpartitionBuffersCount;
 
+    /**
+     * 每个channel有自己的回收器
+     */
     private final BufferRecycler[] subpartitionBufferRecyclers;
 
+    /**
+     * 记录此时不可用的channel数量
+     */
     @GuardedBy("availableMemorySegments")
     private int unavailableSubpartitionsCount = 0;
 
@@ -182,7 +207,7 @@ public class LocalBufferPool implements BufferPool {
      * @param networkBufferPool global network buffer pool to get buffers from
      * @param numberOfRequiredMemorySegments minimum number of network buffers
      * @param maxNumberOfMemorySegments maximum number of network buffers to allocate
-     * @param numberOfSubpartitions number of subpartitions
+     * @param numberOfSubpartitions number of subpartitions    默认情况下是0
      * @param maxBuffersPerChannel maximum number of buffers to use for each channel
      * @param maxOverdraftBuffersPerGate maximum number of overdraft buffers to use for each gate
      */
@@ -225,8 +250,11 @@ public class LocalBufferPool implements BufferPool {
                     maxOverdraftBuffersPerGate);
         }
 
+        // numberOfSubpartitions 默认为0
         this.subpartitionBuffersCount = new int[numberOfSubpartitions];
         subpartitionBufferRecyclers = new BufferRecycler[numberOfSubpartitions];
+
+        // 如果有声明channel  那么要创建等量的 SubpartitionBufferRecycler
         for (int i = 0; i < subpartitionBufferRecyclers.length; i++) {
             subpartitionBufferRecyclers[i] = new SubpartitionBufferRecycler(i, this);
         }
@@ -244,6 +272,11 @@ public class LocalBufferPool implements BufferPool {
     // Properties
     // ------------------------------------------------------------------------
 
+    /**
+     * 申请内存块
+     * @param numberOfSegmentsToReserve
+     * @throws IOException
+     */
     @Override
     public void reserveSegments(int numberOfSegmentsToReserve) throws IOException {
         checkArgument(
@@ -254,6 +287,7 @@ public class LocalBufferPool implements BufferPool {
         synchronized (availableMemorySegments) {
             checkDestroyed();
 
+            // 还需要额外申请
             if (numberOfRequestedMemorySegments < numberOfSegmentsToReserve) {
                 availableMemorySegments.addAll(
                         networkBufferPool.requestPooledMemorySegmentsBlocking(
@@ -389,6 +423,11 @@ public class LocalBufferPool implements BufferPool {
         return segment;
     }
 
+    /**
+     * 从队列中获取一个内存块
+     * @param targetChannel
+     * @return
+     */
     @Nullable
     private MemorySegment requestMemorySegment(int targetChannel) {
         MemorySegment segment = null;
@@ -397,9 +436,12 @@ public class LocalBufferPool implements BufferPool {
 
             if (!availableMemorySegments.isEmpty()) {
                 segment = availableMemorySegments.poll();
+
+                // 此时请求的量已经达到上限
             } else if (isRequestedSizeReached()) {
                 // Only when the buffer request reaches the upper limit(i.e. current pool size),
                 // requests an overdraft buffer.
+                // 准备超量申请
                 segment = requestOverdraftMemorySegmentFromGlobal();
             }
 
@@ -408,6 +450,7 @@ public class LocalBufferPool implements BufferPool {
             }
 
             if (targetChannel != UNKNOWN_CHANNEL) {
+                // 某个channel申请满了 表示该分区无法再申请
                 if (++subpartitionBuffersCount[targetChannel] == maxBuffersPerChannel) {
                     unavailableSubpartitionsCount++;
                 }
@@ -430,16 +473,22 @@ public class LocalBufferPool implements BufferPool {
         return requestMemorySegment(UNKNOWN_CHANNEL);
     }
 
+    /**
+     * 从全局pool请求buffer
+     * @return
+     */
     @GuardedBy("availableMemorySegments")
     private boolean requestMemorySegmentFromGlobal() {
         assert Thread.holdsLock(availableMemorySegments);
 
+        // 请求的量已经达到上限了  不能在发起请求
         if (isRequestedSizeReached()) {
             return false;
         }
 
         MemorySegment segment = requestPooledMemorySegment();
         if (segment != null) {
+            // 请求到并加入pool中
             availableMemorySegments.add(segment);
             return true;
         }
@@ -459,6 +508,10 @@ public class LocalBufferPool implements BufferPool {
         return requestPooledMemorySegment();
     }
 
+    /**
+     * 从全局pool请求内存块
+     * @return
+     */
     @Nullable
     @GuardedBy("availableMemorySegments")
     private MemorySegment requestPooledMemorySegment() {
@@ -477,6 +530,8 @@ public class LocalBufferPool implements BufferPool {
      * Tries to obtain a buffer from global pool as soon as one pool is available. Note that
      * multiple {@link LocalBufferPool}s might wait on the future of the global pool, hence this
      * method double-check if a new buffer is really needed at the time it becomes available.
+     *
+     * 当全局有可用内存块时  进行申请
      */
     @GuardedBy("availableMemorySegments")
     private void requestMemorySegmentFromGlobalWhenAvailable() {
@@ -490,6 +545,9 @@ public class LocalBufferPool implements BufferPool {
                 networkBufferPool.getAvailableFuture().thenRun(this::onGlobalPoolAvailable));
     }
 
+    /**
+     * 申请内存块
+     */
     private void onGlobalPoolAvailable() {
         CompletableFuture<?> toNotify;
         synchronized (availableMemorySegments) {
@@ -505,18 +563,29 @@ public class LocalBufferPool implements BufferPool {
             // #requestMemorySegmentFromGlobalWhenAvailable again if no segment could be fetched
             // because of
             // concurrent requests from different LocalBufferPools.
+            // 这里会间接触发申请
             toNotify = checkAndUpdateAvailability();
         }
         mayNotifyAvailable(toNotify);
     }
 
+    /**
+     *
+     * @return
+     */
     @GuardedBy("availableMemorySegments")
     private boolean shouldBeAvailable() {
         assert Thread.holdsLock(availableMemorySegments);
 
+        // 注意要所有channel都可用
+        // unavailableSubpartitionsCount != 0 表示某个分区申请超量了
         return !availableMemorySegments.isEmpty() && unavailableSubpartitionsCount == 0;
     }
 
+    /**
+     * 检查当前可用性
+     * @return
+     */
     @GuardedBy("availableMemorySegments")
     private CompletableFuture<?> checkAndUpdateAvailability() {
         assert Thread.holdsLock(availableMemorySegments);
@@ -524,11 +593,15 @@ public class LocalBufferPool implements BufferPool {
         CompletableFuture<?> toNotify = null;
 
         AvailabilityStatus availabilityStatus = checkAvailability();
+
+        // 表示可用了
         if (availabilityStatus.isAvailable()) {
             toNotify = availabilityHelper.getUnavailableToResetAvailable();
         } else {
             availabilityHelper.resetUnavailable();
         }
+
+        // 表示当全局pool有可用内存块时 进行申请
         if (availabilityStatus.isNeedRequestingNotificationOfGlobalPoolAvailable()) {
             requestMemorySegmentFromGlobalWhenAvailable();
         }
@@ -537,23 +610,33 @@ public class LocalBufferPool implements BufferPool {
         return toNotify;
     }
 
+    /**
+     * 检查当前可用性
+     * @return
+     */
     @GuardedBy("availableMemorySegments")
     private AvailabilityStatus checkAvailability() {
         assert Thread.holdsLock(availableMemorySegments);
 
+        // 此时有内存块 就认为是可用的
         if (!availableMemorySegments.isEmpty()) {
             return AvailabilityStatus.from(shouldBeAvailable(), false);
         }
+
+        // 当没有内存块时  并且请求的内存块已经达到指定的量   也就是无法再向全局pool申请了   也就不可用了
         if (isRequestedSizeReached()) {
             return AvailabilityStatus.UNAVAILABLE_NEED_NOT_REQUESTING_NOTIFICATION;
         }
         boolean needRequestingNotificationOfGlobalPoolAvailable = false;
         // There aren't availableMemorySegments, and we continue to request new memory segment from
         // global pool.
+        //
         if (!requestMemorySegmentFromGlobal()) {
             // If we can not get a buffer from global pool, we should request from it when it
             // becomes available. It should be noted that if we are already in this status, do not
             // need to repeat the request.
+
+            // 表示当全局有可用内存块时进行申请
             needRequestingNotificationOfGlobalPoolAvailable =
                     !requestingNotificationOfGlobalPoolAvailable;
         }
@@ -576,6 +659,11 @@ public class LocalBufferPool implements BufferPool {
         recycle(segment, UNKNOWN_CHANNEL);
     }
 
+    /**
+     * 在回收的时候 指定channel
+     * @param segment
+     * @param channel
+     */
     private void recycle(MemorySegment segment, int channel) {
         BufferListener listener;
         CompletableFuture<?> toNotify = null;
@@ -583,14 +671,18 @@ public class LocalBufferPool implements BufferPool {
             synchronized (availableMemorySegments) {
                 if (channel != UNKNOWN_CHANNEL) {
                     if (subpartitionBuffersCount[channel]-- == maxBuffersPerChannel) {
+                        // 表示该channel没有超量
                         unavailableSubpartitionsCount--;
                     }
                 }
 
+                // 申请的内存块超量了  进行归还
                 if (isDestroyed || hasExcessBuffers()) {
                     returnMemorySegment(segment);
                     return;
                 } else {
+                    // 没超量正常归还到 availableMemorySegments
+                    // 注意要求监听器为null
                     listener = registeredListeners.poll();
                     if (listener == null) {
                         availableMemorySegments.add(segment);
@@ -603,6 +695,8 @@ public class LocalBufferPool implements BufferPool {
 
                 checkConsistentAvailability();
             }
+
+            // 尝试触发监听器
         } while (!fireBufferAvailableNotification(listener, segment));
 
         mayNotifyAvailable(toNotify);
@@ -614,6 +708,7 @@ public class LocalBufferPool implements BufferPool {
         // notification and which other threads also access them.
         // -> call notifyBufferAvailable() outside the synchronized block to avoid a deadlock
         // (FLINK-9676)
+        // 需要buffer的对象可以将自己变为监听器 等待buffer可用后立即借走
         return listener.notifyBufferAvailable(new NetworkBuffer(segment, this));
     }
 
@@ -650,6 +745,7 @@ public class LocalBufferPool implements BufferPool {
     @Override
     public boolean addBufferListener(BufferListener listener) {
         synchronized (availableMemorySegments) {
+            // 如果此时有内存块就不能注册   监听器是当刚有内存可用时 立刻借走
             if (!availableMemorySegments.isEmpty() || isDestroyed) {
                 return false;
             }
@@ -659,6 +755,10 @@ public class LocalBufferPool implements BufferPool {
         }
     }
 
+    /**
+     * 更新pool中应有的内存块数量
+     * @param numBuffers
+     */
     @Override
     public void setNumBuffers(int numBuffers) {
         CompletableFuture<?> toNotify;
@@ -671,6 +771,7 @@ public class LocalBufferPool implements BufferPool {
 
             currentPoolSize = Math.min(numBuffers, maxNumberOfMemorySegments);
 
+            // 将超出的内存块归还给全局pool
             returnExcessMemorySegments();
 
             if (isDestroyed) {
@@ -681,9 +782,11 @@ public class LocalBufferPool implements BufferPool {
                 return;
             }
 
+            // 此时状态可能发生变化
             toNotify = checkAndUpdateAvailability();
         }
 
+        // 进行通知
         mayNotifyAvailable(toNotify);
     }
 
@@ -730,6 +833,10 @@ public class LocalBufferPool implements BufferPool {
         }
     }
 
+    /**
+     * 将内存块归还到全局
+     * @param segment
+     */
     @GuardedBy("availableMemorySegments")
     private void returnMemorySegment(MemorySegment segment) {
         assert Thread.holdsLock(availableMemorySegments);
@@ -738,10 +845,14 @@ public class LocalBufferPool implements BufferPool {
         networkBufferPool.recyclePooledMemorySegment(segment);
     }
 
+    /**
+     * 超出的内存块归还给globalPool
+     */
     @GuardedBy("availableMemorySegments")
     private void returnExcessMemorySegments() {
         assert Thread.holdsLock(availableMemorySegments);
 
+        // 请求的内存块数量超过了pool的需求量 就要进行归还
         while (hasExcessBuffers()) {
             MemorySegment segment = availableMemorySegments.poll();
             if (segment == null) {
@@ -762,6 +873,9 @@ public class LocalBufferPool implements BufferPool {
         return numberOfRequestedMemorySegments >= currentPoolSize;
     }
 
+    /**
+     * 以channel为单位回收内存块
+     */
     private static class SubpartitionBufferRecycler implements BufferRecycler {
 
         private final int channel;

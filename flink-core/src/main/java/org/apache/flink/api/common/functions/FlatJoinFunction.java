@@ -54,7 +54,7 @@ import java.io.Serializable;
  * @param <IN1> The type of the elements in the first input.
  * @param <IN2> The type of the elements in the second input.
  * @param <OUT> The type of the result elements.
- *             输入2个元素 并转换成输出
+ *             输入2个元素 join后通过out采集结果
  */
 @Public
 @FunctionalInterface

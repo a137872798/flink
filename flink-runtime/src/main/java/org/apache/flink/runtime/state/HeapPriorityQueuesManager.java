@@ -32,11 +32,20 @@ import javax.annotation.Nonnull;
 
 import java.util.Map;
 
-/** Manages creating heap priority queues along with their counterpart meta info. */
+/** Manages creating heap priority queues along with their counterpart meta info.
+ * 优先队列管理器
+ * */
 @Internal
 public class HeapPriorityQueuesManager {
 
+    /**
+     * 表示使用优先队列存储state数据的容器
+     */
     private final Map<String, HeapPriorityQueueSnapshotRestoreWrapper<?>> registeredPQStates;
+
+    /**
+     * 用于产生优先队列
+     */
     private final HeapPriorityQueueSetFactory priorityQueueSetFactory;
     private final KeyGroupRange keyGroupRange;
     private final int numberOfKeyGroups;
@@ -60,6 +69,14 @@ public class HeapPriorityQueuesManager {
         return createOrUpdate(stateName, byteOrderedElementSerializer, false);
     }
 
+    /**
+     * 生成基于优先队列的一个state
+     * @param stateName
+     * @param byteOrderedElementSerializer
+     * @param allowFutureMetadataUpdates
+     * @param <T>
+     * @return
+     */
     @SuppressWarnings("unchecked")
     @Nonnull
     public <T extends HeapPriorityQueueElement & PriorityComparable<? super T> & Keyed<?>>
@@ -68,6 +85,7 @@ public class HeapPriorityQueuesManager {
                     @Nonnull TypeSerializer<T> byteOrderedElementSerializer,
                     boolean allowFutureMetadataUpdates) {
 
+        // 检查当前该state(优先队列)是否已经存在
         final HeapPriorityQueueSnapshotRestoreWrapper<T> existingState =
                 (HeapPriorityQueueSnapshotRestoreWrapper<T>) registeredPQStates.get(stateName);
 
@@ -82,12 +100,14 @@ public class HeapPriorityQueuesManager {
                         new StateMigrationException(
                                 "For heap backends, the new priority queue serializer must not be incompatible."));
             } else {
+                // 因为更新了序列化对象
                 registeredPQStates.put(
                         stateName,
                         existingState.forUpdatedSerializer(
                                 byteOrderedElementSerializer, allowFutureMetadataUpdates));
             }
 
+            // 返回更新后的队列
             return existingState.getPriorityQueue();
         } else {
             RegisteredPriorityQueueStateBackendMetaInfo<T> metaInfo =
@@ -99,6 +119,7 @@ public class HeapPriorityQueuesManager {
                             ? metaInfo.withSerializerUpgradesAllowed()
                             : metaInfo;
 
+            // 基于该元数据产生优先队列
             return createInternal(metaInfo);
         }
     }

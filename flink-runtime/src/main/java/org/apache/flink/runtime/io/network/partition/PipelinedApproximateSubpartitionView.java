@@ -18,7 +18,9 @@
 
 package org.apache.flink.runtime.io.network.partition;
 
-/** View over a pipelined in-memory only subpartition allowing reconnecting. */
+/** View over a pipelined in-memory only subpartition allowing reconnecting.
+ * 表示一个近似对象
+ * */
 public class PipelinedApproximateSubpartitionView extends PipelinedSubpartitionView {
 
     PipelinedApproximateSubpartitionView(

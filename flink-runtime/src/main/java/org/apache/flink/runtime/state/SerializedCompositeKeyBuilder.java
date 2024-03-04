@@ -35,6 +35,7 @@ import java.io.IOException;
  * serialized currentKeyed if possible.
  *
  * @param <K> type of the key.
+ *           存在一个输出流 用于保存key和ns
  */
 @NotThreadSafe
 @Internal
@@ -43,13 +44,17 @@ public final class SerializedCompositeKeyBuilder<K> {
     /** The serializer for the key. */
     @Nonnull private final TypeSerializer<K> keySerializer;
 
-    /** The output to write the key into. */
+    /** The output to write the key into.
+     * 可以简单看作一个输出流
+     * */
     @Nonnull private final DataOutputSerializer keyOutView;
 
     /** The number of Key-group-prefix bytes for the key. */
     @Nonnegative private final int keyGroupPrefixBytes;
 
-    /** This flag indicates whether the key type has a variable byte size in serialization. */
+    /** This flag indicates whether the key type has a variable byte size in serialization.
+     * 表示key在序列化时  长度是否可变
+     * */
     private final boolean keySerializerTypeVariableSized;
 
     /** Mark for the position after the serialized key. */
@@ -115,6 +120,7 @@ public final class SerializedCompositeKeyBuilder<K> {
      * @param namespaceSerializer the serializer to obtain the serialized form of the namespace.
      * @param <N> the type of the namespace.
      * @return the bytes for the serialized composite key of key-group, key, namespace.
+     * 返回key和ns
      */
     @Nonnull
     public <N> byte[] buildCompositeKeyNamespace(
@@ -148,7 +154,9 @@ public final class SerializedCompositeKeyBuilder<K> {
             @Nonnull UK userKey,
             @Nonnull TypeSerializer<UK> userKeySerializer)
             throws IOException {
+        // 写入ns
         serializeNamespace(namespace, namespaceSerializer);
+        // 写入一个自定义key
         userKeySerializer.serialize(userKey, keyOutView);
         return keyOutView.getCopyOfBuffer();
     }
@@ -171,6 +179,7 @@ public final class SerializedCompositeKeyBuilder<K> {
         assert isNamespaceWritten();
         resetToNamespace();
 
+        // 写入自定义key
         userKeySerializer.serialize(userKey, keyOutView);
         return keyOutView.getCopyOfBuffer();
     }
@@ -183,16 +192,25 @@ public final class SerializedCompositeKeyBuilder<K> {
 
     private void serializeKeyGroupAndKey(K key, int keyGroupId) throws IOException {
 
-        // clear buffer and mark
+        // clear buffer and mark  重置指针
         resetFully();
 
         // write key-group
+        // 写入keyGroup 写入多少由前缀决定
         CompositeKeySerializationUtils.writeKeyGroup(keyGroupId, keyGroupPrefixBytes, keyOutView);
-        // write key
+        // write key 写入key
         keySerializer.serialize(key, keyOutView);
+        // 记录此时的偏移量
         afterKeyMark = keyOutView.length();
     }
 
+    /**
+     * 写入ns
+     * @param namespace
+     * @param namespaceSerializer
+     * @param <N>
+     * @throws IOException
+     */
     private <N> void serializeNamespace(
             @Nonnull N namespace, @Nonnull TypeSerializer<N> namespaceSerializer)
             throws IOException {
@@ -200,10 +218,13 @@ public final class SerializedCompositeKeyBuilder<K> {
         // this should only be called when there is already a key written so that we build the
         // composite.
         assert isKeyWritten();
+        // 把指针调整到key后面
         resetToKey();
 
+        // 判断是否是变长的
         final boolean ambiguousCompositeKeyPossible =
                 isAmbiguousCompositeKeyPossible(namespaceSerializer);
+        // 变长的话 写入一个特殊值
         if (ambiguousCompositeKeyPossible) {
             CompositeKeySerializationUtils.writeVariableIntBytes(
                     afterKeyMark - keyGroupPrefixBytes, keyOutView);
@@ -213,12 +234,18 @@ public final class SerializedCompositeKeyBuilder<K> {
         afterNamespaceMark = keyOutView.length();
     }
 
+    /**
+     * 重置指针
+     */
     private void resetFully() {
         afterKeyMark = 0;
         afterNamespaceMark = 0;
         keyOutView.clear();
     }
 
+    /**
+     * 将位置定位到key的后面 准备写入ns
+     */
     private void resetToKey() {
         afterNamespaceMark = 0;
         keyOutView.setPosition(afterKeyMark);

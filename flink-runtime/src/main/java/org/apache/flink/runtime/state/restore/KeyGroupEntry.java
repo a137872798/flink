@@ -20,7 +20,9 @@ package org.apache.flink.runtime.state.restore;
 
 import org.apache.flink.annotation.Internal;
 
-/** Part of a savepoint representing data for a single state entry in a key group. */
+/** Part of a savepoint representing data for a single state entry in a key group.
+ * 在savepoint中使用 表示一个stateEntry
+ * */
 @Internal
 public class KeyGroupEntry {
     private final int kvStateId;

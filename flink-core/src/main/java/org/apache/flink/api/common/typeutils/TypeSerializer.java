@@ -206,6 +206,7 @@ public abstract class TypeSerializer<T> implements Serializable {
      *
      * @see TypeSerializerSnapshot#resolveSchemaCompatibility(TypeSerializer)
      * @return snapshot of the serializer's current configuration (cannot be {@code null}).
+     * 一切都是可快照化的  序列化对象也不例外
      */
     public abstract TypeSerializerSnapshot<T> snapshotConfiguration();
 }

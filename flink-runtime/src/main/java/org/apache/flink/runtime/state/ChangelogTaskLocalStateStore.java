@@ -49,7 +49,9 @@ import java.util.stream.Collectors;
 import static org.apache.flink.runtime.state.filesystem.AbstractFsCheckpointStorageAccess.CHECKPOINT_TASK_OWNED_STATE_DIR;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** Changelog's implementation of a {@link TaskLocalStateStore}. */
+/** Changelog's implementation of a {@link TaskLocalStateStore}.
+ * 追加一些changelog相关的逻辑
+ * */
 public class ChangelogTaskLocalStateStore extends TaskLocalStateStoreImpl {
 
     private static final Logger LOG = LoggerFactory.getLogger(ChangelogTaskLocalStateStore.class);
@@ -59,10 +61,13 @@ public class ChangelogTaskLocalStateStore extends TaskLocalStateStoreImpl {
     /**
      * The mapper of checkpointId and materializationId. (cp3, materializationId2) means cp3 refer
      * to m1.
+     * 检查点id 到物化对象id
      */
     private final Map<Long, Long> mapToMaterializationId;
 
-    /** Last checkpointId, to check whether checkpoint is out of order. */
+    /** Last checkpointId, to check whether checkpoint is out of order.
+     * 记录最大的检查点id
+     * */
     private long lastCheckpointId = -1L;
 
     public ChangelogTaskLocalStateStore(
@@ -76,18 +81,32 @@ public class ChangelogTaskLocalStateStore extends TaskLocalStateStoreImpl {
         this.mapToMaterializationId = new HashMap<>();
     }
 
+    /**
+     * 插入新的快照前  执行该方法
+     * @param checkpointId
+     * @param localState
+     */
     private void updateReference(long checkpointId, TaskStateSnapshot localState) {
         if (localState == null) {
             localState = NULL_DUMMY;
         }
+
+        // 展开来是一个个 operator 以及对应的状态
         for (Map.Entry<OperatorID, OperatorSubtaskState> subtaskStateEntry :
                 localState.getSubtaskStateMappings()) {
+            // 再细化 得到一组state
             for (KeyedStateHandle keyedStateHandle :
                     subtaskStateEntry.getValue().getManagedKeyedState()) {
+
+                // 表示changelog相关的
                 if (keyedStateHandle instanceof ChangelogStateBackendHandle) {
                     ChangelogStateBackendHandle changelogStateBackendHandle =
                             (ChangelogStateBackendHandle) keyedStateHandle;
+
+                    // 简单来讲就是建立映射关系
                     long materializationID = changelogStateBackendHandle.getMaterializationID();
+
+                    // 这里认为 应该是一对一关系
                     if (mapToMaterializationId.containsKey(checkpointId)) {
                         checkState(
                                 materializationID == mapToMaterializationId.get(checkpointId),
@@ -115,6 +134,11 @@ public class ChangelogTaskLocalStateStore extends TaskLocalStateStoreImpl {
                 String.format("%s/jid_%s", outDir.toURI(), jobID), CHECKPOINT_TASK_OWNED_STATE_DIR);
     }
 
+    /**
+     * 往store中添加某个检查点对应的 任务快照时  使用该方法
+     * @param checkpointId id for the checkpoint that created the local state that will be stored.
+     * @param localState the local state to store.
+     */
     @Override
     public void storeLocalState(long checkpointId, @Nullable TaskStateSnapshot localState) {
         if (checkpointId < lastCheckpointId) {
@@ -132,6 +156,11 @@ public class ChangelogTaskLocalStateStore extends TaskLocalStateStoreImpl {
         super.storeLocalState(checkpointId, localState);
     }
 
+    /**
+     * 查找检查点目录    这个是针对changelog的检查点
+     * @param checkpointId
+     * @return
+     */
     @Override
     protected File getCheckpointDirectory(long checkpointId) {
         return new File(
@@ -139,6 +168,10 @@ public class ChangelogTaskLocalStateStore extends TaskLocalStateStoreImpl {
                 CHANGE_LOG_CHECKPOINT_PREFIX + checkpointId);
     }
 
+    /**
+     * 连带删除物化数据
+     * @param pruningChecker
+     */
     private void deleteMaterialization(LongPredicate pruningChecker) {
         Set<Long> materializationToRemove;
         synchronized (lock) {
@@ -161,6 +194,10 @@ public class ChangelogTaskLocalStateStore extends TaskLocalStateStoreImpl {
                                         .collect(Collectors.toList())));
     }
 
+    /**
+     * 删除相关文件
+     * @param toDiscard
+     */
     private void syncDiscardFileForCollection(Collection<File> toDiscard) {
         for (File directory : toDiscard) {
             if (directory.exists()) {
@@ -180,6 +217,8 @@ public class ChangelogTaskLocalStateStore extends TaskLocalStateStoreImpl {
             }
         }
     }
+
+    // 在淘汰检查点数据 和 删除检查点数据时  都会触发deleteMaterialization 连带删除物化数据
 
     @Override
     public void pruneCheckpoints(LongPredicate pruningChecker, boolean breakOnceCheckerFalse) {
@@ -202,6 +241,7 @@ public class ChangelogTaskLocalStateStore extends TaskLocalStateStoreImpl {
         // delete all ChangelogStateHandle in taskowned directory.
         discardExecutor.execute(
                 () ->
+                        // 从更上层删除所有数据
                         syncDiscardFileForCollection(
                                 Collections.singleton(
                                         new File(

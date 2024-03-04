@@ -40,6 +40,7 @@ import java.util.Map;
  * @param <N> The type of the namespace.
  * @param <UK> The type of the keys in the state.
  * @param <UV> The type of the values in the state.
+ *            表示 StateMap中的
  */
 class HeapMapState<K, N, UK, UV> extends AbstractHeapState<K, N, Map<UK, UV>>
         implements InternalMapState<K, N, UK, UV> {
@@ -83,6 +84,7 @@ class HeapMapState<K, N, UK, UV> extends AbstractHeapState<K, N, Map<UK, UV>>
     @Override
     public UV get(UK userKey) {
 
+        // StateMap中的value是一个map类型
         Map<UK, UV> userMap = stateTable.get(currentNamespace);
 
         if (userMap == null) {
@@ -91,6 +93,8 @@ class HeapMapState<K, N, UK, UV> extends AbstractHeapState<K, N, Map<UK, UV>>
 
         return userMap.get(userKey);
     }
+
+    // 下面的都是map基本操作
 
     @Override
     public void put(UK userKey, UV userValue) {
@@ -191,6 +195,7 @@ class HeapMapState<K, N, UK, UV> extends AbstractHeapState<K, N, Map<UK, UV>>
             return null;
         }
 
+        // 将map数据序列化
         final MapSerializer<UK, UV> serializer = (MapSerializer<UK, UV>) safeValueSerializer;
 
         final TypeSerializer<UK> dupUserKeySerializer = serializer.getKeySerializer();

@@ -30,6 +30,7 @@ import java.util.concurrent.TimeoutException;
  * <p>This interface is intended to be implemented by the self gateway in a {@link RpcEndpoint}
  * implementation which allows to dispatch local procedures to the main thread of the underlying RPC
  * endpoint.
+ * 可以提交执行对象 以及定时执行
  */
 public interface MainThreadExecutable {
 

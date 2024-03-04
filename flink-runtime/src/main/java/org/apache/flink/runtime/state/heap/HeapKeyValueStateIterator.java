@@ -48,6 +48,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * A {@link org.apache.flink.runtime.state.KeyValueStateIterator} over Heap backend snapshot
  * resources.
+ * 用于遍历kv state内部的entry
  */
 @Internal
 @NotThreadSafe
@@ -55,7 +56,13 @@ public final class HeapKeyValueStateIterator implements KeyValueStateIterator {
 
     private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
 
+    /**
+     * 每个state name -> 与 id的映射关系
+     */
     private final Map<StateUID, Integer> stateNamesToId;
+    /**
+     * 每个状态的快照
+     */
     private final Map<StateUID, StateSnapshot> stateStableSnapshots;
     private final int keyGroupPrefixBytes;
 
@@ -85,10 +92,19 @@ public final class HeapKeyValueStateIterator implements KeyValueStateIterator {
      * </ul>
      */
     private SingleStateIterator currentStateIterator;
-    /** Helpers for serializing state into the unified format. */
+    /** Helpers for serializing state into the unified format.
+     * 存放state值的输出流
+     * */
     private final DataOutputSerializer valueOut = new DataOutputSerializer(64);
 
+    /**
+     * 可以序列化/反序列化 list类型
+     */
     private final ListDelimitedSerializer listDelimitedSerializer = new ListDelimitedSerializer();
+
+    /**
+     * 存放key namespace的输出流
+     */
     private final SerializedCompositeKeyBuilder<Object> compositeKeyBuilder;
 
     public HeapKeyValueStateIterator(
@@ -106,16 +122,19 @@ public final class HeapKeyValueStateIterator implements KeyValueStateIterator {
         this.statesIterator = stateSnapshots.keySet().iterator();
         this.keyGroupIterator = keyGroupRange.iterator();
 
+        // 表示前缀需要多少个字节表示
         this.keyGroupPrefixBytes =
                 CompositeKeySerializationUtils.computeRequiredBytesInKeyGroupPrefix(totalKeyGroups);
         this.compositeKeyBuilder =
                 new SerializedCompositeKeyBuilder<>(
                         castToType(keySerializer), keyGroupPrefixBytes, 32);
 
+        // 这里存储了状态 如果还没有状态数据  那么此时本对象不可用
         if (!keyGroupIterator.hasNext() || !statesIterator.hasNext()) {
             // stop early, no key groups or states
             isValid = false;
         } else {
+            // 获得此时在使用的key
             currentKeyGroup = keyGroupIterator.next();
             next();
             this.newKeyGroup = true;
@@ -142,11 +161,18 @@ public final class HeapKeyValueStateIterator implements KeyValueStateIterator {
         return currentKeyGroup;
     }
 
+    /**
+     * 获取当前state的id
+     * @return
+     */
     @Override
     public int kvStateId() {
         return stateNamesToId.get(currentState);
     }
 
+    /**
+     * 获取下个state
+     */
     @Override
     public void next() throws IOException {
         this.newKVState = false;
@@ -154,6 +180,7 @@ public final class HeapKeyValueStateIterator implements KeyValueStateIterator {
 
         boolean nextElementSet = false;
         do {
+            // 表示当前state的所有数据都处理完了  需要切换到下个state
             if (currentState == null) {
                 boolean hasNextState = moveToNextState();
                 if (!hasNextState) {
@@ -162,11 +189,13 @@ public final class HeapKeyValueStateIterator implements KeyValueStateIterator {
                 }
             }
 
+            // 获得下个stateEntry
             boolean hasStateEntry = currentStateIterator != null && currentStateIterator.hasNext();
             if (!hasStateEntry) {
                 this.currentState = null;
             }
 
+            // 要将数据写入output
             if (hasStateEntry) {
                 nextElementSet = currentStateIterator.writeOutNext();
             }
@@ -174,12 +203,21 @@ public final class HeapKeyValueStateIterator implements KeyValueStateIterator {
         isValid = true;
     }
 
+    /**
+     * 读取下个state
+     * @return
+     * @throws IOException
+     */
     private boolean moveToNextState() throws IOException {
         if (statesIterator.hasNext()) {
+            // 使用map的迭代器 得到state
             this.currentState = statesIterator.next();
             this.newKVState = true;
+            // 每次迭代所有stateEntry时  会使用一个固定的key， 当某个key的元素遍历完后  在这里切换key
+            // 之后重新遍历state 因为使用的key不同 得到的stateEntry组也会不同
         } else if (keyGroupIterator.hasNext()) {
             this.currentKeyGroup = keyGroupIterator.next();
+            // 这样又会从第一个state开始  不过本次选择的槽就不一样了
             resetStates();
             this.newKeyGroup = true;
             this.newKVState = true;
@@ -187,7 +225,11 @@ public final class HeapKeyValueStateIterator implements KeyValueStateIterator {
             return false;
         }
 
+        // 上面代表所有key/state都遍历完了
+
+        // 获取当前状态对应的快照
         StateSnapshot stateSnapshot = this.stateStableSnapshots.get(currentState);
+        // 在确定state后 还需要一个迭代器来遍历 stateEntry
         setCurrentStateIterator(stateSnapshot);
 
         // set to a valid entry
@@ -199,14 +241,24 @@ public final class HeapKeyValueStateIterator implements KeyValueStateIterator {
         this.currentState = statesIterator.next();
     }
 
+    /**
+     * 设置当前状态快照
+     * @param stateSnapshot
+     * @throws IOException
+     */
     @SuppressWarnings("unchecked")
     private void setCurrentStateIterator(StateSnapshot stateSnapshot) throws IOException {
+        // 快照本身也有多种类型
         if (stateSnapshot instanceof IterableStateSnapshot) {
+            // 还原元数据快照
             RegisteredKeyValueStateBackendMetaInfo<Object, Object> metaInfo =
                     new RegisteredKeyValueStateBackendMetaInfo<>(
                             stateSnapshot.getMetaInfoSnapshot());
+
+            // 支持按照key 得到不同的迭代器
             Iterator<? extends StateEntry<?, ?, ?>> snapshotIterator =
                     ((IterableStateSnapshot<?, ?, ?>) stateSnapshot).getIterator(currentKeyGroup);
+            // 包装产生迭代器
             this.currentStateIterator = new StateTableIterator(snapshotIterator, metaInfo);
         } else if (stateSnapshot instanceof HeapPriorityQueueStateSnapshot) {
             Iterator<Object> snapshotIterator =
@@ -215,13 +267,17 @@ public final class HeapKeyValueStateIterator implements KeyValueStateIterator {
             RegisteredPriorityQueueStateBackendMetaInfo<Object> metaInfo =
                     new RegisteredPriorityQueueStateBackendMetaInfo<>(
                             stateSnapshot.getMetaInfoSnapshot());
+
+            // 访问优先队列的迭代器
             this.currentStateIterator = new QueueIterator<>(snapshotIterator, metaInfo);
         } else {
             throw new IllegalStateException("Unknown snapshot type: " + stateSnapshot);
         }
     }
 
-    /** A common interface for writing out a single entry in a state. */
+    /** A common interface for writing out a single entry in a state.
+     * 该迭代器每次可以将一个entry写入输出流
+     * */
     private interface SingleStateIterator {
 
         boolean hasNext();
@@ -238,6 +294,9 @@ public final class HeapKeyValueStateIterator implements KeyValueStateIterator {
 
     private final class StateTableIterator implements SingleStateIterator {
 
+        /**
+         * 维护一个state下所有的entry
+         */
         private final Iterator<? extends StateEntry<?, ?, ?>> entriesIterator;
         private final RegisteredKeyValueStateBackendMetaInfo<?, ?> stateSnapshot;
 
@@ -248,6 +307,10 @@ public final class HeapKeyValueStateIterator implements KeyValueStateIterator {
             this.stateSnapshot = stateSnapshot;
         }
 
+        /**
+         * 判断有无下个entry
+         * @return
+         */
         @Override
         public boolean hasNext() {
             return entriesIterator.hasNext();
@@ -256,13 +319,20 @@ public final class HeapKeyValueStateIterator implements KeyValueStateIterator {
         @Override
         public boolean writeOutNext() throws IOException {
             StateEntry<?, ?, ?> currentEntry = entriesIterator.next();
+
+            // 清除之前写的state value
             valueOut.clear();
+
+            // 将三元组写入输出流
             compositeKeyBuilder.setKeyAndKeyGroup(currentEntry.getKey(), keyGroup());
             compositeKeyBuilder.setNamespace(
                     currentEntry.getNamespace(),
                     castToType(stateSnapshot.getNamespaceSerializer()));
+
+
             TypeSerializer<?> stateSerializer = stateSnapshot.getStateSerializer();
             switch (stateSnapshot.getStateType()) {
+                // 最后写入state本身
                 case AGGREGATING:
                 case REDUCING:
                 case FOLDING:
@@ -277,9 +347,17 @@ public final class HeapKeyValueStateIterator implements KeyValueStateIterator {
             }
         }
 
+        /**
+         * 写入值类型的value
+         * @param currentEntry
+         * @param stateSerializer
+         * @return
+         * @throws IOException
+         */
         private boolean writeOutValue(
                 StateEntry<?, ?, ?> currentEntry, TypeSerializer<?> stateSerializer)
                 throws IOException {
+            // 此时的数据是key
             currentKey = compositeKeyBuilder.build();
             castToType(stateSerializer).serialize(currentEntry.getState(), valueOut);
             currentValue = valueOut.getCopyOfBuffer();
@@ -302,6 +380,13 @@ public final class HeapKeyValueStateIterator implements KeyValueStateIterator {
             return true;
         }
 
+        /**
+         * 写入map类型的  state value
+         * @param currentEntry
+         * @param stateSerializer
+         * @return
+         * @throws IOException
+         */
         @SuppressWarnings("unchecked")
         private boolean writeOutMap(
                 StateEntry<?, ?, ?> currentEntry, TypeSerializer<?> stateSerializer)
@@ -322,6 +407,9 @@ public final class HeapKeyValueStateIterator implements KeyValueStateIterator {
         }
     }
 
+    /**
+     * 该携带器 专门处理map类型
+     */
     private final class MapStateIterator implements SingleStateIterator {
 
         private final Iterator<Map.Entry<Object, Object>> mapEntries;
@@ -352,8 +440,10 @@ public final class HeapKeyValueStateIterator implements KeyValueStateIterator {
 
         @Override
         public boolean writeOutNext() throws IOException {
+            // 遍历内部元素
             Map.Entry<Object, Object> entry = mapEntries.next();
             valueOut.clear();
+            // 这个key是外层 key + namespace的基础上 又增加了内层map的key
             currentKey =
                     compositeKeyBuilder.buildCompositeKeyUserKey(entry.getKey(), userKeySerializer);
             Object userValue = entry.getValue();
@@ -362,12 +452,17 @@ public final class HeapKeyValueStateIterator implements KeyValueStateIterator {
             currentValue = valueOut.getCopyOfBuffer();
 
             if (!mapEntries.hasNext()) {
+                // 写完后 还原外面的currentStateIterator
                 currentStateIterator = parentIterator;
             }
             return true;
         }
     }
 
+    /**
+     * 当使用优先队列存储state时  使用该迭代器
+     * @param <T>
+     */
     private final class QueueIterator<T> implements SingleStateIterator {
         private final Iterator<T> elementsForKeyGroup;
         private final RegisteredPriorityQueueStateBackendMetaInfo<T> metaInfo;
@@ -391,9 +486,12 @@ public final class HeapKeyValueStateIterator implements KeyValueStateIterator {
 
         @Override
         public boolean writeOutNext() throws IOException {
+            // 使用优先队列时  应该不需要用到value
             currentValue = EMPTY_BYTE_ARRAY;
             keyOut.setPosition(afterKeyMark);
+            // 得到下个entry
             T next = elementsForKeyGroup.next();
+            // 这里就是更新key的值
             metaInfo.getElementSerializer().serialize(next, keyOut);
             currentKey = keyOut.getCopyOfBuffer();
             return true;

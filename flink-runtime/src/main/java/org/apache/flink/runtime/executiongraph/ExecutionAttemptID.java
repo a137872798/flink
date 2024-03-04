@@ -31,6 +31,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * Unique identifier for the attempt to execute a tasks. Multiple attempts happen in cases of
  * failures and recovery.
+ * 表示 可重试任务的id
  */
 public class ExecutionAttemptID implements java.io.Serializable {
 
@@ -41,10 +42,19 @@ public class ExecutionAttemptID implements java.io.Serializable {
     // type(executionVertexId) and one int type(attemptNumber).
     private static final int BYTE_BUF_LEN = ExecutionGraphID.SIZE + ExecutionVertexID.SIZE + 4;
 
+    /**
+     * 顶点所属的图
+     */
     private final ExecutionGraphID executionGraphId;
 
+    /**
+     * 顶点id
+     */
     private final ExecutionVertexID executionVertexId;
 
+    /**
+     * 表示这是第几次执行
+     */
     private final int attemptNumber;
 
     public ExecutionAttemptID(

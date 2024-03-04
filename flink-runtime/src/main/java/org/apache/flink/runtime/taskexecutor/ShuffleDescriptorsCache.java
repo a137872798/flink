@@ -22,7 +22,8 @@ import org.apache.flink.api.common.JobID;
 import org.apache.flink.runtime.blob.PermanentBlobKey;
 import org.apache.flink.runtime.deployment.TaskDeploymentDescriptorFactory.ShuffleDescriptorGroup;
 
-/** Cache of shuffle descriptors in TaskExecutor. */
+/** Cache of shuffle descriptors in TaskExecutor
+ * */
 public interface ShuffleDescriptorsCache {
 
     /** clear all cache. */
@@ -33,6 +34,7 @@ public interface ShuffleDescriptorsCache {
      *
      * @param blobKey identify the shuffle descriptor group
      * @return shuffle descriptor group in cache if exists, otherwise null
+     * 通过 blobKey 可以找到一个洗牌信息组
      */
     ShuffleDescriptorGroup get(PermanentBlobKey blobKey);
 

@@ -23,6 +23,7 @@ import org.apache.flink.runtime.io.network.partition.ResultPartitionType;
 /**
  * Represents a data set produced by a {@link Vertex} Each result is produced by one {@link Vertex}.
  * Each result can be consumed by multiple {@link Vertex}.
+ * 表示产生的一个结果
  */
 public interface Result<
         VID extends VertexID,
@@ -30,9 +31,21 @@ public interface Result<
         V extends Vertex<VID, RID, V, R>,
         R extends Result<VID, RID, V, R>> {
 
+    /**
+     * 标识结果的id
+     * @return
+     */
     RID getId();
 
+    /**
+     * 获取结果的类型 或者说分区类型
+     * @return
+     */
     ResultPartitionType getResultType();
 
+    /**
+     * 获取产生该结果的数据
+     * @return
+     */
     V getProducer();
 }

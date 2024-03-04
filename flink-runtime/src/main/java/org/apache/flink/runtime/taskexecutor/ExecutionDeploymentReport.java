@@ -27,6 +27,9 @@ public class ExecutionDeploymentReport implements Serializable {
 
     private static final long serialVersionUID = -2731996813330298044L;
 
+    /**
+     * ExecutionAttemptID 除了能确定一个execution外  还可以知道这是第几次执行
+     */
     private final Set<ExecutionAttemptID> executions;
 
     public ExecutionDeploymentReport(Set<ExecutionAttemptID> executions) {

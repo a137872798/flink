@@ -20,7 +20,9 @@ package org.apache.flink.runtime.blocklist;
 
 import java.util.Collection;
 
-/** This class is responsible for blocking and unblocking resources. */
+/** This class is responsible for blocking and unblocking resources.
+ * 回调对象
+ * */
 public interface BlocklistContext {
 
     /**

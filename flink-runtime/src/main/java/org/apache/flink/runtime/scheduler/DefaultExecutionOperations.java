@@ -24,7 +24,9 @@ import org.apache.flink.runtime.executiongraph.Execution;
 
 import java.util.concurrent.CompletableFuture;
 
-/** Default implementation of {@link ExecutionOperations}. */
+/** Default implementation of {@link ExecutionOperations}.
+ * 就是直接调用 Execution的相关方法
+ * */
 public class DefaultExecutionOperations implements ExecutionOperations {
 
     @Override

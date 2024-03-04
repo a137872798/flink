@@ -47,12 +47,18 @@ public abstract class AbstractMergeIterator<T1, T2, O> implements JoinTaskIterat
 
     protected TypePairComparator<T1, T2> pairComparator;
 
+    /**
+     * 具有相同key值的一组 value 被称为 keyGroup
+     */
     protected KeyGroupedIterator<T1> iterator1;
     protected KeyGroupedIterator<T2> iterator2;
 
     protected final TypeSerializer<T1> serializer1;
     protected final TypeSerializer<T2> serializer2;
 
+    /**
+     * 该对象分为2个阶段  第一阶段进行数据写入 第二阶段读取第一阶段写入的数据
+     */
     private final NonReusingBlockResettableIterator<T2>
             blockIt; // for N:M cross products with same key
 
@@ -61,6 +67,7 @@ public abstract class AbstractMergeIterator<T1, T2, O> implements JoinTaskIterat
     private final List<MemorySegment> memoryForSpillingIterator;
 
     // instances for object reuse
+    // 复用对象
     protected T1 copy1;
     protected T1 spillHeadCopy;
     protected T2 copy2;
@@ -90,10 +97,13 @@ public abstract class AbstractMergeIterator<T1, T2, O> implements JoinTaskIterat
         this.memoryManager = memoryManager;
         this.ioManager = ioManager;
 
+        // 普通的迭代器在将数据按照key进行分组后  成为 keyGroup迭代器
         this.iterator1 = createKeyGroupedIterator(input1, serializer1, comparator1.duplicate());
         this.iterator2 = createKeyGroupedIterator(input2, serializer2, comparator2.duplicate());
 
         final int numPagesForSpiller = numMemoryPages > 20 ? 2 : 1;
+
+        // 一开始没有设置 input  则必须通过reopen来设置
         this.blockIt =
                 new NonReusingBlockResettableIterator<>(
                         this.memoryManager,
@@ -117,6 +127,7 @@ public abstract class AbstractMergeIterator<T1, T2, O> implements JoinTaskIterat
             }
         }
 
+        // 归还内存块
         this.memoryManager.release(this.memoryForSpillingIterator);
     }
 
@@ -137,12 +148,21 @@ public abstract class AbstractMergeIterator<T1, T2, O> implements JoinTaskIterat
      * @see
      *     org.apache.flink.runtime.operators.util.JoinTaskIterator#callWithNextKey(org.apache.flink.api.common.functions.FlatJoinFunction,
      *     org.apache.flink.util.Collector)
+     *     找到匹配的数据 并使用join函数处理
      */
     @Override
     public abstract boolean callWithNextKey(
             final FlatJoinFunction<T1, T2, O> joinFunction, final Collector<O> collector)
             throws Exception;
 
+    /**
+     * 交叉匹配
+     * @param values1
+     * @param values2
+     * @param joinFunction
+     * @param collector
+     * @throws Exception
+     */
     protected void crossMatchingGroup(
             Iterator<T1> values1,
             Iterator<T2> values2,
@@ -165,13 +185,16 @@ public abstract class AbstractMergeIterator<T1, T2, O> implements JoinTaskIterat
                 // TODO: Decide which side to spill and which to block!
                 crossMwithNValues(firstV1, values1, firstV2, values2, joinFunction, collector);
             } else {
+                // 表示第一个流有数据 第二个流没有数据
                 crossSecond1withNValues(firstV2, firstV1, values1, joinFunction, collector);
             }
         } else {
+            // 第二个流有第一个流没有  则是与 crossSecond1withNValues 相反的操作
             if (v2HasNext) {
                 crossFirst1withNValues(firstV1, firstV2, values2, joinFunction, collector);
             } else {
                 // both sides contain only one value
+                // 2个流都没有其他元素了  直接join
                 joinFunction.join(firstV1, firstV2, collector);
             }
         }
@@ -181,9 +204,9 @@ public abstract class AbstractMergeIterator<T1, T2, O> implements JoinTaskIterat
      * Crosses a single value from the first input with N values, all sharing a common key.
      * Effectively realizes a <i>1:N</i> join.
      *
-     * @param val1 The value form the <i>1</i> side.
-     * @param firstValN The first of the values from the <i>N</i> side.
-     * @param valsN Iterator over remaining <i>N</i> side values.
+     * @param val1 The value form the <i>1</i> side.    第一个流的元素
+     * @param firstValN The first of the values from the <i>N</i> side.  第二个流的第一个元素
+     * @param valsN Iterator over remaining <i>N</i> side values.  第二个流
      * @throws Exception Forwards all exceptions thrown by the stub.
      */
     private void crossFirst1withNValues(
@@ -215,9 +238,9 @@ public abstract class AbstractMergeIterator<T1, T2, O> implements JoinTaskIterat
      * Crosses a single value from the second side with N values, all sharing a common key.
      * Effectively realizes a <i>N:1</i> join.
      *
-     * @param val1 The value form the <i>1</i> side.
-     * @param firstValN The first of the values from the <i>N</i> side.
-     * @param valsN Iterator over remaining <i>N</i> side values.
+     * @param val1 The value form the <i>1</i> side.   第二个流的唯一元素
+     * @param firstValN The first of the values from the <i>N</i> side.  第一个流的第一个元素
+     * @param valsN Iterator over remaining <i>N</i> side values.   第一个流
      * @throws Exception Forwards all exceptions thrown by the stub.
      */
     private void crossSecond1withNValues(
@@ -235,6 +258,7 @@ public abstract class AbstractMergeIterator<T1, T2, O> implements JoinTaskIterat
         do {
             final T1 nRec = valsN.next();
 
+            // 不断遍历元素 并与copy2进行合并 直到第一个流被消耗完
             if (valsN.hasNext()) {
                 copy2 = createCopy(serializer2, val1, this.copy2);
                 joinFunction.join(nRec, copy2, collector);
@@ -245,6 +269,16 @@ public abstract class AbstractMergeIterator<T1, T2, O> implements JoinTaskIterat
         } while (more);
     }
 
+    /**
+     * 体现了交叉merge的方法
+     * @param firstV1
+     * @param spillVals
+     * @param firstV2
+     * @param blockVals
+     * @param joinFunction
+     * @param collector
+     * @throws Exception
+     */
     private void crossMwithNValues(
             final T1 firstV1,
             Iterator<T1> spillVals,
@@ -276,6 +310,7 @@ public abstract class AbstractMergeIterator<T1, T2, O> implements JoinTaskIterat
         T1 spillHeadCopy = null;
 
         // --------------- 1) Cross the heads -------------------
+        // 第一次将2个首元素合并
         joinFunction.join(copy1, firstV2, collector);
 
         // for the remaining values, we do a block-nested-loops join
@@ -283,22 +318,30 @@ public abstract class AbstractMergeIterator<T1, T2, O> implements JoinTaskIterat
 
         try {
             // create block iterator on the second input
+            // 这样就会迭代blockVals的元素
             this.blockIt.reopen(blockVals);
 
             // ------------- 2) cross the head of the spilling side with the first block
             // ------------------
             while (this.blockIt.hasNext()) {
+                // 这样会使用第一个元素join掉第二个流
                 final T2 nextBlockRec = this.blockIt.next();
                 copy1 = this.createCopy(serializer1, firstV1, this.copy1);
                 joinFunction.join(copy1, nextBlockRec, collector);
             }
+
+            // 将其切换成读模式
             this.blockIt.reset();
 
             // spilling is required if the blocked input has data beyond the current block.
             // in that case, create the spilling iterator
+
+            // hashNext 有2种情况返回false 第一种就是数据读取完了 第二种是此时内存不足
             final Iterator<T1> leftSideIter;
             final boolean spillingRequired = this.blockIt.hasFurtherInput();
+
             if (spillingRequired) {
+                // 表示流中还有数据未加载出来 要使用特殊的迭代器  使得可以重置指针
                 // more data than would fit into one block. we need to wrap the other side in a
                 // spilling iterator
                 // create spilling iterator on first input
@@ -319,6 +362,7 @@ public abstract class AbstractMergeIterator<T1, T2, O> implements JoinTaskIterat
 
             // cross the values in the v1 iterator against the current block
 
+            // 在把流2的数据加载到内存后(与流1的数据进行交叉合并)
             while (leftSideIter.hasNext()) {
                 final T1 nextSpillVal = leftSideIter.next();
                 copy1 = this.createCopy(serializer1, nextSpillVal, this.copy1);
@@ -329,6 +373,7 @@ public abstract class AbstractMergeIterator<T1, T2, O> implements JoinTaskIterat
                 joinFunction.join(copy1, copy2, collector);
 
                 // -------- 4) cross the iterator of the spilling side with the first block --------
+                // 此时切换成read模式 就是读取刚才写入的数据
                 while (this.blockIt.hasNext()) {
                     T2 nextBlockRec = this.blockIt.next();
 
@@ -342,18 +387,22 @@ public abstract class AbstractMergeIterator<T1, T2, O> implements JoinTaskIterat
 
             // if everything from the block-side fit into a single block, we are done.
             // note that in this special case, we did not create a spilling iterator at all
+            // 如果流2的数据一开始就全部加载完了  那么本流程结束了
             if (!spillingRequired) {
                 return;
             }
 
             // here we are, because we have more blocks on the block side
             // loop as long as there are blocks from the blocked input
+            // 每次调用 blockIt.nextBlock() 都会回收内存并重新分配  然后继续读取数据
             while (this.blockIt.nextBlock()) {
                 // rewind the spilling iterator
+                // 重置流1的指针
                 spillIt.reset();
 
                 // ------------- 5) cross the head of the spilling side with the next block
                 // ------------
+                // 加载到内存
                 while (this.blockIt.hasNext()) {
                     copy1 = this.createCopy(serializer1, spillHeadCopy, this.copy1);
                     final T2 nextBlockVal = blockIt.next();
@@ -366,6 +415,7 @@ public abstract class AbstractMergeIterator<T1, T2, O> implements JoinTaskIterat
                     // get value from resettable iterator
                     final T1 nextSpillVal = spillIt.next();
                     // cross value with block values
+                    // 因为上面重置过了所以又是重新读取数据
                     while (this.blockIt.hasNext()) {
                         // get instances of key and block value
                         final T2 nextBlockVal = this.blockIt.next();

@@ -23,7 +23,9 @@ import org.apache.flink.core.memory.MemorySegmentSource;
 
 import java.util.List;
 
-/** Simple memory segment source that draws segments from a list. */
+/** Simple memory segment source that draws segments from a list.
+ * 使用预先设置的一组 segments 充当内存块的数据块
+ * */
 public class ListMemorySegmentSource implements MemorySegmentSource {
     private final List<MemorySegment> segments;
 

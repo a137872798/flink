@@ -29,9 +29,14 @@ import java.util.Deque;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Restart strategy which can restart when failure rate is not exceeded. */
+/** Restart strategy which can restart when failure rate is not exceeded.
+ * 根据使用率来推断重启延迟
+ * */
 public class FailureRateRestartBackoffTimeStrategy implements RestartBackoffTimeStrategy {
 
+    /**
+     * 表示短时间内连续错误发生的最大时间差  (最后一个-第一个) 不能超过该值
+     */
     private final long failuresIntervalMS;
 
     private final long backoffTimeMS;
@@ -61,12 +66,17 @@ public class FailureRateRestartBackoffTimeStrategy implements RestartBackoffTime
         this.clock = checkNotNull(clock);
     }
 
+    /**
+     * 判断能否重启
+     * @return
+     */
     @Override
     public boolean canRestart() {
         if (isFailureTimestampsQueueFull()) {
             Long now = clock.absoluteTimeMillis();
             Long earliestFailure = failureTimestamps.peek();
 
+            // 未超过 表示异常太频繁无法重启
             return (now - earliestFailure) > failuresIntervalMS;
         } else {
             return true;
@@ -78,9 +88,14 @@ public class FailureRateRestartBackoffTimeStrategy implements RestartBackoffTime
         return backoffTimeMS;
     }
 
+    /**
+     * 当产生异常时  先触发该方法
+     * @param cause of the task failure
+     */
     @Override
     public void notifyFailure(Throwable cause) {
         if (isFailureTimestampsQueueFull()) {
+            // 该队列会记录最近几个失败的时间戳
             failureTimestamps.remove();
         }
         failureTimestamps.add(clock.absoluteTimeMillis());
@@ -91,6 +106,10 @@ public class FailureRateRestartBackoffTimeStrategy implements RestartBackoffTime
         return strategyString;
     }
 
+    /**
+     * 表示队列满了
+     * @return
+     */
     private boolean isFailureTimestampsQueueFull() {
         return failureTimestamps.size() > maxFailuresPerInterval;
     }

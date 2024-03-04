@@ -32,20 +32,29 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * A slot sharing units defines which different task (from different job vertices) can be deployed
  * together within a slot. This is a soft permission, in contrast to the hard constraint defined by
  * a co-location hint.
+ * slot作为一种资源被分配给job  某些slot可以被多个task共享
  */
 public class SlotSharingGroup implements java.io.Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 表示这组顶点会共享这组slot
+     */
     private final Set<JobVertexID> ids = new TreeSet<>();
 
+    /**
+     * 组有一个id
+     */
     private final SlotSharingGroupId slotSharingGroupId = new SlotSharingGroupId();
 
     // Represents resources of all tasks in the group. Default to be UNKNOWN.
+    // 被共享的资源侧写对象
     private ResourceProfile resourceProfile = ResourceProfile.UNKNOWN;
 
     // --------------------------------------------------------------------------------------------
 
+    // 从共享组中移除或添加某个顶点
     public void addVertexToGroup(final JobVertexID id) {
         ids.add(checkNotNull(id));
     }

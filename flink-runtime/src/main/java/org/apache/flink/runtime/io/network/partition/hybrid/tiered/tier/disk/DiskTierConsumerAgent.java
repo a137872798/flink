@@ -35,9 +35,14 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
-/** The data client is used to fetch data from disk tier. */
+/** The data client is used to fetch data from disk tier.
+ * 消费端  用于消费数据
+ * */
 public class DiskTierConsumerAgent implements TierConsumerAgent {
 
+    /**
+     * reader对象就是用于消费数据的  但是需要设置InputChannel
+     */
     private final Map<
                     TieredStoragePartitionId,
                     Map<TieredStorageSubpartitionId, CompletableFuture<NettyConnectionReader>>>

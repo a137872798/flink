@@ -26,7 +26,9 @@ import javax.annotation.Nonnull;
 
 import java.util.List;
 
-/** Default factory for {@link InMemorySorter}. */
+/** Default factory for {@link InMemorySorter}.
+ * 创建内存排序对象
+ * */
 public class DefaultInMemorySorterFactory<T> implements InMemorySorterFactory<T> {
 
     @Nonnull private final TypeSerializer<T> typeSerializer;

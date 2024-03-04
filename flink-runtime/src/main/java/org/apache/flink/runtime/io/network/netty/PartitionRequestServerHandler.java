@@ -39,13 +39,21 @@ import org.apache.flink.shaded.netty4.io.netty.channel.SimpleChannelInboundHandl
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Channel handler to initiate data transfers and dispatch backwards flowing task events. */
+/** Channel handler to initiate data transfers and dispatch backwards flowing task events.
+ * 接收下游针对本节点子分区的请求
+ * */
 class PartitionRequestServerHandler extends SimpleChannelInboundHandler<NettyMessage> {
 
     private static final Logger LOG = LoggerFactory.getLogger(PartitionRequestServerHandler.class);
 
+    /**
+     * 通过它可以得到某个子分区的视图对象
+     */
     private final ResultPartitionProvider partitionProvider;
 
+    /**
+     * 收到远端发送的事件时  就应该借由该对象转发到本地子分区
+     */
     private final TaskEventPublisher taskEventPublisher;
 
     private final PartitionRequestQueue outboundQueue;
@@ -70,6 +78,12 @@ class PartitionRequestServerHandler extends SimpleChannelInboundHandler<NettyMes
         super.channelUnregistered(ctx);
     }
 
+    /**
+     * 读取到上个handler解析后的数据
+     * @param ctx
+     * @param msg
+     * @throws Exception
+     */
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, NettyMessage msg) throws Exception {
         try {
@@ -78,12 +92,16 @@ class PartitionRequestServerHandler extends SimpleChannelInboundHandler<NettyMes
             // ----------------------------------------------------------------
             // Intermediate result partition requests
             // ----------------------------------------------------------------
+
+            // 表示开始请求某个子分区的数据了
             if (msgClazz == PartitionRequest.class) {
                 PartitionRequest request = (PartitionRequest) msg;
 
                 LOG.debug("Read channel on {}: {}.", ctx.channel().localAddress(), request);
 
                 try {
+
+                    // 创建子分区对应的视图
                     NetworkSequenceViewReader reader;
                     reader =
                             new CreditBasedSequenceNumberingViewReader(
@@ -100,6 +118,8 @@ class PartitionRequestServerHandler extends SimpleChannelInboundHandler<NettyMes
             // ----------------------------------------------------------------
             // Task events
             // ----------------------------------------------------------------
+
+            // 借助本地taskEventPublisher进行转发
             else if (msgClazz == TaskEventRequest.class) {
                 TaskEventRequest request = (TaskEventRequest) msg;
 
@@ -109,15 +129,16 @@ class PartitionRequestServerHandler extends SimpleChannelInboundHandler<NettyMes
                             new IllegalArgumentException("Task event receiver not found."),
                             request.receiverId);
                 }
+                // 表示下游不再读取某分区数据了
             } else if (msgClazz == CancelPartitionRequest.class) {
                 CancelPartitionRequest request = (CancelPartitionRequest) msg;
 
                 outboundQueue.cancel(request.receiverId);
+                // 下面也是根据不同请求类型 触发不同方法
             } else if (msgClazz == CloseRequest.class) {
                 outboundQueue.close();
             } else if (msgClazz == AddCredit.class) {
                 AddCredit request = (AddCredit) msg;
-
                 outboundQueue.addCreditOrResumeConsumption(
                         request.receiverId, reader -> reader.addCredit(request.credit));
             } else if (msgClazz == ResumeConsumption.class) {

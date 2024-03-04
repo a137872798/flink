@@ -37,12 +37,15 @@ import java.util.stream.Collectors;
 
 /**
  * Resource specification of a worker, mainly used by SlotManager requesting from ResourceManager.
+ * 表示一种资源的规格
  */
 public final class WorkerResourceSpec implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
     public static final WorkerResourceSpec ZERO = new Builder().build();
+
+    // 各种内存 以及 cpu核数
 
     private final CPUResource cpuCores;
 
@@ -56,6 +59,9 @@ public final class WorkerResourceSpec implements Serializable {
 
     private final int numSlots;
 
+    /**
+     * 表示外部资源
+     */
     private final Map<String, ExternalResource> extendedResources;
 
     private WorkerResourceSpec(
@@ -75,13 +81,18 @@ public final class WorkerResourceSpec implements Serializable {
         this.numSlots = numSlots;
         this.extendedResources =
                 Preconditions.checkNotNull(extendedResources).stream()
-                        .filter(resource -> !resource.isZero())
+                        .filter(resource -> !resource.isZero())  // 找到有效的资源
                         .collect(Collectors.toMap(ExternalResource::getName, Function.identity()));
         Preconditions.checkArgument(
                 this.extendedResources.size() == extendedResources.size(),
                 "Duplicate resource name encountered in external resources.");
     }
 
+    /**
+     * 从 TaskExecutor 抽取一些信息 变成 WorkerResourceSpec
+     * @param taskExecutorProcessSpec
+     * @return
+     */
     public static WorkerResourceSpec fromTaskExecutorProcessSpec(
             final TaskExecutorProcessSpec taskExecutorProcessSpec) {
         Preconditions.checkNotNull(taskExecutorProcessSpec);

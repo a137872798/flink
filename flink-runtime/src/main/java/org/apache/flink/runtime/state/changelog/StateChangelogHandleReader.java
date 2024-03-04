@@ -25,5 +25,12 @@ import java.io.IOException;
 /** Allows to read state changelog referenced by the provided {@link ChangelogStateHandle}. */
 @Internal
 public interface StateChangelogHandleReader<Handle extends ChangelogStateHandle> {
+
+    /**
+     * 获取某个state的所有变化
+     * @param handle
+     * @return
+     * @throws IOException
+     */
     CloseableIterator<StateChange> getChanges(Handle handle) throws IOException;
 }

@@ -39,14 +39,20 @@ import javax.annotation.Nonnull;
  * </ul>
  *
  * @param <T> type of the contained elements.
+ *
+ *           AbstractHeapPriorityQueue 只是利用了一个数组 并且未体现出优先队列的特点
  */
 public class HeapPriorityQueue<T extends HeapPriorityQueueElement>
         extends AbstractHeapPriorityQueue<T> {
 
-    /** The index of the head element in the array that represents the heap. */
+    /** The index of the head element in the array that represents the heap.
+     * 0保留 就是二叉堆的一种实现方式啊  2n+1 2n+2
+     * */
     private static final int QUEUE_HEAD_INDEX = 1;
 
-    /** Comparator for the priority of contained elements. */
+    /** Comparator for the priority of contained elements.
+     * 借助该对象比较大小 并实现一些核心方法
+     * */
     @Nonnull protected final PriorityComparator<T> elementPriorityComparator;
 
     /**
@@ -78,6 +84,7 @@ public class HeapPriorityQueue<T extends HeapPriorityQueueElement>
     @Override
     protected void addInternal(@Nonnull T element) {
         final int newSize = increaseSizeByOne();
+        // 元素加到低端并上浮呗
         moveElementToIdx(element, newSize);
         siftUp(newSize);
     }
@@ -161,6 +168,10 @@ public class HeapPriorityQueue<T extends HeapPriorityQueueElement>
         return elementPriorityComparator.comparePriority(a, b) < 0;
     }
 
+    /**
+     * 判断是否要扩容
+     * @return
+     */
     private int increaseSizeByOne() {
         final int oldArraySize = queue.length;
         final int minRequiredNewSize = ++size;

@@ -26,6 +26,8 @@ import java.util.concurrent.LinkedBlockingQueue;
  * form of {@link org.apache.flink.core.memory.MemorySegment}, which it writes entirely to the
  * channel, regardless of how space in the segment is used. The writing may be realized
  * synchronously, or asynchronously, depending on the implementation.
+ *
+ * 获取之前写入的数据块
  */
 public interface BlockChannelWriter<T> extends BlockChannelWriterWithCallback<T> {
 

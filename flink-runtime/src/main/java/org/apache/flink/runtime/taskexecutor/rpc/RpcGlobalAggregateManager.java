@@ -29,6 +29,9 @@ import java.io.IOException;
 
 public class RpcGlobalAggregateManager implements GlobalAggregateManager {
 
+    /**
+     * 通过 rpc 访问JM 用于计算全局的累加值
+     */
     private final JobMasterGateway jobMasterGateway;
 
     public RpcGlobalAggregateManager(JobMasterGateway jobMasterGateway) {
@@ -41,8 +44,11 @@ public class RpcGlobalAggregateManager implements GlobalAggregateManager {
             Object aggregand,
             AggregateFunction<IN, ACC, OUT> aggregateFunction)
             throws IOException {
+        // 好像就是检测能不能正常序列化的
         ClosureCleaner.clean(
                 aggregateFunction, ExecutionConfig.ClosureCleanerLevel.RECURSIVE, true);
+
+        // 已经序列化了
         byte[] serializedAggregateFunction = InstantiationUtil.serializeObject(aggregateFunction);
         Object result = null;
         try {

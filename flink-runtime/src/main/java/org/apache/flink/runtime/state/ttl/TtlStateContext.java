@@ -21,17 +21,28 @@ package org.apache.flink.runtime.state.ttl;
 import org.apache.flink.api.common.state.StateTtlConfig;
 import org.apache.flink.api.common.typeutils.TypeSerializer;
 
+/**
+ * 产生一个上下文对象 将相关信息维护起来
+ * @param <T>
+ * @param <SV>
+ */
 class TtlStateContext<T, SV> {
-    /** Wrapped original state handler. */
+    /** Wrapped original state handler.
+     * 被包裹的原始state 该对象将一些辅助组件全包含在内  便于其他模块引用和使用ttl
+     * */
     final T original;
 
     final StateTtlConfig config;
     final TtlTimeProvider timeProvider;
 
-    /** Serializer of original user stored value without timestamp. */
+    /** Serializer of original user stored value without timestamp.
+     * 针对 userValue的序列化对象  不包含时间戳
+     * */
     final TypeSerializer<SV> valueSerializer;
 
-    /** This registered callback is to be called whenever state is accessed for read or write. */
+    /** This registered callback is to be called whenever state is accessed for read or write.
+     * 当state被读写时执行的回调函数  目前就是 incrementalCleanup::stateAccessed
+     * */
     final Runnable accessCallback;
 
     TtlStateContext(

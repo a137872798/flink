@@ -56,6 +56,8 @@ import static org.apache.flink.core.memory.MemorySegmentFactory.allocateOffHeapU
  * <p>The memory segments are represented as off-heap unsafe memory regions (both via {@link
  * MemorySegment}). Releasing a memory segment will make it re-claimable by the garbage collector,
  * but does not necessarily immediately releases the underlying memory.
+ *
+ * 内存管理对象  也可以理解为一个内存池
  */
 public class MemoryManager {
 
@@ -68,18 +70,34 @@ public class MemoryManager {
 
     // ------------------------------------------------------------------------
 
-    /** Memory segments allocated per memory owner. */
+    /** Memory segments allocated per memory owner.
+     * 管理每个内存所有者拥有的内存块
+     * */
     private final Map<Object, Set<MemorySegment>> allocatedSegments;
 
-    /** Reserved memory per memory owner. */
+    /** Reserved memory per memory owner.
+     * 每个内存所有者此时占有的内存
+     * */
     private final Map<Object, Long> reservedMemory;
 
+    /**
+     * 单个内存块大小
+     */
     private final long pageSize;
 
+    /**
+     * 表示这些page的总内存开销
+     */
     private final long totalNumberOfPages;
 
+    /**
+     * 跟踪内存开销
+     */
     private final UnsafeMemoryBudget memoryBudget;
 
+    /**
+     * 该对象维护所有被共享的资源
+     */
     private final SharedResources sharedResources;
 
     /** Flag whether the close() has already been invoked. */
@@ -108,6 +126,11 @@ public class MemoryManager {
                 pageSize);
     }
 
+    /**
+     * 检查参数
+     * @param memorySize
+     * @param pageSize
+     */
     private static void sanityCheck(long memorySize, int pageSize) {
         Preconditions.checkArgument(memorySize >= 0L, "Size of total memory must be non-negative.");
         Preconditions.checkArgument(
@@ -136,11 +159,13 @@ public class MemoryManager {
      * implementation details, the memory does not necessarily become reclaimable by the garbage
      * collector, because there might still be references to allocated segments in the code that
      * allocated them from the memory manager.
+     * 关闭管理器
      */
     public void shutdown() {
         if (!isShutDown) {
             // mark as shutdown and release memory
             isShutDown = true;
+            // 清空记录对象
             reservedMemory.clear();
 
             // go over all allocated segments and release them
@@ -189,6 +214,8 @@ public class MemoryManager {
      * @return A list with the memory segments.
      * @throws MemoryAllocationException Thrown, if this memory manager does not have the requested
      *     amount of memory pages any more.
+     *
+     *     表示某个所有者要分配 n个内存块
      */
     public List<MemorySegment> allocatePages(Object owner, int numPages)
             throws MemoryAllocationException {
@@ -226,6 +253,7 @@ public class MemoryManager {
 
         long memoryToReserve = numberOfPages * pageSize;
         try {
+            // 计算内存是否足够
             memoryBudget.reserveMemory(memoryToReserve);
         } catch (MemoryReservationException e) {
             throw new MemoryAllocationException(
@@ -240,6 +268,8 @@ public class MemoryManager {
                             currentSegmentsForOwner == null
                                     ? CollectionUtil.newHashSetWithExpectedSize(numberOfPages)
                                     : currentSegmentsForOwner;
+
+                    // 分配内存页  并存入列表
                     for (long i = numberOfPages; i > 0; i--) {
                         MemorySegment segment =
                                 allocateOffHeapUnsafeMemory(getPageSize(), owner, pageCleanup);
@@ -295,6 +325,7 @@ public class MemoryManager {
      * be returned to the memory pool, increasing its available limit for the later allocations.
      *
      * @param segments The segments to be released.
+     *                 释放一组内存块
      */
     public void release(Collection<MemorySegment> segments) {
         if (segments == null) {
@@ -349,6 +380,7 @@ public class MemoryManager {
                             if (segment == null) {
                                 continue;
                             }
+                            // 不断的释放segment 直到切换了owner
                             Object nextOwner = segment.getOwner();
                             if (nextOwner != owner) {
                                 nextOwnerMemorySegment.set(segment);
@@ -408,6 +440,8 @@ public class MemoryManager {
      * @param size size of memory to reserve.
      * @throws MemoryReservationException Thrown, if this memory manager does not have the requested
      *     amount of memory any more.
+     *
+     *     表示某个所有者 需要占用多少内存
      */
     public void reserveMemory(Object owner, long size) throws MemoryReservationException {
         checkMemoryReservationPreconditions(owner, size);
@@ -430,6 +464,7 @@ public class MemoryManager {
      *
      * @param owner The owner to associate with the memory reservation, for the fallback release.
      * @param size size of memory to release.
+     *             某个所有者释放内存
      */
     public void releaseMemory(Object owner, long size) {
         checkMemoryReservationPreconditions(owner, size);
@@ -450,6 +485,7 @@ public class MemoryManager {
                                     owner);
                         }
 
+                        // 减少占用的字节数
                         newReservedMemory =
                                 releaseAndCalculateReservedMemory(size, currentlyReserved);
                     }
@@ -508,6 +544,8 @@ public class MemoryManager {
      * to be handled by the caller of {@link OpaqueMemoryResource#close()}. For example, if this
      * indicates that native memory was not released and the process might thus have a memory leak,
      * the caller can decide to kill the process as a result.
+     *
+     * 获取共享资源
      */
     public <T extends AutoCloseable>
             OpaqueMemoryResource<T> getSharedMemoryResourceForManagedMemory(
@@ -518,6 +556,7 @@ public class MemoryManager {
 
         // if we need to allocate the resource (no shared resource allocated, yet), this would be
         // the size to use
+        // 要使用多少字节
         final long numBytes = computeMemorySize(fractionToInitializeWith);
 
         // initializer and releaser as functions that are pushed into the SharedResources,
@@ -564,6 +603,7 @@ public class MemoryManager {
         final ThrowingRunnable<Exception> disposer =
                 () -> sharedResources.release(type, leaseHolder, releaser);
 
+        // 包装资源对象
         return new OpaqueMemoryResource<>(resource.resourceHandle(), size, disposer);
     }
 

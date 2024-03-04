@@ -36,7 +36,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-/** Tracks resource for a single job. */
+/** Tracks resource for a single job.
+ * 追踪单个job的资源
+ * */
 class JobScopedResourceTracker {
 
     private static final Logger LOG = LoggerFactory.getLogger(JobScopedResourceTracker.class);
@@ -44,18 +46,35 @@ class JobScopedResourceTracker {
     // only for logging purposes
     private final JobID jobId;
 
+    /**
+     * 该对象维护了分配的资源和需要的资源
+     */
     private final BiDirectionalResourceToRequirementMapping resourceToRequirementMapping =
             new BiDirectionalResourceToRequirementMapping();
 
+    /**
+     * 匹配资源 返回对象就表示还需要分配
+     */
     private final RequirementMatcher requirementMatcher = new DefaultRequirementMatcher();
 
+    /**
+     * 表示资源的需求量
+     */
     private ResourceCounter resourceRequirements = ResourceCounter.empty();
+
+    /**
+     * 表示多余的资源
+     */
     private ResourceCounter excessResources = ResourceCounter.empty();
 
     JobScopedResourceTracker(JobID jobId) {
         this.jobId = Preconditions.checkNotNull(jobId);
     }
 
+    /**
+     * 告知资源的需求量
+     * @param newResourceRequirements
+     */
     public void notifyResourceRequirements(
             Collection<ResourceRequirement> newResourceRequirements) {
         Preconditions.checkNotNull(newResourceRequirements);
@@ -71,14 +90,21 @@ class JobScopedResourceTracker {
         tryAssigningExcessSlots();
     }
 
+    /**
+     * 记录收到的资源
+     * @param resourceProfile
+     */
     public void notifyAcquiredResource(ResourceProfile resourceProfile) {
         Preconditions.checkNotNull(resourceProfile);
         final Optional<ResourceProfile> matchingRequirement =
                 findMatchingRequirement(resourceProfile);
+
+        // 表示又分配了一个资源
         if (matchingRequirement.isPresent()) {
             resourceToRequirementMapping.incrementCount(
                     matchingRequirement.get(), resourceProfile, 1);
         } else {
+            // 此时已经满了 就加入到过量容器中
             LOG.debug("Job {} acquired excess resource {}.", resourceProfile, jobId);
             excessResources = excessResources.add(resourceProfile, 1);
         }
@@ -91,14 +117,20 @@ class JobScopedResourceTracker {
                 resourceToRequirementMapping::getNumFulfillingResources);
     }
 
+    /**
+     * 通知本对象失去资源
+     * @param resourceProfile
+     */
     public void notifyLostResource(ResourceProfile resourceProfile) {
         Preconditions.checkNotNull(resourceProfile);
+        // 如果超量 先从超出的减
         if (excessResources.getResourceCount(resourceProfile) > 0) {
             LOG.trace("Job {} lost excess resource {}.", jobId, resourceProfile);
             excessResources = excessResources.subtract(resourceProfile, 1);
             return;
         }
 
+        // 获取针对该资源描述 提供的资源
         Set<ResourceProfile> fulfilledRequirements =
                 resourceToRequirementMapping
                         .getRequirementsFulfilledBy(resourceProfile)
@@ -114,8 +146,10 @@ class JobScopedResourceTracker {
             // likely to get back a similarly-sized resource later on
             ResourceProfile assignedRequirement = fulfilledRequirements.iterator().next();
 
+            // 这里会同时清理双向索引  并且只清理一个
             resourceToRequirementMapping.decrementCount(assignedRequirement, resourceProfile, 1);
 
+            // 某个资源的需求量少了 就会有多出的资源  就可以尝试调配给别的需求
             tryAssigningExcessSlots();
         } else {
             throw new IllegalStateException(
@@ -125,6 +159,10 @@ class JobScopedResourceTracker {
         }
     }
 
+    /**
+     * 返回缺失的资源
+     * @return
+     */
     public Collection<ResourceRequirement> getMissingResources() {
         final Collection<ResourceRequirement> missingResources = new ArrayList<>();
         for (Map.Entry<ResourceProfile, Integer> requirement :
@@ -132,6 +170,8 @@ class JobScopedResourceTracker {
             ResourceProfile requirementProfile = requirement.getKey();
 
             int numRequiredResources = requirement.getValue();
+
+            // 查看此时的提供另
             int numAcquiredResources =
                     resourceToRequirementMapping.getNumFulfillingResources(requirementProfile);
 
@@ -144,6 +184,10 @@ class JobScopedResourceTracker {
         return missingResources;
     }
 
+    /**
+     * 查看已经分配的量
+     * @return
+     */
     public Collection<ResourceRequirement> getAcquiredResources() {
         final Set<ResourceProfile> knownResourceProfiles = new HashSet<>();
         knownResourceProfiles.addAll(resourceToRequirementMapping.getAllResourceProfiles());
@@ -170,19 +214,28 @@ class JobScopedResourceTracker {
         return resourceRequirements.isEmpty();
     }
 
+    /**
+     * 查询多出的资源
+     */
     private void findExcessSlots() {
         final Collection<ExcessResource> excessResources = new ArrayList<>();
 
+        // 遍历此时已经分配的所有资源
         for (ResourceProfile requirementProfile :
                 resourceToRequirementMapping.getAllRequirementProfiles()) {
+
+            // 获取需求数量
             int numTotalRequiredResources =
                     resourceRequirements.getResourceCount(requirementProfile);
+            // 获取分配数量
             int numTotalAcquiredResources =
                     resourceToRequirementMapping.getNumFulfillingResources(requirementProfile);
 
+            // 分配多了才需要处理
             if (numTotalAcquiredResources > numTotalRequiredResources) {
                 int numExcessResources = numTotalAcquiredResources - numTotalRequiredResources;
 
+                // 确认分配出的资源有哪些
                 for (Map.Entry<ResourceProfile, Integer> acquiredResource :
                         resourceToRequirementMapping
                                 .getResourcesFulfilling(requirementProfile)
@@ -191,6 +244,7 @@ class JobScopedResourceTracker {
                     int numAcquiredResources = acquiredResource.getValue();
 
                     if (numAcquiredResources <= numExcessResources) {
+                        // 包装成多出的对象
                         excessResources.add(
                                 new ExcessResource(
                                         requirementProfile,
@@ -210,9 +264,11 @@ class JobScopedResourceTracker {
             }
         }
 
+        // 表示发现了多出的资源
         if (!excessResources.isEmpty()) {
             LOG.debug("Detected excess resources for job {}: {}", jobId, excessResources);
             for (ExcessResource excessResource : excessResources) {
+                // 进行资源的转移
                 resourceToRequirementMapping.decrementCount(
                         excessResource.requirementProfile,
                         excessResource.resourceProfile,
@@ -233,10 +289,13 @@ class JobScopedResourceTracker {
         }
 
         ResourceCounter assignedResources = ResourceCounter.empty();
+        // 遍历多出的资源
         for (Map.Entry<ResourceProfile, Integer> excessResource :
                 excessResources.getResourcesWithCount()) {
             for (int i = 0; i < excessResource.getValue(); i++) {
                 final ResourceProfile resourceProfile = excessResource.getKey();
+
+                // 发现有资源需要 相当于是为多出的资源做一次调配
                 final Optional<ResourceProfile> matchingRequirement =
                         findMatchingRequirement(resourceProfile);
                 if (matchingRequirement.isPresent()) {
@@ -264,6 +323,9 @@ class JobScopedResourceTracker {
         }
     }
 
+    /**
+     * 描述多出的资源
+     */
     private static class ExcessResource {
         private final ResourceProfile requirementProfile;
         private final ResourceProfile resourceProfile;

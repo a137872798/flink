@@ -49,9 +49,14 @@ import java.util.stream.Stream;
 import static org.apache.flink.runtime.io.network.partition.BufferReaderWriterUtil.parseBufferHeader;
 import static org.apache.flink.runtime.io.network.partition.hybrid.tiered.file.SegmentPartitionFile.getSegmentPath;
 
-/** The implementation of {@link PartitionFileReader} with segment file mode. */
+/** The implementation of {@link PartitionFileReader} with segment file mode.
+ * 读取段文件
+ * */
 public class SegmentPartitionFileReader implements PartitionFileReader {
 
+    /**
+     * 存储数据的buffer
+     */
     private final ByteBuffer reusedHeaderBuffer = BufferReaderWriterUtil.allocatedHeaderBuffer();
 
     /**
@@ -77,6 +82,24 @@ public class SegmentPartitionFileReader implements PartitionFileReader {
         }
     }
 
+    /**
+     * 在指定id后读取数据
+     * @param partitionId the partition id of the buffer
+     * @param subpartitionId the subpartition id of the buffer
+     * @param segmentId the segment id of the buffer
+     * @param bufferIndex the index of buffer
+     * @param memorySegment the empty buffer to store the read buffer
+     * @param recycler the buffer recycler
+     * @param readProgress the current read progress. The progress comes from the previous
+     *     ReadBufferResult. Note that the read progress should be implemented and provided by
+     *     Flink, and it should be directly tied to the file format. The field can be null if the
+     *     current file reader has no the read progress
+     * @param partialBuffer the previous partial buffer. The partial buffer is not null only when
+     *     the last read has a partial buffer, it will construct a full buffer during the read
+     *     process.
+     * @return
+     * @throws IOException
+     */
     @Override
     public ReadBufferResult readBuffer(
             TieredStoragePartitionId partitionId,
@@ -92,12 +115,16 @@ public class SegmentPartitionFileReader implements PartitionFileReader {
         // Get the channel of the segment file for a subpartition.
         Map<TieredStorageSubpartitionId, Tuple2<ReadableByteChannel, Integer>> subpartitionInfo =
                 openedChannelAndSegmentIds.computeIfAbsent(partitionId, ignore -> new HashMap<>());
+
+        // 对应子分区的数据文件
         Tuple2<ReadableByteChannel, Integer> fileChannelAndSegmentId =
                 subpartitionInfo.getOrDefault(subpartitionId, Tuple2.of(null, -1));
         ReadableByteChannel channel = fileChannelAndSegmentId.f0;
 
         // Create the channel if there is a new segment file for a subpartition.
+        // 重新创建channel
         if (channel == null || fileChannelAndSegmentId.f1 != segmentId) {
+            // 不一致的情况
             if (channel != null) {
                 channel.close();
             }
@@ -114,12 +141,16 @@ public class SegmentPartitionFileReader implements PartitionFileReader {
         int bufferHeaderResult = channel.read(reusedHeaderBuffer);
         if (bufferHeaderResult == -1) {
             channel.close();
+            // 数据为空
             openedChannelAndSegmentIds.get(partitionId).remove(subpartitionId);
             return getSingletonReadResult(
                     new NetworkBuffer(memorySegment, recycler, Buffer.DataType.END_OF_SEGMENT));
         }
+
+        // 解析头部 获取长度信息
         reusedHeaderBuffer.flip();
         BufferHeader header = parseBufferHeader(reusedHeaderBuffer);
+        // 根据长度读取数据
         int dataBufferResult = channel.read(memorySegment.wrap(0, header.getLength()));
         if (dataBufferResult != header.getLength()) {
             channel.close();
@@ -146,6 +177,14 @@ public class SegmentPartitionFileReader implements PartitionFileReader {
         return -1;
     }
 
+    /**
+     * 创建channel
+     * @param partitionId
+     * @param subpartitionId
+     * @param segmentId
+     * @return
+     * @throws IOException
+     */
     private ReadableByteChannel openNewChannel(
             TieredStoragePartitionId partitionId,
             TieredStorageSubpartitionId subpartitionId,
@@ -160,6 +199,9 @@ public class SegmentPartitionFileReader implements PartitionFileReader {
         return Channels.newChannel(fileSystem.open(currentSegmentPath));
     }
 
+    /**
+     * 关闭相关文件
+     */
     @Override
     public void release() {
         openedChannelAndSegmentIds.values().stream()

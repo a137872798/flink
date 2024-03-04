@@ -35,10 +35,19 @@ import java.util.Collections;
  *
  * {@link AdaptiveScheduler} passes this structure from {@link WaitingForResources} to {@link
  * CreatingExecutionGraph} stages.
+ * 表示调度计划
  */
 @Internal
 public class JobSchedulingPlan {
+
+    /**
+     * 该对象记录了job图中每个顶点(task) 的并行度   多少并行度就代表有多少个subtask
+     */
     private final VertexParallelism vertexParallelism;
+
+    /**
+     * 这个是分配结果
+     */
     private final Collection<SlotAssignment> slotAssignments;
 
     public JobSchedulingPlan(
@@ -62,7 +71,9 @@ public class JobSchedulingPlan {
         return new JobSchedulingPlan(VertexParallelism.empty(), Collections.emptyList());
     }
 
-    /** Assignment of a slot to some target (e.g. a slot sharing group). */
+    /** Assignment of a slot to some target (e.g. a slot sharing group).
+     * 表示将该slot分配给哪个目标
+     * */
     public static class SlotAssignment {
         private final SlotInfo slotInfo;
         /**

@@ -21,7 +21,9 @@ package org.apache.flink.runtime.taskexecutor.slot;
 import java.io.IOException;
 import java.util.Collection;
 
-/** Service for persisting {@link SlotAllocationSnapshot}. */
+/** Service for persisting {@link SlotAllocationSnapshot}.
+ * 用于将slot的分配信息持久化
+ * */
 public interface SlotAllocationSnapshotPersistenceService {
 
     /**
@@ -37,6 +39,7 @@ public interface SlotAllocationSnapshotPersistenceService {
      * Delete the slot allocation snapshot identified by the slot index.
      *
      * @param slotIndex identifying the slot allocation snapshot to delete
+     *                  通过slot编号 可以找到快照并删除
      */
     void deleteAllocationSnapshot(int slotIndex);
 
@@ -44,6 +47,7 @@ public interface SlotAllocationSnapshotPersistenceService {
      * Load all persisted slot allocation snapshots.
      *
      * @return loaded slot allocations snapshots
+     * 加载所有持久化的slot分配快照
      */
     Collection<SlotAllocationSnapshot> loadAllocationSnapshots();
 }

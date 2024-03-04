@@ -36,10 +36,15 @@ import java.util.stream.Collectors;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** The provider serves physical slot requests. */
+/** The provider serves physical slot requests.
+ * 该对象可以处理请求 并返回匹配的physical slot
+ * */
 public class PhysicalSlotProviderImpl implements PhysicalSlotProvider {
     private static final Logger LOG = LoggerFactory.getLogger(PhysicalSlotProviderImpl.class);
 
+    /**
+     * 该对象可以为请求匹配slot
+     */
     private final SlotSelectionStrategy slotSelectionStrategy;
 
     private final SlotPool slotPool;
@@ -55,6 +60,11 @@ public class PhysicalSlotProviderImpl implements PhysicalSlotProvider {
         slotPool.disableBatchSlotRequestTimeoutCheck();
     }
 
+    /**
+     * 为一组请求分配slot
+     * @param physicalSlotRequests physicalSlotRequest slot requirements
+     * @return
+     */
     @Override
     public Map<SlotRequestId, CompletableFuture<PhysicalSlotRequest.Result>> allocatePhysicalSlots(
             Collection<PhysicalSlotRequest> physicalSlotRequests) {
@@ -66,12 +76,15 @@ public class PhysicalSlotProviderImpl implements PhysicalSlotProvider {
                     physicalSlotRequest.getSlotProfile().getPhysicalSlotResourceProfile());
         }
 
+        // 提取出请求id
         Map<SlotRequestId, PhysicalSlotRequest> physicalSlotRequestsById =
                 physicalSlotRequests.stream()
                         .collect(
                                 Collectors.toMap(
                                         PhysicalSlotRequest::getSlotRequestId,
                                         Function.identity()));
+
+        // 这里已经申请到结果了
         Map<SlotRequestId, Optional<PhysicalSlot>> availablePhysicalSlots =
                 tryAllocateFromAvailable(physicalSlotRequestsById.values());
 
@@ -80,10 +93,15 @@ public class PhysicalSlotProviderImpl implements PhysicalSlotProvider {
                         Collectors.toMap(
                                 Map.Entry::getKey,
                                 entry -> {
+                                    // value是本次被分配出去的slot
                                     Optional<PhysicalSlot> availablePhysicalSlot = entry.getValue();
                                     SlotRequestId slotRequestId = entry.getKey();
+
+                                    // 找到原来的req
                                     PhysicalSlotRequest physicalSlotRequest =
                                             physicalSlotRequestsById.get(slotRequestId);
+
+                                    // 找到期望slot的描述信息
                                     SlotProfile slotProfile = physicalSlotRequest.getSlotProfile();
                                     ResourceProfile resourceProfile =
                                             slotProfile.getPhysicalSlotResourceProfile();
@@ -93,6 +111,7 @@ public class PhysicalSlotProviderImpl implements PhysicalSlotProvider {
                                                     .map(CompletableFuture::completedFuture)
                                                     .orElseGet(
                                                             () ->
+                                                                    // 此时没有合适的slot  新申请一个slot
                                                                     requestNewSlot(
                                                                             slotRequestId,
                                                                             resourceProfile,
@@ -108,12 +127,18 @@ public class PhysicalSlotProviderImpl implements PhysicalSlotProvider {
                                 }));
     }
 
+    /**
+     * 进行分配
+     * @param slotRequests
+     * @return
+     */
     private Map<SlotRequestId, Optional<PhysicalSlot>> tryAllocateFromAvailable(
             Collection<PhysicalSlotRequest> slotRequests) {
         FreeSlotInfoTracker freeSlotInfoTracker = slotPool.getFreeSlotInfoTracker();
 
         Map<SlotRequestId, Optional<PhysicalSlot>> allocateResult = new HashMap<>();
         for (PhysicalSlotRequest request : slotRequests) {
+            // 这里已经产生结果了  在pool中的slot会携带位置信息 所以在申请时会参考位置信息
             Optional<SlotSelectionStrategy.SlotInfoAndLocality> slot =
                     slotSelectionStrategy.selectBestSlotForProfile(
                             freeSlotInfoTracker, request.getSlotProfile());
@@ -121,6 +146,7 @@ public class PhysicalSlotProviderImpl implements PhysicalSlotProvider {
                     request.getSlotRequestId(),
                     slot.flatMap(
                             slotInfoAndLocality -> {
+                                // 申请slot
                                 freeSlotInfoTracker.reserveSlot(
                                         slotInfoAndLocality.getSlotInfo().getAllocationId());
                                 return slotPool.allocateAvailableSlot(
@@ -132,6 +158,14 @@ public class PhysicalSlotProviderImpl implements PhysicalSlotProvider {
         return allocateResult;
     }
 
+    /**
+     * 根据需要申请一个slot   这里是添加一个pendingReq  但是slot是要其他方手动设置进去的  其他被借用完的slot在归还时也会处理pending
+     * @param slotRequestId
+     * @param resourceProfile
+     * @param preferredAllocations
+     * @param willSlotBeOccupiedIndefinitely
+     * @return
+     */
     private CompletableFuture<PhysicalSlot> requestNewSlot(
             SlotRequestId slotRequestId,
             ResourceProfile resourceProfile,

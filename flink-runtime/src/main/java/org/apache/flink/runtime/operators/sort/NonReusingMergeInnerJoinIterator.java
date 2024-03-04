@@ -29,6 +29,12 @@ import org.apache.flink.runtime.util.KeyGroupedIterator;
 import org.apache.flink.runtime.util.NonReusingKeyGroupedIterator;
 import org.apache.flink.util.MutableObjectIterator;
 
+/**
+ * AbstractMergeInnerJoinIterator 提供了交叉合并的逻辑
+ * @param <T1>
+ * @param <T2>
+ * @param <O>
+ */
 public class NonReusingMergeInnerJoinIterator<T1, T2, O>
         extends AbstractMergeInnerJoinIterator<T1, T2, O> {
 

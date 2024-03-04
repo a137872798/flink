@@ -24,7 +24,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/** */
+/**
+ * 只有当所有请求处理完后才能获取读取完毕的数据块
+ * */
 public class AsynchronousBulkBlockReader
         extends AsynchronousFileIOChannel<MemorySegment, ReadRequest>
         implements BulkBlockChannelReader {
@@ -63,6 +65,7 @@ public class AsynchronousBulkBlockReader
         }
 
         // send read requests for all blocks
+        // 连续发出n个读取请求
         for (int i = 0; i < numBlocks; i++) {
             readBlock(sourceSegments.remove(sourceSegments.size() - 1));
         }
@@ -72,6 +75,10 @@ public class AsynchronousBulkBlockReader
         addRequest(new SegmentReadRequest(this, segment));
     }
 
+    /**
+     * 等待所有请求处理完后 才可以获取数据
+     * @return
+     */
     @Override
     public List<MemorySegment> getFullSegments() {
         synchronized (this.closeLock) {

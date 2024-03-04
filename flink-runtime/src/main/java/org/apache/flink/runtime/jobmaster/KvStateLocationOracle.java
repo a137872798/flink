@@ -35,6 +35,7 @@ public interface KvStateLocationOracle {
     /**
      * Requests a {@link KvStateLocation} for the specified {@link InternalKvState} registration
      * name.
+     * 通过指定 JobId 和 KvState的名字 去查询KvState的存储位置
      *
      * @param jobId identifying the job for which to request the {@link KvStateLocation}
      * @param registrationName Name under which the KvState has been registered.

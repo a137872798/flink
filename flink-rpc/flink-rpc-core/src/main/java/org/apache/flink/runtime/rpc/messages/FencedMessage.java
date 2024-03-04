@@ -25,10 +25,19 @@ import java.io.Serializable;
  *
  * @param <F> type of the fencing token
  * @param <P> type of the payload
+ *           Message 是一个基础接口 表示rpc通信中使用的数据包
  */
 public interface FencedMessage<F extends Serializable, P> extends Message {
 
+    /**
+     * 获取使用的token
+     * @return
+     */
     F getFencingToken();
 
+    /**
+     * 数据包的负载
+     * @return
+     */
     P getPayload();
 }

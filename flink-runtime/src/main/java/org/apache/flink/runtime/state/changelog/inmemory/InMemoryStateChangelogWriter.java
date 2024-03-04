@@ -44,11 +44,22 @@ import java.util.stream.Stream;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.apache.flink.runtime.state.changelog.StateChange.META_KEY_GROUP;
 
+/**
+ * 使用该对象来写入stateChangelog
+ */
 @NotThreadSafe
 class InMemoryStateChangelogWriter implements StateChangelogWriter<InMemoryChangelogStateHandle> {
     private static final Logger LOG = LoggerFactory.getLogger(InMemoryStateChangelogWriter.class);
+
+    /**
+     * 初始序列号为0
+     */
     private static final SequenceNumber INITIAL_SQN = SequenceNumber.of(0L);
 
+    /**
+     * 每个key下关联的变化 又是按照num来排序的
+     * 通过多个树来维护日志
+     */
     private final Map<Integer, NavigableMap<SequenceNumber, byte[]>> changesByKeyGroup =
             new HashMap<>();
     private final KeyGroupRange keyGroupRange;
@@ -93,6 +104,11 @@ class InMemoryStateChangelogWriter implements StateChangelogWriter<InMemoryChang
         return sqn;
     }
 
+    /**
+     * 表示从from开始将日志持久化
+     * @param from inclusive
+     * @return
+     */
     @Override
     public CompletableFuture<SnapshotResult<InMemoryChangelogStateHandle>> persist(
             SequenceNumber from) {
@@ -100,6 +116,7 @@ class InMemoryStateChangelogWriter implements StateChangelogWriter<InMemoryChang
         Preconditions.checkNotNull(from);
         return completedFuture(
                 SnapshotResult.of(
+                        // 这里只是单独取出来 因为inmemory是不需要持久化的
                         new InMemoryChangelogStateHandle(
                                 collectChanges(from), from, sqn, keyGroupRange)));
     }

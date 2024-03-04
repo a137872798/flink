@@ -25,11 +25,16 @@ import java.io.Serializable;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Information about an allocated slot which is owned by a JobMaster. */
+/** Information about an allocated slot which is owned by a JobMaster.
+ * 包含一个slot的基本信息
+ * */
 public class AllocatedSlotInfo implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /**
+     * slot的下标
+     */
     private final int slotIndex;
 
     private final AllocationID allocationId;

@@ -29,11 +29,19 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
-/** Represents a bulk of physical slot requests. */
+/** Represents a bulk of physical slot requests.
+ * 维护一组请求
+ * */
 class PhysicalSlotRequestBulkImpl implements PhysicalSlotRequestBulk {
 
+    /**
+     * 描述待处理的请求 以及它们需要的资源
+     */
     private final Map<SlotRequestId, ResourceProfile> pendingRequests;
 
+    /**
+     * 记录这些req被分配了什么slot
+     */
     private final Map<SlotRequestId, AllocationID> fulfilledRequests = new HashMap<>();
 
     private final BiConsumer<SlotRequestId, Throwable> canceller;
@@ -45,8 +53,15 @@ class PhysicalSlotRequestBulkImpl implements PhysicalSlotRequestBulk {
         this.canceller = canceller;
     }
 
+    /**
+     * 表示某个req被分配了slot
+     * @param slotRequestId
+     * @param allocationID
+     */
     void markRequestFulfilled(final SlotRequestId slotRequestId, final AllocationID allocationID) {
+        // 从待处理容器中移除
         pendingRequests.remove(slotRequestId);
+        // 添加到处理好的容器中
         fulfilledRequests.put(slotRequestId, allocationID);
     }
 
@@ -64,6 +79,8 @@ class PhysicalSlotRequestBulkImpl implements PhysicalSlotRequestBulk {
     public void cancel(Throwable cause) {
         // pending requests must be canceled first otherwise they might be fulfilled by
         // allocated slots released from this bulk
+
+        // 使用异常处理所有请求
         for (SlotRequestId slotRequestId : pendingRequests.keySet()) {
             canceller.accept(slotRequestId, cause);
         }

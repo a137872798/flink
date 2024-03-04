@@ -37,13 +37,21 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** This class facilitates JVM-local exchange between stages of a batch job. */
+/** This class facilitates JVM-local exchange between stages of a batch job.
+ * 表示该对象可以产生迭代器
+ * */
 public class TempBarrier<T> implements CloseableInputProvider<T> {
 
+    /**
+     * 该buffer的特点是 数据少时存储在内存 多时则写入磁盘
+     */
     private final SpillingBuffer buffer;
 
     private final TypeSerializer<T> serializer;
 
+    /**
+     * 使用额外的线程写入数据
+     */
     private final TempWritingThread tempWriter;
 
     private final MemoryManager memManager;
@@ -89,6 +97,9 @@ public class TempBarrier<T> implements CloseableInputProvider<T> {
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 使用额外的线程进行读取和写入
+     */
     public void startReading() {
         this.tempWriter.start();
     }
@@ -101,6 +112,7 @@ public class TempBarrier<T> implements CloseableInputProvider<T> {
     @Override
     public MutableObjectIterator<T> getIterator() throws InterruptedException, IOException {
         synchronized (this.lock) {
+            // 在数据未写完前 获取迭代器将会被阻塞
             while (this.exception == null && !this.writingDone) {
                 this.lock.wait(5000);
             }
@@ -110,6 +122,7 @@ public class TempBarrier<T> implements CloseableInputProvider<T> {
             throw new RuntimeException(
                     "An error occurred creating the temp table.", this.exception);
         } else if (this.writingDone) {
+            // 读取完成后 返回迭代器
             final DataInputView in = this.buffer.flip();
             return new InputViewIterator<>(in, this.serializer);
         } else {
@@ -126,6 +139,11 @@ public class TempBarrier<T> implements CloseableInputProvider<T> {
         return prepareToClose();
     }
 
+    /**
+     * 准备关闭对象
+     * @return
+     * @throws IOException
+     */
     private List<MemorySegment> prepareToClose() throws IOException {
         synchronized (this.lock) {
             if (this.closed) {
@@ -134,6 +152,7 @@ public class TempBarrier<T> implements CloseableInputProvider<T> {
             if (this.exception == null) {
                 this.exception = new Exception("The dam has been closed.");
             }
+            // 唤醒线程
             this.lock.notifyAll();
         }
 
@@ -151,6 +170,10 @@ public class TempBarrier<T> implements CloseableInputProvider<T> {
         return toRelease;
     }
 
+    /**
+     * 当检测到异常时  唤醒阻塞线程
+     * @param t
+     */
     private void setException(Throwable t) {
         synchronized (this.lock) {
             this.exception = t;
@@ -172,6 +195,9 @@ public class TempBarrier<T> implements CloseableInputProvider<T> {
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 临时写入线程
+     */
     private final class TempWritingThread extends Thread {
 
         private final MutableObjectIterator<T> input;
@@ -203,6 +229,7 @@ public class TempBarrier<T> implements CloseableInputProvider<T> {
             try {
                 T record = serializer.createInstance();
 
+                // 将迭代器内所有数据写入buffer
                 while (this.running && ((record = input.next(record)) != null)) {
                     serializer.serialize(record, buffer);
                 }

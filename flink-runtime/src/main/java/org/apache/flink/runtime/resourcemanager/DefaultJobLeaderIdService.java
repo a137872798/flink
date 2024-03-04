@@ -52,7 +52,9 @@ public class DefaultJobLeaderIdService implements JobLeaderIdService {
 
     private static final Logger LOG = LoggerFactory.getLogger(DefaultJobLeaderIdService.class);
 
-    /** High availability services to use by this service. */
+    /** High availability services to use by this service.
+     * 高可用服务对象
+     * */
     private final HighAvailabilityServices highAvailabilityServices;
 
     private final ScheduledExecutor scheduledExecutor;
@@ -62,7 +64,9 @@ public class DefaultJobLeaderIdService implements JobLeaderIdService {
     /** Map of currently monitored jobs. */
     private final Map<JobID, JobLeaderIdListener> jobLeaderIdListeners;
 
-    /** Actions to call when the job leader changes. */
+    /** Actions to call when the job leader changes.
+     * 当job所属的jobMaster发生变化时  触发钩子
+     * */
     private JobLeaderIdActions jobLeaderIdActions;
 
     public DefaultJobLeaderIdService(
@@ -110,6 +114,7 @@ public class DefaultJobLeaderIdService implements JobLeaderIdService {
 
         for (JobLeaderIdListener listener : jobLeaderIdListeners.values()) {
             try {
+                // 停止之前的监听器
                 listener.stop();
             } catch (Exception e) {
                 exception = ExceptionUtils.firstOrSuppressed(e, exception);
@@ -127,6 +132,11 @@ public class DefaultJobLeaderIdService implements JobLeaderIdService {
         jobLeaderIdListeners.clear();
     }
 
+    /**
+     * 每当要多维护一个job时 添加监听器
+     * @param jobId identifying the job to monitor
+     * @throws Exception
+     */
     @Override
     public void addJob(JobID jobId) throws Exception {
         Preconditions.checkNotNull(jobLeaderIdActions);
@@ -189,11 +199,16 @@ public class DefaultJobLeaderIdService implements JobLeaderIdService {
      * Listener which stores the current leader id and exposes them as a future value when
      * requested. The returned future will always be completed properly except when stopping the
      * listener.
+     * 该对象会监听 JobMaster leader的地址   JobMaster 采用主从结构
      */
     private final class JobLeaderIdListener implements LeaderRetrievalListener {
         private final Object timeoutLock = new Object();
         private final JobID jobId;
         private final JobLeaderIdActions listenerJobLeaderIdActions;
+
+        /**
+         * 通过该服务 提供查询leader的能力
+         */
         private final LeaderRetrievalService leaderRetrievalService;
 
         private volatile CompletableFuture<UUID> leaderIdFuture;
@@ -217,6 +232,7 @@ public class DefaultJobLeaderIdService implements JobLeaderIdService {
 
             leaderIdFuture = new CompletableFuture<>();
 
+            // 启动超时检测  触发时通知job超时
             activateTimeout();
 
             // start the leader service we're listening to
@@ -240,6 +256,11 @@ public class DefaultJobLeaderIdService implements JobLeaderIdService {
                     new Exception("Job leader id service has been stopped."));
         }
 
+        /**
+         * 该对象感知到leader地址了
+         * @param leaderAddress The address of the new leader  通知新leader的地址
+         * @param leaderSessionId  对应 jobMasterId
+         */
         @Override
         public void notifyLeaderAddress(
                 @Nullable String leaderAddress, @Nullable UUID leaderSessionId) {
@@ -265,6 +286,8 @@ public class DefaultJobLeaderIdService implements JobLeaderIdService {
                                 jobId,
                                 leaderSessionId,
                                 leaderAddress);
+
+                        // 设置本次结果
                         leaderIdFuture = CompletableFuture.completedFuture(leaderSessionId);
                     }
                 } else {
@@ -279,13 +302,16 @@ public class DefaultJobLeaderIdService implements JobLeaderIdService {
                     }
                 }
 
+                // 表示关系发生变化
                 if (previousJobLeaderId != null && !previousJobLeaderId.equals(leaderSessionId)) {
                     // we had a previous job leader, so notify about his lost leadership
+                    // 触发钩子
                     listenerJobLeaderIdActions.jobLeaderLostLeadership(
                             jobId, new JobMasterId(previousJobLeaderId));
 
                     if (null == leaderSessionId) {
                         // No current leader active ==> Set a timeout for the job
+                        // 开启超时检测
                         activateTimeout();
 
                         // check if we got stopped asynchronously
@@ -317,6 +343,9 @@ public class DefaultJobLeaderIdService implements JobLeaderIdService {
             }
         }
 
+        /**
+         * 开启定时任务
+         */
         private void activateTimeout() {
             synchronized (timeoutLock) {
                 cancelTimeout();

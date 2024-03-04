@@ -23,14 +23,16 @@ import org.apache.flink.runtime.util.ResourceCounter;
 import java.util.Optional;
 import java.util.function.Function;
 
-/** A matcher for resource profiles to requirements. */
+/** A matcher for resource profiles to requirements.
+ * 该对象用于判断一组资源能否满足需求
+ * */
 public interface RequirementMatcher {
 
     /**
      * Attempts to match the given resource profile with one of the given requirements.
      *
-     * @param resourceProfile resource profile to match
-     * @param totalRequirements the total requirements
+     * @param resourceProfile resource profile to match    此时拥有的资源
+     * @param totalRequirements the total requirements    表示需要的总资源
      * @param numAssignedResourcesLookup a lookup for how many resources have already been assigned
      *     to a requirement
      * @return matching requirement profile, if one exists

@@ -36,6 +36,7 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * The {@link TieredStorageResultSubpartitionView} is the implementation of {@link
  * ResultSubpartitionView} of {@link TieredResultPartition}.
+ * 视图是用来读取数据的
  */
 public class TieredStorageResultSubpartitionView implements ResultSubpartitionView {
 
@@ -49,14 +50,27 @@ public class TieredStorageResultSubpartitionView implements ResultSubpartitionVi
 
     private volatile boolean isReleased = false;
 
+    /**
+     * 当前正在查看的seg
+     */
     private int requiredSegmentId = 0;
 
     private boolean stopSendingData = false;
 
+    /**
+     * 对应manager的下标
+     */
     private int managerIndexContainsCurrentSegment = -1;
 
     private int currentSequenceNumber = -1;
 
+    /**
+     * 当生产者为空时  会产生一个全为空列表的对象
+     * @param availabilityListener
+     * @param nettyPayloadManagers  每个manager对应一个连接 对应一个生产者
+     * @param nettyConnectionIds
+     * @param serviceProducers
+     */
     public TieredStorageResultSubpartitionView(
             BufferAvailabilityListener availabilityListener,
             List<NettyPayloadManager> nettyPayloadManagers,
@@ -68,18 +82,30 @@ public class TieredStorageResultSubpartitionView implements ResultSubpartitionVi
         this.serviceProducers = serviceProducers;
     }
 
+    /**
+     * 获取下个buffer数据
+     * @return
+     * @throws IOException
+     */
     @Nullable
     @Override
     public BufferAndBacklog getNextBuffer() throws IOException {
+        // 表示当前seg已经标识了停止发送数据 或者表示队列中没有其他数据了 返回null
         if (stopSendingData || !findCurrentNettyPayloadQueue()) {
             return null;
         }
+
+        // 找到当前正在访问的manager
         NettyPayloadManager nettyPayloadManager =
                 nettyPayloadManagers.get(managerIndexContainsCurrentSegment);
+
+        // 从manager上获取buffer
         Optional<Buffer> nextBuffer = readNettyPayload(nettyPayloadManager);
         if (nextBuffer.isPresent()) {
+            // 表示当前segment的数据已经读完了
             stopSendingData = nextBuffer.get().getDataType() == END_OF_SEGMENT;
             if (stopSendingData) {
+                // 重置游标
                 managerIndexContainsCurrentSegment = -1;
             }
             currentSequenceNumber++;
@@ -98,6 +124,7 @@ public class TieredStorageResultSubpartitionView implements ResultSubpartitionVi
             NettyPayloadManager currentQueue =
                     nettyPayloadManagers.get(managerIndexContainsCurrentSegment);
             boolean availability = numCreditsAvailable > 0;
+            // TODO 这个availability是什么意思 ?
             if (numCreditsAvailable == 0 && isEventOrError(currentQueue)) {
                 availability = true;
             }
@@ -106,6 +133,10 @@ public class TieredStorageResultSubpartitionView implements ResultSubpartitionVi
         return new AvailabilityWithBacklog(false, 0);
     }
 
+    /**
+     * 更新当前要读取的seg  这样就可以继续调用 nextBuffer了
+     * @param segmentId segment id is the id indicating the required id.
+     */
     @Override
     public void notifyRequiredSegmentId(int segmentId) {
         if (segmentId > requiredSegmentId) {
@@ -115,6 +146,10 @@ public class TieredStorageResultSubpartitionView implements ResultSubpartitionVi
         }
     }
 
+    /**
+     * 释放所有资源
+     * @throws IOException
+     */
     @Override
     public void releaseAllResources() throws IOException {
         if (isReleased) {
@@ -140,6 +175,10 @@ public class TieredStorageResultSubpartitionView implements ResultSubpartitionVi
         return null;
     }
 
+    /**
+     * 返回当前囤积的报文
+     * @return
+     */
     @Override
     public int unsynchronizedGetNumberOfQueuedBuffers() {
         if (findCurrentNettyPayloadQueue()) {
@@ -182,6 +221,12 @@ public class TieredStorageResultSubpartitionView implements ResultSubpartitionVi
     //       Internal Methods
     // -------------------------------
 
+    /**
+     * 读取buffer数据
+     * @param nettyPayloadManager
+     * @return
+     * @throws IOException
+     */
     private Optional<Buffer> readNettyPayload(NettyPayloadManager nettyPayloadManager)
             throws IOException {
         NettyPayload nettyPayload = nettyPayloadManager.poll();
@@ -205,6 +250,11 @@ public class TieredStorageResultSubpartitionView implements ResultSubpartitionVi
                 : nettyPayloadManagers.get(managerIndexContainsCurrentSegment).getBacklog();
     }
 
+    /**
+     * 下个数据是error 或者 event
+     * @param nettyPayloadManager
+     * @return
+     */
     private boolean isEventOrError(NettyPayloadManager nettyPayloadManager) {
         NettyPayload nettyPayload = nettyPayloadManager.peek();
         return nettyPayload != null
@@ -221,21 +271,36 @@ public class TieredStorageResultSubpartitionView implements ResultSubpartitionVi
         }
     }
 
+
+    /**
+     *
+     * @param nettyPayloadManager
+     * @param serviceProducer
+     * @param id
+     */
     private void releaseQueue(
             NettyPayloadManager nettyPayloadManager,
             NettyServiceProducer serviceProducer,
             NettyConnectionId id) {
         NettyPayload nettyPayload;
+        // 回收payload 并释放内存
         while ((nettyPayload = nettyPayloadManager.poll()) != null) {
             nettyPayload.getBuffer().ifPresent(Buffer::recycleBuffer);
         }
+        // 断开连接
         serviceProducer.connectionBroken(id);
     }
 
+    /**
+     * 查看当前队列中是否有囤积数据
+     * @return
+     */
     private boolean findCurrentNettyPayloadQueue() {
+        // 在读到表示end的事件前 认为还有数据
         if (managerIndexContainsCurrentSegment != -1 && !stopSendingData) {
             return true;
         }
+
         for (int managerIndex = 0; managerIndex < nettyPayloadManagers.size(); managerIndex++) {
             NettyPayload firstNettyPayload = nettyPayloadManagers.get(managerIndex).peek();
             if (firstNettyPayload == null

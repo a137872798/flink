@@ -60,22 +60,35 @@ import java.util.stream.Collectors;
  * state can be set to releasing indicating that it can be freed once it becomes empty.
  *
  * @param <T> type of the {@link TaskSlotPayload} stored in this slot
+ *
+ *          描述slot与task的相关信息
  */
 public class TaskSlot<T extends TaskSlotPayload> implements AutoCloseableAsync {
     private static final Logger LOG = LoggerFactory.getLogger(TaskSlot.class);
 
-    /** Index of the task slot. */
+    /** Index of the task slot.
+     * 该对象的编号
+     * */
     private final int index;
 
-    /** Resource characteristics for this slot. */
+    /** Resource characteristics for this slot.
+     * slot持有的资源
+     * */
     private final ResourceProfile resourceProfile;
 
-    /** Tasks running in this slot. */
+    /** Tasks running in this slot.
+     * 使用该slot执行的任务
+     * */
     private final Map<ExecutionAttemptID, T> tasks;
 
+    /**
+     * 管理每个对象的内存开销
+     */
     private final MemoryManager memoryManager;
 
-    /** State of this slot. */
+    /** State of this slot.
+     * 描述slot的状态
+     * */
     private TaskSlotState state;
 
     /** Job id to which the slot has been allocated. */
@@ -141,6 +154,12 @@ public class TaskSlot<T extends TaskSlotPayload> implements AutoCloseableAsync {
         return tasks.isEmpty();
     }
 
+    /**
+     * 检验查询到的slot是否处于active状态
+     * @param activeJobId
+     * @param activeAllocationId
+     * @return
+     */
     public boolean isActive(JobID activeJobId, AllocationID activeAllocationId) {
         Preconditions.checkNotNull(activeJobId);
         Preconditions.checkNotNull(activeAllocationId);
@@ -192,6 +211,7 @@ public class TaskSlot<T extends TaskSlotPayload> implements AutoCloseableAsync {
      * @param task to be added to the task slot
      * @throws IllegalStateException if the task slot is not in state active
      * @return true if the task was added to the task slot; otherwise false
+     * 为该slot多绑定一个task
      */
     public boolean add(T task) {
         // Check that this slot has been assigned to the job sending this task
@@ -209,6 +229,7 @@ public class TaskSlot<T extends TaskSlotPayload> implements AutoCloseableAsync {
         T oldTask = tasks.put(task.getExecutionId(), task);
 
         if (oldTask != null) {
+            // 旧的task不会被覆盖  而是让这次add失败
             tasks.put(task.getExecutionId(), oldTask);
             return false;
         } else {
@@ -310,20 +331,24 @@ public class TaskSlot<T extends TaskSlotPayload> implements AutoCloseableAsync {
      * @return future of all running task if any being done and slot cleaned up.
      */
     CompletableFuture<Void> closeAsync(Throwable cause) {
+
+        // 表示slot还未被释放
         if (!isReleasing()) {
             state = TaskSlotState.RELEASING;
             if (!isEmpty()) {
                 // we couldn't free the task slot because it still contains task, fail the tasks
                 // and set the slot state to releasing so that it gets eventually freed
+                // 通知各task失败了
                 tasks.values().forEach(task -> task.failExternally(cause));
             }
 
             final CompletableFuture<Void> shutdownFuture =
                     FutureUtils.waitForAll(
+                            // 等待所有task处理完 failExternally 并进入Termination状态
                                     tasks.values().stream()
                                             .map(TaskSlotPayload::getTerminationFuture)
                                             .collect(Collectors.toList()))
-                            .thenRun(memoryManager::shutdown);
+                            .thenRun(memoryManager::shutdown);  // 释放内存
             verifyAllManagedMemoryIsReleasedAfter(shutdownFuture);
             FutureUtils.forward(shutdownFuture, closingFuture);
         }

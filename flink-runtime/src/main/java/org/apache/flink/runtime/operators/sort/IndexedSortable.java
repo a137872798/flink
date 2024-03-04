@@ -18,7 +18,9 @@
 
 package org.apache.flink.runtime.operators.sort;
 
-/** */
+/**
+ * 定义排序接口
+ * */
 public interface IndexedSortable {
 
     /**

@@ -45,6 +45,16 @@ public final class SchedulerUtils {
                 "Instantiation of SchedulerUtils is not supported.");
     }
 
+    /**
+     * 根据参数创建 CompletedCheckpointStore
+     * @param jobGraph
+     * @param configuration
+     * @param checkpointRecoveryFactory
+     * @param ioExecutor
+     * @param log
+     * @return
+     * @throws JobExecutionException
+     */
     public static CompletedCheckpointStore createCompletedCheckpointStoreIfCheckpointingIsEnabled(
             JobGraph jobGraph,
             Configuration configuration,
@@ -69,10 +79,22 @@ public final class SchedulerUtils {
                         e);
             }
         } else {
+            // 这是一个无效对象
             return DeactivatedCheckpointCompletedCheckpointStore.INSTANCE;
         }
     }
 
+    /**
+     * 创建仓库对象
+     * @param jobManagerConfig
+     * @param recoveryFactory
+     * @param ioExecutor
+     * @param log
+     * @param jobId
+     * @param restoreMode
+     * @return
+     * @throws Exception
+     */
     @VisibleForTesting
     static CompletedCheckpointStore createCompletedCheckpointStore(
             Configuration jobManagerConfig,

@@ -34,6 +34,7 @@ public interface State {
 
     /** Removes the value mapped under the current key.
      * 状态可以被重制
+     * 实际上ttl的清除功能也是借助该函数实现的
      * */
     void clear();
 }

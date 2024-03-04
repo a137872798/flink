@@ -37,8 +37,14 @@ final class CombineValueIterator<E> implements Iterator<E>, Iterable<E> {
 
     private static final Logger LOG = LoggerFactory.getLogger(CombineValueIterator.class);
 
+    /**
+     * 该对象支持排序
+     */
     private final InMemorySorter<E> buffer; // the buffer from which values are returned
 
+    /**
+     * 复用的对象
+     */
     private final E recordReuse;
 
     private final boolean objectReuseEnabled;
@@ -65,6 +71,7 @@ final class CombineValueIterator<E> implements Iterator<E>, Iterable<E> {
      *
      * @param first The position of the first value to be returned.
      * @param last The position of the last value to be returned.
+     *             可以手动设置指针和尾针
      */
     public void set(int first, int last) {
         this.last = last;

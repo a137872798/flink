@@ -59,17 +59,24 @@ import static org.apache.flink.util.Preconditions.checkState;
  * {@link TieredResultPartition} appends records and events to the tiered storage, which supports
  * the upstream dynamically switches storage tier for writing shuffle data, and the downstream will
  * read data from the relevant tier.
+ * 用于写入分区数据
  */
 public class TieredResultPartition extends ResultPartition {
 
     private final TieredStoragePartitionId partitionId;
 
+    /**
+     * 该对象可以写入数据
+     */
     private final TieredStorageProducerClient tieredStorageProducerClient;
 
     private final TieredStorageResourceRegistry tieredStorageResourceRegistry;
 
     private final TieredStorageNettyServiceImpl nettyService;
 
+    /**
+     * 记录各owner 需要的buffer数量
+     */
     private final List<TieredStorageMemorySpec> tieredStorageMemorySpecs;
 
     private final TieredStorageMemoryManager storageMemoryManager;
@@ -116,6 +123,8 @@ public class TieredResultPartition extends ResultPartition {
             throw new IOException("Result partition has been released.");
         }
         storageMemoryManager.setup(bufferPool, tieredStorageMemorySpecs);
+
+        // 表示资源回收时 会自动触发storageMemoryManager::release
         tieredStorageResourceRegistry.registerResource(partitionId, storageMemoryManager::release);
     }
 
@@ -127,6 +136,12 @@ public class TieredResultPartition extends ResultPartition {
                 this::updateProducerMetricStatistics);
     }
 
+    /**
+     * 表示往某个子分区写入数据
+     * @param record
+     * @param consumerId
+     * @throws IOException
+     */
     @Override
     public void emitRecord(ByteBuffer record, int consumerId) throws IOException {
         resultPartitionBytes.inc(consumerId, record.remaining());
@@ -158,6 +173,7 @@ public class TieredResultPartition extends ResultPartition {
     private void emit(
             ByteBuffer record, int consumerId, Buffer.DataType dataType, boolean isBroadcast)
             throws IOException {
+        // 就是借助client来写入 内部会通过累加器
         tieredStorageProducerClient.write(
                 record, TieredStorageIdMappingUtils.convertId(consumerId), dataType, isBroadcast);
     }
@@ -195,6 +211,11 @@ public class TieredResultPartition extends ResultPartition {
         tieredStorageResourceRegistry.clearResourceFor(partitionId);
     }
 
+    /**
+     * 发送一个表示数据结果的事件
+     * @param mode
+     * @throws IOException
+     */
     @Override
     public void notifyEndOfData(StopMode mode) throws IOException {
         if (!hasNotifiedEndOfUserRecords) {

@@ -29,7 +29,7 @@ public interface SnapshotType extends Serializable {
 
     SharingFilesStrategy getSharingFilesStrategy();
 
-    /** Defines what files can be shared across snapshots. */
+    /** Defines what files can be shared across snapshots.   描述什么样的文件可以通过快照进行共享 */
     enum SharingFilesStrategy {
         // current snapshot can share files with previous snapshots.
         // new snapshots can use files of the current snapshot

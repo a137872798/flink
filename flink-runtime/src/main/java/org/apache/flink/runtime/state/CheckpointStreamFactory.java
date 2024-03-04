@@ -27,6 +27,7 @@ import java.util.List;
  * <p>Stream factories can be created from the {@link CheckpointStorageAccess} through {@link
  * CheckpointStorageAccess#resolveCheckpointStorageLocation(long,
  * CheckpointStorageLocationReference)}.
+ * 该对象可以产生用于检查点的输出流
  */
 public interface CheckpointStreamFactory {
 
@@ -37,6 +38,7 @@ public interface CheckpointStreamFactory {
      * @param scope The state's scope, whether it is exclusive or shared.
      * @return An output stream that writes state for the given checkpoint.
      * @throws IOException Exceptions may occur while creating the stream and should be forwarded.
+     * 根据state被一个检查点持有 还是多个检查点持有 生成不同stream
      */
     CheckpointStateOutputStream createCheckpointStateOutputStream(CheckpointedStateScope scope)
             throws IOException;
@@ -50,6 +52,8 @@ public interface CheckpointStreamFactory {
      * @param stateHandle The handle to duplicate
      * @param scope Scope determining the location to duplicate into
      * @return true, if we can perform the duplication
+     *
+     * 是否可以快速拷贝
      */
     boolean canFastDuplicate(StreamStateHandle stateHandle, CheckpointedStateScope scope)
             throws IOException;

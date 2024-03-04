@@ -37,13 +37,20 @@ import java.util.Iterator;
 /**
  * Abstract base class for snapshots of a {@link StateTable}. Offers a way to serialize the snapshot
  * (by key-group). All snapshots should be released after usage.
+ * 表示状态内存表的快照
+ * IterableStateSnapshot 表示可以基于keyGroup读取state
+ * StateKeyGroupWriter 表示本对象具备产生快照的能力
  */
 @Internal
 abstract class AbstractStateTableSnapshot<K, N, S>
         implements IterableStateSnapshot<K, N, S>, StateSnapshot.StateKeyGroupWriter {
 
-    /** The {@link StateTable} from which this snapshot was created. */
+    /** The {@link StateTable} from which this snapshot was created.
+     * 表示该快照基于该状态表产生
+     * */
     protected final StateTable<K, N, S> owningStateTable;
+
+    // 分别用于3个字段的序列化
 
     /** A local duplicate of the table's key serializer. */
     @Nonnull protected final TypeSerializer<K> localKeySerializer;
@@ -54,6 +61,9 @@ abstract class AbstractStateTableSnapshot<K, N, S>
     /** A local duplicate of the table's state serializer. */
     @Nonnull protected final TypeSerializer<S> localStateSerializer;
 
+    /**
+     * 该对象可以在产生快照前 对state进行一次过滤和转换
+     */
     @Nullable protected final StateSnapshotTransformer<S> stateSnapshotTransformer;
 
     /**
@@ -76,21 +86,35 @@ abstract class AbstractStateTableSnapshot<K, N, S>
 
     /**
      * Return the state map snapshot for the key group. If the snapshot does not exist, return null.
+     * 传入key 找到对应的 StateMap
      */
     protected abstract StateMapSnapshot<K, N, S, ? extends StateMap<K, N, S>>
             getStateMapSnapshotForKeyGroup(int keyGroup);
 
+    /**
+     * 生成元数据快照 主要记录一些序列化对象
+     * @return
+     */
     @Nonnull
     @Override
     public StateMetaInfoSnapshot getMetaInfoSnapshot() {
         return owningStateTable.getMetaInfo().snapshot();
     }
 
+    /**
+     * 本对象可产生快照
+     * @return
+     */
     @Override
     public StateKeyGroupWriter getKeyGroupWriter() {
         return this;
     }
 
+    /**
+     * 产生遍历实体快照的迭代器
+     * @param keyGroupId
+     * @return
+     */
     @Override
     public Iterator<StateEntry<K, N, S>> getIterator(int keyGroupId) {
         StateMapSnapshot<K, N, S, ? extends StateMap<K, N, S>> stateMapSnapshot =
@@ -113,6 +137,7 @@ abstract class AbstractStateTableSnapshot<K, N, S>
             throws IOException {
         StateMapSnapshot<K, N, S, ? extends StateMap<K, N, S>> stateMapSnapshot =
                 getStateMapSnapshotForKeyGroup(keyGroupId);
+        // 将快照数据写入到output后 释放快照
         stateMapSnapshot.writeState(
                 localKeySerializer,
                 localNamespaceSerializer,

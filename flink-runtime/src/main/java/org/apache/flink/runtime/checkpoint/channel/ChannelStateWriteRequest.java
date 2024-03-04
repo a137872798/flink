@@ -47,14 +47,21 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
+/**
+ * 有关检查点的一些请求  应该是协调对象与其他节点交互时使用的
+ */
 abstract class ChannelStateWriteRequest {
 
     private static final Logger LOG = LoggerFactory.getLogger(ChannelStateWriteRequest.class);
 
+    // jobVertexID  subtaskIndex  确定subtask
     private final JobVertexID jobVertexID;
 
     private final int subtaskIndex;
 
+    /**
+     * 代表本次针对的检查点
+     */
     private final long checkpointId;
 
     private final String name;
@@ -102,8 +109,20 @@ abstract class ChannelStateWriteRequest {
                 + '}';
     }
 
+    /**
+     * 请求由于某个异常被取消
+     * @param cause
+     * @throws Exception
+     */
     abstract void cancel(Throwable cause) throws Exception;
 
+    /**
+     * 生成一个表示input完成的请求
+     * @param jobVertexID
+     * @param subtaskIndex
+     * @param checkpointId
+     * @return
+     */
     static CheckpointInProgressRequest completeInput(
             JobVertexID jobVertexID, int subtaskIndex, long checkpointId) {
         return new CheckpointInProgressRequest(
@@ -136,6 +155,7 @@ abstract class ChannelStateWriteRequest {
                 checkpointId,
                 "writeInput",
                 iterator,
+                // 迭代器函数
                 (writer, buffer) -> writer.writeInput(jobVertexID, subtaskIndex, info, buffer));
     }
 
@@ -243,6 +263,15 @@ abstract class ChannelStateWriteRequest {
         }
     }
 
+    /**
+     * 准备生成检查点
+     * @param jobVertexID
+     * @param subtaskIndex
+     * @param checkpointId
+     * @param targetResult
+     * @param locationReference  检查点位置
+     * @return
+     */
     static ChannelStateWriteRequest start(
             JobVertexID jobVertexID,
             int subtaskIndex,
@@ -258,6 +287,12 @@ abstract class ChannelStateWriteRequest {
         return new CheckpointAbortRequest(jobVertexID, subtaskIndex, checkpointId, cause);
     }
 
+    /**
+     * 子任务需要自行注册 当注册的子任务都完成时 检查点才算完成
+     * @param jobVertexID
+     * @param subtaskIndex
+     * @return
+     */
     static ChannelStateWriteRequest registerSubtask(JobVertexID jobVertexID, int subtaskIndex) {
         return new SubtaskRegisterRequest(jobVertexID, subtaskIndex);
     }

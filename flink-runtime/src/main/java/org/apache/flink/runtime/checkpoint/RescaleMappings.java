@@ -38,6 +38,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * and the right side is called target(s) in this class.
  *
  * <p>{@ImplNote This class omits trailing empty targets.}
+ * 代表将一个旧值映射到一个新值
  */
 public class RescaleMappings implements Serializable {
     public static final RescaleMappings SYMMETRIC_IDENTITY =
@@ -51,6 +52,7 @@ public class RescaleMappings implements Serializable {
     /**
      * The mapping from source to multiple targets. In most cases, the targets arrays are of
      * different sizes.
+     * 存储了映射规则
      */
     private final int[][] mappings;
 
@@ -71,9 +73,11 @@ public class RescaleMappings implements Serializable {
     }
 
     public int[] getMappedIndexes(int sourceIndex) {
+        // 超出表示该source没有映射目标
         if (sourceIndex >= mappings.length) {
             return EMPTY_TARGETS;
         }
+        // 返回是一个数组  代表会映射到多个值
         return mappings[sourceIndex];
     }
 
@@ -99,15 +103,22 @@ public class RescaleMappings implements Serializable {
         return "RescaleMappings{" + "mappings=" + Arrays.deepToString(mappings) + '}';
     }
 
+    /**
+     * 构建反向映射
+     * @return
+     */
     public RescaleMappings invert() {
         IntArrayList[] inverted = new IntArrayList[numberOfTargets];
         for (int source = 0; source < mappings.length; source++) {
+
+            // 获取source会找到的多个target
             final int[] targets = mappings[source];
             for (int target : targets) {
                 IntArrayList sources = inverted[target];
                 if (sources == null) {
                     inverted[target] = sources = new IntArrayList(1);
                 }
+                // 反向插入target相关的
                 sources.add(source);
             }
         }
@@ -122,6 +133,7 @@ public class RescaleMappings implements Serializable {
         for (int[] targets : mappings) {
             for (int target : targets) {
                 if (usedTargets.get(target)) {
+                    // 重复出现的target将会被返回
                     ambiguousTargets.add(target);
                 } else {
                     usedTargets.set(target);
@@ -132,7 +144,15 @@ public class RescaleMappings implements Serializable {
         return ambiguousTargets;
     }
 
+    /**
+     *
+     * @param mappedTargets  每个元素代表每个source 相关的target
+     * @param numberOfTargets target的总数量
+     * @return
+     */
     public static RescaleMappings of(Stream<int[]> mappedTargets, int numberOfTargets) {
+
+        // 生成mapp数组 如果某个source对应的target为int[0] 表示该source没有映射目标
         final int[][] mappings =
                 mappedTargets
                         .map(targets -> targets.length == 0 ? EMPTY_TARGETS : targets)
@@ -149,6 +169,7 @@ public class RescaleMappings implements Serializable {
             }
         }
 
+        // 找到最后一个不为空的 也是有效长度
         int length = lastNonEmpty + 1;
         return new RescaleMappings(
                 mappings.length,
@@ -157,14 +178,17 @@ public class RescaleMappings implements Serializable {
     }
 
     private static boolean isIdentity(int[][] mappings, int numberOfTargets) {
+        // 长度不一致  不行
         if (mappings.length < numberOfTargets) {
             return false;
         }
+        // 表示超出的部分 都为empty
         for (int source = numberOfTargets; source < mappings.length; source++) {
             if (mappings[source] != EMPTY_TARGETS) {
                 return false;
             }
         }
+        // 表示相等
         for (int source = 0; source < numberOfTargets; source++) {
             if (mappings[source].length != 1 || source != mappings[source][0]) {
                 return false;
@@ -197,6 +221,9 @@ public class RescaleMappings implements Serializable {
         return mappings;
     }
 
+    /**
+     * 这种代表情况特殊 source 与 target 完全一致
+     */
     private static final class IdentityRescaleMappings extends RescaleMappings {
         public static final int[][] IMPLICIT_MAPPING = new int[0][0];
         private static final long serialVersionUID = -4406023794753660925L;

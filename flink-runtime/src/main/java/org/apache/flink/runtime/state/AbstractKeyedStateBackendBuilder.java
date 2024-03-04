@@ -32,21 +32,55 @@ import javax.annotation.Nonnull;
 
 import java.util.Collection;
 
-/** An abstract base implementation of the {@link StateBackendBuilder} interface. */
+/** An abstract base implementation of the {@link StateBackendBuilder} interface.
+ * 用于构建包含key的state的 状态存储后端
+ * */
 public abstract class AbstractKeyedStateBackendBuilder<K>
         implements StateBackendBuilder<AbstractKeyedStateBackend, BackendBuildingException> {
     protected final Logger logger = LoggerFactory.getLogger(getClass());
 
+    // 以下是需要的各种组件
+
+    /**
+     * 该对象用于注册state
+     */
     protected final TaskKvStateRegistry kvStateRegistry;
+    /**
+     * 该对象提供序列化对象
+     */
     protected final StateSerializerProvider<K> keySerializerProvider;
     protected final ClassLoader userCodeClassLoader;
     protected final int numberOfKeyGroups;
+    /**
+     * keyGroup算法需要的范围
+     */
     protected final KeyGroupRange keyGroupRange;
+    /**
+     * 包含各种配置
+     */
     protected final ExecutionConfig executionConfig;
+    /**
+     * 提供当前时间
+     */
     protected final TtlTimeProvider ttlTimeProvider;
+    /**
+     * TODO
+     */
     protected final LatencyTrackingStateConfig latencyTrackingStateConfig;
+
+    /**
+     * 为数据流包装压缩能力
+     */
     protected final StreamCompressionDecorator keyGroupCompressionDecorator;
+
+    /**
+     * 简单理解是state的持有者
+     */
     protected final Collection<KeyedStateHandle> restoreStateHandles;
+
+    /**
+     * 统一管理一些需要关闭的对象
+     */
     protected final CloseableRegistry cancelStreamRegistry;
 
     public AbstractKeyedStateBackendBuilder(

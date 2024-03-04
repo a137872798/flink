@@ -31,6 +31,7 @@ import java.util.Collection;
  * @param <K> The type of key the state is associated to
  * @param <N> The type of the namespace
  * @param <T> Type of the user value of state with TTL
+ *           表示一个进行累加的state
  */
 class TtlReducingState<K, N, T>
         extends AbstractTtlState<K, N, T, TtlValue<T>, InternalReducingState<K, N, TtlValue<T>>>

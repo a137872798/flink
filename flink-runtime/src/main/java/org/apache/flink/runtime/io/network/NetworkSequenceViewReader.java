@@ -31,9 +31,17 @@ import java.io.IOException;
 /**
  * Simple wrapper for the partition readerQueue iterator, which increments a sequence number for
  * each returned buffer and remembers the receiver ID.
+ * 表示子分区数据在网络模块的应用
  */
 public interface NetworkSequenceViewReader {
 
+    /**
+     * 创建子分区的view
+     * @param partitionProvider
+     * @param resultPartitionId
+     * @param subPartitionIndex  对应的子分区编号
+     * @throws IOException
+     */
     void requestSubpartitionView(
             ResultPartitionProvider partitionProvider,
             ResultPartitionID resultPartitionId,

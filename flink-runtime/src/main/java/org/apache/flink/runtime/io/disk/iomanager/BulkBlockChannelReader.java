@@ -22,7 +22,9 @@ import org.apache.flink.core.memory.MemorySegment;
 
 import java.util.List;
 
-/** */
+/**
+ * 获取所有准备好的内存块
+ * */
 public interface BulkBlockChannelReader extends FileIOChannel {
 
     List<MemorySegment> getFullSegments();

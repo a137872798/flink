@@ -29,6 +29,7 @@ import java.util.concurrent.CompletableFuture;
  * FailureEnricher}. In context of a scheduler we distinguish between local and global failures.
  * Global failure is the one that happens in context of the scheduler (in the JobManager process)
  * and local failure is one that is "local" to an executing task.
+ * 表示用于处理全局异常  同时支持传入一组标签
  */
 public interface LabeledGlobalFailureHandler {
 

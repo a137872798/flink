@@ -48,6 +48,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * @param <G> The type of the gateway to connect to.
  * @param <S> The type of the successful registration responses.
  * @param <R> The type of the registration rejection responses.
+ *           表示一个可重试的
  */
 public abstract class RetryingRegistration<
         F extends Serializable,
@@ -61,6 +62,9 @@ public abstract class RetryingRegistration<
 
     private final Logger log;
 
+    /**
+     * 通过该对象可以发起 rpc请求
+     */
     private final RpcService rpcService;
 
     private final String targetName;
@@ -126,12 +130,21 @@ public abstract class RetryingRegistration<
     //  registration
     // ------------------------------------------------------------------------
 
+    /**
+     * 将自身注册到另一个服务上
+     * @param gateway  网关提供注册接口
+     * @param fencingToken
+     * @param timeoutMillis
+     * @return
+     * @throws Exception
+     */
     protected abstract CompletableFuture<RegistrationResponse> invokeRegistration(
             G gateway, F fencingToken, long timeoutMillis) throws Exception;
 
     /**
      * This method resolves the target address to a callable gateway and starts the registration
      * after that.
+     * 开始注册
      */
     @SuppressWarnings("unchecked")
     public void startRegistration() {
@@ -147,6 +160,7 @@ public abstract class RetryingRegistration<
             if (FencedRpcGateway.class.isAssignableFrom(targetType)) {
                 rpcGatewayFuture =
                         (CompletableFuture<G>)
+                                // 连接到目标地址 得到网关对象 之后就可以通过网关发起rpc请求了
                                 rpcService.connect(
                                         targetAddress,
                                         fencingToken,
@@ -160,6 +174,7 @@ public abstract class RetryingRegistration<
                     rpcGatewayFuture.thenAcceptAsync(
                             (G rpcGateway) -> {
                                 log.info("Resolved {} address, beginning registration", targetName);
+                                // 将自身注册上去
                                 register(
                                         rpcGateway,
                                         1,
@@ -190,6 +205,7 @@ public abstract class RetryingRegistration<
                                         strippedFailure.getMessage());
                             }
 
+                            // 失败则稍后进行重试
                             startRegistrationLater(
                                     retryingRegistrationConfiguration.getErrorDelayMillis());
                         }
@@ -204,6 +220,7 @@ public abstract class RetryingRegistration<
     /**
      * This method performs a registration attempt and triggers either a success notification or a
      * retry, depending on the result.
+     * 将自身注册到 对端网关上
      */
     @SuppressWarnings("unchecked")
     private void register(final G gateway, final int attempt, final long timeoutMillis) {
@@ -224,6 +241,7 @@ public abstract class RetryingRegistration<
             // if the registration was successful, let the TaskExecutor know
             CompletableFuture<Void> registrationAcceptFuture =
                     registrationFuture.thenAcceptAsync(
+                            // 处理结果
                             (RegistrationResponse result) -> {
                                 if (!isCanceled()) {
                                     if (result instanceof RegistrationResponse.Success) {
@@ -262,6 +280,8 @@ public abstract class RetryingRegistration<
                                                 "Pausing and re-attempting registration in {} ms",
                                                 retryingRegistrationConfiguration
                                                         .getRefusedDelayMillis());
+
+                                        // 失败的话支持重试
                                         registerLater(
                                                 gateway,
                                                 1,
@@ -299,6 +319,7 @@ public abstract class RetryingRegistration<
                                                 2 * timeoutMillis,
                                                 retryingRegistrationConfiguration
                                                         .getMaxRegistrationTimeoutMillis());
+                                // 失败后重试
                                 register(gateway, attempt + 1, newTimeoutMillis);
                             } else {
                                 // a serious failure occurred. we still should not give up, but keep
@@ -327,6 +348,13 @@ public abstract class RetryingRegistration<
         }
     }
 
+    /**
+     * 在延时后重试
+     * @param gateway
+     * @param attempt
+     * @param timeoutMillis
+     * @param delay
+     */
     private void registerLater(
             final G gateway, final int attempt, final long timeoutMillis, long delay) {
         rpcService
@@ -343,6 +371,12 @@ public abstract class RetryingRegistration<
                 .schedule(this::startRegistration, delay, TimeUnit.MILLISECONDS);
     }
 
+    /**
+     * 表示注册的结果
+     * @param <G>
+     * @param <S>
+     * @param <R>
+     */
     static final class RetryingRegistrationResult<G, S, R> {
         @Nullable private final G gateway;
 

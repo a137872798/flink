@@ -44,14 +44,26 @@ public abstract class ChainedDriver<IT, OT> implements Collector<IT> {
 
     protected TaskConfig config;
 
+    /**
+     * 该驱动所属的任务
+     */
     protected String taskName;
 
+    /**
+     * 这个是下游的采集器   chained 就体现在这里  将多个collector连接起来
+     */
     protected Collector<OT> outputCollector;
 
     protected ClassLoader userCodeClassLoader;
 
+    /**
+     * 一个上下文对象 维护了物化广播变量 还有外部资源等
+     */
     private DistributedRuntimeUDFContext udfContext;
 
+    /**
+     * 包含执行时的各种参数
+     */
     protected ExecutionConfig executionConfig;
 
     protected boolean objectReuseEnabled = false;
@@ -62,6 +74,16 @@ public abstract class ChainedDriver<IT, OT> implements Collector<IT> {
 
     protected Counter numRecordsOut;
 
+    /**
+     * 进行初始化工作
+     * @param config
+     * @param taskName
+     * @param outputCollector
+     * @param parent
+     * @param userCodeClassLoader
+     * @param executionConfig
+     * @param accumulatorMap
+     */
     public void setup(
             TaskConfig config,
             String taskName,
@@ -76,15 +98,19 @@ public abstract class ChainedDriver<IT, OT> implements Collector<IT> {
         this.metrics = parent.getEnvironment().getMetricGroup().getOrAddOperator(taskName);
         this.numRecordsIn = this.metrics.getIOMetricGroup().getNumRecordsInCounter();
         this.numRecordsOut = this.metrics.getIOMetricGroup().getNumRecordsOutCounter();
+
+        // 包装一层计数功能
         this.outputCollector = new CountingCollector<>(outputCollector, numRecordsOut);
 
         Environment env = parent.getEnvironment();
 
         if (parent instanceof BatchTask) {
+            // 创建用户上下文
             this.udfContext = ((BatchTask<?, ?>) parent).createRuntimeContext(metrics);
         } else {
             this.udfContext =
                     new DistributedRuntimeUDFContext(
+                            // 从env中获取部分信息 并初始化context对象
                             env.getTaskInfo(),
                             userCodeClassLoader,
                             parent.getExecutionConfig(),
@@ -101,7 +127,13 @@ public abstract class ChainedDriver<IT, OT> implements Collector<IT> {
         setup(parent);
     }
 
+    /**
+     * 还有一个只使用invokable的api
+     * @param parent
+     */
     public abstract void setup(AbstractInvokable parent);
+
+    // driver绑定一个task  下面是相关的api
 
     public abstract void openTask() throws Exception;
 
@@ -113,6 +145,10 @@ public abstract class ChainedDriver<IT, OT> implements Collector<IT> {
 
     public abstract String getTaskName();
 
+    /**
+     * 采集数据 或者说处理数据
+     * @param record The record to collect.
+     */
     @Override
     public abstract void collect(IT record);
 
@@ -124,6 +160,10 @@ public abstract class ChainedDriver<IT, OT> implements Collector<IT> {
         return this.udfContext;
     }
 
+    /**
+     * 设置下游采集器
+     * @param outputCollector
+     */
     @SuppressWarnings("unchecked")
     public void setOutputCollector(Collector<?> outputCollector) {
         this.outputCollector =

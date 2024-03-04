@@ -28,17 +28,9 @@ import org.apache.flink.runtime.blocklist.BlockedNode;
 import org.apache.flink.runtime.blocklist.BlocklistContext;
 import org.apache.flink.runtime.blocklist.BlocklistHandler;
 import org.apache.flink.runtime.clusterframework.ApplicationStatus;
-import org.apache.flink.runtime.clusterframework.types.AllocationID;
-import org.apache.flink.runtime.clusterframework.types.ResourceID;
-import org.apache.flink.runtime.clusterframework.types.ResourceIDRetrievable;
-import org.apache.flink.runtime.clusterframework.types.ResourceProfile;
-import org.apache.flink.runtime.clusterframework.types.SlotID;
+import org.apache.flink.runtime.clusterframework.types.*;
 import org.apache.flink.runtime.entrypoint.ClusterInformation;
-import org.apache.flink.runtime.heartbeat.HeartbeatListener;
-import org.apache.flink.runtime.heartbeat.HeartbeatManager;
-import org.apache.flink.runtime.heartbeat.HeartbeatSender;
-import org.apache.flink.runtime.heartbeat.HeartbeatServices;
-import org.apache.flink.runtime.heartbeat.NoOpHeartbeatManager;
+import org.apache.flink.runtime.heartbeat.*;
 import org.apache.flink.runtime.instance.InstanceID;
 import org.apache.flink.runtime.io.network.partition.DataSetMetaInfo;
 import org.apache.flink.runtime.io.network.partition.ResourceManagerPartitionTracker;
@@ -63,22 +55,12 @@ import org.apache.flink.runtime.resourcemanager.slotmanager.SlotManager;
 import org.apache.flink.runtime.rest.messages.LogInfo;
 import org.apache.flink.runtime.rest.messages.ThreadDumpInfo;
 import org.apache.flink.runtime.rest.messages.taskmanager.TaskManagerInfo;
-import org.apache.flink.runtime.rpc.FatalErrorHandler;
-import org.apache.flink.runtime.rpc.FencedRpcEndpoint;
-import org.apache.flink.runtime.rpc.Local;
-import org.apache.flink.runtime.rpc.RpcService;
-import org.apache.flink.runtime.rpc.RpcServiceUtils;
+import org.apache.flink.runtime.rpc.*;
 import org.apache.flink.runtime.security.token.DelegationTokenManager;
 import org.apache.flink.runtime.shuffle.ShuffleDescriptor;
 import org.apache.flink.runtime.slots.ResourceRequirement;
 import org.apache.flink.runtime.slots.ResourceRequirements;
-import org.apache.flink.runtime.taskexecutor.FileType;
-import org.apache.flink.runtime.taskexecutor.SlotReport;
-import org.apache.flink.runtime.taskexecutor.TaskExecutorGateway;
-import org.apache.flink.runtime.taskexecutor.TaskExecutorHeartbeatPayload;
-import org.apache.flink.runtime.taskexecutor.TaskExecutorRegistrationRejection;
-import org.apache.flink.runtime.taskexecutor.TaskExecutorRegistrationSuccess;
-import org.apache.flink.runtime.taskexecutor.TaskExecutorThreadInfoGateway;
+import org.apache.flink.runtime.taskexecutor.*;
 import org.apache.flink.runtime.taskexecutor.partition.ClusterPartitionReport;
 import org.apache.flink.util.CollectionUtil;
 import org.apache.flink.util.ExceptionUtils;
@@ -87,14 +69,7 @@ import org.apache.flink.util.FlinkExpectedException;
 import org.apache.flink.util.concurrent.FutureUtils;
 
 import javax.annotation.Nullable;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
@@ -115,6 +90,8 @@ import static org.apache.flink.util.Preconditions.checkState;
  *   <li>{@link #registerJobMaster(JobMasterId, ResourceID, String, JobID, Time)} registers a {@link
  *       JobMaster} at the resource manager
  * </ul>
+ *
+ * 资源管理器 可以作为rpc端点被访问
  */
 public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         extends FencedRpcEndpoint<ResourceManagerId>
@@ -122,35 +99,59 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
 
     public static final String RESOURCE_MANAGER_NAME = "resourcemanager";
 
-    /** Unique id of the resource manager. */
+    /** Unique id of the resource manager.
+     * 标识资源管理器的 id
+     * */
     private final ResourceID resourceId;
 
-    /** All currently registered JobMasterGateways scoped by JobID. */
+    /** All currently registered JobMasterGateways scoped by JobID.
+     * 每个id 对应一个jobMaster
+     * JobManagerRegistration 中包含网关对象 可以与 JobMaster通信
+     * */
     private final Map<JobID, JobManagerRegistration> jobManagerRegistrations;
 
-    /** All currently registered JobMasterGateways scoped by ResourceID. */
+    /** All currently registered JobMasterGateways scoped by ResourceID.
+     * 通过 resourceId 来查询
+     * */
     private final Map<ResourceID, JobManagerRegistration> jmResourceIdRegistrations;
 
-    /** Service to retrieve the job leader ids. */
+    /** Service to retrieve the job leader ids.
+     * 通过该对象 查询注册的job 对应的JobMaster leader
+     * */
     private final JobLeaderIdService jobLeaderIdService;
 
-    /** All currently registered TaskExecutors with there framework specific worker information. */
+    /** All currently registered TaskExecutors with there framework specific worker information.
+     * WorkerRegistration 中包含了 TaskExecutorGateway 可以用于通信
+     * */
     private final Map<ResourceID, WorkerRegistration<WorkerType>> taskExecutors;
 
-    /** Ongoing registration of TaskExecutors per resource ID. */
+    /** Ongoing registration of TaskExecutors per resource ID.
+     * 简单维护 gateway
+     * */
     private final Map<ResourceID, CompletableFuture<TaskExecutorGateway>>
             taskExecutorGatewayFutures;
 
+    /**
+     * 心跳服务对象
+     */
     private final HeartbeatServices heartbeatServices;
 
     /** Fatal error handler. */
     private final FatalErrorHandler fatalErrorHandler;
 
-    /** The slot manager maintains the available slots. */
+    /** The slot manager maintains the available slots.
+     * 可以以 声明式 和细粒度 2种方式 为job从 TM上申请资源并分配
+     * */
     private final SlotManager slotManager;
 
+    /**
+     * 追踪分区信息
+     */
     private final ResourceManagerPartitionTracker clusterPartitionTracker;
 
+    /**
+     * 包含 ip port
+     */
     private final ClusterInformation clusterInformation;
 
     protected final ResourceManagerMetricGroup resourceManagerMetricGroup;
@@ -158,18 +159,30 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
     protected final Executor ioExecutor;
 
     private final CompletableFuture<Void> startedFuture;
+
+    // 用于与 JobMaster / TaskExecutor 维持心跳
+
     /** The heartbeat manager with task managers. */
     private HeartbeatManager<TaskExecutorHeartbeatPayload, Void> taskManagerHeartbeatManager;
 
     /** The heartbeat manager with job managers. */
     private HeartbeatManager<Void, Void> jobManagerHeartbeatManager;
 
+    /**
+     * TODO 有关权限认证的先忽略
+     */
     private final DelegationTokenManager delegationTokenManager;
 
+    /**
+     * 维护慢节点 便于在一些操作时避开
+     */
     protected final BlocklistHandler blocklistHandler;
 
     private final AtomicReference<byte[]> latestTokens = new AtomicReference<>();
 
+    /**
+     * 通过该对象进行资源分配
+     */
     private final ResourceAllocator resourceAllocator;
 
     public ResourceManager(
@@ -218,6 +231,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         this.clusterPartitionTracker =
                 checkNotNull(clusterPartitionTrackerFactory)
                         .get(
+                                // 表示当某个 TM 下线时 并且将它持有的一组中间数据集作为参数 触发该函数
                                 (taskExecutorResourceId, dataSetIds) ->
                                         taskExecutors
                                                 .get(taskExecutorResourceId)
@@ -238,6 +252,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
 
         this.delegationTokenManager = delegationTokenManager;
 
+        // 资源分配器   是由子类实现的
         this.resourceAllocator = getResourceAllocator();
     }
 
@@ -245,6 +260,10 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
     //  RPC lifecycle methods
     // ------------------------------------------------------------------------
 
+    /**
+     * 在启动RPC服务时触发该方法
+     * @throws Exception
+     */
     @Override
     public final void onStart() throws Exception {
         try {
@@ -261,14 +280,22 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         }
     }
 
+    /**
+     *
+     * @throws Exception
+     */
     private void startResourceManagerServices() throws Exception {
         try {
+            // 启动负责监听 job 相关的 JobMaster leader 节点位置的对象
             jobLeaderIdService.start(new JobLeaderIdActionsImpl());
 
+            // TODO
             registerMetrics();
 
+            // 开启心跳服务  当心跳超时时会断开连接
             startHeartbeatServices();
 
+            // 为slotManager 设置组件
             slotManager.start(
                     getFencingToken(),
                     getMainThreadExecutor(),
@@ -276,6 +303,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
                     new ResourceEventListenerImpl(),
                     blocklistHandler::isBlockedTaskManager);
 
+            // TODO
             delegationTokenManager.start(this);
 
             initialize();
@@ -302,6 +330,10 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         return startedFuture;
     }
 
+    /**
+     * rpc服务停止时触发
+     * @return
+     */
     @Override
     public final CompletableFuture<Void> onStop() {
         try {
@@ -315,6 +347,10 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         return CompletableFuture.completedFuture(null);
     }
 
+    /**
+     * 停止本对象
+     * @throws Exception
+     */
     private void stopResourceManagerServices() throws Exception {
         Exception exception = null;
 
@@ -356,6 +392,15 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
     //  RPC methods
     // ------------------------------------------------------------------------
 
+    /**
+     * 某个 JM 通过rpc调用该方法  将自己注册上来
+     * @param jobMasterId The fencing token for the JobMaster leader
+     * @param jobManagerResourceId
+     * @param jobManagerAddress
+     * @param jobId The Job ID of the JobMaster that registers
+     * @param timeout Timeout for the future to complete
+     * @return
+     */
     @Override
     public CompletableFuture<RegistrationResponse> registerJobMaster(
             final JobMasterId jobMasterId,
@@ -371,6 +416,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
 
         if (!jobLeaderIdService.containsJob(jobId)) {
             try {
+                // 添加job 并找到JM leader地址
                 jobLeaderIdService.addJob(jobId);
             } catch (Exception e) {
                 ResourceManagerException exception =
@@ -409,6 +455,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
             return FutureUtils.completedExceptionally(exception);
         }
 
+        // 连接到JM
         CompletableFuture<JobMasterGateway> jobMasterGatewayFuture =
                 getRpcService().connect(jobManagerAddress, jobMasterId, JobMasterGateway.class);
 
@@ -416,13 +463,16 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
                 jobMasterGatewayFuture.thenCombineAsync(
                         jobMasterIdFuture,
                         (JobMasterGateway jobMasterGateway, JobMasterId leadingJobMasterId) -> {
+                            // 连接成功后 进入该方法  首先确保该JM 还是leader
                             if (Objects.equals(leadingJobMasterId, jobMasterId)) {
+                                // 注册JM
                                 return registerJobMasterInternal(
                                         jobMasterGateway,
                                         jobId,
                                         jobManagerAddress,
                                         jobManagerResourceId);
                             } else {
+                                // 通知注册失败 因为此时该JM已经不是leader了
                                 final String declineMessage =
                                         String.format(
                                                 "The leading JobMaster id %s did not match the received JobMaster id %s. "
@@ -460,10 +510,17 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
                 ioExecutor);
     }
 
+    /**
+     * 注册TM  也是其他组件通过gateway对象访问RM 并进行注册的
+     * @param taskExecutorRegistration the task executor registration.
+     * @param timeout The timeout for the response.
+     * @return
+     */
     @Override
     public CompletableFuture<RegistrationResponse> registerTaskExecutor(
             final TaskExecutorRegistration taskExecutorRegistration, final Time timeout) {
 
+        // 进行连接
         CompletableFuture<TaskExecutorGateway> taskExecutorGatewayFuture =
                 getRpcService()
                         .connect(
@@ -494,6 +551,14 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
                 getMainThreadExecutor());
     }
 
+    /**
+     * TM 将内部slot信息上报给RM
+     * @param taskManagerResourceId
+     * @param taskManagerRegistrationId id identifying the sending TaskManager
+     * @param slotReport which is sent to the ResourceManager
+     * @param timeout for the operation
+     * @return
+     */
     @Override
     public CompletableFuture<Acknowledge> sendSlotReport(
             ResourceID taskManagerResourceId,
@@ -503,19 +568,24 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         final WorkerRegistration<WorkerType> workerTypeWorkerRegistration =
                 taskExecutors.get(taskManagerResourceId);
 
+        // 要实例匹配
         if (workerTypeWorkerRegistration.getInstanceID().equals(taskManagerRegistrationId)) {
+            // 已经存在则进行更新
             SlotManager.RegistrationResult registrationResult =
                     slotManager.registerTaskManager(
                             workerTypeWorkerRegistration,
                             slotReport,
                             workerTypeWorkerRegistration.getTotalResourceProfile(),
                             workerTypeWorkerRegistration.getDefaultSlotResourceProfile());
+
+            // 只有首次添加 才会返回success
             if (registrationResult == SlotManager.RegistrationResult.SUCCESS) {
                 WorkerResourceSpec workerResourceSpec =
                         WorkerResourceSpec.fromTotalResourceProfile(
                                 workerTypeWorkerRegistration.getTotalResourceProfile(),
                                 slotReport.getNumSlotStatus());
                 onWorkerRegistered(workerTypeWorkerRegistration.getWorker(), workerResourceSpec);
+                // 表示此时资源管理器上slot太多  返回异常 并断开连接
             } else if (registrationResult == SlotManager.RegistrationResult.REJECTED) {
                 closeTaskManagerConnection(
                                 taskManagerResourceId,
@@ -523,6 +593,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
                                         "Task manager could not be registered to SlotManager."))
                         .ifPresent(ResourceManager.this::stopWorkerIfSupported);
             } else {
+                // 这种就可能是更新
                 log.debug("TaskManager {} is ignored by SlotManager.", taskManagerResourceId);
             }
             return CompletableFuture.completedFuture(Acknowledge.get());
@@ -539,12 +610,23 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         // noop
     }
 
+    /**
+     * 接收 TM的心跳
+     * @param resourceID
+     * @param heartbeatPayload payload from the originating TaskManager
+     * @return
+     */
     @Override
     public CompletableFuture<Void> heartbeatFromTaskManager(
             final ResourceID resourceID, final TaskExecutorHeartbeatPayload heartbeatPayload) {
         return taskManagerHeartbeatManager.receiveHeartbeat(resourceID, heartbeatPayload);
     }
 
+    /**
+     * 收到JM心跳
+     * @param resourceID
+     * @return
+     */
     @Override
     public CompletableFuture<Void> heartbeatFromJobManager(final ResourceID resourceID) {
         return jobManagerHeartbeatManager.receiveHeartbeat(resourceID, null);
@@ -559,6 +641,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
     @Override
     public void disconnectJobManager(
             final JobID jobId, JobStatus jobStatus, final Exception cause) {
+        // 表示全局终止job 而不是job 所在节点 下线
         if (jobStatus.isGloballyTerminalState()) {
             removeJob(jobId, cause);
         } else {
@@ -566,6 +649,13 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         }
     }
 
+    /**
+     * 告知资源管理器  job的资源开销
+     * @param jobMasterId id of the JobMaster
+     * @param resourceRequirements resource requirements
+     * @param timeout
+     * @return
+     */
     @Override
     public CompletableFuture<Acknowledge> declareRequiredResources(
             JobMasterId jobMasterId, ResourceRequirements resourceRequirements, Time timeout) {
@@ -578,6 +668,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
                         .thenApply(
                                 acknowledge -> {
                                     validateRunsInMainThread();
+                                    // 转发请求
                                     slotManager.processResourceRequirements(resourceRequirements);
                                     return null;
                                 });
@@ -597,6 +688,12 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         }
     }
 
+    /**
+     * 将某个slot修改成free
+     * @param instanceID
+     * @param slotId
+     * @param allocationId
+     */
     @Override
     public void notifySlotAvailable(
             final InstanceID instanceID, final SlotID slotId, final AllocationID allocationId) {
@@ -651,6 +748,11 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         return CompletableFuture.completedFuture(taskExecutors.size());
     }
 
+    /**
+     * 查询所有注册的TM信息
+     * @param timeout of the request
+     * @return
+     */
     @Override
     public CompletableFuture<Collection<TaskManagerInfo>> requestTaskManagerInfo(Time timeout) {
 
@@ -680,6 +782,12 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         return CompletableFuture.completedFuture(taskManagerInfos);
     }
 
+    /**
+     * 查询某个TM详情
+     * @param resourceId
+     * @param timeout of the request
+     * @return
+     */
     @Override
     public CompletableFuture<TaskManagerInfoWithSlots> requestTaskManagerDetailsInfo(
             ResourceID resourceId, Time timeout) {
@@ -712,6 +820,11 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         }
     }
 
+    /**
+     * 作为RM 返回当前资源的描述信息
+     * @param timeout of the request
+     * @return
+     */
     @Override
     public CompletableFuture<ResourceOverview> requestResourceOverview(Time timeout) {
         final int numberSlots = slotManager.getNumberRegisteredSlots();
@@ -725,6 +838,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         if (!blocklistHandler.getAllBlockedNodeIds().isEmpty()) {
             for (WorkerRegistration<WorkerType> registration : taskExecutors.values()) {
                 if (blocklistHandler.isBlockedTaskManager(registration.getResourceID())) {
+                    // free资源要忽略 block节点
                     blockedTaskManagers++;
                     int blockedFreeSlots =
                             slotManager.getNumberFreeSlotsOf(registration.getInstanceID());
@@ -761,6 +875,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
             final TaskExecutorGateway taskExecutorGateway =
                     workerRegistration.getTaskExecutorGateway();
 
+            // 内部转发给TM
             final CompletableFuture<Optional<Tuple2<ResourceID, String>>>
                     metricQueryServiceAddressFuture =
                             taskExecutorGateway
@@ -786,6 +901,13 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
                                         .collect(Collectors.toList()));
     }
 
+    /**
+     * 转发给TM 请求将某类型文件上传
+     * @param taskManagerId identifying the {@link TaskExecutor} to upload the specified file
+     * @param fileType type of the file to upload
+     * @param timeout for the asynchronous operation
+     * @return
+     */
     @Override
     public CompletableFuture<TransientBlobKey> requestTaskManagerFileUploadByType(
             ResourceID taskManagerId, FileType fileType, Time timeout) {
@@ -808,6 +930,13 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         }
     }
 
+    /**
+     * 按照名字上传
+     * @param taskManagerId identifying the {@link TaskExecutor} to upload the specified file
+     * @param fileName name of the file to upload
+     * @param timeout for the asynchronous operation
+     * @return
+     */
     @Override
     public CompletableFuture<TransientBlobKey> requestTaskManagerFileUploadByName(
             ResourceID taskManagerId, String fileName, Time timeout) {
@@ -830,6 +959,12 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         }
     }
 
+    /**
+     * TODO 转发获取日志
+     * @param taskManagerId identifying the {@link TaskExecutor} to get log list from
+     * @param timeout for the asynchronous operation
+     * @return
+     */
     @Override
     public CompletableFuture<Collection<LogInfo>> requestTaskManagerLogList(
             ResourceID taskManagerId, Time timeout) {
@@ -847,9 +982,16 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
 
     @Override
     public CompletableFuture<Void> releaseClusterPartitions(IntermediateDataSetID dataSetId) {
+        // 也会转发给网关 让TM放弃某分区数据
         return clusterPartitionTracker.releaseClusterPartitions(dataSetId);
     }
 
+    /**
+     * 更新TM分区数据
+     * @param taskExecutorId The id of the task executor.
+     * @param clusterPartitionReport The status of the cluster partitions.
+     * @return
+     */
     @Override
     public CompletableFuture<Void> reportClusterPartitions(
             ResourceID taskExecutorId, ClusterPartitionReport clusterPartitionReport) {
@@ -858,6 +1000,11 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         return CompletableFuture.completedFuture(null);
     }
 
+    /**
+     * 获取洗牌信息
+     * @param intermediateDataSetID The id of the dataset.
+     * @return
+     */
     @Override
     public CompletableFuture<List<ShuffleDescriptor>> getClusterPartitionsShuffleDescriptors(
             IntermediateDataSetID intermediateDataSetID) {
@@ -868,9 +1015,17 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
 
     @Override
     public CompletableFuture<Map<IntermediateDataSetID, DataSetMetaInfo>> listDataSets() {
+        // 返回数据集的分区信息
         return CompletableFuture.completedFuture(clusterPartitionTracker.listDataSets());
     }
 
+    /**
+     * 请求线程栈信息   转发给TM
+     * @param taskManagerId taskManagerId identifying the {@link TaskExecutor} to get the thread
+     *     dump from
+     * @param timeout timeout of the asynchronous operation
+     * @return
+     */
     @Override
     public CompletableFuture<ThreadDumpInfo> requestThreadDump(
             ResourceID taskManagerId, Time timeout) {
@@ -902,6 +1057,11 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         }
     }
 
+    /**
+     *
+     * @param newNodes the new blocked node records
+     * @return
+     */
     @Override
     public CompletableFuture<Acknowledge> notifyNewBlockedNodes(Collection<BlockedNode> newNodes) {
         blocklistHandler.addNewBlockedNodes(newNodes);
@@ -912,6 +1072,11 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
     //  Internal methods
     // ------------------------------------------------------------------------
 
+    /**
+     * 通过id 检索地址  这里返回的是 nodeId
+     * @param taskManagerId
+     * @return
+     */
     @VisibleForTesting
     String getNodeIdOfTaskManager(ResourceID taskManagerId) {
         checkState(taskExecutors.containsKey(taskManagerId));
@@ -926,12 +1091,14 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
      * @param jobManagerAddress address of the JobMaster
      * @param jobManagerResourceId ResourceID of the JobMaster
      * @return RegistrationResponse
+     * 注册一个新的JM对象
      */
     private RegistrationResponse registerJobMasterInternal(
             final JobMasterGateway jobMasterGateway,
             JobID jobId,
             String jobManagerAddress,
             ResourceID jobManagerResourceId) {
+        // 表示该JM 已经注册
         if (jobManagerRegistrations.containsKey(jobId)) {
             JobManagerRegistration oldJobManagerRegistration = jobManagerRegistrations.get(jobId);
 
@@ -945,6 +1112,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
                         jobManagerAddress);
             } else {
                 // tell old job manager that he is no longer the job leader
+                // 断开旧连接
                 closeJobManagerConnection(
                         oldJobManagerRegistration.getJobID(),
                         ResourceRequirementHandling.RETAIN,
@@ -954,6 +1122,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
                         new JobManagerRegistration(jobId, jobManagerResourceId, jobMasterGateway);
                 jobManagerRegistrations.put(jobId, jobManagerRegistration);
                 jmResourceIdRegistrations.put(jobManagerResourceId, jobManagerRegistration);
+                // JM 通过该对象监听阻塞节点
                 blocklistHandler.registerBlocklistListener(jobMasterGateway);
             }
         } else {
@@ -971,6 +1140,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
                 jobManagerAddress,
                 jobId);
 
+        // 监控与该节点的心跳
         jobManagerHeartbeatManager.monitorTarget(
                 jobManagerResourceId, new JobMasterHeartbeatSender(jobMasterGateway));
 
@@ -982,6 +1152,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
      *
      * @param taskExecutorRegistration task executor registration parameters
      * @return RegistrationResponse
+     * 注册TM
      */
     private RegistrationResponse registerTaskExecutorInternal(
             TaskExecutorGateway taskExecutorGateway,
@@ -996,6 +1167,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
                     taskExecutorResourceId.getStringWithMetadata());
 
             // remove old task manager registration from slot manager
+            // 注销之前的TM  包括它声明的资源都要扣除
             slotManager.unregisterTaskManager(
                     oldRegistration.getInstanceID(),
                     new ResourceManagerException(
@@ -1017,6 +1189,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
             return new TaskExecutorRegistrationRejection(
                     "The ResourceManager does not recognize this TaskExecutor.");
         } else {
+            // 产生一个worker注册对象
             WorkerType newWorker = newWorkerOptional.get();
             WorkerRegistration<WorkerType> registration =
                     new WorkerRegistration<>(
@@ -1036,6 +1209,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
                     taskExecutorAddress);
             taskExecutors.put(taskExecutorResourceId, registration);
 
+            // 创建心跳包发送对象
             taskManagerHeartbeatManager.monitorTarget(
                     taskExecutorResourceId, new TaskExecutorHeartbeatSender(taskExecutorGateway));
 
@@ -1074,6 +1248,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
      * @param resourceRequirementHandling indicating how existing resource requirements for the
      *     corresponding job should be handled
      * @param cause The exception which cause the JobManager failed.
+     *              断开与JM的连接
      */
     protected void closeJobManagerConnection(
             JobID jobId, ResourceRequirementHandling resourceRequirementHandling, Exception cause) {
@@ -1091,12 +1266,15 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
                     jobMasterGateway.getAddress(),
                     jobId);
 
+            // 不需要监控该连接了
             jobManagerHeartbeatManager.unmonitorTarget(jobManagerResourceId);
 
             jmResourceIdRegistrations.remove(jobManagerResourceId);
+            // 本身感知到阻塞节点时 会以rpc方式进行通知JM
             blocklistHandler.deregisterBlocklistListener(jobMasterGateway);
 
             if (resourceRequirementHandling == ResourceRequirementHandling.CLEAR) {
+                // 表示需要清理该job需要的资源信息
                 slotManager.clearResourceRequirements(jobId);
             }
 
@@ -1114,11 +1292,15 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
      * @param resourceID Id of the TaskManager that has failed.
      * @param cause The exception which cause the TaskManager failed.
      * @return The {@link WorkerType} of the closed connection, or empty if already removed.
+     * 关闭与某个TM的连接
      */
     protected Optional<WorkerType> closeTaskManagerConnection(
             final ResourceID resourceID, final Exception cause) {
+
+        // 断开连接 就不需要再监控超时了
         taskManagerHeartbeatManager.unmonitorTarget(resourceID);
 
+        // 得到注册信息
         WorkerRegistration<WorkerType> workerRegistration = taskExecutors.remove(resourceID);
 
         if (workerRegistration != null) {
@@ -1130,9 +1312,12 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
             ExceptionUtils.logExceptionIfExcepted(cause.getCause(), log);
 
             // TODO :: suggest failed task executor to stop itself
+            // 释放对象
             slotManager.unregisterTaskManager(workerRegistration.getInstanceID(), cause);
+            // 移除tracker上维护的一些中间结果集信息 (哪个TM上维护了哪些中间结果集)
             clusterPartitionTracker.processTaskExecutorShutdown(resourceID);
 
+            // 请求断开连接
             workerRegistration.getTaskExecutorGateway().disconnectResourceManager(cause);
         } else {
             log.debug(
@@ -1159,6 +1344,11 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         }
     }
 
+    /**
+     * 收到通知  感知到某个 jobMaster不再是leader
+     * @param jobId
+     * @param oldJobMasterId
+     */
     protected void jobLeaderLostLeadership(JobID jobId, JobMasterId oldJobMasterId) {
         if (jobManagerRegistrations.containsKey(jobId)) {
             JobManagerRegistration jobManagerRegistration = jobManagerRegistrations.get(jobId);
@@ -1225,7 +1415,11 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         fatalErrorHandler.onFatalError(t);
     }
 
+    /**
+     * 开启心跳服务  心跳服务已经搭好框架 只要实现几个钩子即可
+     */
     private void startHeartbeatServices() {
+        // 分别创建 JobMaster/TaskExecutor的心跳服务
         taskManagerHeartbeatManager =
                 heartbeatServices.createHeartbeatManagerSender(
                         resourceId,
@@ -1241,6 +1435,9 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
                         log);
     }
 
+    /**
+     * 停止心跳服务
+     */
     private void stopHeartbeatServices() {
         taskManagerHeartbeatManager.stop();
         jobManagerHeartbeatManager.stop();
@@ -1255,6 +1452,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
      *
      * @throws ResourceManagerException which occurs during initialization and causes the resource
      *     manager to fail.
+     *     进行一些初始化操作
      */
     protected abstract void initialize() throws ResourceManagerException;
 
@@ -1292,9 +1490,11 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
      * Stops the given worker if supported.
      *
      * @param worker The worker.
+     *
      */
     public void stopWorkerIfSupported(WorkerType worker) {
         if (resourceAllocator.isSupported()) {
+            // 与worker断开连接后 清理资源
             resourceAllocator.cleaningUpDisconnectedResource(worker.getResourceID());
         }
     }
@@ -1322,6 +1522,9 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
     //  Static utility classes
     // ------------------------------------------------------------------------
 
+    /**
+     * 发送心跳的对象
+     */
     private static final class JobMasterHeartbeatSender extends HeartbeatSender<Void> {
         private final JobMasterGateway jobMasterGateway;
 
@@ -1348,6 +1551,9 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         }
     }
 
+    /**
+     * 在 slotManager中 当发现无法为job提供资源时会触发该方法
+     */
     private class ResourceEventListenerImpl implements ResourceEventListener {
         @Override
         public void notEnoughResourceAvailable(
@@ -1358,11 +1564,15 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
             if (jobManagerRegistration != null) {
                 jobManagerRegistration
                         .getJobManagerGateway()
+                        // 转发给网关通知
                         .notifyNotEnoughResourcesAvailable(acquiredResources);
             }
         }
     }
 
+    /**
+     * 该对象感知某个jobMaster 不再是leader
+     */
     private class JobLeaderIdActionsImpl implements JobLeaderIdActions {
 
         @Override
@@ -1398,9 +1608,17 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         }
     }
 
+    /**
+     * 监听心跳包发送结果
+     * TaskExecutorHeartbeatPayload 表示 TM发送的心跳包
+     */
     private class TaskManagerHeartbeatListener
             implements HeartbeatListener<TaskExecutorHeartbeatPayload, Void> {
 
+        /**
+         * 表示心跳包超时
+         * @param resourceID Resource ID of the machine whose heartbeat has timed out
+         */
         @Override
         public void notifyHeartbeatTimeout(final ResourceID resourceID) {
             final String message =
@@ -1409,11 +1627,18 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
                             resourceID.getStringWithMetadata());
             log.info(message);
 
+            // 超时即断开连接
             handleTaskManagerConnectionLoss(resourceID, new TimeoutException(message));
         }
 
+        /**
+         * 表示与某个TaskExecutor 断开连接
+         * @param resourceID
+         * @param cause
+         */
         private void handleTaskManagerConnectionLoss(ResourceID resourceID, Exception cause) {
             validateRunsInMainThread();
+            // 断开与TM的连接
             closeTaskManagerConnection(resourceID, cause)
                     .ifPresent(ResourceManager.this::stopWorkerIfSupported);
         }
@@ -1429,6 +1654,11 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
             handleTaskManagerConnectionLoss(resourceID, new ResourceManagerException(message));
         }
 
+        /**
+         * 从TM收到心跳包
+         * @param resourceID Resource ID identifying the sender of the payload
+         * @param payload Payload of the received heartbeat
+         */
         @Override
         public void reportPayload(
                 final ResourceID resourceID, final TaskExecutorHeartbeatPayload payload) {
@@ -1442,7 +1672,9 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
             } else {
                 InstanceID instanceId = workerRegistration.getInstanceID();
 
+                // 在本地同步slot的状态
                 slotManager.reportSlotStatus(instanceId, payload.getSlotReport());
+                // 表示收到TM上报的分区信息
                 clusterPartitionTracker.processTaskExecutorClusterPartitionReport(
                         resourceID, payload.getClusterPartitionReport());
             }
@@ -1454,6 +1686,9 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         }
     }
 
+    /**
+     * 与JobMaster相关的心跳监听器
+     */
     private class JobManagerHeartbeatListener implements HeartbeatListener<Void, Void> {
 
         @Override
@@ -1467,6 +1702,11 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
             handleJobManagerConnectionLoss(resourceID, new TimeoutException(message));
         }
 
+        /**
+         * 关闭与JM的连接
+         * @param resourceID
+         * @param cause
+         */
         private void handleJobManagerConnectionLoss(ResourceID resourceID, Exception cause) {
             validateRunsInMainThread();
             if (jmResourceIdRegistrations.containsKey(resourceID)) {
@@ -1512,6 +1752,7 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
         public void unblockResources(Collection<BlockedNode> unBlockedNodes) {
             // when a node is unblocked, we should trigger the resource requirements because the
             // slots on this node become available again.
+            // 当某些节点解除阻塞时  通知重新检测资源是否足够 因为此时该节点对应的TaskExecutor也会被考虑了
             slotManager.triggerResourceRequirementsCheck();
         }
     }
@@ -1520,6 +1761,11 @@ public abstract class ResourceManager<WorkerType extends ResourceIDRetrievable>
     //  Resource Management
     // ------------------------------------------------------------------------
 
+    /**
+     * TODO
+     * @param tokens
+     * @throws Exception
+     */
     @Override
     public void onNewTokensObtained(byte[] tokens) throws Exception {
         latestTokens.set(tokens);

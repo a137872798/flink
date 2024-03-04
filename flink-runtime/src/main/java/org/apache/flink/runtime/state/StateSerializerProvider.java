@@ -50,6 +50,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * previous serializer snapshot is present.
  *
  * @param <T> the type of the state.
+ *           就是获取序列化对象的
  */
 @Internal
 public abstract class StateSerializerProvider<T> {
@@ -61,6 +62,7 @@ public abstract class StateSerializerProvider<T> {
      * #fromPreviousSerializerSnapshot(TypeSerializerSnapshot)}, but a new serializer was never
      * registered for the state (i.e., this is the case if a restored state was never accessed),
      * this would be {@code null}.
+     * 此时注册的序列化对象
      */
     @Nullable TypeSerializer<T> registeredSerializer;
 
@@ -71,6 +73,7 @@ public abstract class StateSerializerProvider<T> {
      * {@link #fromNewRegisteredSerializer(TypeSerializer)}, but a serializer snapshot was never
      * supplied to this provider (i.e. because the registered serializer was for a new state, not a
      * restored one), this would be {@code null}.
+     * 这个是序列化对象的快照
      */
     @Nullable TypeSerializerSnapshot<T> previousSerializerSnapshot;
 
@@ -80,6 +83,7 @@ public abstract class StateSerializerProvider<T> {
      * <p>NOTE: It is important to only create this lazily, so that off-heap state do not fail
      * eagerly when restoring state that has a {@link UnloadableDummyTypeSerializer} as the previous
      * serializer. This should be relevant only for restores from Flink versions prior to 1.7.x.
+     * 恢复快照时 会得到序列化对象  缓存为了避免重复解析
      */
     @Nullable private TypeSerializer<T> cachedRestoredSerializer;
 
@@ -95,6 +99,7 @@ public abstract class StateSerializerProvider<T> {
      * @param stateSerializerSnapshot the previous serializer's snapshot.
      * @param <T> the type of the state.
      * @return a new {@link StateSerializerProvider}.
+     * 通过一个序列化的快照对象来构建本对象
      */
     public static <T> StateSerializerProvider<T> fromPreviousSerializerSnapshot(
             TypeSerializerSnapshot<T> stateSerializerSnapshot) {
@@ -111,11 +116,14 @@ public abstract class StateSerializerProvider<T> {
      * @param registeredStateSerializer the new state's registered serializer.
      * @param <T> the type of the state.
      * @return a new {@link StateSerializerProvider}.
+     * 使用一个序列化对象 构建本对象
      */
     public static <T> StateSerializerProvider<T> fromNewRegisteredSerializer(
             TypeSerializer<T> registeredStateSerializer) {
         return new EagerlyRegisteredStateSerializerProvider<>(registeredStateSerializer);
     }
+
+    // 2种初始化方式 要么直接设置序列化对象  要么通过还原快照
 
     private StateSerializerProvider(@Nonnull TypeSerializer<T> stateSerializer) {
         this.registeredSerializer = stateSerializer;
@@ -158,6 +166,7 @@ public abstract class StateSerializerProvider<T> {
 
         // if we are not yet registered with a new serializer,
         // we can just use the restore serializer to read / write the state.
+        // 尝试从快照复原
         return previousSchemaSerializer();
     }
 
@@ -174,6 +183,7 @@ public abstract class StateSerializerProvider<T> {
      */
     @Nonnull
     public final TypeSerializer<T> previousSchemaSerializer() {
+        // 已经缓存了结果
         if (cachedRestoredSerializer != null) {
             return cachedRestoredSerializer;
         }
@@ -183,6 +193,7 @@ public abstract class StateSerializerProvider<T> {
                     "This provider does not contain the state's previous serializer's snapshot. Cannot provider a serializer for previous schema.");
         }
 
+        // 还原序列化对象
         this.cachedRestoredSerializer = previousSerializerSnapshot.restoreSerializer();
         return cachedRestoredSerializer;
     }
@@ -226,6 +237,8 @@ public abstract class StateSerializerProvider<T> {
      *
      * @return the schema compatibility of the new registered serializer, with respect to the
      *     previous serializer.
+     *
+     *     更新序列化对象
      */
     @Nonnull
     public abstract TypeSerializerSchemaCompatibility<T> registerNewSerializerForRestoredState(
@@ -260,6 +273,7 @@ public abstract class StateSerializerProvider<T> {
      * @param previousSerializerSnapshot the state's previous serializer's snapshot
      * @return the schema compatibility of the initially registered serializer, with respect to the
      *     previous serializer.
+     *     更新快照
      */
     @Nonnull
     public abstract TypeSerializerSchemaCompatibility<T>
@@ -283,6 +297,7 @@ public abstract class StateSerializerProvider<T> {
      * Implementation of the {@link StateSerializerProvider} for the case where a snapshot of the
      * previous serializer is obtained before a new state serializer is registered (hence, the
      * naming "lazily" registered).
+     * 使用快照初始化
      */
     private static class LazilyRegisteredStateSerializerProvider<T>
             extends StateSerializerProvider<T> {
@@ -298,16 +313,20 @@ public abstract class StateSerializerProvider<T> {
         public TypeSerializerSchemaCompatibility<T> registerNewSerializerForRestoredState(
                 TypeSerializer<T> newSerializer) {
             checkNotNull(newSerializer);
+            // 只能注册一次啊
             if (registeredSerializer != null) {
                 throw new UnsupportedOperationException(
                         "A serializer has already been registered for the state; re-registration is not allowed.");
             }
 
+            // 检验兼容性
             TypeSerializerSchemaCompatibility<T> result =
                     previousSerializerSnapshot.resolveSchemaCompatibility(newSerializer);
             if (result.isIncompatible()) {
+                // 判断是否允许序列化对象变为不兼容的
                 invalidateCurrentSchemaSerializerAccess();
             }
+            // 重新配置
             if (result.isCompatibleWithReconfiguredSerializer()) {
                 this.registeredSerializer = result.getReconfiguredSerializer();
             } else {
@@ -316,6 +335,11 @@ public abstract class StateSerializerProvider<T> {
             return result;
         }
 
+        /**
+         * 使用快照初始化  就不能实现该方法
+         * @param previousSerializerSnapshot the state's previous serializer's snapshot
+         * @return
+         */
         @Nonnull
         @Override
         public TypeSerializerSchemaCompatibility<T> setPreviousSerializerSnapshotForRestoredState(
@@ -329,6 +353,8 @@ public abstract class StateSerializerProvider<T> {
      * Implementation of the {@link StateSerializerProvider} for the case where a new state
      * serializer instance is registered first, before any snapshots of the previous state
      * serializer is obtained (hence, the naming "eagerly" registered).
+     *
+     * 这种则是直接使用序列化对象初始化
      */
     private static class EagerlyRegisteredStateSerializerProvider<T>
             extends StateSerializerProvider<T> {
@@ -345,6 +371,11 @@ public abstract class StateSerializerProvider<T> {
                     "A serializer has already been registered for the state; re-registration is not allowed.");
         }
 
+        /**
+         * 使用快照更新
+         * @param previousSerializerSnapshot the state's previous serializer's snapshot
+         * @return
+         */
         @Nonnull
         @Override
         public TypeSerializerSchemaCompatibility<T> setPreviousSerializerSnapshotForRestoredState(
@@ -357,11 +388,13 @@ public abstract class StateSerializerProvider<T> {
 
             this.previousSerializerSnapshot = previousSerializerSnapshot;
 
+            // 也是检测兼容性
             TypeSerializerSchemaCompatibility<T> result =
                     previousSerializerSnapshot.resolveSchemaCompatibility(registeredSerializer);
             if (result.isIncompatible()) {
                 invalidateCurrentSchemaSerializerAccess();
             }
+            // 可能会被重新配置  要更新
             if (result.isCompatibleWithReconfiguredSerializer()) {
                 this.registeredSerializer = result.getReconfiguredSerializer();
             }

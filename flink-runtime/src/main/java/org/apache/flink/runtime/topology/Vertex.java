@@ -21,6 +21,8 @@ package org.apache.flink.runtime.topology;
 /**
  * Represents a logical or execution task. Each vertex can consume data from multiple {@link
  * Result}. Each vertex can produce multiple {@link Result}.
+ *
+ * 表示整个拓扑图中的某个顶点
  */
 public interface Vertex<
         VID extends VertexID,
@@ -30,6 +32,11 @@ public interface Vertex<
 
     VID getId();
 
+
+    /**
+     * 表示本顶点消费的数据
+     * @return
+     */
     Iterable<? extends R> getConsumedResults();
 
     Iterable<? extends R> getProducedResults();

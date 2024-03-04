@@ -29,12 +29,25 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.ToIntFunction;
 
-/** Container for meta-data of a data set. */
+/** Container for meta-data of a data set.
+ * 描述一个中间结果集(数据集) 的元数据信息
+ * */
 public final class DataSetMetaInfo implements Serializable {
     private static final int UNKNOWN = -1;
 
+    /**
+     * 此时已经分散到哪些分区上了
+     */
     private final int numRegisteredPartitions;
+
+    /**
+     * 总分区数
+     */
     private final int numTotalPartitions;
+
+    /**
+     * 该结果集落在每个分区上所产生的id  与关联的洗牌信息
+     */
     private final SortedMap<ResultPartitionID, ShuffleDescriptor>
             shuffleDescriptorsOrderByPartitionId =
                     new TreeMap<>(

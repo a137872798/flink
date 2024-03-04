@@ -53,6 +53,7 @@ public class SlotManagerUtils {
     /**
      * This must be consist with {@link
      * org.apache.flink.runtime.taskexecutor.TaskExecutorResourceUtils#generateDefaultSlotResourceProfile}.
+     * 把总资源按照slot数量拆分
      */
     public static ResourceProfile generateDefaultSlotResourceProfile(
             ResourceProfile resourceProfile, int numSlotsPerWorker) {

@@ -99,6 +99,7 @@ import java.util.List;
  *
  * @param <P> type of provided result partition writers
  * @param <G> type of provided input gates
+ * P 用于写入数据  G 用于读取数据
  */
 public interface ShuffleEnvironment<P extends ResultPartitionWriter, G extends IndexedInputGate>
         extends AutoCloseable {
@@ -123,6 +124,7 @@ public interface ShuffleEnvironment<P extends ResultPartitionWriter, G extends I
      * @param parentGroup parent of shuffle specific metric group
      * @return context of the shuffle input/output owner used to create partitions or gates
      *     belonging to the owner
+     *     创建洗牌用的上下文
      */
     ShuffleIOOwnerContext createShuffleIOOwnerContext(
             String ownerName, ExecutionAttemptID executionAttemptID, MetricGroup parentGroup);
@@ -159,6 +161,7 @@ public interface ShuffleEnvironment<P extends ResultPartitionWriter, G extends I
      *
      * @return collection of partitions which still occupy some resources locally and have not been
      *     released yet.
+     *     获取还有效的分区
      */
     Collection<ResultPartitionID> getPartitionsOccupyingLocalResources();
 
@@ -173,6 +176,7 @@ public interface ShuffleEnvironment<P extends ResultPartitionWriter, G extends I
      *     is ready for consumption
      * @param inputGateDeploymentDescriptors descriptors of the input gates to consume
      * @return list of the {@link InputGate InputGates}
+     * 创建gate
      */
     List<G> createInputGates(
             ShuffleIOOwnerContext ownerContext,

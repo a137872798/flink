@@ -28,6 +28,9 @@ import javax.annotation.Nonnull;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+/**
+ * 这是默认策略对象
+ */
 class DefaultLocationPreferenceSlotSelectionStrategy
         extends LocationPreferenceSlotSelectionStrategy {
 
@@ -38,6 +41,7 @@ class DefaultLocationPreferenceSlotSelectionStrategy
             @Nonnull ResourceProfile resourceProfile) {
         for (AllocationID allocationId : freeSlotInfoTracker.getAvailableSlots()) {
             SlotInfo candidate = freeSlotInfoTracker.getSlotInfo(allocationId);
+            // 只要资源匹配即可
             if (candidate.getResourceProfile().isMatching(resourceProfile)) {
                 return Optional.of(SlotInfoAndLocality.of(candidate, Locality.UNCONSTRAINED));
             }
@@ -45,6 +49,13 @@ class DefaultLocationPreferenceSlotSelectionStrategy
         return Optional.empty();
     }
 
+    /**
+     * 计算权重值
+     * @param localWeigh
+     * @param hostLocalWeigh
+     * @param taskExecutorUtilizationSupplier
+     * @return
+     */
     @Override
     protected double calculateCandidateScore(
             int localWeigh, int hostLocalWeigh, Supplier<Double> taskExecutorUtilizationSupplier) {

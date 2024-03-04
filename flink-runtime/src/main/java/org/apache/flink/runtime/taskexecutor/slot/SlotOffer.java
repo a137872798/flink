@@ -24,18 +24,26 @@ import org.apache.flink.util.Preconditions;
 
 import java.io.Serializable;
 
-/** Describe the slot offering to job manager provided by task manager. */
+/** Describe the slot offering to job manager provided by task manager.
+ * 表示一个槽位 会关联一组资源  表示该槽位所拥有的资源
+ * */
 public class SlotOffer implements Serializable {
 
     private static final long serialVersionUID = -7067814231108250971L;
 
-    /** Allocation id of this slot, this would be the only identifier for this slot offer */
+    /** Allocation id of this slot, this would be the only identifier for this slot offer
+     * SlotOffer的标识符
+     * */
     private AllocationID allocationId;
 
-    /** Index of the offered slot */
+    /** Index of the offered slot
+     * 槽有一个下标值
+     * */
     private final int slotIndex;
 
-    /** The resource profile of the offered slot */
+    /** The resource profile of the offered slot
+     * 代表这个槽拥有的资源
+     * */
     private final ResourceProfile resourceProfile;
 
     public SlotOffer(

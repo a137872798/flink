@@ -26,6 +26,9 @@ import java.util.List;
 /**
  * {@link StateObject Handle} to an {@link
  * org.apache.flink.runtime.io.network.partition.consumer.InputChannel InputChannel} state.
+ *
+ * 丰富了构造函数
+ * 同时 Info 是InputChannelInfo
  */
 @Internal
 public class InputChannelStateHandle extends AbstractChannelStateHandle<InputChannelInfo> {

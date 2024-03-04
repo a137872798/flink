@@ -44,8 +44,14 @@ import java.util.Set;
  */
 public class DualKeyLinkedMap<A, B, V> {
 
+    /**
+     * 由a检索b
+     */
     private final LinkedHashMap<A, Tuple2<B, V>> aMap;
 
+    /**
+     * 由b检索a
+     */
     private final Map<B, A> bMap;
 
     private Collection<V> values;
@@ -67,6 +73,7 @@ public class DualKeyLinkedMap<A, B, V> {
 
     @Nullable
     public V getValueByKeyB(B bKey) {
+        // 通过2次检索得到结果
         final A aKey = bMap.get(bKey);
         return aKey != null ? aMap.get(aKey).f1 : null;
     }

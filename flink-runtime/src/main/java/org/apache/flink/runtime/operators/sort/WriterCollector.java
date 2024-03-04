@@ -26,6 +26,7 @@ import java.io.IOException;
 
 /**
  * A simple collector that collects Key and Value and writes them into a given <code>Writer</code>.
+ * 收集方法是将数据序列化后写入下游
  */
 final class WriterCollector<E> implements Collector<E> {
     private final ChannelWriterOutputView output; // the writer to write to

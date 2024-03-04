@@ -45,6 +45,7 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * A fixed-size {@link MemorySegment} pool used by batch shuffle for shuffle data read (currently
  * only used by sort-merge blocking shuffle).
+ * 一个固定数量的内存块池
  */
 public class BatchShuffleReadBufferPool {
 
@@ -64,23 +65,33 @@ public class BatchShuffleReadBufferPool {
     /** Total direct memory size in bytes can can be allocated and used by this buffer pool. */
     private final long totalBytes;
 
-    /** The number of total buffers in this buffer pool. */
+    /** The number of total buffers in this buffer pool.
+     * 表示pool内有多少个buffer
+     * */
     private final int numTotalBuffers;
 
-    /** Size of each buffer in bytes in this buffer pool. */
+    /** Size of each buffer in bytes in this buffer pool.
+     * 每个buffer的大小
+     * */
     private final int bufferSize;
 
     /** The number of buffers to be returned for a single request. */
     private final int numBuffersPerRequest;
 
-    /** All requesters which need to request buffers from this pool currently. */
+    /** All requesters which need to request buffers from this pool currently.
+     * 缓存待处理的请求
+     * */
     private final Set<Object> bufferRequesters = ConcurrentHashMap.newKeySet();
 
-    /** All available buffers in this buffer pool currently. */
+    /** All available buffers in this buffer pool currently.
+     * 存储内存块的队列
+     * */
     @GuardedBy("buffers")
     private final Queue<MemorySegment> buffers = new ArrayDeque<>();
 
-    /** The timestamp when the last buffer is recycled or allocated. */
+    /** The timestamp when the last buffer is recycled or allocated.
+     * 最近一次操作buffers的时间
+     * */
     @GuardedBy("buffers")
     private long lastBufferOperationTimestamp = System.currentTimeMillis();
 
@@ -108,7 +119,10 @@ public class BatchShuffleReadBufferPool {
         this.totalBytes = totalBytes;
         this.bufferSize = bufferSize;
 
+        // 计算buffer数量
         this.numTotalBuffers = (int) Math.min(totalBytes / bufferSize, Integer.MAX_VALUE);
+
+        // 计算每个请求使用的buffer数量
         this.numBuffersPerRequest =
                 Math.min(numTotalBuffers, Math.max(1, NUM_BYTES_PER_REQUEST / bufferSize));
     }
@@ -134,6 +148,10 @@ public class BatchShuffleReadBufferPool {
         return numBuffersPerRequest;
     }
 
+    /**
+     * 计算最大并发的请求数
+     * @return
+     */
     public int getMaxConcurrentRequests() {
         return numBuffersPerRequest > 0 ? numTotalBuffers / numBuffersPerRequest : 0;
     }
@@ -153,6 +171,7 @@ public class BatchShuffleReadBufferPool {
             initialized = true;
 
             try {
+                // 初始化内存块
                 for (int i = 0; i < numTotalBuffers; ++i) {
                     buffers.add(MemorySegmentFactory.allocateUnpooledOffHeapMemory(bufferSize));
                 }
@@ -194,6 +213,10 @@ public class BatchShuffleReadBufferPool {
         bufferRequesters.remove(requester);
     }
 
+    /**
+     * 计算平均每个请求可以使用多少buffer
+     * @return
+     */
     public int getAverageBuffersPerRequester() {
         return Math.max(1, numTotalBuffers / Math.max(1, bufferRequesters.size()));
     }
@@ -212,15 +235,18 @@ public class BatchShuffleReadBufferPool {
             }
 
             Deadline deadline = Deadline.fromNow(WAITING_TIME);
+
             while (buffers.size() < numBuffersPerRequest) {
                 checkState(!destroyed, "Buffer pool is already destroyed.");
 
+                // 可能被借走了 等待
                 buffers.wait(WAITING_TIME.toMillis());
                 if (!deadline.hasTimeLeft()) {
                     return allocated; // return the empty list
                 }
             }
 
+            // 将空闲的buffer移动到 准备使用的容器中
             while (allocated.size() < numBuffersPerRequest) {
                 allocated.add(buffers.poll());
             }
@@ -241,6 +267,7 @@ public class BatchShuffleReadBufferPool {
     /**
      * Recycles a collection of buffers to this buffer pool. This method should never throw any
      * exception.
+     * 回收buffer
      */
     public void recycle(Collection<MemorySegment> segments) {
         checkArgument(segments != null, "Buffer list must be not null.");
@@ -257,6 +284,7 @@ public class BatchShuffleReadBufferPool {
                 return;
             }
 
+            // 代表此时空闲的buffer数量 足够供给给一个req  唤醒线程
             boolean shouldNotify =
                     buffers.size() < numBuffersPerRequest
                             && buffers.size() + segments.size() >= numBuffersPerRequest;

@@ -70,6 +70,8 @@ import java.util.Collection;
  * application without a default savepoint directory, it will pick up a default savepoint directory
  * specified in the Flink configuration of the running job/cluster. That behavior is implemented via
  * the {@link #configure(ReadableConfig, ClassLoader)} method.
+ *
+ * 使用hashMap存储状态
  */
 @PublicEvolving
 public class HashMapStateBackend extends AbstractStateBackend implements ConfigurableStateBackend {
@@ -110,7 +112,7 @@ public class HashMapStateBackend extends AbstractStateBackend implements Configu
             String operatorIdentifier,
             TypeSerializer<K> keySerializer,
             int numberOfKeyGroups,
-            KeyGroupRange keyGroupRange,
+            KeyGroupRange keyGroupRange,   // 创建keyedState时 将keyGroupRange带入
             TaskKvStateRegistry kvStateRegistry,
             TtlTimeProvider ttlTimeProvider,
             MetricGroup metricGroup,
@@ -119,10 +121,15 @@ public class HashMapStateBackend extends AbstractStateBackend implements Configu
             throws IOException {
 
         TaskStateManager taskStateManager = env.getTaskStateManager();
+
+        // 主要就是为了产生可以检索目录的对象
         LocalRecoveryConfig localRecoveryConfig = taskStateManager.createLocalRecoveryConfig();
+
+        // 产生特定数据结构
         HeapPriorityQueueSetFactory priorityQueueSetFactory =
                 new HeapPriorityQueueSetFactory(keyGroupRange, numberOfKeyGroups, 128);
 
+        // TODO 先忽略统计相关的
         LatencyTrackingStateConfig latencyTrackingStateConfig =
                 latencyTrackingConfigBuilder.setMetricGroup(metricGroup).build();
         return new HeapKeyedStateBackendBuilder<>(

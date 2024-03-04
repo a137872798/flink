@@ -43,14 +43,34 @@ import java.util.concurrent.Executor;
  * <p>In order to free resources and avoid resource leaks, idling task managers (task managers whose
  * slots are currently not used) and pending slot requests time out triggering their release and
  * failure, respectively.
+ * SlotManager 用于管理slot
  */
 public interface SlotManager extends AutoCloseable {
+
+    /**
+     * 获取已经注册的slot总数
+     * @return
+     */
     int getNumberRegisteredSlots();
 
+    /**
+     * 某实例注册slot数
+     * @param instanceId
+     * @return
+     */
     int getNumberRegisteredSlotsOf(InstanceID instanceId);
 
+    /**
+     * 空闲slot数
+     * @return
+     */
     int getNumberFreeSlots();
 
+    /**
+     * 某实例slot空闲数
+     * @param instanceId
+     * @return
+     */
     int getNumberFreeSlotsOf(InstanceID instanceId);
 
     ResourceProfile getRegisteredResource();
@@ -61,16 +81,22 @@ public interface SlotManager extends AutoCloseable {
 
     ResourceProfile getFreeResourceOf(InstanceID instanceID);
 
+    /**
+     * 返回该实例相关的所有已分配slot
+     * @param instanceID
+     * @return
+     */
     Collection<SlotInfo> getAllocatedSlotsOf(InstanceID instanceID);
 
     /**
      * Starts the slot manager with the given leader id and resource manager actions.
      *
-     * @param newResourceManagerId to use for communication with the task managers
+     * @param newResourceManagerId to use for communication with the task managers   资源管理器的id
      * @param newMainThreadExecutor to use to run code in the ResourceManager's main thread
      * @param newResourceAllocator to use for resource (de-)allocations
      * @param resourceEventListener to use for notify resource not enough
      * @param newBlockedTaskManagerChecker to query whether a task manager is blocked
+     *                                     启动slot管理器
      */
     void start(
             ResourceManagerId newResourceManagerId,
@@ -79,7 +105,9 @@ public interface SlotManager extends AutoCloseable {
             ResourceEventListener resourceEventListener,
             BlockedTaskManagerChecker newBlockedTaskManagerChecker);
 
-    /** Suspends the component. This clears the internal state of the slot manager. */
+    /** Suspends the component. This clears the internal state of the slot manager.
+     * 暂停组件 会清理内部状态
+     * */
     void suspend();
 
     /**
@@ -87,6 +115,7 @@ public interface SlotManager extends AutoCloseable {
      * The slot manager may assume that no further updates to the resource requirements will occur.
      *
      * @param jobId job for which to clear the requirements
+     *              清理某个job需要的资源
      */
     void clearResourceRequirements(JobID jobId);
 
@@ -94,6 +123,7 @@ public interface SlotManager extends AutoCloseable {
      * Notifies the slot manager about the resource requirements of a job.
      *
      * @param resourceRequirements resource requirements of a job
+     *                             处理某个job申请资源的请求
      */
     void processResourceRequirements(ResourceRequirements resourceRequirements);
 
@@ -106,6 +136,7 @@ public interface SlotManager extends AutoCloseable {
      * @param totalResourceProfile for the new task manager
      * @param defaultSlotResourceProfile for the new task manager
      * @return The result of task manager registration
+     * 注册任务管理器
      */
     RegistrationResult registerTaskManager(
             TaskExecutorConnection taskExecutorConnection,
@@ -120,6 +151,7 @@ public interface SlotManager extends AutoCloseable {
      * @param instanceId identifying the task manager to unregister
      * @param cause for unregistering the TaskManager
      * @return True if there existed a registered task manager with the given instance id
+     * 注销任务管理器
      */
     boolean unregisterTaskManager(InstanceID instanceId, Exception cause);
 
@@ -138,6 +170,7 @@ public interface SlotManager extends AutoCloseable {
      *
      * @param slotId identifying the slot to free
      * @param allocationId with which the slot is presumably allocated
+     *                     释放slot
      */
     void freeSlot(SlotID slotId, AllocationID allocationId);
 
@@ -146,6 +179,7 @@ public interface SlotManager extends AutoCloseable {
     /**
      * Trigger the resource requirement check. This method will be called when some slot statuses
      * changed.
+     * 触发资源需求检查
      */
     void triggerResourceRequirementsCheck();
 

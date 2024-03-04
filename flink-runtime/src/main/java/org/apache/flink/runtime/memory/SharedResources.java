@@ -30,7 +30,9 @@ import java.util.function.LongConsumer;
 
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** A map that keeps track of acquired shared resources and handles their allocation disposal. */
+/** A map that keeps track of acquired shared resources and handles their allocation disposal.
+ * 表示被共享的资源
+ * */
 public final class SharedResources {
 
     private final ReentrantLock lock = new ReentrantLock();
@@ -65,14 +67,16 @@ public final class SharedResources {
 
         try {
             // we cannot use "computeIfAbsent()" here because the computing function may throw an
-            // exception.
+            // exception.   先尝试获取资源
             @SuppressWarnings("unchecked")
             LeasedResource<T> resource = (LeasedResource<T>) reservedResources.get(type);
             if (resource == null) {
+                // 根据指定大小产生资源
                 resource = createResource(initializer, sizeForInitialization);
                 reservedResources.put(type, resource);
             }
 
+            // 本对象作为资源的持有者
             resource.addLeaseHolder(leaseHolder);
             return resource;
         } finally {
@@ -104,6 +108,7 @@ public final class SharedResources {
 
             if (resource.removeLeaseHolder(leaseHolder)) {
                 try {
+                    // 表示资源不在被持有了
                     reservedResources.remove(type);
                     resource.dispose();
                 } finally {
@@ -129,7 +134,9 @@ public final class SharedResources {
 
     // ------------------------------------------------------------------------
 
-    /** A resource handle with size. */
+    /** A resource handle with size.
+     * 提供资源 以及资源的大小
+     * */
     public interface ResourceAndSize<T extends AutoCloseable> {
 
         T resourceHandle();
@@ -142,12 +149,21 @@ public final class SharedResources {
     private static final class LeasedResource<T extends AutoCloseable>
             implements ResourceAndSize<T> {
 
+        /**
+         * 持有该资源的所有对象
+         */
         private final HashSet<Object> leaseHolders = new HashSet<>();
 
+        /**
+         * 资源本身
+         */
         private final T resourceHandle;
 
         private final long size;
 
+        /**
+         * 表示资源是否被废弃
+         */
         private boolean disposed;
 
         private LeasedResource(T resourceHandle, long size) {
@@ -163,6 +179,10 @@ public final class SharedResources {
             return size;
         }
 
+        /**
+         * 增加一个资源的持有者
+         * @param leaseHolder
+         */
         void addLeaseHolder(Object leaseHolder) {
             checkState(!disposed);
             leaseHolders.add(leaseHolder);

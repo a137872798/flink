@@ -42,6 +42,7 @@ import java.util.function.Function;
  * @param <N> The type of the namespace
  * @param <UK> Type of the user entry key of state with TTL
  * @param <UV> Type of the user entry value of state with TTL
+ *            针对map类型的state
  */
 class TtlMapState<K, N, UK, UV>
         extends AbstractTtlState<
@@ -61,6 +62,7 @@ class TtlMapState<K, N, UK, UV>
 
     private TtlValue<UV> getWrapped(UK key) throws Exception {
         accessCallback.run();
+        // 在get时 顺便更新访问时间
         return getWrappedWithTtlCheckAndUpdate(
                 () -> original.get(key), v -> original.put(key, v), () -> original.remove(key));
     }
@@ -68,6 +70,7 @@ class TtlMapState<K, N, UK, UV>
     @Override
     public void put(UK key, UV value) throws Exception {
         accessCallback.run();
+        // 为value  赋予ttl 并更新
         original.put(key, wrapWithTs(value));
     }
 
@@ -94,6 +97,7 @@ class TtlMapState<K, N, UK, UV>
 
     @Override
     public boolean contains(UK key) throws Exception {
+        // getWrapped 这里会间接更新ttl
         TtlValue<UV> ttlValue = getWrapped(key);
         return ttlValue != null;
     }
@@ -103,6 +107,13 @@ class TtlMapState<K, N, UK, UV>
         return entries(e -> e);
     }
 
+    /**
+     *
+     * @param resultMapper  对entry进行映射处理
+     * @param <R>
+     * @return
+     * @throws Exception
+     */
     private <R> Iterable<R> entries(Function<Map.Entry<UK, UV>, R> resultMapper) throws Exception {
         accessCallback.run();
         Iterable<Map.Entry<UK, TtlValue<UV>>> withTs = original.entries();
@@ -132,6 +143,11 @@ class TtlMapState<K, N, UK, UV>
         return original.isEmpty();
     }
 
+    /**
+     * 返回value 如果过期则返回null
+     * @param ttlValue
+     * @return
+     */
     @Nullable
     @Override
     public Map<UK, TtlValue<UV>> getUnexpiredOrNull(@Nonnull Map<UK, TtlValue<UV>> ttlValue) {
@@ -141,6 +157,7 @@ class TtlMapState<K, N, UK, UV>
         }
         Map<UK, TtlValue<UV>> unexpired = new HashMap<>();
         TypeSerializer<TtlValue<UV>> valueSerializer =
+                // 这里认为 value是 一个map类型
                 ((MapSerializer<UK, TtlValue<UV>>) original.getValueSerializer())
                         .getValueSerializer();
         for (Map.Entry<UK, TtlValue<UV>> e : ttlValue.entrySet()) {
@@ -162,8 +179,17 @@ class TtlMapState<K, N, UK, UV>
         original.clear();
     }
 
+    /**
+     * 遍历map中每个entry
+     * @param <R>
+     */
     private class EntriesIterator<R> implements Iterator<R> {
+
         private final Iterator<Map.Entry<UK, TtlValue<UV>>> originalIterator;
+
+        /**
+         * 返回时 对entry进行映射
+         */
         private final Function<Map.Entry<UK, UV>, R> resultMapper;
         private Map.Entry<UK, UV> nextUnexpired = null;
         private boolean rightAfterNextIsCalled = false;
@@ -179,6 +205,7 @@ class TtlMapState<K, N, UK, UV>
         public boolean hasNext() {
             rightAfterNextIsCalled = false;
             while (nextUnexpired == null && originalIterator.hasNext()) {
+                // 在迭代时 会更新时间戳
                 nextUnexpired = getUnexpiredAndUpdateOrCleanup(originalIterator.next());
             }
             return nextUnexpired != null;
@@ -188,6 +215,7 @@ class TtlMapState<K, N, UK, UV>
         public R next() {
             if (hasNext()) {
                 rightAfterNextIsCalled = true;
+                // 映射entry
                 R result = resultMapper.apply(nextUnexpired);
                 nextUnexpired = null;
                 return result;
@@ -206,6 +234,11 @@ class TtlMapState<K, N, UK, UV>
             }
         }
 
+        /**
+         * 包装下个返回的entry
+         * @param e
+         * @return
+         */
         private Map.Entry<UK, UV> getUnexpiredAndUpdateOrCleanup(Map.Entry<UK, TtlValue<UV>> e) {
             TtlValue<UV> unexpiredValue;
             try {

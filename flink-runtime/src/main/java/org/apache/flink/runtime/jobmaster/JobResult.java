@@ -50,6 +50,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * SerializedThrowable} when the job failed.
  *
  * <p>This is used by the {@link JobMaster} to send the results to the {@link Dispatcher}.
+ * 这是一个Job的结果
  */
 public class JobResult implements Serializable {
 
@@ -59,6 +60,9 @@ public class JobResult implements Serializable {
 
     private final ApplicationStatus applicationStatus;
 
+    /**
+     * 维护了一些累加值
+     */
     private final Map<String, SerializedValue<OptionalFailure<Object>>> accumulatorResults;
 
     private final long netRuntime;

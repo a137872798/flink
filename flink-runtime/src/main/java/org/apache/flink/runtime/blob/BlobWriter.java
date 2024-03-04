@@ -29,7 +29,9 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 
-/** BlobWriter is used to upload data to the BLOB store. */
+/** BlobWriter is used to upload data to the BLOB store.
+ * 提供api 表示可以写入blob数据
+ * */
 public interface BlobWriter {
 
     Logger LOG = LoggerFactory.getLogger(BlobWriter.class);
@@ -93,12 +95,21 @@ public interface BlobWriter {
         return tryOffload(serializedValue, jobId, blobWriter);
     }
 
+    /**
+     * 尝试卸载
+     * @param serializedValue
+     * @param jobId
+     * @param blobWriter
+     * @param <T>
+     * @return
+     */
     static <T> Either<SerializedValue<T>, PermanentBlobKey> tryOffload(
             SerializedValue<T> serializedValue, JobID jobId, BlobWriter blobWriter) {
         Preconditions.checkNotNull(serializedValue);
         Preconditions.checkNotNull(jobId);
         Preconditions.checkNotNull(blobWriter);
 
+        // 没到达卸载的长度 返回left对象
         if (serializedValue.getByteArray().length < blobWriter.getMinOffloadingSize()) {
             return Either.Left(serializedValue);
         } else {
@@ -112,6 +123,7 @@ public interface BlobWriter {
         Preconditions.checkNotNull(jobId);
         Preconditions.checkNotNull(blobWriter);
         try {
+            // 尝试写入 成功返回right
             final PermanentBlobKey permanentBlobKey =
                     blobWriter.putPermanent(jobId, serializedValue.getByteArray());
             return Either.Right(permanentBlobKey);

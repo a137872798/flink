@@ -104,6 +104,7 @@ public class MasterHooks {
      * @param executor An executor that can be used for asynchronous I/O calls
      * @param <T> The type of data produced by the hook
      * @return the completable future with state
+     * 触发钩子
      */
     public static <T> CompletableFuture<MasterState> triggerHook(
             MasterTriggerRestoreHook<T> hook,
@@ -112,10 +113,12 @@ public class MasterHooks {
             Executor executor) {
 
         final String id = hook.getIdentifier();
+
+        // 产生数据序列化对象
         final SimpleVersionedSerializer<T> serializer = hook.createCheckpointDataSerializer();
 
         try {
-            // call the hook!
+            // call the hook!   产生检查点结果
             final CompletableFuture<T> resultFuture =
                     hook.triggerCheckpoint(checkpointId, timestamp, executor);
 
@@ -132,8 +135,10 @@ public class MasterHooks {
                                 } else if (serializer != null) {
                                     try {
                                         final int version = serializer.getVersion();
+                                        // 将结果序列化
                                         final byte[] bytes = serializer.serialize(result);
 
+                                        // 封装成 MasterState对象
                                         return new MasterState(id, bytes, version);
                                     } catch (Throwable t) {
                                         ExceptionUtils.rethrowIfFatalErrorOrOOM(t);
@@ -187,6 +192,8 @@ public class MasterHooks {
      * @param log The logger for log messages
      * @throws FlinkException Thrown, if the hooks throw an exception, or the state+ deserialization
      *     fails.
+     *
+     *     要进行数据恢复
      */
     public static void restoreMasterHooks(
             final Map<String, MasterTriggerRestoreHook<?>> masterHooks,
@@ -209,12 +216,15 @@ public class MasterHooks {
                 new LinkedHashMap<>(masterHooks);
 
         // first, deserialize all hook state
+        // 每个钩子以及相关的状态数据
         final ArrayList<Tuple2<MasterTriggerRestoreHook<?>, Object>> hooksAndStates =
                 new ArrayList<>();
 
         for (MasterState state : states) {
             if (state != null) {
                 final String name = state.name();
+
+                // 找到相关钩子
                 final MasterTriggerRestoreHook<?> hook = allHooks.remove(name);
 
                 if (hook != null) {
@@ -233,15 +243,25 @@ public class MasterHooks {
 
         // now that all is deserialized, call the hooks
         for (Tuple2<MasterTriggerRestoreHook<?>, Object> hookAndState : hooksAndStates) {
+            // 开始恢复数据
             restoreHook(hookAndState.f1, hookAndState.f0, checkpointId);
         }
 
         // trigger the remaining hooks without checkpointed state
+        // 以不含state的形式再触发一次钩子
         for (MasterTriggerRestoreHook<?> hook : allHooks.values()) {
             restoreHook(null, hook, checkpointId);
         }
     }
 
+    /**
+     * 利用hook产生序列化对象 并解析 MasterState的数据
+     * @param state
+     * @param hook
+     * @param <T>
+     * @return
+     * @throws FlinkException
+     */
     private static <T> T deserializeState(MasterState state, MasterTriggerRestoreHook<?> hook)
             throws FlinkException {
         @SuppressWarnings("unchecked")
@@ -262,6 +282,14 @@ public class MasterHooks {
         }
     }
 
+    /**
+     * 恢复数据
+     * @param state
+     * @param hook
+     * @param checkpointId
+     * @param <T>
+     * @throws FlinkException
+     */
     private static <T> void restoreHook(
             final Object state, final MasterTriggerRestoreHook<?> hook, final long checkpointId)
             throws FlinkException {

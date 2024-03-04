@@ -50,7 +50,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
     /**
      * Start the task slot table with the given slot actions.
      *
-     * @param initialSlotActions to use for slot actions
+     * @param initialSlotActions to use for slot actions   为给对象设置可以操纵slot的组件
      * @param mainThreadExecutor {@link ComponentMainThreadExecutor} to schedule internal calls to
      *     the main thread
      */
@@ -59,7 +59,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
     /**
      * Returns the all {@link AllocationID} for the given job.
      *
-     * @param jobId for which to return the set of {@link AllocationID}.
+     * @param jobId for which to return the set of {@link AllocationID}.  该job下每个subtask相关的slot
      * @return Set of {@link AllocationID} for the given job
      */
     Set<AllocationID> getAllocationIdsPerJob(JobID jobId);
@@ -68,6 +68,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * Returns the {@link AllocationID} of any active task listed in this {@code TaskSlotTable}.
      *
      * @return The {@code AllocationID} of any active task.
+     * 返回处于活跃状态的 TaskSlot
      */
     Set<AllocationID> getActiveTaskSlotAllocationIds();
 
@@ -79,9 +80,15 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      *     active {@link TaskSlot}s shall be returned.
      * @return A set of {@code AllocationID}s that belong to active {@code TaskSlot}s having the
      *     passed {@code JobID}.
+     *     获得该job相关的活跃 TaskSlot
      */
     Set<AllocationID> getActiveTaskSlotAllocationIdsPerJob(JobID jobId);
 
+    /**
+     * 为某个TM相关的所有slot产生报告
+     * @param resourceId
+     * @return
+     */
     SlotReport createSlotReport(ResourceID resourceId);
 
     /**
@@ -94,6 +101,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * @param allocationId identifying the allocation
      * @param slotTimeout until the slot times out
      * @return True if the task slot could be allocated; otherwise false
+     * 将 slot 分配给某个job
      */
     @VisibleForTesting
     boolean allocateSlot(int index, JobID jobId, AllocationID allocationId, Time slotTimeout);
@@ -110,6 +118,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      *     be ignored otherwise
      * @param slotTimeout until the slot times out
      * @return True if the task slot could be allocated; otherwise false
+     * 表示可以申请slot的一部分资源
      */
     boolean allocateSlot(
             int index,
@@ -125,6 +134,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * @param allocationId to identify the task slot to mark as active
      * @throws SlotNotFoundException if the slot could not be found for the given allocation id
      * @return True if the slot could be marked active; otherwise false
+     * 标记slot处于活跃状态
      */
     boolean markSlotActive(AllocationID allocationId) throws SlotNotFoundException;
 
@@ -148,6 +158,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * @param allocationId identifying the task slot to be freed
      * @throws SlotNotFoundException if there is not task slot for the given allocation id
      * @return Index of the freed slot if the slot could be freed; otherwise -1
+     * 释放某个slot
      */
     default int freeSlot(AllocationID allocationId) throws SlotNotFoundException {
         return freeSlot(allocationId, new Exception("The task slot of this task is being freed."));
@@ -190,6 +201,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * @param jobId of the allocated slot
      * @param allocationId identifying the allocation
      * @return True if the task slot could be marked active.
+     * 尝试将slot标记成活跃
      */
     boolean tryMarkSlotActive(JobID jobId, AllocationID allocationId);
 
@@ -198,6 +210,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      *
      * @param index of the task slot
      * @return True if the task slot is free; otherwise false
+     * 判断该index对应的slot是否被释放
      */
     boolean isSlotFree(int index);
 
@@ -206,6 +219,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      *
      * @param jobId for which to check for allocated slots
      * @return True if there are allocated slots for the given job id.
+     * 检查该job是否已经分配了slot
      */
     boolean hasAllocatedSlots(JobID jobId);
 
@@ -214,6 +228,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      *
      * @param jobId for which to return the allocated slots
      * @return Iterator of allocated slots.
+     * 获取分配给该job的所有 TaskSlot
      */
     Iterator<TaskSlot<T>> getAllocatedSlots(JobID jobId);
 
@@ -223,6 +238,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * @param allocationId identifying the slot for which to retrieve the owning job
      * @return Owning job of the specified {@link TaskSlot} or null if there is no slot for the
      *     given allocation id or if the slot has no owning job assigned
+     *     获得此时某个 TaskSlot 相关的job
      */
     @Nullable
     JobID getOwningJob(AllocationID allocationId);
@@ -234,6 +250,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      * @throws SlotNotFoundException if there was no slot for the given allocation id
      * @throws SlotNotActiveException if there was no slot active for task's job and allocation id
      * @return True if the task could be added to the task slot; otherwise false
+     * 添加任务
      */
     boolean addTask(T task) throws SlotNotFoundException, SlotNotActiveException;
 
@@ -244,6 +261,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      *
      * @param executionAttemptID identifying the task to remove
      * @return The removed task if there is any for the given execution attempt id; otherwise null
+     * 移除任务  可以发现这里的 Task 实际上对应的是 Execution
      */
     T removeTask(ExecutionAttemptID executionAttemptID);
 
@@ -268,6 +286,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      *
      * @param index identifying the slot for which the allocation id shall be retrieved
      * @return Allocation id of the specified slot if allocated; otherwise null
+     * 获取当前正在分配的slot编号
      */
     AllocationID getCurrentAllocation(int index);
 
@@ -276,6 +295,7 @@ public interface TaskSlotTable<T extends TaskSlotPayload>
      *
      * @param allocationID allocation id of the slot allocated for the task
      * @return the memory manager of the slot allocated for the task
+     * 获取该slot相关的内存管理
      */
     MemoryManager getTaskMemoryManager(AllocationID allocationID) throws SlotNotFoundException;
 }

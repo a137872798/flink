@@ -29,6 +29,7 @@ import java.util.concurrent.CompletableFuture;
  * be empty which is indicated by a null value.
  *
  * @param <I> Type of the payload which is sent to the heartbeat target
+ *           暴露出收发2个api   收发时都可以携带payload
  */
 public interface HeartbeatTarget<I> {
 

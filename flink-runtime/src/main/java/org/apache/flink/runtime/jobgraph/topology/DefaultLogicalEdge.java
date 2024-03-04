@@ -22,11 +22,19 @@ import org.apache.flink.runtime.jobgraph.DistributionPattern;
 import org.apache.flink.runtime.jobgraph.JobEdge;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 
-/** Default implementation of {@link LogicalEdge}. It is an adapter of {@link JobEdge}. */
+/** Default implementation of {@link LogicalEdge}. It is an adapter of {@link JobEdge}.
+ * 表示一条边
+ * */
 public class DefaultLogicalEdge implements LogicalEdge {
 
+    /**
+     * 表述了该边顶点是如何连接到其他顶点的
+     */
     private final DistributionPattern distributionPattern;
 
+    /**
+     * 起点顶点id
+     */
     private final JobVertexID producerVertexId;
 
     DefaultLogicalEdge(JobEdge jobEdge) {

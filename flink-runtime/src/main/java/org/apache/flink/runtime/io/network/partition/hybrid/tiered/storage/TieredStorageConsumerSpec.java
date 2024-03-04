@@ -21,7 +21,9 @@ package org.apache.flink.runtime.io.network.partition.hybrid.tiered.storage;
 import org.apache.flink.runtime.io.network.partition.hybrid.tiered.common.TieredStoragePartitionId;
 import org.apache.flink.runtime.io.network.partition.hybrid.tiered.common.TieredStorageSubpartitionId;
 
-/** Describe the different data sources in {@link TieredStorageConsumerClient}. */
+/** Describe the different data sources in {@link TieredStorageConsumerClient}.
+ * 有关消费目标的信息
+ * */
 public class TieredStorageConsumerSpec {
 
     private final TieredStoragePartitionId tieredStoragePartitionId;

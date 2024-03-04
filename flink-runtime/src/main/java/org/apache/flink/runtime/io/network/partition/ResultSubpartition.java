@@ -28,7 +28,9 @@ import java.io.IOException;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** A single subpartition of a {@link ResultPartition} instance. */
+/** A single subpartition of a {@link ResultPartition} instance.
+ * 表示一个子分区数据
+ * */
 public abstract class ResultSubpartition {
 
     // The error code when adding a buffer fails.
@@ -37,7 +39,9 @@ public abstract class ResultSubpartition {
     /** The info of the subpartition to identify it globally within a task. */
     protected final ResultSubpartitionInfo subpartitionInfo;
 
-    /** The parent partition this subpartition belongs to. */
+    /** The parent partition this subpartition belongs to.
+     * 子分区所属的大分区
+     * */
     protected final ResultPartition parent;
 
     // - Statistics ----------------------------------------------------------
@@ -60,7 +64,9 @@ public abstract class ResultSubpartition {
         return subpartitionInfo.getSubPartitionIdx();
     }
 
-    /** Notifies the parent partition about a consumed {@link ResultSubpartitionView}. */
+    /** Notifies the parent partition about a consumed {@link ResultSubpartitionView}.
+     * 表示数据以消费完毕
+     * */
     protected void onConsumedSubpartition() {
         parent.onConsumedSubpartition(getSubPartitionIndex());
     }
@@ -95,6 +101,9 @@ public abstract class ResultSubpartition {
     public abstract int add(BufferConsumer bufferConsumer, int partialRecordLength)
             throws IOException;
 
+    /**
+     * 将子分区内的数据刷盘
+     */
     public abstract void flush();
 
     /**
@@ -106,6 +115,12 @@ public abstract class ResultSubpartition {
 
     public abstract void release() throws IOException;
 
+    /**
+     * 创建读取对象    用于读取写入的数据
+     * @param availabilityListener
+     * @return
+     * @throws IOException
+     */
     public abstract ResultSubpartitionView createReadView(
             BufferAvailabilityListener availabilityListener) throws IOException;
 
@@ -130,11 +145,20 @@ public abstract class ResultSubpartition {
     /**
      * A combination of a {@link Buffer} and the backlog length indicating how many non-event
      * buffers are available in the subpartition.
+     * 子分区中每个数据单位
      */
     public static final class BufferAndBacklog {
         private final Buffer buffer;
+
+        /**
+         * 还剩余多少条 data buffer
+         */
         private final int buffersInBacklog;
         private final Buffer.DataType nextDataType;
+
+        /**
+         * 当前数据序号
+         */
         private final int sequenceNumber;
 
         public BufferAndBacklog(

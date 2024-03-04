@@ -33,6 +33,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *   <li>The checkpoint is s regular checkpoint or a savepoint.
  *   <li>When the checkpoint should be garbage collected.
  * </ul>
+ *
+ * 检查点的一些属性
  */
 public class CheckpointProperties implements Serializable {
 
@@ -48,6 +50,9 @@ public class CheckpointProperties implements Serializable {
      */
     private final boolean forced;
 
+    /**
+     * 在清理时 需要调用 discard()
+     */
     private final boolean discardSubsumed;
     private final boolean discardFinished;
     private final boolean discardCancelled;

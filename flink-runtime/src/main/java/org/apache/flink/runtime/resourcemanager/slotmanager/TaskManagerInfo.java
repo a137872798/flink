@@ -25,13 +25,16 @@ import org.apache.flink.runtime.resourcemanager.registration.TaskExecutorConnect
 
 import java.util.Map;
 
-/** Information of a TaskManager needed in {@link SlotManager}. */
+/** Information of a TaskManager needed in {@link SlotManager}.
+ * 表示TM的信息
+ * */
 public interface TaskManagerInfo {
 
     /**
      * Get the instanceId of this task manager.
      *
      * @return the instanceId
+     * 某个TM实例的id
      */
     InstanceID getInstanceId();
 
@@ -46,6 +49,7 @@ public interface TaskManagerInfo {
      * Get allocated slots information.
      *
      * @return allocated slots information mapped by its allocationId
+     * 获取该TM相关的所有已分配slot
      */
     Map<AllocationID, TaskManagerSlotInformation> getAllocatedSlots();
 
@@ -53,6 +57,7 @@ public interface TaskManagerInfo {
      * Get the available resource.
      *
      * @return the available resource
+     * 获取当前可用的资源  表示还未分配的部分
      */
     ResourceProfile getAvailableResource();
 
@@ -60,6 +65,7 @@ public interface TaskManagerInfo {
      * Get the total resource.
      *
      * @return the total resource
+     * 总资源      减去getAvailableResource 得到已分配资源
      */
     ResourceProfile getTotalResource();
 
@@ -67,6 +73,7 @@ public interface TaskManagerInfo {
      * Get the default slot resource profile.
      *
      * @return the default slot resource profile
+     * 每个slot默认分配到的资源
      */
     ResourceProfile getDefaultSlotResourceProfile();
 
@@ -74,6 +81,7 @@ public interface TaskManagerInfo {
      * Get the default number of slots.
      *
      * @return the default number of slots
+     * 该TM可以提供多少slot
      */
     int getDefaultNumSlots();
 
@@ -81,6 +89,7 @@ public interface TaskManagerInfo {
      * Get the timestamp when the last time becoming idle.
      *
      * @return the timestamp when the last time becoming idle
+     * 最近一次变得空闲的时间
      */
     long getIdleSince();
 
@@ -88,6 +97,7 @@ public interface TaskManagerInfo {
      * Check whether this task manager is idle.
      *
      * @return whether this task manager is idle
+     * 当前TM是否是空闲的
      */
     boolean isIdle();
 }

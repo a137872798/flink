@@ -18,5 +18,7 @@
 
 package org.apache.flink.runtime.topology;
 
-/** ID of a {@link Vertex}. */
+/** ID of a {@link Vertex}.
+ * 表示顶点id
+ * */
 public interface VertexID extends java.io.Serializable {}

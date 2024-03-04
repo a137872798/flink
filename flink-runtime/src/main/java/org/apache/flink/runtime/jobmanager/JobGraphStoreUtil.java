@@ -23,6 +23,7 @@ import org.apache.flink.api.common.JobID;
 /**
  * JobGraphStore utility interfaces. For example, convert a name(e.g. ZooKeeper path, key name in
  * Kubernetes ConfigMap) to {@link JobID}, or vice versa.
+ * 提供辅助功能 jobId 与name之间可以相互转换
  */
 public interface JobGraphStoreUtil {
 

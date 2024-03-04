@@ -23,6 +23,9 @@ import org.apache.flink.runtime.io.network.buffer.Buffer;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * 使用buffer存储读取到的数据
+ */
 public class AsynchronousBufferFileReader extends AsynchronousFileIOChannel<Buffer, ReadRequest>
         implements BufferFileReader {
 

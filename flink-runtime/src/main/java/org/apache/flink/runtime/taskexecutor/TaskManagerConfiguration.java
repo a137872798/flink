@@ -38,19 +38,32 @@ import javax.annotation.Nullable;
 import java.io.File;
 import java.time.Duration;
 
-/** Configuration object for {@link TaskExecutor}. */
+/** Configuration object for {@link TaskExecutor}.
+ * 该对象包含了一些任务管理器的运行时信息
+ * */
 public class TaskManagerConfiguration implements TaskManagerRuntimeInfo {
 
     private static final Logger LOG = LoggerFactory.getLogger(TaskManagerConfiguration.class);
 
     private final int numberSlots;
 
+    // 任务管理器配置 或者说运行时信息 包含了资源侧写对象
+
+    /**
+     * 描述资源的对象  分别代表单个slot的资源和总资源
+     */
     private final ResourceProfile defaultSlotResourceProfile;
 
     private final ResourceProfile totalResourceProfile;
 
+    /**
+     * 任务会用到的一组目录
+     */
     private final String[] tmpDirectories;
 
+    /**
+     * rpc通信的超时时间   任务可能会涉及多个算子 他们分布在不同节点 需要rpc通信
+     */
     private final Time rpcTimeout;
 
     private final Time slotTimeout;
@@ -58,6 +71,9 @@ public class TaskManagerConfiguration implements TaskManagerRuntimeInfo {
     // null indicates an infinite duration
     @Nullable private final Duration maxRegistrationDuration;
 
+    /**
+     * 将配置包装成不可变的
+     */
     private final UnmodifiableConfiguration configuration;
 
     private final boolean exitJvmOnOutOfMemory;
@@ -72,6 +88,9 @@ public class TaskManagerConfiguration implements TaskManagerRuntimeInfo {
 
     private final File tmpWorkingDirectory;
 
+    /**
+     * 有关注册失败重试的配置
+     */
     private final RetryingRegistrationConfiguration retryingRegistrationConfiguration;
 
     public TaskManagerConfiguration(

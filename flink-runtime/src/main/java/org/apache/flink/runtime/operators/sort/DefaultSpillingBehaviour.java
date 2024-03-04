@@ -26,7 +26,7 @@ import java.io.IOException;
 /**
  * A {@link SpillingThread.SpillingBehaviour} which spills or merges given elements directly.
  *
- * @see CombiningSpillingBehaviour
+ * @see CombiningSpillingBehaviour 具备将相等的值合并的能力 (相等既表示key相等)
  */
 final class DefaultSpillingBehaviour<R> implements SpillingThread.SpillingBehaviour<R> {
 
@@ -47,6 +47,12 @@ final class DefaultSpillingBehaviour<R> implements SpillingThread.SpillingBehavi
         element.getBuffer().writeToOutput(output, largeRecordHandler);
     }
 
+    /**
+     * 直接写入即可
+     * @param mergeIterator  在数据合并时调用
+     * @param output
+     * @throws IOException
+     */
     @Override
     public void mergeRecords(MergeIterator<R> mergeIterator, ChannelWriterOutputView output)
             throws IOException {

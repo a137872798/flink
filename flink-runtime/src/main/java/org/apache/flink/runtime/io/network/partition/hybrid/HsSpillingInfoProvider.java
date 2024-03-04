@@ -21,7 +21,9 @@ package org.apache.flink.runtime.io.network.partition.hybrid;
 import java.util.Deque;
 import java.util.List;
 
-/** This component is responsible for providing some information needed for the spill decision. */
+/** This component is responsible for providing some information needed for the spill decision.
+ * 提供一些辅助信息
+ * */
 public interface HsSpillingInfoProvider {
     /**
      * Get the number of downstream consumers.
@@ -37,6 +39,7 @@ public interface HsSpillingInfoProvider {
      * @return A list containing all subpartition's next buffer index to consume of specific
      *     consumer, if the downstream subpartition view has not been registered, the corresponding
      *     return value is -1.
+     *     该消费者下个得到的buffer下标
      */
     List<Integer> getNextBufferIndexToConsume(HsConsumerId consumerId);
 
@@ -49,6 +52,7 @@ public interface HsSpillingInfoProvider {
      * @return all buffers satisfy specific status of this subpartition, This queue must be sorted
      *     according to bufferIndex from small to large, in other words, head is the buffer with the
      *     minimum bufferIndex in the current subpartition.
+     *     按照条件 获得一组buffer
      */
     Deque<BufferIndexAndChannel> getBuffersInOrder(
             int subpartitionId, SpillStatus spillStatus, ConsumeStatusWithId consumeStatusWithId);
@@ -62,7 +66,9 @@ public interface HsSpillingInfoProvider {
     /** Get the current size of buffer pool. */
     int getPoolSize();
 
-    /** This enum represents buffer status of spill in hybrid shuffle mode. */
+    /** This enum represents buffer status of spill in hybrid shuffle mode.
+     * 描述buffer的状态
+     * */
     enum SpillStatus {
         /** The buffer is spilling or spilled already. */
         SPILL,

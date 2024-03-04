@@ -29,6 +29,7 @@ import java.util.concurrent.CompletableFuture;
  * logic.
  *
  * @param <I> Type of the payload which is sent to the heartbeat target
+ *           作为心跳包的发送对象 不支持 receiveHeartbeat
  */
 public abstract class HeartbeatSender<I> implements HeartbeatTarget<I> {
 

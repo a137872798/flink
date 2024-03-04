@@ -29,6 +29,7 @@ import java.util.function.BiConsumer;
 /**
  * Accumulates received records into buffers. The {@link BufferAccumulator} receives the records
  * from tiered store producer and the records will accumulate and transform into buffers.
+ * 接收数据并进行累加
  */
 public interface BufferAccumulator extends AutoCloseable {
 
@@ -38,6 +39,8 @@ public interface BufferAccumulator extends AutoCloseable {
      * @param bufferFlusher accepts the accumulated buffers. The first field is the subpartition id,
      *     while the list in the second field contains accumulated buffers in order for that
      *     subpartition.
+     *                      key 表示针对的子分区
+     *                      value 表示接收累加结果的buffer
      */
     void setup(BiConsumer<TieredStorageSubpartitionId, List<Buffer>> bufferFlusher);
 
@@ -49,8 +52,8 @@ public interface BufferAccumulator extends AutoCloseable {
      * value will always be 0. Conversely, for a non-broadcast-only partition, the subpartitionId
      * value will range from 0 to the number of subpartitions.
      *
-     * @param record the received record
-     * @param subpartitionId the subpartition id of the record
+     * @param record the received record     表示收到的数据
+     * @param subpartitionId the subpartition id of the record  通过子分区定位到buffer
      * @param dataType the data type of the record
      * @param isBroadcast whether the record is a broadcast record
      */

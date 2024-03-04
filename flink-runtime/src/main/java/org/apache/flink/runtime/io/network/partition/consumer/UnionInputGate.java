@@ -66,10 +66,13 @@ import static org.apache.flink.util.concurrent.FutureUtils.assertNoException;
  * </pre>
  *
  * <strong>It is NOT possible to recursively union union input gates.</strong>
+ * 对标多个gate的聚合
  */
 public class UnionInputGate extends InputGate {
 
-    /** The input gates to union. */
+    /** The input gates to union.
+     * 将多个gate聚合起来
+     * */
     private final Map<Integer, InputGate> inputGatesByGateIndex;
 
     private final Set<IndexedInputGate> inputGatesWithRemainingData;
@@ -91,7 +94,14 @@ public class UnionInputGate extends InputGate {
      */
     private final int[] inputGateChannelIndexOffsets;
 
+
+    /**
+     * 使用一组gate进行初始化
+     * @param inputGates
+     */
     public UnionInputGate(IndexedInputGate... inputGates) {
+
+        // 按照index组成map
         inputGatesByGateIndex =
                 Arrays.stream(inputGates)
                         .collect(Collectors.toMap(IndexedInputGate::getGateIndex, ig -> ig));
@@ -107,6 +117,7 @@ public class UnionInputGate extends InputGate {
                                     .collect(Collectors.toList()));
         }
 
+        // 一开始都是空的
         this.inputGatesWithRemainingData = Sets.newHashSetWithExpectedSize(inputGates.length);
         this.inputGatesWithRemainingUserData = Sets.newHashSetWithExpectedSize(inputGates.length);
 
@@ -117,10 +128,14 @@ public class UnionInputGate extends InputGate {
                         .mapToInt(IndexedInputGate::getNumberOfInputChannels)
                         .sum();
 
+        // 内部每个元素的值 代表该gate对应的channel范围
         inputGateChannelIndexOffsets = new int[maxGateIndex + 1];
+        // 下标代表channel的index  值代表该channel所属的gate下标
         inputChannelToInputGateIndex = new int[totalNumberOfInputChannels];
 
         int currentNumberOfInputChannels = 0;
+
+        // 遍历所有gate
         for (final IndexedInputGate inputGate : inputGates) {
             inputGateChannelIndexOffsets[inputGate.getGateIndex()] = currentNumberOfInputChannels;
             int previousNumberOfInputChannels = currentNumberOfInputChannels;
@@ -142,6 +157,7 @@ public class UnionInputGate extends InputGate {
                 if (available.isDone()) {
                     inputGatesWithData.add(inputGate);
                 } else {
+                    // 当对应的gate准备完毕时  会进入队列
                     assertNoException(available.thenRun(() -> queueInputGate(inputGate, false)));
                 }
 
@@ -201,6 +217,13 @@ public class UnionInputGate extends InputGate {
         return getNextBufferOrEvent(false);
     }
 
+    /**
+     * 获取下个数据
+     * @param blocking
+     * @return
+     * @throws IOException
+     * @throws InterruptedException
+     */
     private Optional<BufferOrEvent> getNextBufferOrEvent(boolean blocking)
             throws IOException, InterruptedException {
         if (inputGatesWithRemainingData.isEmpty()) {
@@ -218,12 +241,20 @@ public class UnionInputGate extends InputGate {
         handleEndOfPartitionEvent(inputWithData.data, inputWithData.input);
         handleEndOfUserDataEvent(inputWithData.data, inputWithData.input);
         if (!inputWithData.data.moreAvailable()) {
+            // 是否有更多数据  主要还是看inputWithData.moreAvailable
             inputWithData.data.setMoreAvailable(inputWithData.moreAvailable);
         }
 
         return Optional.of(inputWithData.data);
     }
 
+    /**
+     * 获取下个数据
+     * @param blocking
+     * @return
+     * @throws IOException
+     * @throws InterruptedException
+     */
     private Optional<InputWithData<IndexedInputGate, BufferOrEvent>> waitAndGetNextData(
             boolean blocking) throws IOException, InterruptedException {
         while (true) {
@@ -248,6 +279,12 @@ public class UnionInputGate extends InputGate {
         }
     }
 
+    /**
+     * 处理收到的数据
+     * @param inputGate
+     * @param bufferOrEvent
+     * @return
+     */
     private InputWithData<IndexedInputGate, BufferOrEvent> processBufferOrEvent(
             IndexedInputGate inputGate, BufferOrEvent bufferOrEvent) {
         assert Thread.holdsLock(inputGatesWithData);
@@ -263,6 +300,7 @@ public class UnionInputGate extends InputGate {
         if (bufferOrEvent.hasPriority() && !bufferOrEvent.morePriorityEvents()) {
             assertNoException(
                     inputGate
+                            // 当重新有高优先级事件时  进行处理
                             .getPriorityEventAvailableFuture()
                             .thenRun(() -> handlePriorityEventAvailable(inputGate)));
         }
@@ -275,6 +313,11 @@ public class UnionInputGate extends InputGate {
                 inputGate, bufferOrEvent, !inputGatesWithData.isEmpty(), morePriorityEvents);
     }
 
+    /**
+     * 表示某个gate没数据了
+     * @param bufferOrEvent
+     * @param inputGate
+     */
     private void handleEndOfPartitionEvent(BufferOrEvent bufferOrEvent, InputGate inputGate) {
         if (bufferOrEvent.isEvent()
                 && bufferOrEvent.getEvent().getClass() == EndOfPartitionEvent.class
@@ -358,6 +401,11 @@ public class UnionInputGate extends InputGate {
         return "UnionInputGate{" + "inputGates=" + inputGatesByGateIndex.values() + '}';
     }
 
+    /**
+     * 表示某个gate还有可用数据
+     * @param inputGate
+     * @param priority
+     */
     private void queueInputGate(IndexedInputGate inputGate, boolean priority) {
         checkNotNull(inputGate);
 
@@ -371,6 +419,7 @@ public class UnionInputGate extends InputGate {
                     return;
                 }
 
+                // 没有高优先级事件了 不需要添加
                 if (priority && !inputGate.getPriorityEventAvailableFuture().isDone()) {
                     // Since notification is not atomic in respect to gate enqueuing, priority event
                     // may already be polled by

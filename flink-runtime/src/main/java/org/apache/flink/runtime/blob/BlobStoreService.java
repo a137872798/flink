@@ -20,7 +20,9 @@ package org.apache.flink.runtime.blob;
 
 import java.io.Closeable;
 
-/** Service interface for the BlobStore which allows to close and clean up its data. */
+/** Service interface for the BlobStore which allows to close and clean up its data.
+ * 额外提供了一个删除所有数据的api
+ * */
 public interface BlobStoreService extends BlobStore, Closeable {
 
     /** Closes and cleans up the store. This entails the deletion of all blobs. */

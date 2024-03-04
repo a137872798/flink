@@ -30,10 +30,14 @@ import java.util.Set;
  * <p>A {@code SharedStateRegistry} will be deployed in the {@link
  * org.apache.flink.runtime.checkpoint.CheckpointCoordinator CheckpointCoordinator} to keep track of
  * usage of {@link StreamStateHandle}s by a key that (logically) identifies them.
+ *
+ * 共享状态注册器
  */
 public interface SharedStateRegistry extends AutoCloseable {
 
-    /** A singleton object for the default implementation of a {@link SharedStateRegistryFactory} */
+    /** A singleton object for the default implementation of a {@link SharedStateRegistryFactory}
+     * 这个是默认的共享状态注册器
+     * */
     SharedStateRegistryFactory DEFAULT_FACTORY =
             (deleteExecutor, checkpoints, restoreMode) -> {
                 SharedStateRegistry sharedStateRegistry =
@@ -47,6 +51,11 @@ public interface SharedStateRegistry extends AutoCloseable {
     /**
      * Shortcut for {@link #registerReference(SharedStateRegistryKey, StreamStateHandle, long,
      * boolean)} with preventDiscardingCreatedCheckpoint = false.
+     *
+     * @param registrationKey  相当于是共享状态的id
+     * @param state 被注册的状态
+     * @param checkpointID 相关的检查点
+     *                     该方法相当于是注册映射关系  (共享状态key 与对应的状态)
      */
     default StreamStateHandle registerReference(
             SharedStateRegistryKey registrationKey, StreamStateHandle state, long checkpointID) {
@@ -68,6 +77,8 @@ public interface SharedStateRegistry extends AutoCloseable {
      *     "checkpoint that created the state" is recorded on the first state registration.
      * @return the state handle registered under the given key. It might differ from the passed
      *     state handle, e.g. if it was a placeholder.
+     *
+     *     返回对象会被包装
      */
     StreamStateHandle registerReference(
             SharedStateRegistryKey registrationKey,
@@ -79,7 +90,8 @@ public interface SharedStateRegistry extends AutoCloseable {
      * Unregister state that is not referenced by the given checkpoint ID or any newer.
      *
      * @param lowestCheckpointID which is still valid.
-     * @return a set of checkpointID which is still in use.
+     * @return a set of checkpointID which is still in use.  返回还在使用中的
+     *
      */
     Set<Long> unregisterUnusedState(long lowestCheckpointID);
 
@@ -103,8 +115,13 @@ public interface SharedStateRegistry extends AutoCloseable {
      *
      * <p>This should hold for both cases: when recovering from that initial checkpoint; and from
      * any subsequent checkpoint derived from it.
+     *
      */
     void registerAllAfterRestored(CompletedCheckpoint checkpoint, RestoreMode mode);
 
+    /**
+     * 通知某个检查点完成了
+     * @param checkpointId
+     */
     void checkpointCompleted(long checkpointId);
 }

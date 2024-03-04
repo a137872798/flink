@@ -59,6 +59,7 @@ import org.slf4j.LoggerFactory;
  * DataSinkTask which is executed by a task manager. The task hands the data to an output format.
  *
  * @see OutputFormat
+ * 与DataSourceTask对应   接收数据并格式化
  */
 public class DataSinkTask<IT> extends AbstractInvokable {
 
@@ -68,8 +69,12 @@ public class DataSinkTask<IT> extends AbstractInvokable {
     // --------------------------------------------------------------------------------------------
 
     // OutputFormat instance. volatile, because the asynchronous canceller may access it
+    // 表示如何将结果格式化
     private volatile OutputFormat<IT> format;
 
+    /**
+     * 借助该对象从gate中读取数据
+     */
     private MutableReader<?> inputReader;
 
     // input reader
@@ -106,10 +111,12 @@ public class DataSinkTask<IT> extends AbstractInvokable {
         LOG.debug(getLogString("Start registering input and output"));
 
         // initialize OutputFormat
+        // 初始化有关输出的格式对象
         initOutputFormat();
 
         // initialize input readers
         try {
+            // 初始化reader对象
             initInputReaders();
         } catch (Exception e) {
             throw new RuntimeException(
@@ -155,6 +162,7 @@ public class DataSinkTask<IT> extends AbstractInvokable {
         try {
             // initialize local strategies
             MutableObjectIterator<IT> input1;
+            // 获取处理策略
             switch (this.config.getInputLocalStrategy(0)) {
                 case NONE:
                     // nothing to do
@@ -162,7 +170,7 @@ public class DataSinkTask<IT> extends AbstractInvokable {
                     input1 = reader;
                     break;
                 case SORT:
-                    // initialize sort local strategy
+                    // initialize sort local strategy   表示数据进来时要进行排序
                     try {
                         // get type comparator
                         TypeComparatorFactory<IT> compFact =
@@ -237,6 +245,7 @@ public class DataSinkTask<IT> extends AbstractInvokable {
                 IT record = serializer.createInstance();
 
                 // work!
+                // 读取数据后就写入下游
                 while (!this.taskCanceled && ((record = input.next(record)) != null)) {
                     numRecordsIn.inc();
                     format.writeRecord(record);
@@ -342,6 +351,7 @@ public class DataSinkTask<IT> extends AbstractInvokable {
      *
      * @throws RuntimeException Throws if instance of OutputFormat implementation can not be
      *     obtained.
+     *     初始化输出格式对象
      */
     private void initOutputFormat() {
         ClassLoader userCodeClassLoader = getUserCodeClassLoader();
@@ -399,6 +409,7 @@ public class DataSinkTask<IT> extends AbstractInvokable {
         int numGates = 0;
         //  ---------------- create the input readers ---------------------
         // in case where a logical input unions multiple physical inputs, create a union reader
+        // group的数量 就是input的数量 然后每个input根据并行度又有多个子任务
         final int groupSize = this.config.getGroupSize(0);
         numGates += groupSize;
         if (groupSize == 1) {
@@ -419,6 +430,8 @@ public class DataSinkTask<IT> extends AbstractInvokable {
 
         this.inputTypeSerializerFactory =
                 this.config.getInputSerializer(0, getUserCodeClassLoader());
+
+        // 将下层的gate对象包装成迭代器
         @SuppressWarnings({"rawtypes"})
         final MutableObjectIterator<?> iter =
                 new ReaderIterator(inputReader, this.inputTypeSerializerFactory.getSerializer());

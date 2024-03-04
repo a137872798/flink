@@ -27,6 +27,7 @@ import java.util.Objects;
  * Identifier of a partition.
  *
  * <p>A partition is equivalent to a result partition in Flink.
+ * 表示分区id
  */
 public class TieredStoragePartitionId implements TieredStorageDataIdentifier, Serializable {
 

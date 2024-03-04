@@ -63,9 +63,10 @@ public interface TaskExecutorGateway
      * @param resourceProfile of requested slot, used only for dynamic slot allocation and will be
      *     ignored otherwise
      * @param targetAddress to which to offer the requested slots
-     * @param resourceManagerId current leader id of the ResourceManager
+     * @param resourceManagerId current leader id of the ResourceManager  表示是由哪个资源管理器发起的请求  使用主从模式 需要有leader进行资源申请
      * @param timeout for the operation
      * @return answer to the slot request
+     * ResourceManager 会通过RPC调用告知将某个slot分配给哪个Job
      */
     CompletableFuture<Acknowledge> requestSlot(
             SlotID slotId,
@@ -114,6 +115,7 @@ public interface TaskExecutorGateway
      * @param jobId id of the job that the partitions belong to
      * @param partitionIds partition ids to release
      * @return Future acknowledge that the partitions are successfully promoted.
+     * 推进分区
      */
     CompletableFuture<Acknowledge> promotePartitions(
             JobID jobId, Set<ResultPartitionID> partitionIds);
@@ -124,6 +126,7 @@ public interface TaskExecutorGateway
      * @param dataSetsToRelease data sets for which all cluster partitions should be released
      * @param timeout for the partitions release operation
      * @return Future acknowledge that the request was received
+     * 让TM 丢弃掉这些中间结果集
      */
     CompletableFuture<Acknowledge> releaseClusterPartitions(
             Collection<IntermediateDataSetID> dataSetsToRelease, @RpcTimeout Time timeout);
@@ -182,6 +185,7 @@ public interface TaskExecutorGateway
      * @param executionAttemptID identifying the task
      * @param timeout for the cancel operation
      * @return Future acknowledge if the task is successfully canceled
+     * 要求TM取消任务
      */
     CompletableFuture<Acknowledge> cancelTask(
             ExecutionAttemptID executionAttemptID, @RpcTimeout Time timeout);
@@ -200,6 +204,7 @@ public interface TaskExecutorGateway
      *
      * @param heartbeatOrigin unique id of the resource manager
      * @return future which is completed exceptionally if the operation fails
+     * RM 发送心跳到 TM
      */
     CompletableFuture<Void> heartbeatFromResourceManager(ResourceID heartbeatOrigin);
 
@@ -215,6 +220,7 @@ public interface TaskExecutorGateway
      * Disconnects the ResourceManager from the TaskManager.
      *
      * @param cause for the disconnection from the ResourceManager
+     *              断开连接
      */
     void disconnectResourceManager(Exception cause);
 
@@ -234,6 +240,7 @@ public interface TaskExecutorGateway
      *
      * @param jobId job for which all inactive slots should be released
      * @param timeout for the operation
+     *                通知某个job释放所有空闲slot
      */
     void freeInactiveSlots(JobID jobId, @RpcTimeout Time timeout);
 
@@ -243,6 +250,7 @@ public interface TaskExecutorGateway
      * @param fileType to upload
      * @param timeout for the asynchronous operation
      * @return Future which is completed with the {@link TransientBlobKey} of the uploaded file.
+     * 将某类型的文件上传到 BlobServer
      */
     CompletableFuture<TransientBlobKey> requestFileUploadByType(
             FileType fileType, @RpcTimeout Time timeout);
@@ -270,6 +278,7 @@ public interface TaskExecutorGateway
      * unconsumed result partitions.
      *
      * @return Future flag indicating whether the task executor can be released.
+     * 判断该worker能否释放
      */
     CompletableFuture<Boolean> canBeReleased();
 
@@ -289,6 +298,7 @@ public interface TaskExecutorGateway
      *
      * @param timeout timeout for the asynchronous operation
      * @return the {@link ThreadDumpInfo} for this TaskManager.
+     * 请求线程栈信息
      */
     CompletableFuture<ThreadDumpInfo> requestThreadDump(@RpcTimeout Time timeout);
 

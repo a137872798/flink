@@ -22,6 +22,10 @@ package org.apache.flink.runtime.state;
  * Implementations of this interface should implement methods acting as an administration role for
  * checkpoint storage, which defined in {@link CheckpointStorageCoordinatorView}. And also implement
  * methods acting as a worker role, which defined in {@link CheckpointStorageWorkerView}.
+ *
+ * 表示可以从仓库中检索检查点
+ * CheckpointStorageWorkerView 表示从worker角度查看检查点
+ * CheckpointStorageCoordinatorView 表示从coordinator角度查看检查点
  */
 public interface CheckpointStorageAccess
         extends CheckpointStorageCoordinatorView, CheckpointStorageWorkerView {}

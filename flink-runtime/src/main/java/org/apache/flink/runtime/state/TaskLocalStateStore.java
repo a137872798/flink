@@ -34,6 +34,8 @@ import java.util.function.LongPredicate;
  * this storage is only complementary to the stable storage and local state is typically lost in
  * case of machine failures. In such cases (and others), client code of this class must fall back to
  * using the slower but highly available store.
+ *
+ * 表示任务状态的存储
  */
 @Internal
 public interface TaskLocalStateStore {
@@ -42,6 +44,7 @@ public interface TaskLocalStateStore {
      *
      * @param checkpointId id for the checkpoint that created the local state that will be stored.
      * @param localState the local state to store.
+     *                   存储某个检查点数据  传入检查点id 和快照数据
      */
     void storeLocalState(@Nonnegative long checkpointId, @Nullable TaskStateSnapshot localState);
 
@@ -51,11 +54,14 @@ public interface TaskLocalStateStore {
      *
      * @param checkpointID the checkpoint id by which we search for local state.
      * @return the local state found for the given checkpoint id. Can be null
+     * 从仓库再拿回任务快照
      */
     @Nullable
     TaskStateSnapshot retrieveLocalState(long checkpointID);
 
-    /** Returns the {@link LocalRecoveryConfig} for this task local state store. */
+    /** Returns the {@link LocalRecoveryConfig} for this task local state store.
+     * 获取有关存储目录的对象
+     * */
     @Nonnull
     LocalRecoveryConfig getLocalRecoveryConfig();
 
@@ -63,6 +69,7 @@ public interface TaskLocalStateStore {
      * Notifies that the checkpoint with the given id was confirmed as complete. This prunes the
      * checkpoint history and removes all local states with a checkpoint id that is smaller than the
      * newly confirmed checkpoint id.
+     * 表示该检查点已经完成    会删除本地小于该检查点id的历史数据
      */
     void confirmCheckpoint(long confirmedCheckpointId);
 
@@ -70,6 +77,7 @@ public interface TaskLocalStateStore {
      * Notifies that the checkpoint with the given id was confirmed as aborted. This prunes the
      * checkpoint history and removes states with a checkpoint id that is equal to the newly aborted
      * checkpoint id.
+     * 终止某次检查点工作
      */
     void abortCheckpoint(long abortedCheckpointId);
 
@@ -77,6 +85,7 @@ public interface TaskLocalStateStore {
      * Remove all checkpoints from the store that match the given predicate.
      *
      * @param matcher the predicate that selects the checkpoints for pruning.
+     *                删除所有满足条件的检查点数据
      */
     void pruneMatchingCheckpoints(LongPredicate matcher);
 }

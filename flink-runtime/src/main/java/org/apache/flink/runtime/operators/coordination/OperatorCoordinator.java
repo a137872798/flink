@@ -74,6 +74,8 @@ import java.util.concurrent.CompletableFuture;
  *       tasks (new attempts) are ready to go. This is later than {@link #subtaskReset(int, long)},
  *       because between those methods, the new attempts are scheduled and deployed.
  * </ol>
+ *
+ * 协调者  可以监听检查点的结果(成功/失败)
  */
 @Internal
 public interface OperatorCoordinator extends CheckpointListener, AutoCloseable {
@@ -110,6 +112,7 @@ public interface OperatorCoordinator extends CheckpointListener, AutoCloseable {
      *
      * @throws Exception Any exception thrown by this method results in a full job failure and
      *     recovery.
+     *     接收某个子任务发送的事件
      */
     void handleEventFromOperator(int subtask, int attemptNumber, OperatorEvent event)
             throws Exception;
@@ -194,6 +197,7 @@ public interface OperatorCoordinator extends CheckpointListener, AutoCloseable {
      * <p>Even if no call to {@link #notifyCheckpointComplete(long)} happened, the checkpoint can
      * still be complete (for example when a system failure happened directly after committing the
      * checkpoint, before calling the {@link #notifyCheckpointComplete(long)} method).
+     * 借助检查点恢复数据
      */
     void resetToCheckpoint(long checkpointId, @Nullable byte[] checkpointData) throws Exception;
 
@@ -211,6 +215,7 @@ public interface OperatorCoordinator extends CheckpointListener, AutoCloseable {
      * <p>Note that this method will not be called if an execution attempt of a subtask failed, if
      * the subtask is not entirely failed, i.e. if the subtask has other execution attempts that are
      * not failed/canceled.
+     * 将某个子任务恢复到某个检查点的状态
      */
     void subtaskReset(int subtask, long checkpointId);
 
@@ -220,6 +225,7 @@ public interface OperatorCoordinator extends CheckpointListener, AutoCloseable {
      *
      * <p>This method is called every time an execution attempt is failed/canceled, regardless of
      * whether there it is caused by a partial failover or a global failover.
+     * 告知某个子任务在某次执行中失败了
      */
     void executionAttemptFailed(int subtask, int attemptNumber, @Nullable Throwable reason);
 
@@ -230,6 +236,7 @@ public interface OperatorCoordinator extends CheckpointListener, AutoCloseable {
      * <p>The given {@code SubtaskGateway} is bound to that specific execution attempt that became
      * ready. All events sent through the gateway target that execution attempt; if the attempt is
      * no longer running by the time the event is sent, then the events are failed.
+     * 告知协调者 网关准备就绪
      */
     void executionAttemptReady(int subtask, int attemptNumber, SubtaskGateway gateway);
 
@@ -284,6 +291,7 @@ public interface OperatorCoordinator extends CheckpointListener, AutoCloseable {
     /**
      * The {@code SubtaskGateway} is the way to interact with a specific parallel instance of the
      * Operator (an Operator subtask), like sending events to the operator.
+     * 将信息发往子任务
      */
     interface SubtaskGateway {
 

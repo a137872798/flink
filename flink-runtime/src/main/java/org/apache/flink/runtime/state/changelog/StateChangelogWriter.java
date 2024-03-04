@@ -23,23 +23,32 @@ import org.apache.flink.runtime.state.SnapshotResult;
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 
-/** Allows to write data to the log. Scoped to a single writer (e.g. state backend). */
+/** Allows to write data to the log. Scoped to a single writer (e.g. state backend).
+ * 该接口定义了写入 stateChangelog相关的api
+ * */
 @Internal
 public interface StateChangelogWriter<Handle extends ChangelogStateHandle> extends AutoCloseable {
 
-    /** Get the initial {@link SequenceNumber} that is used for the first element. */
+    /** Get the initial {@link SequenceNumber} that is used for the first element.
+     * 获取第一条记录的编号
+     * */
     SequenceNumber initialSequenceNumber();
 
     /**
      * Get {@link SequenceNumber} to be used for the next element added by {@link #append(int,
      * byte[]) append}.
+     * 获取下个编号
      */
     SequenceNumber nextSequenceNumber();
 
-    /** Appends the provided **metadata** to this log. No persistency guarantees. */
+    /** Appends the provided **metadata** to this log. No persistency guarantees.
+     * 为日志本身增加元数据信息  不保证持久化
+     * */
     void appendMeta(byte[] value) throws IOException;
 
-    /** Appends the provided data to this log. No persistency guarantees. */
+    /** Appends the provided data to this log. No persistency guarantees.
+     * 给日志增加数据
+     * */
     void append(int keyGroup, byte[] value) throws IOException;
 
     /**
@@ -50,6 +59,7 @@ public interface StateChangelogWriter<Handle extends ChangelogStateHandle> exten
      * be called for the corresponding change set. with reset/truncate/confirm methods?
      *
      * @param from inclusive
+     *             执行持久化
      */
     CompletableFuture<SnapshotResult<Handle>> persist(SequenceNumber from) throws IOException;
 
@@ -67,6 +77,8 @@ public interface StateChangelogWriter<Handle extends ChangelogStateHandle> exten
      * checkpoint that is not subsumed or aborted.
      *
      * @param to exclusive
+     *
+     *           丢弃之前的日志
      */
     void truncate(SequenceNumber to);
 

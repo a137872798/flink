@@ -75,6 +75,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * The implementation of {@link ShuffleEnvironment} based on netty network communication, local
  * memory and disk files. The network environment contains the data structures that keep track of
  * all intermediate results and shuffle data exchanges.
+ * 针对netty的洗牌
  */
 public class NettyShuffleEnvironment
         implements ShuffleEnvironment<ResultPartition, SingleInputGate> {
@@ -83,8 +84,14 @@ public class NettyShuffleEnvironment
 
     private final Object lock = new Object();
 
+    /**
+     * 相关的执行器
+     */
     private final ResourceID taskExecutorResourceId;
 
+    /**
+     * 包含一些配置信息
+     */
     private final NettyShuffleEnvironmentConfiguration config;
 
     private final NetworkBufferPool networkBufferPool;
@@ -95,6 +102,9 @@ public class NettyShuffleEnvironment
 
     private final FileChannelManager fileChannelManager;
 
+    /**
+     * 每个gateId 对应一组gate
+     */
     private final Map<InputGateID, Set<SingleInputGate>> inputGatesById;
 
     private final ResultPartitionFactory resultPartitionFactory;
@@ -170,11 +180,20 @@ public class NettyShuffleEnvironment
         return config;
     }
 
+    /**
+     * 通过gateId 查询一组gate
+     * @param id
+     * @return
+     */
     @VisibleForTesting
     public Optional<Collection<SingleInputGate>> getInputGate(InputGateID id) {
         return Optional.ofNullable(inputGatesById.get(id));
     }
 
+    /**
+     * 释放各种分区
+     * @param partitionIds identifying the partitions to be released
+     */
     @Override
     public void releasePartitionsLocally(Collection<ResultPartitionID> partitionIds) {
         ioExecutor.execute(
@@ -190,6 +209,7 @@ public class NettyShuffleEnvironment
      *
      * @return collection of partitions which still occupy some resources locally on this task
      *     executor and have been not released yet.
+     *     获取还有效的分区
      */
     @Override
     public Collection<ResultPartitionID> getPartitionsOccupyingLocalResources() {
@@ -200,10 +220,19 @@ public class NettyShuffleEnvironment
     //  Create Output Writers and Input Readers
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 生成洗牌上下文
+     * @param ownerName the owner name, used for logs
+     * @param executionAttemptID execution attempt id of the producer or consumer
+     * @param parentGroup parent of shuffle specific metric group
+     * @return
+     */
     @Override
     public ShuffleIOOwnerContext createShuffleIOOwnerContext(
             String ownerName, ExecutionAttemptID executionAttemptID, MetricGroup parentGroup) {
         MetricGroup nettyGroup = createShuffleIOOwnerMetricGroup(checkNotNull(parentGroup));
+
+        // 就是简单存储了一些统计信息
         return new ShuffleIOOwnerContext(
                 checkNotNull(ownerName),
                 checkNotNull(executionAttemptID),
@@ -212,6 +241,14 @@ public class NettyShuffleEnvironment
                 nettyGroup.addGroup(METRIC_GROUP_INPUT));
     }
 
+    /**
+     *
+     * @param ownerContext the owner context relevant for partition creation   包含洗牌需要的上下文信息
+     * @param resultPartitionDeploymentDescriptors descriptors of the partition, produced by the
+     *     owner
+     * @return
+     * 创建分区写入对象
+     */
     @Override
     public List<ResultPartition> createResultPartitionWriters(
             ShuffleIOOwnerContext ownerContext,
@@ -222,6 +259,8 @@ public class NettyShuffleEnvironment
 
             ResultPartition[] resultPartitions =
                     new ResultPartition[resultPartitionDeploymentDescriptors.size()];
+
+            // 通过工厂创建分区
             for (int partitionIndex = 0;
                     partitionIndex < resultPartitions.length;
                     partitionIndex++) {
@@ -240,6 +279,14 @@ public class NettyShuffleEnvironment
         }
     }
 
+    /**
+     * 创建一组gate
+     * @param ownerContext the owner context relevant for gate creation
+     * @param partitionProducerStateProvider producer state provider to query whether the producer
+     *     is ready for consumption
+     * @param inputGateDeploymentDescriptors descriptors of the input gates to consume
+     * @return
+     */
     @Override
     public List<SingleInputGate> createInputGates(
             ShuffleIOOwnerContext ownerContext,
@@ -361,7 +408,9 @@ public class NettyShuffleEnvironment
         }
     }
 
-    /** Tries to shut down all network I/O components. */
+    /** Tries to shut down all network I/O components.
+     * 关闭相关组件
+     * */
     @Override
     public void close() {
         synchronized (lock) {

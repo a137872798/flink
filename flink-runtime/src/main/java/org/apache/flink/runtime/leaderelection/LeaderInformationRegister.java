@@ -30,12 +30,16 @@ import java.util.stream.Collectors;
  * A register containing the {@link LeaderInformation} for multiple contenders based on their {@code
  * componentId}. No empty {@code LeaderInformation} is stored physically. No entry and an entry with
  * an empty {@code LeaderInformation} are, therefore, semantically the same.
+ * 维护leader此时写入的组件信息
  */
 public class LeaderInformationRegister {
 
     private static final LeaderInformationRegister EMPTY_REGISTER =
             new LeaderInformationRegister(Collections.emptyMap());
 
+    /**
+     * 维护每个组件的信息
+     */
     private final Map<String, LeaderInformation> leaderInformationPerComponentId;
 
     public static LeaderInformationRegister empty() {

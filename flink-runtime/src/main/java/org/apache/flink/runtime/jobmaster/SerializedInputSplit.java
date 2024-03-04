@@ -20,6 +20,9 @@ package org.apache.flink.runtime.jobmaster;
 
 import java.io.Serializable;
 
+/**
+ * 表示输入流的一部分  input在往下游发送时会进行分流(split)
+ */
 public class SerializedInputSplit implements Serializable {
     private static final long serialVersionUID = -2063021844254152064L;
 

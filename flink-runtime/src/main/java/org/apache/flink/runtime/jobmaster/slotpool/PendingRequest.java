@@ -27,18 +27,37 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * 表示一个待处理的请求
+ */
 final class PendingRequest {
 
     private final SlotRequestId slotRequestId;
 
+    /**
+     * 请求的资源
+     */
     private final ResourceProfile resourceProfile;
 
+    /**
+     * 期望被选中的一些slot
+     */
     private final HashSet<AllocationID> preferredAllocations;
 
+    /**
+     * 用于设置请求到的slot
+     */
     private final CompletableFuture<PhysicalSlot> slotFuture;
 
+    /**
+     * 表示请求针对的是流式还是批式
+     */
     private final boolean isBatchRequest;
 
+    /**
+     * 有关该请求能否被满足
+     * 也就是现有的slot能否满足req的资源
+     */
     private long unfulfillableSince;
 
     private PendingRequest(

@@ -24,7 +24,9 @@ import org.apache.flink.runtime.executiongraph.ExecutionAttemptID;
 import java.util.List;
 import java.util.Map;
 
-/** Component responsible for assigning slots to a collection of {@link Execution}. */
+/** Component responsible for assigning slots to a collection of {@link Execution}.
+ * 该对象可以将slot分配给Execution
+ * */
 public interface ExecutionSlotAllocator {
 
     /**
@@ -32,6 +34,7 @@ public interface ExecutionSlotAllocator {
      *
      * @param executionAttemptIds executions to allocate slots for
      * @return Map of slot assignments to the executions
+     * 为这组Execution 产生结果
      */
     Map<ExecutionAttemptID, ExecutionSlotAssignment> allocateSlotsFor(
             List<ExecutionAttemptID> executionAttemptIds);
@@ -41,6 +44,7 @@ public interface ExecutionSlotAllocator {
      *
      * @param executionAttemptId identifying the {@link Execution} of which the slot request should
      *     be canceled.
+     *                           取消某个正在进行的分配
      */
     void cancel(ExecutionAttemptID executionAttemptId);
 }

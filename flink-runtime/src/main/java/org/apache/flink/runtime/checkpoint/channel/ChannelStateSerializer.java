@@ -37,7 +37,12 @@ import java.util.List;
 import static java.lang.Math.addExact;
 import static java.lang.Math.min;
 
+/**
+ * channel 对应分区    该对象则是用于将分区中的数据(或者立即为状态) 进行序列化
+ */
 interface ChannelStateSerializer {
+
+    // 状态分为头部和数据
 
     void writeHeader(DataOutputStream dataStream) throws IOException;
 
@@ -49,16 +54,29 @@ interface ChannelStateSerializer {
 
     int readData(InputStream stream, ChannelStateByteBuffer buffer, int bytes) throws IOException;
 
+    /**
+     * 根据offsets 抽取一组数据放置在一起
+     * @param bytes
+     * @param offsets
+     * @return
+     * @throws IOException
+     */
     byte[] extractAndMerge(byte[] bytes, List<Long> offsets) throws IOException;
 
     long getHeaderLength();
 }
 
-/** Wrapper around various buffers to receive channel state data. */
+/** Wrapper around various buffers to receive channel state data.
+ * 存储状态的缓冲区
+ * */
 @Internal
 @NotThreadSafe
 interface ChannelStateByteBuffer extends AutoCloseable {
 
+    /**
+     * 判断buffer当前是否可写入数据
+     * @return
+     */
     boolean isWritable();
 
     @Override
@@ -69,6 +87,7 @@ interface ChannelStateByteBuffer extends AutoCloseable {
      * InputStream}.
      *
      * @return the total number of bytes read into this buffer.
+     * 将inputStream中的数据 读取到buffer中
      */
     int writeBytes(InputStream input, int bytesToRead) throws IOException;
 
@@ -148,9 +167,17 @@ interface ChannelStateByteBuffer extends AutoCloseable {
     }
 }
 
+/**
+ * 该对象描述如何将状态持久化
+ */
 class ChannelStateSerializerImpl implements ChannelStateSerializer {
     private static final int SERIALIZATION_VERSION = 0;
 
+    /**
+     * 目前头部信息就是一个版本号 是为了以后做兼容的
+     * @param dataStream
+     * @throws IOException
+     */
     @Override
     public void writeHeader(DataOutputStream dataStream) throws IOException {
         dataStream.writeInt(SERIALIZATION_VERSION);
@@ -158,6 +185,7 @@ class ChannelStateSerializerImpl implements ChannelStateSerializer {
 
     @Override
     public void writeData(DataOutputStream stream, Buffer... flinkBuffers) throws IOException {
+        // 计算数据的总长度 并写入
         stream.writeInt(getSize(flinkBuffers));
         for (Buffer buffer : flinkBuffers) {
             ByteBuf nettyByteBuf = buffer.asByteBuf();
@@ -176,6 +204,7 @@ class ChannelStateSerializerImpl implements ChannelStateSerializer {
     @Override
     public void readHeader(InputStream stream) throws IOException {
         int version = readInt(stream);
+        // 确保头部的version匹配
         Preconditions.checkArgument(
                 version == SERIALIZATION_VERSION, "unsupported version: " + version);
     }
@@ -201,14 +230,23 @@ class ChannelStateSerializerImpl implements ChannelStateSerializer {
     public byte[] extractAndMerge(byte[] bytes, List<Long> offsets) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         DataOutputStream dataOutputStream = new DataOutputStream(out);
+        // 把 bytes 各offset的数据都读取出来了
         byte[] merged = extractByOffsets(bytes, offsets);
         writeHeader(dataOutputStream);
+        // 再写入
         dataOutputStream.writeInt(merged.length);
         dataOutputStream.write(merged, 0, merged.length);
         dataOutputStream.close();
         return out.toByteArray();
     }
 
+    /**
+     *
+     * @param data  存储原始数据的容器
+     * @param offsets
+     * @return
+     * @throws IOException
+     */
     private byte[] extractByOffsets(byte[] data, List<Long> offsets) throws IOException {
         DataInputStream lengthReadingStream =
                 new DataInputStream(new ByteArrayInputStream(data, 0, data.length));
@@ -216,7 +254,9 @@ class ChannelStateSerializerImpl implements ChannelStateSerializer {
         long prevOffset = 0;
         for (long offset : offsets) {
             lengthReadingStream.skipBytes((int) (offset - prevOffset));
+            // 读取长度信息
             int dataWithLengthOffset = (int) offset + Integer.BYTES;
+            // 写入output
             out.write(data, dataWithLengthOffset, lengthReadingStream.readInt());
             prevOffset = dataWithLengthOffset;
         }

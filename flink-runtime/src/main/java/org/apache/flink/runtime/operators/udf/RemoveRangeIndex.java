@@ -20,6 +20,10 @@ package org.apache.flink.runtime.operators.udf;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
 
+/**
+ * 在AssignRangeIndex中 会为record指定分区 而该对象则是剥离掉分区属性 相当于逆操作
+ * @param <T>
+ */
 public class RemoveRangeIndex<T> implements MapFunction<Tuple2<Integer, T>, T> {
 
     @Override

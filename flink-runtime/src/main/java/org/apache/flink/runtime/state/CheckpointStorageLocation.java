@@ -27,6 +27,8 @@ import java.io.IOException;
  * <p>CheckpointStorageLocations are typically created and initialized via {@link
  * CheckpointStorageAccess#initializeLocationForCheckpoint(long)} or {@link
  * CheckpointStorageAccess#initializeLocationForSavepoint(long, String)}.
+ *
+ * 描述检查点位置   位置信息也作为检查点的元数据
  */
 public interface CheckpointStorageLocation extends CheckpointStreamFactory {
 
@@ -35,7 +37,8 @@ public interface CheckpointStorageLocation extends CheckpointStreamFactory {
      *
      * @return The output stream to persist the checkpoint metadata to.
      * @throws IOException Thrown, if the stream cannot be opened due to an I/O error.
-     */
+     * 这创建存储元数据的输出流
+    */
     CheckpointMetadataOutputStream createMetadataOutputStream() throws IOException;
 
     /**

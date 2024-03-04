@@ -56,13 +56,24 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-/** {@link SlotPool} implementation which uses the {@link DeclarativeSlotPool} to allocate slots. */
+/** {@link SlotPool} implementation which uses the {@link DeclarativeSlotPool} to allocate slots.
+ * 这是一层桥接层
+ * */
 public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implements SlotPool {
 
+    /**
+     * 维护slot相关的请求
+     */
     private final Map<SlotRequestId, PendingRequest> pendingRequests;
+    /**
+     * 记录哪个请求占用了哪个slot
+     */
     private final Map<SlotRequestId, AllocationID> fulfilledRequests;
     private final Time idleSlotTimeout;
 
+    /**
+     * 该对象用于为PendingRequest 寻找slot
+     */
     private final RequestSlotMatchingStrategy requestSlotMatchingStrategy;
 
     @Nullable private ComponentMainThreadExecutor componentMainThreadExecutor;
@@ -72,6 +83,16 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
 
     private boolean isJobRestarting = false;
 
+    /**
+     *
+     * @param jobId
+     * @param declarativeSlotPoolFactory  通过工厂创建pool对象
+     * @param clock
+     * @param rpcTimeout
+     * @param idleSlotTimeout
+     * @param batchSlotTimeout
+     * @param requestSlotMatchingStrategy
+     */
     public DeclarativeSlotPoolBridge(
             JobID jobId,
             DeclarativeSlotPoolFactory declarativeSlotPoolFactory,
@@ -105,6 +126,10 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
         return Optional.empty();
     }
 
+    /**
+     * 上层service启动时触发的钩子
+     * @param componentMainThreadExecutor componentMainThreadExecutor used by this slot pool service
+     */
     @Override
     protected void onStart(ComponentMainThreadExecutor componentMainThreadExecutor) {
         this.componentMainThreadExecutor = componentMainThreadExecutor;
@@ -152,6 +177,7 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
             return Collections.emptyList();
         }
 
+        // 如果重启过要重新注册
         if (isJobRestarting) {
             return getDeclarativeSlotPool()
                     .registerSlots(
@@ -162,7 +188,7 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
 
         } else {
             return getDeclarativeSlotPool()
-                    .offerSlots(
+                    .offerSlots(  // 这个是有对应的需求才能添加成功
                             offers,
                             taskManagerLocation,
                             taskManagerGateway,
@@ -170,6 +196,11 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
         }
     }
 
+    /**
+     * 取消等待中的请求
+     * @param requestPredicate
+     * @param cancelCause
+     */
     private void cancelPendingRequests(
             Predicate<PendingRequest> requestPredicate, FlinkException cancelCause) {
 
@@ -182,7 +213,9 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
 
         for (PendingRequest pendingRequest : pendingRequestsToFail) {
             if (requestPredicate.test(pendingRequest)) {
+                // 设置失败结果
                 pendingRequest.failRequest(cancelCause);
+                // 因为该请求被取消 所以要求的资源量减少了
                 decreasedResourceRequirements =
                         decreasedResourceRequirements.add(pendingRequest.getResourceProfile(), 1);
             } else {
@@ -190,16 +223,23 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
             }
         }
 
+        // 更新资源需求量
         getDeclarativeSlotPool().decreaseResourceRequirementsBy(decreasedResourceRequirements);
     }
 
     @Override
     protected void onReleaseTaskManager(ResourceCounter previouslyFulfilledRequirement) {
+        // 把资源的需求量也降低
         getDeclarativeSlotPool().decreaseResourceRequirementsBy(previouslyFulfilledRequirement);
     }
 
+    /**
+     * 当有新的slot可用时触发该方法
+     * @param newSlots
+     */
     @VisibleForTesting
     void newSlotsAreAvailable(Collection<? extends PhysicalSlot> newSlots) {
+        // 得到新的可用slot后 立即跟req进行匹配 并产生match结果
         final Collection<RequestSlotMatchingStrategy.RequestSlotMatch> requestSlotMatches =
                 requestSlotMatchingStrategy.matchRequestsAndSlots(
                         newSlots, pendingRequests.values());
@@ -211,9 +251,11 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
             log.debug("Matched pending request {} with slot {}.", pendingRequest, slot);
 
             Preconditions.checkNotNull(
+                    // 本请求已经处理完 移除
                     pendingRequests.remove(pendingRequest.getSlotRequestId()),
                     "Cannot fulfill a non existing pending slot request.");
 
+            // 标记该slot被占用
             reserveFreeSlot(
                     pendingRequest.getSlotRequestId(),
                     slot.getAllocationId(),
@@ -228,10 +270,17 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
             final PhysicalSlot slot = requestSlotMatch.getSlot();
 
             Preconditions.checkState(
+                    // 设置结果
                     pendingRequest.fulfill(slot), "Pending requests must be fulfillable.");
         }
     }
 
+    /**
+     * 记录该slot被某个请求借用了
+     * @param slotRequestId
+     * @param allocationId
+     * @param resourceProfile
+     */
     private void reserveFreeSlot(
             SlotRequestId slotRequestId,
             AllocationID allocationId,
@@ -241,6 +290,13 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
         fulfilledRequests.put(slotRequestId, allocationId);
     }
 
+    /**
+     * 将请求和slot绑定起来
+     * @param slotRequestId identifying the requested slot
+     * @param allocationID the allocation id of the requested available slot
+     * @param requirementProfile resource profile of the requirement for which to allocate the slot
+     * @return
+     */
     @Override
     public Optional<PhysicalSlot> allocateAvailableSlot(
             @Nonnull SlotRequestId slotRequestId,
@@ -259,6 +315,13 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
                 reserveFreeSlotForResource(slotRequestId, allocationID, requirementProfile));
     }
 
+    /**
+     * 为请求分配slot
+     * @param slotRequestId
+     * @param allocationId
+     * @param requiredSlotProfile
+     * @return
+     */
     private PhysicalSlot reserveFreeSlotForResource(
             SlotRequestId slotRequestId,
             AllocationID allocationId,
@@ -273,6 +336,15 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
         return physicalSlot;
     }
 
+    /**
+     * 为req选择合适的slot
+     * @param slotRequestId identifying the requested slot
+     * @param resourceProfile resource profile that specifies the resource requirements for the
+     *     requested slot
+     * @param preferredAllocations preferred allocations for the new allocated slot
+     * @param timeout timeout for the allocation procedure
+     * @return
+     */
     @Override
     @Nonnull
     public CompletableFuture<PhysicalSlot> requestNewAllocatedSlot(
@@ -294,6 +366,13 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
         return internalRequestNewSlot(pendingRequest, timeout);
     }
 
+    /**
+     * 产生一个批请求
+     * @param slotRequestId
+     * @param resourceProfile
+     * @param preferredAllocations
+     * @return
+     */
     @Override
     @Nonnull
     public CompletableFuture<PhysicalSlot> requestNewAllocatedBatchSlot(
@@ -314,6 +393,12 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
         return internalRequestNewSlot(pendingRequest, null);
     }
 
+    /**
+     * 处理一个新请求
+     * @param pendingRequest
+     * @param timeout
+     * @return
+     */
     private CompletableFuture<PhysicalSlot> internalRequestNewSlot(
             PendingRequest pendingRequest, @Nullable Time timeout) {
         internalRequestNewAllocatedSlot(pendingRequest);
@@ -321,6 +406,7 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
         if (timeout == null) {
             return pendingRequest.getSlotFuture();
         } else {
+            // 需要设置一个超时检测
             return FutureUtils.orTimeout(
                             pendingRequest.getSlotFuture(),
                             timeout.toMilliseconds(),
@@ -338,6 +424,10 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
         }
     }
 
+    /**
+     * 表示申请超时了
+     * @param slotRequestId
+     */
     private void timeoutPendingSlotRequest(SlotRequestId slotRequestId) {
         releaseSlot(
                 slotRequestId,
@@ -357,6 +447,11 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
         getDeclarativeSlotPool().decreaseResourceRequirementsBy(previouslyFulfilledRequirements);
     }
 
+    /**
+     * 释放slot
+     * @param slotRequestId identifying the slot to release
+     * @param cause of the slot release, null if none
+     */
     @Override
     public void releaseSlot(@Nonnull SlotRequestId slotRequestId, @Nullable Throwable cause) {
         log.debug("Release slot with slot request id {}", slotRequestId);
@@ -391,6 +486,10 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
         }
     }
 
+    /**
+     * 通知当前没有足够的资源
+     * @param acquiredResources the resources that have been acquired
+     */
     @Override
     public void notifyNotEnoughResourcesAvailable(
             Collection<ResourceRequirement> acquiredResources) {
@@ -402,6 +501,7 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
     private void failPendingRequests(Collection<ResourceRequirement> acquiredResources) {
         // only fails streaming requests because batch jobs do not require all resources
         // requirements to be fullfilled at the same time
+        // 仅让流式请求失败
         Predicate<PendingRequest> predicate = request -> !request.isBatchRequest();
         if (pendingRequests.values().stream().anyMatch(predicate)) {
             log.warn(
@@ -424,6 +524,7 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
         final Set<AllocationID> freeSlots =
                 getDeclarativeSlotPool().getFreeSlotInfoTracker().getAvailableSlots();
 
+        // 返回非空闲的
         return allSlotsInformation.stream()
                 .filter(slotInfo -> !freeSlots.contains(slotInfo.getAllocationId()))
                 .collect(Collectors.toList());
@@ -449,7 +550,11 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
         }
     }
 
+    /**
+     * 周期性触发该方法
+     */
     private void checkIdleSlotTimeout() {
+        // 尝试释放多余的资源
         getDeclarativeSlotPool().releaseIdleSlots(getRelativeTimeMillis());
 
         if (componentMainThreadExecutor != null) {
@@ -460,6 +565,9 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
         }
     }
 
+    /**
+     * 周期性触发该方法
+     */
     void checkBatchSlotTimeout() {
         assertRunningInMainThread();
 
@@ -470,8 +578,10 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
         final Collection<PendingRequest> pendingBatchRequests = getPendingBatchRequests();
 
         if (!pendingBatchRequests.isEmpty()) {
+            // 按空闲slot 非空闲slot的顺序罗列关联的资源
             final Set<ResourceProfile> allResourceProfiles = getResourceProfilesFromAllSlots();
 
+            // 根据请求的资源能否匹配  将req分开
             final Map<Boolean, List<PendingRequest>> fulfillableAndUnfulfillableRequests =
                     pendingBatchRequests.stream()
                             .collect(
@@ -492,6 +602,7 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
             for (PendingRequest unfulfillableRequest : unfulfillableRequests) {
                 unfulfillableRequest.markUnfulfillable(currentTimestamp);
 
+                // 该请求长期无法获得满足
                 if (unfulfillableRequest.getUnfulfillableSince() + batchSlotTimeout.toMilliseconds()
                         <= currentTimestamp) {
                     timeoutPendingSlotRequest(unfulfillableRequest.getSlotRequestId());
@@ -515,12 +626,21 @@ public class DeclarativeSlotPoolBridge extends DeclarativeSlotPoolService implem
                 .collect(Collectors.toSet());
     }
 
+    /**
+     * 找到所有批请求
+     * @return
+     */
     private Collection<PendingRequest> getPendingBatchRequests() {
         return pendingRequests.values().stream()
                 .filter(PendingRequest::isBatchRequest)
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 返回一个谓语 代表slot的资源能否与req匹配
+     * @param allocatedResourceProfiles
+     * @return
+     */
     private static Predicate<PendingRequest> canBeFulfilledWithAnySlot(
             Set<ResourceProfile> allocatedResourceProfiles) {
         return pendingRequest -> {

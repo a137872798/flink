@@ -40,6 +40,7 @@ import java.util.concurrent.CompletableFuture;
  * <p>This connection manager is responsible for sending new resource requirements to the connected
  * service. In case of faults it continues retrying to send the latest resource requirements to the
  * service with an exponential backoff strategy.
+ * 该对象内部包含了一个service 并且可以声明服务的资源开销
  */
 class DefaultDeclareResourceRequirementServiceConnectionManager
         extends AbstractServiceConnectionManager<
@@ -53,6 +54,9 @@ class DefaultDeclareResourceRequirementServiceConnectionManager
 
     private final ScheduledExecutor scheduledExecutor;
 
+    /**
+     * 表示当前的资源开销
+     */
     @Nullable
     @GuardedBy("lock")
     private ResourceRequirements currentResourceRequirements;
@@ -68,7 +72,7 @@ class DefaultDeclareResourceRequirementServiceConnectionManager
             checkNotClosed();
             if (isConnected()) {
                 currentResourceRequirements = resourceRequirements;
-
+                // 在更新所需资源后 需要提交开销
                 triggerResourceRequirementsSubmission(
                         Duration.ofMillis(1L),
                         Duration.ofMillis(10000L),
@@ -77,6 +81,12 @@ class DefaultDeclareResourceRequirementServiceConnectionManager
         }
     }
 
+    /**
+     * 提交资源开销
+     * @param sleepOnError
+     * @param maxSleepOnError
+     * @param resourceRequirementsToSend
+     */
     @GuardedBy("lock")
     private void triggerResourceRequirementsSubmission(
             Duration sleepOnError,
@@ -96,6 +106,7 @@ class DefaultDeclareResourceRequirementServiceConnectionManager
         synchronized (lock) {
             if (isConnected()) {
                 if (resourceRequirementsToSend == currentResourceRequirements) {
+                    // 提交资源开销就是调用service的相关方法
                     return service.declareResourceRequirements(resourceRequirementsToSend);
                 } else {
                     LOG.debug("Newer resource requirements found. Stop sending old requirements.");

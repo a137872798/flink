@@ -75,6 +75,8 @@ public interface CheckpointStorage extends java.io.Serializable {
      * @return The checkpoint location handle.
      * @throws IOException Thrown, if the state backend does not understand the pointer, or if the
      *     pointer could not be resolved due to an I/O error.
+     *
+     *     将路径转换成存储检查点的位置信息
      */
     CompletedCheckpointStorageLocation resolveCheckpoint(String externalPointer) throws IOException;
 
@@ -85,6 +87,8 @@ public interface CheckpointStorage extends java.io.Serializable {
      * @param jobId The job to store checkpoint data for.
      * @return A checkpoint storage for the given job.
      * @throws IOException Thrown if the checkpoint storage cannot be initialized.
+     *
+     * 使用access访问storage
      */
     CheckpointStorageAccess createCheckpointStorage(JobID jobId) throws IOException;
 }

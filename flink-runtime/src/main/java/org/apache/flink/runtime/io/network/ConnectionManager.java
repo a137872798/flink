@@ -23,6 +23,7 @@ import java.io.IOException;
 /**
  * The connection manager manages physical connections for the (logical) remote input channels at
  * runtime.
+ * 通过该对象管理所有远端连接
  */
 public interface ConnectionManager {
 
@@ -31,17 +32,30 @@ public interface ConnectionManager {
      *
      * @return a port to connect to the task executor for shuffle data exchange, -1 if only local
      *     connection is possible.
+     *     开始连接到服务器
      */
     int start() throws IOException;
 
-    /** Creates a {@link PartitionRequestClient} instance for the given {@link ConnectionID}. */
+    /** Creates a {@link PartitionRequestClient} instance for the given {@link ConnectionID}.
+     * 获取用于请求数据的client
+     * */
     PartitionRequestClient createPartitionRequestClient(ConnectionID connectionId)
             throws IOException, InterruptedException;
 
-    /** Closes opened ChannelConnections in case of a resource release. */
+    /** Closes opened ChannelConnections in case of a resource release.
+     * 关闭某个连接
+     * */
     void closeOpenChannelConnections(ConnectionID connectionId);
 
+    /**
+     * 返回当前活跃的连接总数
+     * @return
+     */
     int getNumberOfActiveConnections();
 
+    /**
+     * 关闭所有连接
+     * @throws IOException
+     */
     void shutdown() throws IOException;
 }

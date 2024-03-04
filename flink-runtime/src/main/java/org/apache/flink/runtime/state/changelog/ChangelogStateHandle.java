@@ -20,10 +20,14 @@ package org.apache.flink.runtime.state.changelog;
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.runtime.state.KeyedStateHandle;
 
-/** A handle to saved {@link StateChange state changes}. */
+/** A handle to saved {@link StateChange state changes}.
+ * 保存了状态的变化信息
+ * */
 @Internal
 public interface ChangelogStateHandle extends KeyedStateHandle {
 
-    /** Get the storage identifier related to a specific {@link StateChangelogStorage}. */
+    /** Get the storage identifier related to a specific {@link StateChangelogStorage}.
+     * 返回关联的changelog存储
+     * */
     String getStorageIdentifier();
 }

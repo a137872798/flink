@@ -26,9 +26,14 @@ import java.io.InputStream;
  * Wrapper around a FSDataInputStream to limit the maximum read offset.
  *
  * <p>Based on the implementation from org.apache.commons.io.input.BoundedInputStream
+ * 该输出流是被添加限制的
  */
 public class BoundedInputStream extends InputStream {
     private final FSDataInputStream delegate;
+
+    /**
+     * 表示限制值
+     */
     private long endOffsetExclusive;
     private long position;
     private long mark;
@@ -42,6 +47,7 @@ public class BoundedInputStream extends InputStream {
     }
 
     public int read() throws IOException {
+        // 超过限制 返回-1
         if (endOffsetExclusive >= 0L && position >= endOffsetExclusive) {
             return -1;
         } else {

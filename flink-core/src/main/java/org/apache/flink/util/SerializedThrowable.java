@@ -32,6 +32,7 @@ import java.util.Set;
  * <p>This exception mimics the original exception with respect to message and stack trace, and
  * contains the original exception in serialized form. The original exception can be re-obtained by
  * supplying the appropriate class loader.
+ * 表示可以被序列化的异常
  */
 public class SerializedThrowable extends Exception implements Serializable {
 

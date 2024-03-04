@@ -22,7 +22,9 @@ import org.apache.flink.runtime.state.metainfo.StateMetaInfoSnapshot;
 
 import javax.annotation.Nonnull;
 
-/** Base class for all registered state in state backends. */
+/** Base class for all registered state in state backends.
+ * 表示已经被注册到状态后端的状态
+ * */
 public abstract class RegisteredStateMetaInfoBase {
 
     /** The name of the state */
@@ -37,6 +39,10 @@ public abstract class RegisteredStateMetaInfoBase {
         return name;
     }
 
+    /**
+     * 快照的元数据对象
+     * @return
+     */
     @Nonnull
     public abstract StateMetaInfoSnapshot snapshot();
 
@@ -49,11 +55,17 @@ public abstract class RegisteredStateMetaInfoBase {
     @Nonnull
     public abstract RegisteredStateMetaInfoBase withSerializerUpgradesAllowed();
 
+    /**
+     * 通过快照的元数据对象 产生本对象
+     * @param snapshot
+     * @return
+     */
     public static RegisteredStateMetaInfoBase fromMetaInfoSnapshot(
             @Nonnull StateMetaInfoSnapshot snapshot) {
 
         final StateMetaInfoSnapshot.BackendStateType backendStateType =
                 snapshot.getBackendStateType();
+        // 根据后端类型产生不同对象
         switch (backendStateType) {
             case KEY_VALUE:
                 return new RegisteredKeyValueStateBackendMetaInfo<>(snapshot);

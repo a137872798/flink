@@ -45,12 +45,26 @@ import java.util.concurrent.CompletableFuture;
  *         forwards it to the:</li>
  *     <li>{@link JobMasterOperatorEventGateway} which is RPC interface from the TaskManager to the JobManager.</li>
  * </pre>
+ * 网关都是用来与对应的组件通信的恶
  */
 public interface JobMasterOperatorEventGateway {
 
+    /**
+     * 将某些事件发送给协调者
+     * @param task
+     * @param operatorID
+     * @param event
+     * @return
+     */
     CompletableFuture<Acknowledge> sendOperatorEventToCoordinator(
             ExecutionAttemptID task, OperatorID operatorID, SerializedValue<OperatorEvent> event);
 
+    /**
+     * 将CoordinationRequest 发送给协调者
+     * @param operatorID
+     * @param request
+     * @return
+     */
     CompletableFuture<CoordinationResponse> sendRequestToCoordinator(
             OperatorID operatorID, SerializedValue<CoordinationRequest> request);
 }

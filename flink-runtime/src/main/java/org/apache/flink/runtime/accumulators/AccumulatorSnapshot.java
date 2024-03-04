@@ -30,15 +30,23 @@ import java.util.Map;
 /**
  * This class encapsulates a map of accumulators for a single task. It is used for the transfer from
  * TaskManagers to the JobManager and from the JobManager to the Client.
+ *
+ * 基于聚合器信息注册器信息 生成的快照对象
  */
 public class AccumulatorSnapshot implements Serializable {
 
     private static final long serialVersionUID = 42L;
 
     private final JobID jobID;
+
+    /**
+     * 表示由哪个 execution产生的
+     */
     private final ExecutionAttemptID executionAttemptID;
 
-    /** Serialized user accumulators which may require the custom user class loader. */
+    /** Serialized user accumulators which may require the custom user class loader.
+     * 累加器对象已经被序列化
+     * */
     private final SerializedValue<Map<String, Accumulator<?, ?>>> userAccumulators;
 
     public AccumulatorSnapshot(

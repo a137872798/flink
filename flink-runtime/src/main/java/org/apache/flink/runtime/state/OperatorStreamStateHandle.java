@@ -28,14 +28,21 @@ import java.util.Optional;
 /**
  * State handle for partitionable operator state. Besides being a {@link StreamStateHandle}, this
  * also provides a map that contains the offsets to the partitions of named states in the stream.
+ *
+ * 描述某个算子的状态
  */
 public class OperatorStreamStateHandle implements OperatorStateHandle {
 
     private static final long serialVersionUID = 35876522969227335L;
 
-    /** unique state name -> offsets for available partitions in the handle stream */
+    /** unique state name -> offsets for available partitions in the handle stream
+     * 维护其中值的偏移量  辅助inputStream使用
+     * */
     private final Map<String, StateMetaInfo> stateNameToPartitionOffsets;
 
+    /**
+     * 这个对象本身是个代理对象 数据存储在delegateStateHandle中  本对象只是多维护了stateNameToPartitionOffsets
+     */
     private final StreamStateHandle delegateStateHandle;
 
     public OperatorStreamStateHandle(

@@ -40,9 +40,13 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-/** Default SlotTracker implementation. */
+/** Default SlotTracker implementation.
+ * slot追踪器的默认实现
+ * */
 public class DefaultSlotTracker implements SlotTracker {
     private static final Logger LOG = LoggerFactory.getLogger(DefaultSlotTracker.class);
+
+    // 这里维护的都是 声明式的slot
 
     /** Map for all registered slots. */
     private final Map<SlotID, DeclarativeTaskManagerSlot> slots = new HashMap<>();
@@ -50,9 +54,15 @@ public class DefaultSlotTracker implements SlotTracker {
     /** Index of all currently free slots. */
     private final Map<SlotID, DeclarativeTaskManagerSlot> freeSlots = new LinkedHashMap<>();
 
+    /**
+     * 维护多监听器
+     */
     private final MultiSlotStatusUpdateListener slotStatusUpdateListeners =
             new MultiSlotStatusUpdateListener();
 
+    /**
+     * 该对象用于slot状态转换
+     */
     private final SlotStatusStateReconciler slotStatusStateReconciler =
             new SlotStatusStateReconciler(
                     this::transitionSlotToFree,
@@ -65,6 +75,13 @@ public class DefaultSlotTracker implements SlotTracker {
         this.slotStatusUpdateListeners.registerSlotStatusUpdateListener(slotStatusUpdateListener);
     }
 
+    /**
+     *
+     * @param slotId ID of the slot
+     * @param resourceProfile resource of the slot
+     * @param taskManagerConnection connection to the hosting task executor
+     * @param assignedJob
+     */
     @Override
     public void addSlot(
             SlotID slotId,
@@ -75,6 +92,7 @@ public class DefaultSlotTracker implements SlotTracker {
         Preconditions.checkNotNull(resourceProfile);
         Preconditions.checkNotNull(taskManagerConnection);
 
+        // 表示信息得到了更新
         if (slots.containsKey(slotId)) {
             // remove the old slot first
             LOG.debug(
@@ -83,10 +101,13 @@ public class DefaultSlotTracker implements SlotTracker {
             removeSlot(slotId);
         }
 
+        // 包装信息 产生slot
         DeclarativeTaskManagerSlot slot =
                 new DeclarativeTaskManagerSlot(slotId, resourceProfile, taskManagerConnection);
         slots.put(slotId, slot);
+        // 默认处于空闲状态
         freeSlots.put(slotId, slot);
+        // 如果指定了 assignedJob 就会进行slot的状态转换
         slotStatusStateReconciler.executeStateTransition(slot, assignedJob);
     }
 
@@ -99,13 +120,19 @@ public class DefaultSlotTracker implements SlotTracker {
         }
     }
 
+    /**
+     * 移除某个slot
+     * @param slotId
+     */
     private void removeSlot(SlotID slotId) {
         DeclarativeTaskManagerSlot slot = slots.remove(slotId);
 
         if (slot != null) {
             if (slot.getState() != SlotState.FREE) {
+                // 要先转换成空闲状态
                 transitionSlotToFree(slot);
             }
+            // 从空闲容器移除
             freeSlots.remove(slotId);
         } else {
             LOG.debug("There was no slot registered with slot id {}.", slotId);
@@ -116,6 +143,8 @@ public class DefaultSlotTracker implements SlotTracker {
     // ResourceManager slot status API - optimistically trigger transitions, but they may not
     // represent true state on task executors
     // ---------------------------------------------------------------------------------------------
+
+    // 作为追踪器 就是跟踪slot的最新状态
 
     @Override
     public void notifyFree(SlotID slotId) {
@@ -141,6 +170,11 @@ public class DefaultSlotTracker implements SlotTracker {
     // TaskExecutor slot status API - acts as source of truth
     // ---------------------------------------------------------------------------------------------
 
+    /**
+     * slot状态切换 同步给tracker
+     * @param slotStatuses slot statues
+     * @return
+     */
     @Override
     public boolean notifySlotStatus(Iterable<SlotStatus> slotStatuses) {
         Preconditions.checkNotNull(slotStatuses);
@@ -157,6 +191,10 @@ public class DefaultSlotTracker implements SlotTracker {
     // Core state transitions
     // ---------------------------------------------------------------------------------------------
 
+    /**
+     * 表示某个slot变成free状态
+     * @param slot
+     */
     private void transitionSlotToFree(DeclarativeTaskManagerSlot slot) {
         Preconditions.checkNotNull(slot);
         Preconditions.checkState(slot.getState() != SlotState.FREE);
@@ -168,15 +206,22 @@ public class DefaultSlotTracker implements SlotTracker {
         final SlotState state = slot.getState();
 
         slot.freeSlot();
+        // 添加到空闲容器
         freeSlots.put(slot.getSlotId(), slot);
         slotStatusUpdateListeners.notifySlotStatusChange(slot, state, SlotState.FREE, jobId);
     }
 
+    /**
+     * 转换成pending状态
+     * @param slot
+     * @param jobId
+     */
     private void transitionSlotToPending(DeclarativeTaskManagerSlot slot, JobID jobId) {
         Preconditions.checkNotNull(slot);
         Preconditions.checkState(slot.getState() == SlotState.FREE);
 
         slot.startAllocation(jobId);
+        // 从相关容器移除
         freeSlots.remove(slot.getSlotId());
         slotStatusUpdateListeners.notifySlotStatusChange(
                 slot, SlotState.FREE, SlotState.PENDING, jobId);
@@ -211,6 +256,11 @@ public class DefaultSlotTracker implements SlotTracker {
         return Collections.unmodifiableCollection(freeSlots.values());
     }
 
+    /**
+     * 获取分配给该job的slot相关的连接
+     * @param jobId the job for which the task executors must have a slot
+     * @return
+     */
     @Override
     public Collection<TaskExecutorConnection> getTaskExecutorsWithAllocatedSlotsForJob(
             JobID jobId) {
@@ -246,9 +296,12 @@ public class DefaultSlotTracker implements SlotTracker {
      * free, but tracked as being pending. This mismatch is assumed to be due to a slot allocation
      * RPC not yet having been process by the task executor. This mismatch is hence ignored; it will
      * be resolved eventually with the allocation either being completed or timing out.
+     * slot状态调节器
      */
     @VisibleForTesting
     static class SlotStatusStateReconciler {
+
+        // 维护的都是声明式slot相关的
         private final Consumer<DeclarativeTaskManagerSlot> toFreeSlot;
         private final BiConsumer<DeclarativeTaskManagerSlot, JobID> toPendingSlot;
         private final BiConsumer<DeclarativeTaskManagerSlot, JobID> toAllocatedSlot;
@@ -263,9 +316,18 @@ public class DefaultSlotTracker implements SlotTracker {
             this.toAllocatedSlot = toAllocatedSlot;
         }
 
+        /**
+         * 进行状态转换
+         * @param slot
+         * @param jobId
+         * @return
+         */
         public boolean executeStateTransition(DeclarativeTaskManagerSlot slot, JobID jobId) {
+            // 当还没有确定jobId时  就暗示该slot还未分配
             final SlotState reportedSlotState =
                     jobId == null ? SlotState.FREE : SlotState.ALLOCATED;
+
+            // 这是当前状态
             final SlotState trackedSlotState = slot.getState();
 
             if (reportedSlotState == SlotState.FREE) {
@@ -281,19 +343,24 @@ public class DefaultSlotTracker implements SlotTracker {
                         return true;
                 }
             } else {
+                // 此时 reportedSlotState 处于 ALLOCATED
                 switch (trackedSlotState) {
                     case FREE:
+                        // 如果之前还是free 就要经过2次转换
                         toPendingSlot.accept(slot, jobId);
                         toAllocatedSlot.accept(slot, jobId);
                         return true;
                     case PENDING:
+                        // 如果jobId不匹配  先释放再重新设置jobId
                         if (!jobId.equals(slot.getJobId())) {
                             toFreeSlot.accept(slot);
                             toPendingSlot.accept(slot, jobId);
                         }
+                        // 再转变成已分配
                         toAllocatedSlot.accept(slot, jobId);
                         return true;
                     case ALLOCATED:
+                        // 相当于更换job
                         if (!jobId.equals(slot.getJobId())) {
                             toFreeSlot.accept(slot);
                             toPendingSlot.accept(slot, jobId);
@@ -309,6 +376,9 @@ public class DefaultSlotTracker implements SlotTracker {
         }
     }
 
+    /**
+     * 该对象维护一组监听器
+     */
     private static class MultiSlotStatusUpdateListener implements SlotStatusUpdateListener {
 
         private final Collection<SlotStatusUpdateListener> listeners = new ArrayList<>();

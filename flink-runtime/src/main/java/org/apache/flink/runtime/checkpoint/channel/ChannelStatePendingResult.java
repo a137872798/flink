@@ -43,23 +43,39 @@ import static java.util.UUID.randomUUID;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** The pending result of channel state for a specific checkpoint-subtask. */
+/** The pending result of channel state for a specific checkpoint-subtask.
+ * 对应一个subtask的结果
+ * */
 public class ChannelStatePendingResult {
 
     private static final Logger LOG = LoggerFactory.getLogger(ChannelStatePendingResult.class);
 
-    // Subtask information
+    // Subtask information  子任务下标
     private final int subtaskIndex;
 
+    /**
+     * 本次对应的检查点
+     */
     private final long checkpointId;
 
     // Result related
+    /**
+     * 使用该对象序列化state
+     */
     private final ChannelStateSerializer serializer;
+
+    /**
+     * 表示写入的结果
+     */
     private final ChannelStateWriter.ChannelStateWriteResult result;
+
+    // 针对input/output 记录写入数据的offset/size
     private final Map<InputChannelInfo, AbstractChannelStateHandle.StateContentMetaInfo>
             inputChannelOffsets = new HashMap<>();
     private final Map<ResultSubpartitionInfo, AbstractChannelStateHandle.StateContentMetaInfo>
             resultSubpartitionOffsets = new HashMap<>();
+
+    // 标识所有输入/输出 都已经写完
     private boolean allInputsReceived = false;
     private boolean allOutputsReceived = false;
 
@@ -102,6 +118,11 @@ public class ChannelStatePendingResult {
         allOutputsReceived = true;
     }
 
+    /**
+     * 当检查点完成时触发
+     * @param stateHandle  此前通过ChannelStateCheckpointWriter 写入数据时  所有子分区是混在一起的 现在需要通过offset信息 将子分区数据分离开
+     * @throws IOException
+     */
     public void finishResult(@Nullable StreamStateHandle stateHandle) throws IOException {
         checkState(
                 stateHandle != null
@@ -119,6 +140,16 @@ public class ChannelStatePendingResult {
                 HandleFactory.RESULT_SUBPARTITION);
     }
 
+    /**
+     *
+     * @param underlying  包含所有检查点数据
+     * @param future
+     * @param offsets
+     * @param handleFactory
+     * @param <I>
+     * @param <H>
+     * @throws IOException
+     */
     private <I, H extends AbstractChannelStateHandle<I>> void complete(
             StreamStateHandle underlying,
             CompletableFuture<Collection<H>> future,
@@ -136,6 +167,17 @@ public class ChannelStatePendingResult {
                 handles);
     }
 
+    /**
+     * 将维护某个input/output信息的对象 包装成handle
+     * @param handleFactory
+     * @param underlying  检查点句柄
+     * @param channelInfo  input/output
+     * @param contentMetaInfo  记录数据的offset/size
+     * @param <I>
+     * @param <H>
+     * @return
+     * @throws IOException
+     */
     private <I, H extends AbstractChannelStateHandle<I>> H createHandle(
             HandleFactory<I, H> handleFactory,
             StreamStateHandle underlying,
@@ -147,17 +189,21 @@ public class ChannelStatePendingResult {
         // removing this method:
         // https://issues.apache.org/jira/browse/FLINK-17972
         if (bytes.isPresent()) {
+            // 把该子分区的数据抽取出来
             StreamStateHandle extracted =
                     new ByteStreamStateHandle(
                             randomUUID().toString(),
                             serializer.extractAndMerge(bytes.get(), contentMetaInfo.getOffsets()));
+
+            // 基于抽取后的handle 生成AbstractChannelStateHandle
             return handleFactory.create(
                     subtaskIndex,
                     channelInfo,
                     extracted,
-                    singletonList(serializer.getHeaderLength()),
+                    singletonList(serializer.getHeaderLength()),  // 表示从header后的所有数据都是state
                     extracted.getStateSize());
         } else {
+            // 表示使用文件存储的 没法优化 基本是使用原参数生成AbstractChannelStateHandle对象
             return handleFactory.create(
                     subtaskIndex,
                     channelInfo,
@@ -167,6 +213,10 @@ public class ChannelStatePendingResult {
         }
     }
 
+    /**
+     * 处理失败了
+     * @param e
+     */
     public void fail(Throwable e) {
         result.fail(e);
     }

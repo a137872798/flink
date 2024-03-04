@@ -29,6 +29,7 @@ import java.util.function.Function;
 
 /**
  * This class is responsible for managing all {@link BlockedNode}s and performing them on resources.
+ * 处理阻塞相关的逻辑
  */
 public interface BlocklistHandler {
 
@@ -37,6 +38,8 @@ public interface BlocklistHandler {
      * added one will be merged with the existing one.
      *
      * @param newNodes the new blocked node records
+     *
+     *                 追加一些被阻塞的节点
      */
     void addNewBlockedNodes(Collection<BlockedNode> newNodes);
 
@@ -45,6 +48,8 @@ public interface BlocklistHandler {
      *
      * @param taskManagerId ID of the task manager to query
      * @return true if the given task manager is blocked, otherwise false
+     *
+     * 判断taskManager是否阻塞
      */
     boolean isBlockedTaskManager(ResourceID taskManagerId);
 
@@ -52,6 +57,8 @@ public interface BlocklistHandler {
      * Get all blocked node ids.
      *
      * @return a set containing all blocked node ids
+     *
+     * 获取当前所有阻塞的节点
      */
     Set<String> getAllBlockedNodeIds();
 
@@ -59,6 +66,9 @@ public interface BlocklistHandler {
      * Register a new blocklist listener.
      *
      * @param blocklistListener the newly registered listener
+     *
+     *                          注册一个阻塞列表监听器
+     *                          当有新的节点被阻塞时  触发钩子
      */
     void registerBlocklistListener(BlocklistListener blocklistListener);
 

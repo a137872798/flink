@@ -30,6 +30,8 @@ import org.apache.flink.runtime.state.internal.InternalValueState;
  * @param <K> The type of the key.
  * @param <N> The type of the namespace.
  * @param <V> The type of the value.
+ *
+ *           表示值类型的state
  */
 class HeapValueState<K, N, V> extends AbstractHeapState<K, N, V>
         implements InternalValueState<K, N, V> {
@@ -41,7 +43,7 @@ class HeapValueState<K, N, V> extends AbstractHeapState<K, N, V>
      * @param keySerializer The serializer for the keys.
      * @param valueSerializer The serializer for the state.
      * @param namespaceSerializer The serializer for the namespace.
-     * @param defaultValue The default value for the state.
+     * @param defaultValue The default value for the state.  作为默认值
      */
     private HeapValueState(
             StateTable<K, N, V> stateTable,
@@ -69,6 +71,7 @@ class HeapValueState<K, N, V> extends AbstractHeapState<K, N, V>
 
     @Override
     public V value() {
+        // 表示在 StateTable->StateMap中 最后通过key检索到的是一个数值
         final V result = stateTable.get(currentNamespace);
 
         if (result == null) {
@@ -81,6 +84,7 @@ class HeapValueState<K, N, V> extends AbstractHeapState<K, N, V>
     @Override
     public void update(V value) {
 
+        // 基于context获取key和ns
         if (value == null) {
             clear();
             return;

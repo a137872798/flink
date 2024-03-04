@@ -24,9 +24,11 @@ import org.apache.flink.runtime.topology.Topology;
 
 import java.util.List;
 
-/** Topology of {@link SchedulingExecutionVertex}. */
+/** Topology of {@link SchedulingExecutionVertex}.
+ * 表示调度过程使用的拓扑图
+ * */
 public interface SchedulingTopology
-        extends Topology<
+        extends Topology<  // 拓扑中出现了流水线 流水线是由一组顶点组成的
                 ExecutionVertexID,
                 IntermediateResultPartitionID,
                 SchedulingExecutionVertex,
@@ -39,6 +41,7 @@ public interface SchedulingTopology
      * @param executionVertexId identifying the respective scheduling vertex
      * @return The respective scheduling vertex
      * @throws IllegalArgumentException If the vertex does not exist
+     * 通过id查询顶点对象
      */
     SchedulingExecutionVertex getVertex(ExecutionVertexID executionVertexId);
 
@@ -49,6 +52,8 @@ public interface SchedulingTopology
      * @param intermediateResultPartitionId identifying the respective scheduling result partition
      * @return The respective scheduling result partition
      * @throws IllegalArgumentException If the partition does not exist
+     *
+     * IntermediateResultPartitionID 对应的是产生的某个中间数据集  并且是指向某个分区的
      */
     SchedulingResultPartition getResultPartition(
             IntermediateResultPartitionID intermediateResultPartitionId);
@@ -59,6 +64,7 @@ public interface SchedulingTopology
      * the scheduling topology is updated.
      *
      * @param listener the registered listener.
+     *                 注册监听器  监听拓扑图的变化
      */
     void registerSchedulingTopologyListener(SchedulingTopologyListener listener);
 }

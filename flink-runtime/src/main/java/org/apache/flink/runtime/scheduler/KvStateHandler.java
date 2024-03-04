@@ -33,21 +33,35 @@ import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
 
-/** Handler for common queryable state logic. */
+/** Handler for common queryable state logic.
+ * 通过该对象可以操控 KvState
+ * */
 public class KvStateHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(KvStateHandler.class);
 
+    /**
+     * 执行图
+     */
     private final ExecutionGraph executionGraph;
 
     public KvStateHandler(ExecutionGraph executionGraph) {
         this.executionGraph = executionGraph;
     }
 
+    /**
+     * 查询某个KvState的位置
+     * @param jobId
+     * @param registrationName
+     * @return
+     * @throws UnknownKvStateLocation
+     * @throws FlinkJobNotFoundException
+     */
     public KvStateLocation requestKvStateLocation(final JobID jobId, final String registrationName)
             throws UnknownKvStateLocation, FlinkJobNotFoundException {
 
         // sanity check for the correct JobID
+        // 执行图只对应一个job
         if (executionGraph.getJobID().equals(jobId)) {
             if (LOG.isDebugEnabled()) {
                 LOG.debug(
@@ -56,7 +70,9 @@ public class KvStateHandler {
                         registrationName);
             }
 
+            // 找到存储key位置的注册器
             final KvStateLocationRegistry registry = executionGraph.getKvStateLocationRegistry();
+            // 通过名字查询位置
             final KvStateLocation location = registry.getKvStateLocation(registrationName);
             if (location != null) {
                 return location;
@@ -72,6 +88,16 @@ public class KvStateHandler {
         }
     }
 
+    /**
+     * 当有新的KvState注册时触发
+     * @param jobId
+     * @param jobVertexId
+     * @param keyGroupRange
+     * @param registrationName
+     * @param kvStateId
+     * @param kvStateServerAddress
+     * @throws FlinkJobNotFoundException
+     */
     public void notifyKvStateRegistered(
             final JobID jobId,
             final JobVertexID jobVertexId,
@@ -90,6 +116,7 @@ public class KvStateHandler {
             }
 
             try {
+                // 转发完成注册
                 executionGraph
                         .getKvStateLocationRegistry()
                         .notifyKvStateRegistered(
@@ -122,6 +149,7 @@ public class KvStateHandler {
             }
 
             try {
+                // 转发完成注销
                 executionGraph
                         .getKvStateLocationRegistry()
                         .notifyKvStateUnregistered(jobVertexId, keyGroupRange, registrationName);

@@ -42,7 +42,9 @@ import java.util.Map;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** The base class for job vertexes. */
+/** The base class for job vertexes.
+ * 表示一个job的顶点
+ * */
 public class JobVertex implements java.io.Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -55,7 +57,9 @@ public class JobVertex implements java.io.Serializable {
     // Members that define the structure / topology of the graph
     // --------------------------------------------------------------------------------------------
 
-    /** The ID of the vertex. */
+    /** The ID of the vertex.
+     * 顶点相关的id
+     * */
     private final JobVertexID id;
 
     /**
@@ -71,29 +75,45 @@ public class JobVertex implements java.io.Serializable {
      * </pre>
      *
      * <p>This is the same order that operators are stored in the {@code StreamTask}.
+     *
+     * 深度优先的顺序
      */
     private final List<OperatorIDPair> operatorIDs;
 
-    /** Produced data sets, one per writer. */
+    /** Produced data sets, one per writer.
+     * 表示由本对象产生的待消费的中间结果集
+     * */
     private final Map<IntermediateDataSetID, IntermediateDataSet> results = new LinkedHashMap<>();
 
-    /** List of edges with incoming data. One per Reader. */
+    /** List of edges with incoming data. One per Reader.
+     * input代表以本顶点为target的边
+     * */
     private final List<JobEdge> inputs = new ArrayList<>();
 
-    /** The list of factories for operator coordinators. */
+    /** The list of factories for operator coordinators.
+     * 每个provider 都可以创建一个协调对象
+     * */
     private final List<SerializedValue<OperatorCoordinator.Provider>> operatorCoordinators =
             new ArrayList<>();
 
-    /** Number of subtasks to split this task into at runtime. */
+    /** Number of subtasks to split this task into at runtime.
+     * 当前并行度
+     * */
     private int parallelism = ExecutionConfig.PARALLELISM_DEFAULT;
 
-    /** Maximum number of subtasks to split this task into a runtime. */
+    /** Maximum number of subtasks to split this task into a runtime.
+     * 允许的最大并行度
+     * */
     private int maxParallelism = MAX_PARALLELISM_DEFAULT;
 
-    /** The minimum resource of the vertex. */
+    /** The minimum resource of the vertex.
+     * 描述最小的资源开销
+     * */
     private ResourceSpec minResources = ResourceSpec.DEFAULT;
 
-    /** The preferred resource of the vertex. */
+    /** The preferred resource of the vertex.
+     * 最合适的资源开销
+     * */
     private ResourceSpec preferredResources = ResourceSpec.DEFAULT;
 
     /** Custom configuration passed to the assigned task at runtime. */
@@ -102,10 +122,14 @@ public class JobVertex implements java.io.Serializable {
     /** The class of the invokable. */
     private String invokableClassName;
 
-    /** Indicates of this job vertex is stoppable or not. */
+    /** Indicates of this job vertex is stoppable or not.
+     * 表示当前job是否是可终止的
+     * */
     private boolean isStoppable = false;
 
-    /** Optionally, a source of input splits. */
+    /** Optionally, a source of input splits.
+     * 通过该对象可以产生已经被拆分过的数据源
+     * */
     private InputSplitSource<?> inputSplitSource;
 
     /**
@@ -117,15 +141,19 @@ public class JobVertex implements java.io.Serializable {
     /**
      * Optionally, a sharing group that allows subtasks from different job vertices to run
      * concurrently in one slot.
+     * 表示该顶点所属的共享组    多个顶点会属于同一个组 并共享某些资源
      */
     @Nullable private SlotSharingGroup slotSharingGroup;
 
-    /** The group inside which the vertex subtasks share slots. */
+    /** The group inside which the vertex subtasks share slots.
+     * 多个顶点归属于一个组
+     * */
     @Nullable private CoLocationGroupImpl coLocationGroup;
 
     /**
      * Optional, the name of the operator, such as 'Flat Map' or 'Join', to be included in the JSON
      * plan.
+     * 表示该顶点对应的操作   也可以叫算子
      */
     private String operatorName;
 
@@ -146,12 +174,14 @@ public class JobVertex implements java.io.Serializable {
 
     /**
      * The intermediateDataSetId of the cached intermediate dataset that the job vertex consumes.
+     * 准备被消耗的中间结果集
      */
     private final List<IntermediateDataSetID> intermediateDataSetIdsToConsume = new ArrayList<>();
 
     /**
      * Indicates whether this job vertex supports multiple attempts of the same subtask executing at
      * the same time.
+     * 支持并发执行
      */
     private boolean supportsConcurrentExecutionAttempts = true;
 
@@ -177,6 +207,8 @@ public class JobVertex implements java.io.Serializable {
     public JobVertex(String name, JobVertexID id) {
         this.name = name == null ? DEFAULT_NAME : name;
         this.id = id == null ? new JobVertexID() : id;
+
+        // 默认情况下 顶点id就是operatorid  并且pair的第二个元素为null
         OperatorIDPair operatorIDPair =
                 OperatorIDPair.generatedIDOnly(OperatorID.fromJobVertexID(this.id));
         this.operatorIDs = Collections.singletonList(operatorIDPair);
@@ -187,7 +219,7 @@ public class JobVertex implements java.io.Serializable {
      *
      * @param name The name of the new job vertex.
      * @param primaryId The id of the job vertex.
-     * @param operatorIDPairs The operator ID pairs of the job vertex.
+     * @param operatorIDPairs The operator ID pairs of the job vertex.  支持使用一组id进行初始化
      */
     public JobVertex(String name, JobVertexID primaryId, List<OperatorIDPair> operatorIDPairs) {
         this.name = name == null ? DEFAULT_NAME : name;
@@ -228,6 +260,7 @@ public class JobVertex implements java.io.Serializable {
      * Returns the number of produced intermediate data sets.
      *
      * @return The number of produced intermediate data sets.
+     * 返回该顶点产生的中间结果集数量
      */
     public int getNumberOfProducedIntermediateDataSets() {
         return this.results.size();
@@ -237,11 +270,16 @@ public class JobVertex implements java.io.Serializable {
      * Returns the number of inputs.
      *
      * @return The number of inputs.
+     * 获取inputs数量
      */
     public int getNumberOfInputs() {
         return this.inputs.size();
     }
 
+    /**
+     * 返回该顶点关联的所有operatorId
+     * @return
+     */
     public List<OperatorIDPair> getOperatorIDs() {
         return operatorIDs;
     }
@@ -259,6 +297,10 @@ public class JobVertex implements java.io.Serializable {
         return this.configuration;
     }
 
+    /**
+     * 设置用于调用该顶点对应任务的invoker对象
+     * @param invokable
+     */
     public void setInvokableClass(Class<? extends TaskInvokable> invokable) {
         Preconditions.checkNotNull(invokable);
         this.invokableClassName = invokable.getName();
@@ -398,6 +440,10 @@ public class JobVertex implements java.io.Serializable {
         return Collections.unmodifiableList(operatorCoordinators);
     }
 
+    /**
+     * 添加一个协调者提供者对象
+     * @param serializedCoordinatorProvider
+     */
     public void addOperatorCoordinator(
             SerializedValue<OperatorCoordinator.Provider> serializedCoordinatorProvider) {
         operatorCoordinators.add(serializedCoordinatorProvider);
@@ -408,6 +454,7 @@ public class JobVertex implements java.io.Serializable {
      * same slot sharing group can run one subtask each in the same slot.
      *
      * @param grp The slot sharing group to associate the vertex with.
+     *            指定该顶点所属的共享组
      */
     public void setSlotSharingGroup(SlotSharingGroup grp) {
         checkNotNull(grp);
@@ -453,8 +500,11 @@ public class JobVertex implements java.io.Serializable {
      * @throws IllegalArgumentException Thrown, if this vertex and the vertex to co-locate with are
      *     not in a common slot sharing group.
      * @see #setSlotSharingGroup(SlotSharingGroup)
+     * 使得本对象于另一个顶点归属于同一个位置组
      */
     public void setStrictlyCoLocatedWith(JobVertex strictlyCoLocatedWith) {
+
+        // 要求他们的slotSharingGroup一致
         if (this.slotSharingGroup == null
                 || this.slotSharingGroup != strictlyCoLocatedWith.slotSharingGroup) {
             throw new IllegalArgumentException(
@@ -466,6 +516,7 @@ public class JobVertex implements java.io.Serializable {
 
         if (otherGroup == null) {
             if (thisGroup == null) {
+                // 新建一个组
                 CoLocationGroupImpl group = new CoLocationGroupImpl(this, strictlyCoLocatedWith);
                 this.coLocationGroup = group;
                 strictlyCoLocatedWith.coLocationGroup = group;
@@ -479,6 +530,7 @@ public class JobVertex implements java.io.Serializable {
                 this.coLocationGroup = otherGroup;
             } else {
                 // both had yet distinct groups, we need to merge them
+                // 当2个组都存在时  将他们合并成一个组
                 thisGroup.mergeInto(otherGroup);
             }
         }
@@ -494,6 +546,13 @@ public class JobVertex implements java.io.Serializable {
     }
 
     // --------------------------------------------------------------------------------------------
+
+    /**
+     * 添加一个新的中间结果集
+     * @param id
+     * @param partitionType
+     * @return
+     */
     public IntermediateDataSet getOrCreateResultDataSet(
             IntermediateDataSetID id, ResultPartitionType partitionType) {
         return this.results.computeIfAbsent(
@@ -514,6 +573,15 @@ public class JobVertex implements java.io.Serializable {
                 input, distPattern, partitionType, new IntermediateDataSetID(), isBroadcast);
     }
 
+    /**
+     * 将2个顶点连接起来 形成一个edge
+     * @param input
+     * @param distPattern
+     * @param partitionType
+     * @param intermediateDataSetId
+     * @param isBroadcast
+     * @return
+     */
     public JobEdge connectNewDataSetAsInput(
             JobVertex input,
             DistributionPattern distPattern,
@@ -521,6 +589,7 @@ public class JobVertex implements java.io.Serializable {
             IntermediateDataSetID intermediateDataSetId,
             boolean isBroadcast) {
 
+        // 获取上游对应的结果集
         IntermediateDataSet dataSet =
                 input.getOrCreateResultDataSet(intermediateDataSetId, partitionType);
 

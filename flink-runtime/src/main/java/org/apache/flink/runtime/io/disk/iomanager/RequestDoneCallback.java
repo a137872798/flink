@@ -25,6 +25,7 @@ import java.io.IOException;
  *
  * <p>Depending on success or failure, either {@link #requestSuccessful(Object)} or {@link
  * #requestSuccessful(Object)} is called.
+ * 处理请求结果的回调对象
  */
 public interface RequestDoneCallback<T> {
 

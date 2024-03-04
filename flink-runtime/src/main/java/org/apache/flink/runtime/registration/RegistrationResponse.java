@@ -22,7 +22,9 @@ import org.apache.flink.util.SerializedThrowable;
 
 import java.io.Serializable;
 
-/** Base class for responses given to registration attempts from {@link RetryingRegistration}. */
+/** Base class for responses given to registration attempts from {@link RetryingRegistration}.
+ * 表示把自身注册到其他rpc服务时的结果
+ * */
 public abstract class RegistrationResponse implements Serializable {
 
     private static final long serialVersionUID = 1L;

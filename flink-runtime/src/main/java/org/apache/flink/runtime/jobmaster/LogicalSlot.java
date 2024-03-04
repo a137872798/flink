@@ -29,6 +29,7 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * A logical slot represents a resource on a TaskManager into which a single task can be deployed.
+ * 表示逻辑层面的slot
  */
 public interface LogicalSlot {
 

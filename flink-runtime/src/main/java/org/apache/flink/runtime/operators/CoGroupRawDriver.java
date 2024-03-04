@@ -90,6 +90,7 @@ public class CoGroupRawDriver<IT1, IT2, OT> implements Driver<CoGroupFunction<IT
         final SimpleIterable<IT1> i1 = this.coGroupIterator1;
         final SimpleIterable<IT2> i2 = this.coGroupIterator2;
 
+        // 直接将2个数据合并  而不用先匹配keys
         coGroupStub.coGroup(i1, i2, collector);
     }
 
@@ -101,6 +102,10 @@ public class CoGroupRawDriver<IT1, IT2, OT> implements Driver<CoGroupFunction<IT
         cleanup();
     }
 
+    /**
+     * 就是将 MutableObjectIterator 包装成迭代器
+     * @param <IN>
+     */
     public static class SimpleIterable<IN> implements Iterable<IN> {
         private IN reuse;
         private final MutableObjectIterator<IN> iterator;

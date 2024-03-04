@@ -31,16 +31,22 @@ import org.apache.flink.util.MathUtils;
  * functions, etc.
  *
  * @param <T> The type of the element handled by the emitter.
+ *           在发送数据前 根据不同的策略选择不同的channel
  */
 public class OutputEmitter<T> implements ChannelSelector<SerializationDelegate<T>> {
 
-    /** the shipping strategy used by this output emitter */
+    /** the shipping strategy used by this output emitter
+     * 搬运策略
+     * */
     private final ShipStrategyType strategy;
 
-    /** counter to go over channels round robin */
+    /** counter to go over channels round robin
+     * 当使用 round robin时 推测会使用的channel */
     private int nextChannelToSendTo;
 
-    /** the total number of output channels */
+    /** the total number of output channels
+     * 总计有多少条输出通道
+     * */
     private int numberOfChannels;
 
     /** the comparator for hashing / sorting */
@@ -56,6 +62,9 @@ public class OutputEmitter<T> implements ChannelSelector<SerializationDelegate<T
 
     private TypeComparator[] flatComparators;
 
+    /**
+     * 参与分区计算的几个字段
+     */
     private Object[] keys;
 
     private Object[] extractedKeys;
@@ -93,6 +102,8 @@ public class OutputEmitter<T> implements ChannelSelector<SerializationDelegate<T
             TypeComparator<T> comparator,
             Partitioner<?> partitioner,
             DataDistribution distribution) {
+
+        // 策略不能为空
         if (strategy == null) {
             throw new NullPointerException();
         }
@@ -114,6 +125,7 @@ public class OutputEmitter<T> implements ChannelSelector<SerializationDelegate<T
             case PARTITION_RANGE:
                 if (comparator != null) {
                     this.flatComparators = comparator.getFlatComparators();
+                    // 参与比较的几个字段都变成了key
                     this.keys = new Object[flatComparators.length];
                 }
                 break;
@@ -124,6 +136,7 @@ public class OutputEmitter<T> implements ChannelSelector<SerializationDelegate<T
                         "Invalid shipping strategy for OutputEmitter: " + strategy.name());
         }
 
+        // 当采用自定义分区器时   partitioner不能为空
         if (strategy == ShipStrategyType.PARTITION_CUSTOM && partitioner == null) {
             throw new NullPointerException(
                     "Partitioner must not be null when the ship strategy is set to custom partitioning.");
@@ -134,6 +147,12 @@ public class OutputEmitter<T> implements ChannelSelector<SerializationDelegate<T
     // Channel Selection
     // ------------------------------------------------------------------------
 
+    /**
+     * 设置总通道数
+     * @param numberOfChannels the total number of output channels which are attached to respective
+     *     output gate.
+     *
+     */
     @Override
     public void setup(int numberOfChannels) {
         this.numberOfChannels = numberOfChannels;
@@ -143,13 +162,17 @@ public class OutputEmitter<T> implements ChannelSelector<SerializationDelegate<T
     public final int selectChannel(SerializationDelegate<T> record) {
         switch (strategy) {
             case FORWARD:
+                // 总是返回第一个channel
                 return forward();
             case PARTITION_RANDOM:
             case PARTITION_FORCED_REBALANCE:
+                // 采用轮询策略
                 return robin(numberOfChannels);
             case PARTITION_HASH:
+                // 计算record hash值后 进行选择
                 return hashPartitionDefault(record.getInstance(), numberOfChannels);
             case PARTITION_CUSTOM:
+                // 使用自定义分区器 判断目标分区
                 return customPartition(record.getInstance(), numberOfChannels);
             case PARTITION_RANGE:
                 return rangePartition(record.getInstance(), numberOfChannels);
@@ -159,6 +182,10 @@ public class OutputEmitter<T> implements ChannelSelector<SerializationDelegate<T
         }
     }
 
+    /**
+     * 判断是否是 广播类型
+     * @return
+     */
     @Override
     public boolean isBroadcast() {
         if (strategy == ShipStrategyType.BROADCAST) {
@@ -174,6 +201,11 @@ public class OutputEmitter<T> implements ChannelSelector<SerializationDelegate<T
         return 0;
     }
 
+    /**
+     * 采用轮询策略
+     * @param numberOfChannels
+     * @return
+     */
     private int robin(int numberOfChannels) {
         int nextChannel = nextChannelToSendTo;
         if (nextChannel >= numberOfChannels) {
@@ -188,16 +220,29 @@ public class OutputEmitter<T> implements ChannelSelector<SerializationDelegate<T
         return nextChannel;
     }
 
+    /**
+     * 计算hash值  根据hash值来选择
+     * @param record
+     * @param numberOfChannels
+     * @return
+     */
     private int hashPartitionDefault(T record, int numberOfChannels) {
         int hash = this.comparator.hash(record);
 
         return MathUtils.murmurHash(hash) % numberOfChannels;
     }
 
+    /**
+     * 在一定范围内 对应一个channel
+     * @param record
+     * @param numberOfChannels
+     * @return
+     */
     private int rangePartition(final T record, int numberOfChannels) {
         if (this.partitionBoundaries == null) {
             this.partitionBoundaries = new Object[numberOfChannels - 1][];
             for (int i = 0; i < numberOfChannels - 1; i++) {
+                // 表示每个channel的范围
                 this.partitionBoundaries[i] =
                         this.distribution.getBucketBoundary(i, numberOfChannels);
             }
@@ -212,6 +257,7 @@ public class OutputEmitter<T> implements ChannelSelector<SerializationDelegate<T
 
             while (low <= high) {
                 final int mid = (low + high) >>> 1;
+                // 二分查找
                 final int result = compareRecordAndBoundary(record, boundaries[mid]);
 
                 if (result > 0) {
@@ -231,14 +277,22 @@ public class OutputEmitter<T> implements ChannelSelector<SerializationDelegate<T
         }
     }
 
+    /**
+     * 使用自定义分区对象
+     * @param record
+     * @param numberOfChannels
+     * @return
+     */
     private int customPartition(T record, int numberOfChannels) {
         if (extractedKeys == null) {
             extractedKeys = new Object[1];
         }
 
         try {
+            // 只抽取第一个关键字
             if (comparator.extractKeys(record, extractedKeys, 0) == 1) {
                 final Object key = extractedKeys[0];
+                // 通过分区器来判断
                 return partitioner.partition(key, numberOfChannels);
             } else {
                 throw new RuntimeException(
@@ -249,7 +303,14 @@ public class OutputEmitter<T> implements ChannelSelector<SerializationDelegate<T
         }
     }
 
+    /**
+     *
+     * @param record
+     * @param boundary  该数组中所有元素构成了一条分界线  根据与该分界线的关系 通过二分查找确定channel
+     * @return
+     */
     private final int compareRecordAndBoundary(T record, Object[] boundary) {
+        // 从0开始抽取关键字
         this.comparator.extractKeys(record, keys, 0);
 
         if (flatComparators.length != keys.length || flatComparators.length > boundary.length) {

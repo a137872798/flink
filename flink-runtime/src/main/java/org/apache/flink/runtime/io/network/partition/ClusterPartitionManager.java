@@ -26,13 +26,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-/** Interface for components that manage cluster partitions. */
+/** Interface for components that manage cluster partitions.
+ * 集群分区管理器
+ * */
 public interface ClusterPartitionManager {
 
     /**
      * Returns all datasets for which partitions are being tracked.
      *
      * @return tracked datasets
+     * 维护每个数据集与分配有关的元数据信息
      */
     CompletableFuture<Map<IntermediateDataSetID, DataSetMetaInfo>> listDataSets();
 
@@ -41,6 +44,7 @@ public interface ClusterPartitionManager {
      *
      * @param dataSetToRelease dataset for which all associated partitions should be released
      * @return future that is completed once all partitions have been released
+     * 释放该数据集相关的信息
      */
     CompletableFuture<Void> releaseClusterPartitions(IntermediateDataSetID dataSetToRelease);
 
@@ -50,6 +54,7 @@ public interface ClusterPartitionManager {
      * @param taskExecutorId The id of the task executor.
      * @param clusterPartitionReport The status of the cluster partitions.
      * @return future that is completed once the report have been processed.
+     * 提交分区信息
      */
     CompletableFuture<Void> reportClusterPartitions(
             ResourceID taskExecutorId, ClusterPartitionReport clusterPartitionReport);
@@ -59,6 +64,7 @@ public interface ClusterPartitionManager {
      *
      * @param intermediateDataSetID The id of the dataset.
      * @return shuffle descriptors of the cluster partitions.
+     * 获取数据集关联的所有分区的洗牌信息
      */
     CompletableFuture<List<ShuffleDescriptor>> getClusterPartitionsShuffleDescriptors(
             IntermediateDataSetID intermediateDataSetID);

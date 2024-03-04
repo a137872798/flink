@@ -667,10 +667,18 @@ public abstract class MetadataV2V3SerializerBase {
     //  low-level state handles
     // ------------------------------------------------------------------------
 
+    /**
+     * 写入数据流
+     * @param stateHandle
+     * @param dos
+     * @throws IOException
+     */
     static void serializeStreamStateHandle(StreamStateHandle stateHandle, DataOutputStream dos)
             throws IOException {
         if (stateHandle == null) {
             dos.writeByte(NULL_HANDLE);
+
+            // 根据不同类型 写入标记位 然后写入相关数据
 
         } else if (stateHandle instanceof RelativeFileStateHandle) {
             dos.writeByte(RELATIVE_STREAM_STATE_HANDLE);

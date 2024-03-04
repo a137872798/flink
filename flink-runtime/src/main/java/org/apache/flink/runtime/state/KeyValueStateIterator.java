@@ -26,23 +26,29 @@ import java.io.IOException;
  *
  * <p>This is required to partition all states into contiguous key-groups. The resulting iteration
  * sequence is ordered by (key-group, kv-state).
+ * 用于遍历 kv状态
  */
 public interface KeyValueStateIterator extends AutoCloseable {
 
     /**
      * Advances the iterator. Should only be called if {@link #isValid()} returned true. Valid flag
      * can only change after calling {@link #next()}.
+     * 推进迭代器
      */
     void next() throws IOException;
 
-    /** Returns the key-group for the current key. */
+    /** Returns the key-group for the current key.
+     * 获取当前k的  keyGroup
+     * */
     int keyGroup();
 
     byte[] key();
 
     byte[] value();
 
-    /** Returns the Id of the K/V state to which the current key belongs. */
+    /** Returns the Id of the K/V state to which the current key belongs.
+     * 当前key对应的状态
+     * */
     int kvStateId();
 
     /**

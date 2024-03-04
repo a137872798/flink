@@ -29,15 +29,20 @@ import java.util.UUID;
  * A handle to the partitioned stream operator state after it has been checkpointed. This state
  * consists of a range of key group snapshots. A key group is subset of the available key space. The
  * key groups are identified by their key group indices.
+ * 额外携带 KeyGroupRangeOffsets 信息
  */
 public class KeyGroupsStateHandle implements StreamStateHandle, KeyedStateHandle {
 
     private static final long serialVersionUID = -8070326169926626355L;
 
-    /** Range of key-groups with their respective offsets in the stream state */
+    /** Range of key-groups with their respective offsets in the stream state
+     * 维护每个key 和 offset的关系
+     * */
     private final KeyGroupRangeOffsets groupRangeOffsets;
 
-    /** Inner stream handle to the actual states of the key-groups in the range */
+    /** Inner stream handle to the actual states of the key-groups in the range
+     * 状态可以以流的形式读取   也就是状态存储在该对象中  配合groupRangeOffsets 进行读取
+     * */
     private final StreamStateHandle stateHandle;
 
     private final StateHandleID stateHandleId;
@@ -64,6 +69,13 @@ public class KeyGroupsStateHandle implements StreamStateHandle, KeyedStateHandle
         this.stateHandleId = stateHandleId;
     }
 
+    /**
+     * 根据已有的字段还原handle对象
+     * @param groupRangeOffsets
+     * @param streamStateHandle
+     * @param stateHandleId
+     * @return
+     */
     public static KeyGroupsStateHandle restore(
             KeyGroupRangeOffsets groupRangeOffsets,
             StreamStateHandle streamStateHandle,
@@ -95,6 +107,7 @@ public class KeyGroupsStateHandle implements StreamStateHandle, KeyedStateHandle
      * @param keyGroupRange a key group range to intersect.
      * @return key-group state over a range that is the intersection between this handle's key-group
      *     range and the provided key-group range.
+     *     key相当于是读取state的目录  这样就是缩小目录  但是存储state的流对象不受影响
      */
     @Override
     public KeyGroupsStateHandle getIntersection(KeyGroupRange keyGroupRange) {
@@ -145,6 +158,10 @@ public class KeyGroupsStateHandle implements StreamStateHandle, KeyedStateHandle
         return stateHandle.openInputStream();
     }
 
+    /**
+     * 将所有数据以字节数组形式读取
+     * @return
+     */
     @Override
     public Optional<byte[]> asBytesIfInMemory() {
         return stateHandle.asBytesIfInMemory();

@@ -43,11 +43,25 @@ import static java.util.Comparator.comparingLong;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toList;
 
-/** {@link SequentialChannelStateReader} implementation. */
+/** {@link SequentialChannelStateReader} implementation.
+ * 表示按顺序读取输入输出数据
+ * */
 public class SequentialChannelStateReaderImpl implements SequentialChannelStateReader {
 
+    /**
+     * 简单理解就是一个快照 内部维护各子任务的状态
+     * 本对象就是基于快照进行数据恢复
+     */
     private final TaskStateSnapshot taskStateSnapshot;
+
+    /**
+     * 该对象用于数据序列化
+     */
     private final ChannelStateSerializer serializer;
+
+    /**
+     * 表示按块读取序列化的数据 用于state recover
+     */
     private final ChannelStateChunkReader chunkReader;
 
     public SequentialChannelStateReaderImpl(TaskStateSnapshot taskStateSnapshot) {
@@ -84,6 +98,16 @@ public class SequentialChannelStateReaderImpl implements SequentialChannelStateR
         }
     }
 
+    /**
+     * 串行读取
+     * @param stateHandler
+     * @param streamStateHandleListMap
+     * @param <Info>
+     * @param <Context>
+     * @param <Handle>
+     * @throws IOException
+     * @throws InterruptedException
+     */
     private <Info, Context, Handle extends AbstractChannelStateHandle<Info>> void read(
             RecoveredChannelStateHandler<Info, Context> stateHandler,
             Map<StreamStateHandle, List<Handle>> streamStateHandleListMap)
@@ -95,35 +119,59 @@ public class SequentialChannelStateReaderImpl implements SequentialChannelStateR
         }
     }
 
+    /**
+     * 串行读取
+     * @param streamStateHandle
+     * @param channelStateHandles
+     * @param stateHandler
+     * @param <Info>
+     * @param <Context>
+     * @param <Handle>
+     * @throws IOException
+     * @throws InterruptedException
+     */
     private <Info, Context, Handle extends AbstractChannelStateHandle<Info>> void readSequentially(
             StreamStateHandle streamStateHandle,
-            List<Handle> channelStateHandles,
+            List<Handle> channelStateHandles,  // 表示这组state使用同一个数据源进行初始化 (streamStateHandle)
             RecoveredChannelStateHandler<Info, Context> stateHandler)
             throws IOException, InterruptedException {
         try (FSDataInputStream is = streamStateHandle.openInputStream()) {
+            // 这个是校验头部
             serializer.readHeader(is);
             for (RescaledOffset<Info> offsetAndChannelInfo :
                     extractOffsetsSorted(channelStateHandles)) {
                 chunkReader.readChunk(
                         is,
                         offsetAndChannelInfo.offset,
-                        stateHandler,
+                        stateHandler,  // 将数据读取到用于recover的 stateHandler
                         offsetAndChannelInfo.channelInfo,
                         offsetAndChannelInfo.oldSubtaskIndex);
             }
         }
     }
 
+    /**
+     * 获取快照内所有子任务状态
+     * @return
+     */
     private Stream<OperatorSubtaskState> streamSubtaskStates() {
         return taskStateSnapshot.getSubtaskStateMappings().stream().map(Map.Entry::getValue);
     }
 
+    /**
+     * 将所有子任务状态  基于函数分组
+     * @param states
+     * @param stateHandleExtractor
+     * @param <Info>
+     * @param <Handle>
+     * @return
+     */
     private static <Info, Handle extends AbstractChannelStateHandle<Info>>
             Map<StreamStateHandle, List<Handle>> groupByDelegate(
                     Stream<OperatorSubtaskState> states,
                     Function<OperatorSubtaskState, StateObjectCollection<Handle>>
                             stateHandleExtractor) {
-        return states.map(stateHandleExtractor)
+        return states.map(stateHandleExtractor)  // 提取某些状态
                 .flatMap(Collection::stream)
                 .peek(validate())
                 .collect(groupingBy(AbstractChannelStateHandle::getDelegate));
@@ -162,6 +210,10 @@ public class SequentialChannelStateReaderImpl implements SequentialChannelStateR
     @Override
     public void close() throws Exception {}
 
+    /**
+     * 抽取出关键信息
+     * @param <Info>
+     */
     static class RescaledOffset<Info> {
         final Long offset;
         final Info channelInfo;
@@ -175,6 +227,9 @@ public class SequentialChannelStateReaderImpl implements SequentialChannelStateR
     }
 }
 
+/**
+ * 以chunk为单位读取数据
+ */
 class ChannelStateChunkReader {
     private final ChannelStateSerializer serializer;
 
@@ -194,12 +249,15 @@ class ChannelStateChunkReader {
         }
         int length = serializer.readLength(source);
         while (length > 0) {
+
+            // 此时buffer是空的
             RecoveredChannelStateHandler.BufferWithContext<Context> bufferWithContext =
                     stateHandler.getBuffer(channelInfo);
             try (Closeable ignored =
                     NetworkActionsLogger.measureIO(
                             "ChannelStateChunkReader#readChunk", bufferWithContext.buffer)) {
                 while (length > 0 && bufferWithContext.buffer.isWritable()) {
+                    // 将source的数据读取到buffer中
                     length -= serializer.readData(source, bufferWithContext.buffer, length);
                 }
             } catch (Exception e) {
@@ -208,6 +266,7 @@ class ChannelStateChunkReader {
             }
 
             // Passing the ownership of buffer to inside.
+            // 这会为handle设置恢复用的数据
             stateHandler.recover(channelInfo, oldSubtaskIndex, bufferWithContext);
         }
     }

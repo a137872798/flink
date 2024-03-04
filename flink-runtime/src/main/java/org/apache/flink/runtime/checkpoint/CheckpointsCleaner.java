@@ -41,6 +41,7 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * Delegate class responsible for checkpoints cleaning and counting the number of checkpoints yet to
  * clean.
+ * 可以清理检查点
  */
 @ThreadSafe
 public class CheckpointsCleaner implements Serializable, AutoCloseableAsync {
@@ -49,14 +50,22 @@ public class CheckpointsCleaner implements Serializable, AutoCloseableAsync {
 
     private final Object lock = new Object();
 
+    /**
+     * 表示此时正在清理的检查点数量
+     */
     @GuardedBy("lock")
     private int numberOfCheckpointsToClean;
 
+    /**
+     * 表示是一个异步清除
+     */
     @GuardedBy("lock")
     @Nullable
     private CompletableFuture<Void> cleanUpFuture;
 
-    /** All subsumed checkpoints. */
+    /** All subsumed checkpoints.
+     * 维护的检查点
+     * */
     @GuardedBy("lock")
     private final List<CompletedCheckpoint> subsumedCheckpoints = new ArrayList<>();
 
@@ -66,10 +75,13 @@ public class CheckpointsCleaner implements Serializable, AutoCloseableAsync {
         }
     }
 
+    /**
+     * 手动触发清理
+     */
     public void cleanCheckpoint(
             Checkpoint checkpoint,
-            boolean shouldDiscard,
-            Runnable postCleanAction,
+            boolean shouldDiscard,  // false 表示不会进行真正的清理
+            Runnable postCleanAction,  // 后置钩子
             Executor executor) {
         Checkpoint.DiscardObject discardObject =
                 shouldDiscard ? checkpoint.markAsDiscarded() : Checkpoint.NOOP_DISCARD_OBJECT;
@@ -93,9 +105,11 @@ public class CheckpointsCleaner implements Serializable, AutoCloseableAsync {
      * Clean checkpoint that is not in the given {@param stillInUse}.
      *
      * @param upTo lowest CheckpointID which is still valid.
-     * @param stillInUse the state of those checkpoints are still referenced.
+     * @param stillInUse the state of those checkpoints are still referenced.  声明要保留的
      * @param postCleanAction post action after cleaning.
      * @param executor is used to perform the cleanup logic.
+     *
+     *                 清理id在upTo之前的检查点  越往后 检查点越新
      */
     public void cleanSubsumedCheckpoints(
             long upTo, Set<Long> stillInUse, Runnable postCleanAction, Executor executor) {
@@ -121,12 +135,24 @@ public class CheckpointsCleaner implements Serializable, AutoCloseableAsync {
         }
     }
 
+    /**
+     * 强制触发检查点的 discard
+     * @param completedCheckpoint
+     * @param executor
+     */
     public void cleanCheckpointOnFailedStoring(
             CompletedCheckpoint completedCheckpoint, Executor executor) {
         Checkpoint.DiscardObject discardObject = completedCheckpoint.markAsDiscarded();
         cleanup(completedCheckpoint, discardObject::discard, () -> {}, executor);
     }
 
+    /**
+     * 清理检查点
+     * @param checkpoint
+     * @param cleanupAction
+     * @param postCleanupAction
+     * @param executor
+     */
     private void cleanup(
             Checkpoint checkpoint,
             RunnableWithException cleanupAction,
@@ -136,6 +162,7 @@ public class CheckpointsCleaner implements Serializable, AutoCloseableAsync {
         executor.execute(
                 () -> {
                     try {
+                        // 执行清理函数
                         cleanupAction.run();
                     } catch (Exception e) {
                         LOG.warn(

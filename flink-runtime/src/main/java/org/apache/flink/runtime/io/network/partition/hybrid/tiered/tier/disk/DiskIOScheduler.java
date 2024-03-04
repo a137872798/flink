@@ -69,7 +69,9 @@ public class DiskIOScheduler implements Runnable, BufferRecycler, NettyServicePr
 
     private final Object lock = new Object();
 
-    /** The partition id. */
+    /** The partition id.
+     * 对应的分区
+     * */
     private final TieredStoragePartitionId partitionId;
 
     /** The executor is responsible for scheduling the disk read process. */
@@ -77,6 +79,7 @@ public class DiskIOScheduler implements Runnable, BufferRecycler, NettyServicePr
 
     /**
      * The buffer pool is specifically designed for reading from disk and shared in the TaskManager.
+     * 申请内存用的内存池
      */
     private final BatchShuffleReadBufferPool bufferPool;
 
@@ -102,9 +105,13 @@ public class DiskIOScheduler implements Runnable, BufferRecycler, NettyServicePr
     /**
      * Retrieve the segment id if the buffer index represents the first buffer. The first integer is
      * the id of subpartition, and the second integer is buffer index and the value is segment id.
+     * 提供查询能力
      */
     private final BiFunction<Integer, Integer, Integer> firstBufferIndexInSegmentRetriever;
 
+    /**
+     * 包含数据信息  传入坐标(子分区id seg_id 等可以查询到数据)
+     */
     private final PartitionFileReader partitionFileReader;
 
     @GuardedBy("lock")
@@ -142,11 +149,14 @@ public class DiskIOScheduler implements Runnable, BufferRecycler, NettyServicePr
 
     @Override
     public synchronized void run() {
+        // 读取数据 还会写入到payload队列
+        // 返回值表示读取了多少buffer
         int numBuffersRead = readBuffersFromFile();
         synchronized (lock) {
             numRequestedBuffers += numBuffersRead;
             isRunning = false;
         }
+        // 没读取到数据 延时处理
         if (numBuffersRead == 0) {
             ioExecutor.schedule(this::triggerScheduling, 5, TimeUnit.MILLISECONDS);
         } else {
@@ -154,12 +164,18 @@ public class DiskIOScheduler implements Runnable, BufferRecycler, NettyServicePr
         }
     }
 
+    /**
+     * 一个连接对应一个 NettyConnectionWriter
+     * @param subpartitionId subpartition id indicates the id of subpartition.
+     * @param nettyConnectionWriter writer is used to write buffers to netty connection.
+     */
     @Override
     public void connectionEstablished(
             TieredStorageSubpartitionId subpartitionId,
             NettyConnectionWriter nettyConnectionWriter) {
         synchronized (lock) {
             checkState(!isReleased, "DiskIOScheduler is already released.");
+            // 每个reader会记录自己的progress 所以同一份数据可以按照连接数被发送多次
             ScheduledSubpartitionReader scheduledSubpartitionReader =
                     new ScheduledSubpartitionReader(subpartitionId, nettyConnectionWriter);
             allScheduledReaders.put(
@@ -168,6 +184,10 @@ public class DiskIOScheduler implements Runnable, BufferRecycler, NettyServicePr
         }
     }
 
+    /**
+     * 解除连接 就是移除某个reader
+     * @param id
+     */
     @Override
     public void connectionBroken(NettyConnectionId id) {
         synchronized (lock) {
@@ -200,7 +220,12 @@ public class DiskIOScheduler implements Runnable, BufferRecycler, NettyServicePr
     //  Internal Methods
     // ------------------------------------------------------------------------
 
+    /**
+     * 从文件中读取数据
+     * @return
+     */
     private int readBuffersFromFile() {
+        // 先进行准备工作
         List<ScheduledSubpartitionReader> scheduledReaders = sortScheduledReaders();
         if (scheduledReaders.isEmpty()) {
             return 0;
@@ -214,6 +239,7 @@ public class DiskIOScheduler implements Runnable, BufferRecycler, NettyServicePr
             return 0;
         }
 
+        // 未申请到buffer
         int numBuffersAllocated = buffers.size();
         if (numBuffersAllocated <= 0) {
             return 0;
@@ -224,17 +250,23 @@ public class DiskIOScheduler implements Runnable, BufferRecycler, NettyServicePr
                 break;
             }
             try {
+                // 每个reader都读取数据   这里还会将数据写入到 payload队列
                 scheduledReader.loadDiskDataToBuffers(buffers, this);
             } catch (Exception throwable) {
                 failScheduledReaders(Collections.singletonList(scheduledReader), throwable);
                 LOG.debug("Failed to read shuffle data.", throwable);
             }
         }
+        // 表示读取了多少个buffer的数据
         int numBuffersRead = numBuffersAllocated - buffers.size();
         releaseBuffers(buffers);
         return numBuffersRead;
     }
 
+    /**
+     * 让所有reader做好准备工作
+     * @return
+     */
     private List<ScheduledSubpartitionReader> sortScheduledReaders() {
         List<ScheduledSubpartitionReader> scheduledReaders;
         synchronized (lock) {
@@ -250,9 +282,15 @@ public class DiskIOScheduler implements Runnable, BufferRecycler, NettyServicePr
         return scheduledReaders;
     }
 
+    /**
+     * 申请buffer
+     * @return
+     * @throws Exception
+     */
     private Queue<MemorySegment> allocateBuffers() throws Exception {
         long timeoutTime = getBufferRequestTimeoutTime();
         do {
+            // 申请一定量的buffer
             List<MemorySegment> buffers = bufferPool.requestBuffers();
             if (!buffers.isEmpty()) {
                 return new ArrayDeque<>(buffers);
@@ -281,6 +319,10 @@ public class DiskIOScheduler implements Runnable, BufferRecycler, NettyServicePr
         }
     }
 
+    /**
+     * 归还内存
+     * @param buffers
+     */
     private void releaseBuffers(Queue<MemorySegment> buffers) {
         if (!buffers.isEmpty()) {
             try {
@@ -294,6 +336,9 @@ public class DiskIOScheduler implements Runnable, BufferRecycler, NettyServicePr
         }
     }
 
+    /**
+     * 在一定延时后 重新触发 run
+     */
     private void triggerScheduling() {
         synchronized (lock) {
             if (!isRunning
@@ -330,6 +375,9 @@ public class DiskIOScheduler implements Runnable, BufferRecycler, NettyServicePr
 
         private final TieredStorageSubpartitionId subpartitionId;
 
+        /**
+         * 该对象包含一个队列  维护payload
+         */
         private final NettyConnectionWriter nettyConnectionWriter;
 
         private int nextSegmentId = -1;
@@ -340,6 +388,9 @@ public class DiskIOScheduler implements Runnable, BufferRecycler, NettyServicePr
 
         private boolean isFailed;
 
+        /**
+         * 记录读取的进度
+         */
         @Nullable private PartitionFileReader.ReadProgress readProgress;
 
         private ScheduledSubpartitionReader(
@@ -349,6 +400,12 @@ public class DiskIOScheduler implements Runnable, BufferRecycler, NettyServicePr
             this.nettyConnectionWriter = nettyConnectionWriter;
         }
 
+        /**
+         * 从磁盘读取数据
+         * @param buffers
+         * @param recycler
+         * @throws IOException
+         */
         private void loadDiskDataToBuffers(Queue<MemorySegment> buffers, BufferRecycler recycler)
                 throws IOException {
 
@@ -366,6 +423,7 @@ public class DiskIOScheduler implements Runnable, BufferRecycler, NettyServicePr
                     MemorySegment memorySegment = buffers.poll();
                     PartitionFileReader.ReadBufferResult readBufferResult;
                     try {
+                        // 利用reader读取数据
                         readBufferResult =
                                 partitionFileReader.readBuffer(
                                         partitionId,
@@ -393,6 +451,7 @@ public class DiskIOScheduler implements Runnable, BufferRecycler, NettyServicePr
                         break;
                     }
 
+                    // 解析出部分数据
                     partialBuffer = writeFullBuffersAndGetPartialBuffer(readBuffers);
                 }
             } finally {
@@ -408,6 +467,9 @@ public class DiskIOScheduler implements Runnable, BufferRecycler, NettyServicePr
             return Long.compare(getPriority(), reader.getPriority());
         }
 
+        /**
+         * 准备开始读取数据并传输了
+         */
         private void prepareForScheduling() {
             if (nextSegmentId < 0) {
                 updateSegmentId();
@@ -423,6 +485,11 @@ public class DiskIOScheduler implements Runnable, BufferRecycler, NettyServicePr
                                     readProgress);
         }
 
+        /**
+         * 从buffer中读取完整数据 并解析出多出的数据
+         * @param readBuffers
+         * @return
+         */
         private CompositeBuffer writeFullBuffersAndGetPartialBuffer(List<Buffer> readBuffers) {
             CompositeBuffer partialBuffer = null;
             for (int i = 0; i < readBuffers.size(); i++) {
@@ -441,18 +508,30 @@ public class DiskIOScheduler implements Runnable, BufferRecycler, NettyServicePr
                     && ((CompositeBuffer) readBuffer).missingLength() > 0;
         }
 
+        /**
+         *
+         * @param readBuffer   完整的数据
+         */
         private void writeNettyBufferAndUpdateSegmentId(Buffer readBuffer) {
             writeToNettyConnectionWriter(
                     NettyPayload.newBuffer(
                             readBuffer, nextBufferIndex++, subpartitionId.getSubpartitionId()));
+
+            // 当发现收到一个seg_end事件 更换seg
             if (readBuffer.getDataType() == Buffer.DataType.END_OF_SEGMENT) {
                 nextSegmentId = -1;
                 updateSegmentId();
             }
         }
 
+        /**
+         * 将数据包装成 payload 通过writer发送
+         * @param nettyPayload
+         */
         private void writeToNettyConnectionWriter(NettyPayload nettyPayload) {
             nettyConnectionWriter.writeNettyPayload(nettyPayload);
+
+            // 首次添加数据 通知可用
             if (nettyConnectionWriter.numQueuedPayloads() <= 1
                     || nettyConnectionWriter.numQueuedBufferPayloads() <= 1) {
                 notifyAvailable();
@@ -476,12 +555,17 @@ public class DiskIOScheduler implements Runnable, BufferRecycler, NettyServicePr
             nettyConnectionWriter.notifyAvailable();
         }
 
+        /**
+         * 更新seg
+         */
         private void updateSegmentId() {
+            // 每写入一个数据 nextBufferIndex 都会增加 使用最新的子分区id bufferIndex去查询segid
             Integer segmentId =
                     firstBufferIndexInSegmentRetriever.apply(
                             subpartitionId.getSubpartitionId(), nextBufferIndex);
             if (segmentId != null) {
                 nextSegmentId = segmentId;
+                // 写入新的seg 提示下游要切换seg了
                 writeToNettyConnectionWriter(NettyPayload.newSegment(segmentId));
             }
         }

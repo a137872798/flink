@@ -55,6 +55,8 @@ import static org.apache.flink.util.Preconditions.checkState;
  * <p>Note that the {@link TieredStorageMemorySpec}s of the tiered storages should be ready when
  * setting up the memory manager. Only after the setup process is finished, the tiered storage can
  * request buffers from this manager.
+ *
+ * 这个对象就是用于申请内存的
  */
 public class TieredStorageMemoryManagerImpl implements TieredStorageMemoryManager {
 
@@ -64,10 +66,14 @@ public class TieredStorageMemoryManagerImpl implements TieredStorageMemoryManage
     /** The maximum delay time before triggering buffer reclaiming. */
     private static final int MAX_DELAY_TIME_TO_TRIGGER_RECLAIM_BUFFER_MS = 1000;
 
-    /** The tiered storage memory specs of each memory user owner. */
+    /** The tiered storage memory specs of each memory user owner.
+     * 记录内存申请者 与 要求的buffer数量的关系
+     * */
     private final Map<Object, TieredStorageMemorySpec> tieredMemorySpecs;
 
-    /** Listeners used to listen the requests for reclaiming buffer in different tiered storage. */
+    /** Listeners used to listen the requests for reclaiming buffer in different tiered storage.
+     * 用于回收buffer的
+     * */
     private final List<Runnable> bufferReclaimRequestListeners;
 
     /** The buffer pool usage ratio of triggering the registered storages to reclaim buffers. */
@@ -121,7 +127,7 @@ public class TieredStorageMemoryManagerImpl implements TieredStorageMemoryManage
      *
      * @param numTriggerReclaimBuffersRatio the buffer pool usage ratio of requesting each tiered
      *     storage to reclaim buffers
-     * @param mayReclaimBuffer indicate whether buffer reclaiming is supported
+     * @param mayReclaimBuffer indicate whether buffer reclaiming is supported  是否支持内存回收
      */
     public TieredStorageMemoryManagerImpl(
             float numTriggerReclaimBuffersRatio, boolean mayReclaimBuffer) {
@@ -134,6 +140,11 @@ public class TieredStorageMemoryManagerImpl implements TieredStorageMemoryManage
         this.isInitialized = false;
     }
 
+    /**
+     * 进行初始化工作
+     * @param bufferPool the local buffer pool
+     * @param storageMemorySpecs the memory specs for different tiered storages   描述对象的内存需要
+     */
     @Override
     public void setup(BufferPool bufferPool, List<TieredStorageMemorySpec> storageMemorySpecs) {
         this.bufferPool = bufferPool;
@@ -167,13 +178,21 @@ public class TieredStorageMemoryManagerImpl implements TieredStorageMemoryManage
         bufferReclaimRequestListeners.add(onBufferReclaimRequest);
     }
 
+    /**
+     * 某个对象申请内存块
+     * @param owner the owner to request buffer
+     * @return
+     */
     @Override
     public BufferBuilder requestBufferBlocking(Object owner) {
         checkIsInitialized();
 
+        // 尝试回收内存
         reclaimBuffersIfNeeded(0);
 
         CompletableFuture<Void> requestBufferFuture = new CompletableFuture<>();
+
+        // 开启一个后台任务 定期触发 reclaimBuffersIfNeeded
         scheduleCheckRequestBufferFuture(
                 requestBufferFuture, INITIAL_REQUEST_BUFFER_TIMEOUT_FOR_RECLAIMING_MS);
         MemorySegment memorySegment = bufferPool.requestMemorySegment();
@@ -188,6 +207,7 @@ public class TieredStorageMemoryManagerImpl implements TieredStorageMemoryManage
             }
         }
 
+        // 当申请到内存后 就取消任务
         requestBufferFuture.complete(null);
 
         incNumRequestedBuffer(owner);
@@ -195,6 +215,12 @@ public class TieredStorageMemoryManagerImpl implements TieredStorageMemoryManage
                 checkNotNull(memorySegment), segment -> recycleBuffer(owner, segment));
     }
 
+
+    /**
+     * 除去其他owner要求的buffer 就是本对象能申请到的最大buffer
+     * @param owner
+     * @return
+     */
     @Override
     public int getMaxNonReclaimableBuffers(Object owner) {
         checkIsInitialized();
@@ -247,6 +273,11 @@ public class TieredStorageMemoryManagerImpl implements TieredStorageMemoryManage
         }
     }
 
+    /**
+     * 每隔一段时间 触发reclaimBuffersIfNeeded
+     * @param requestBufferFuture
+     * @param delayMs
+     */
     private void scheduleCheckRequestBufferFuture(
             CompletableFuture<Void> requestBufferFuture, long delayMs) {
         if (!mayReclaimBuffer || requestBufferFuture.isDone()) {
@@ -282,23 +313,34 @@ public class TieredStorageMemoryManagerImpl implements TieredStorageMemoryManage
         numRequestedBuffers.decrementAndGet();
     }
 
+    /**
+     * 尝试回收内存
+     * @param delayForNextCheckMs
+     */
     private void reclaimBuffersIfNeeded(long delayForNextCheckMs) {
         if (shouldReclaimBuffersBeforeRequesting(delayForNextCheckMs)) {
             bufferReclaimRequestListeners.forEach(Runnable::run);
         }
     }
 
+
+    /**
+     * 判断是否需要回收内存
+     * @param delayForNextCheckMs
+     * @return
+     */
     private boolean shouldReclaimBuffersBeforeRequesting(long delayForNextCheckMs) {
         // The accuracy of the memory usage ratio may be compromised due to the varying buffer pool
         // sizes. However, this only impacts a single iteration of the buffer usage check. Upon the
         // next iteration, the buffer reclaim will eventually be triggered.
         int numTotal = bufferPool.getNumBuffers();
         int numRequested = numRequestedBuffers.get();
-        return numRequested >= numTotal
+
+        return numRequested >= numTotal    // 目前内存不够
                 // Because we do the checking before requesting buffers, we need add additional one
                 // buffer when calculating the usage ratio.
-                || ((numRequested + 1) * 1.0 / numTotal) > numTriggerReclaimBuffersRatio
-                || delayForNextCheckMs > MAX_DELAY_TIME_TO_TRIGGER_RECLAIM_BUFFER_MS
+                || ((numRequested + 1) * 1.0 / numTotal) > numTriggerReclaimBuffersRatio   // 请求的量达到一个比率 即触发回收
+                || delayForNextCheckMs > MAX_DELAY_TIME_TO_TRIGGER_RECLAIM_BUFFER_MS  // 有足够等待时间也可以
                         && bufferPool.getNumberOfAvailableMemorySegments() == 0;
     }
 

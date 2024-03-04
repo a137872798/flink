@@ -42,7 +42,9 @@ import java.util.concurrent.Executor;
 
 import static org.apache.flink.runtime.checkpoint.filemerging.PhysicalFile.PhysicalFileDeleter;
 
-/** Base implementation of {@link FileMergingSnapshotManager}. */
+/** Base implementation of {@link FileMergingSnapshotManager}.
+ * manager的基类
+ * */
 public abstract class FileMergingSnapshotManagerBase implements FileMergingSnapshotManager {
 
     private static final Logger LOG = LoggerFactory.getLogger(FileMergingSnapshotManager.class);
@@ -50,7 +52,9 @@ public abstract class FileMergingSnapshotManagerBase implements FileMergingSnaps
     /** The identifier of this manager. */
     private final String id;
 
-    /** The executor for I/O operations in this manager. */
+    /** The executor for I/O operations in this manager.
+     * 简单理解就是线程池
+     * */
     protected final Executor ioExecutor;
 
     /** The {@link FileSystem} that this manager works on. */
@@ -79,12 +83,14 @@ public abstract class FileMergingSnapshotManagerBase implements FileMergingSnaps
     /**
      * Currently the shared state files are merged within each subtask, files are split by different
      * directories.
+     * 维护每个 subtask 相关的目录
      */
     private final Map<SubtaskKey, Path> managedSharedStateDir = new ConcurrentHashMap<>();
 
     /**
      * The private state files are merged across subtasks, there is only one directory for
      * merged-files within one TM per job.
+     * 私有状态 只需要一个目录即可
      */
     protected Path managedExclusiveStateDir;
 
@@ -127,6 +133,10 @@ public abstract class FileMergingSnapshotManagerBase implements FileMergingSnaps
         this.managedExclusiveStateDir = managedExclusivePath;
     }
 
+    /**
+     * 初始化该子任务的目录
+     * @param subtaskKey the subtask key identifying a subtask.
+     */
     @Override
     public void registerSubtaskForSharedStates(SubtaskKey subtaskKey) {
         String managedDirName = subtaskKey.getManagedDirName();
@@ -149,6 +159,7 @@ public abstract class FileMergingSnapshotManagerBase implements FileMergingSnaps
      * @param length the length of the logical file.
      * @param subtaskKey the id of the subtask that the logical file belongs to.
      * @return the created logical file.
+     * 基于某个物理文件 产生逻辑文件
      */
     protected LogicalFile createLogicalFile(
             @Nonnull PhysicalFile physicalFile,
@@ -167,6 +178,8 @@ public abstract class FileMergingSnapshotManagerBase implements FileMergingSnaps
      * @param scope the scope of the checkpoint.
      * @return the created physical file.
      * @throws IOException if anything goes wrong with file system.
+     *
+     * 产生一个物理文件
      */
     @Nonnull
     protected PhysicalFile createPhysicalFile(SubtaskKey subtaskKey, CheckpointedStateScope scope)
@@ -187,13 +200,17 @@ public abstract class FileMergingSnapshotManagerBase implements FileMergingSnaps
 
         for (int attempt = 0; attempt < 10; attempt++) {
             try {
+                // TODO 改写路径 先忽略
                 OutputStreamAndPath streamAndPath =
                         EntropyInjector.createEntropyAware(
                                 fs,
                                 generatePhysicalFilePath(dirPath),
                                 FileSystem.WriteMode.NO_OVERWRITE);
+
+                // 获取输出流 和路径
                 FSDataOutputStream outputStream = streamAndPath.stream();
                 Path filePath = streamAndPath.path();
+                // 产生物理文件
                 result = new PhysicalFile(outputStream, filePath, this.physicalFileDeleter, scope);
                 updateFileCreationMetrics(filePath);
                 return result;
@@ -262,6 +279,7 @@ public abstract class FileMergingSnapshotManagerBase implements FileMergingSnaps
      * @param scope checkpoint scope
      * @return the requested physical file.
      * @throws IOException thrown if anything goes wrong with file system.
+     * 基于某个检查点产生/获取文件
      */
     @Nonnull
     protected abstract PhysicalFile getOrCreatePhysicalFileForCheckpoint(
@@ -279,6 +297,7 @@ public abstract class FileMergingSnapshotManagerBase implements FileMergingSnaps
      * @param physicalFile the returning checkpoint
      * @throws IOException thrown if anything goes wrong with file system.
      * @see #getOrCreatePhysicalFileForCheckpoint(SubtaskKey, long, CheckpointedStateScope)
+     * 回收物理文件  准备下次使用
      */
     protected abstract void returnPhysicalFileForNextReuse(
             SubtaskKey subtaskKey, long checkpointId, PhysicalFile physicalFile) throws IOException;
@@ -307,6 +326,10 @@ public abstract class FileMergingSnapshotManagerBase implements FileMergingSnaps
     //  utilities
     // ------------------------------------------------------------------------
 
+    /**
+     * 生成目录
+     * @param managedPath
+     */
     private void createManagedDirectory(Path managedPath) {
         try {
             FileStatus fileStatus = null;

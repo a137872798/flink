@@ -44,15 +44,26 @@ import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
 
-/** Factory for {@link ResultPartition} to use in {@link NettyShuffleEnvironment}. */
+/** Factory for {@link ResultPartition} to use in {@link NettyShuffleEnvironment}.
+ * 开放创建分区对象的工厂
+ * */
 public class ResultPartitionFactory {
 
     private static final Logger LOG = LoggerFactory.getLogger(ResultPartitionFactory.class);
 
+    /**
+     * 管理各个 ResultPartition
+     */
     private final ResultPartitionManager partitionManager;
 
+    /**
+     * 通过该对象管理 FileChannel
+     */
     private final FileChannelManager channelManager;
 
+    /**
+     * 通过该对象分配buffer
+     */
     private final BufferPoolFactory bufferPoolFactory;
 
     private final BatchShuffleReadBufferPool batchShuffleReadBufferPool;

@@ -25,6 +25,8 @@ package org.apache.flink.runtime.jobmanager;
  * <p><strong>Important</strong>: The {@link JobGraphStoreWatcher} could not guarantee that there is
  * no {@link JobGraphStore.JobGraphListener} callbacks happen after {@link #stop()}. So the
  * implementor is responsible for filtering out these spurious callbacks.
+ *
+ * 监听 JobGraphStore 的启动和停止
  */
 public interface JobGraphStoreWatcher {
 

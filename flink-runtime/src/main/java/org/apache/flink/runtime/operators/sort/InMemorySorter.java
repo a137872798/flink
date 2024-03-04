@@ -24,7 +24,9 @@ import org.apache.flink.util.MutableObjectIterator;
 
 import java.io.IOException;
 
-/** */
+/**
+ * 表示一个在内存中完成排序的对象
+ * */
 public interface InMemorySorter<T> extends IndexedSortable, Disposable {
 
     /**

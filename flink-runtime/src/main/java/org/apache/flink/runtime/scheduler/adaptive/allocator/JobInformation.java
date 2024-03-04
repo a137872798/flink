@@ -22,7 +22,9 @@ import org.apache.flink.runtime.jobmanager.scheduler.SlotSharingGroup;
 
 import java.util.Collection;
 
-/** Information about the job. */
+/** Information about the job.
+ * 包含job的信息
+ * */
 public interface JobInformation {
     /**
      * Returns all slot-sharing groups of the job.
@@ -31,23 +33,35 @@ public interface JobInformation {
      * mutable)!
      *
      * @return all slot-sharing groups of the job
+     * job包含多个共享组   每个共享组内部有多个顶点  一个顶点只能归属于一个共享组
      */
     Collection<SlotSharingGroup> getSlotSharingGroups();
 
+    /**
+     * job包含了一系列顶点 所以也支持查询顶点信息
+     * @param jobVertexId
+     * @return
+     */
     VertexInformation getVertexInformation(JobVertexID jobVertexId);
 
+    /**
+     * 获取所有顶点信息
+     * @return
+     */
     Iterable<VertexInformation> getVertices();
 
     /** Information about a single vertex. */
     interface VertexInformation {
         JobVertexID getJobVertexID();
 
+        // 顶点的并行度
         int getMinParallelism();
 
         int getParallelism();
 
         int getMaxParallelism();
 
+        // 该顶点属于哪个共享组
         SlotSharingGroup getSlotSharingGroup();
     }
 }

@@ -26,6 +26,7 @@ import org.apache.flink.runtime.operators.chaining.ExceptionInChainedStubExcepti
  * A chained driver that just passes on the input as the output
  *
  * @param <IT> The type of the input
+ *            表示一个空的链式对象
  */
 public class NoOpChainedDriver<IT> extends ChainedDriver<IT, IT> {
 
@@ -55,6 +56,7 @@ public class NoOpChainedDriver<IT> extends ChainedDriver<IT, IT> {
     public void collect(IT record) {
         try {
             this.numRecordsIn.inc();
+            // 通过output采集数据
             this.outputCollector.collect(record);
         } catch (Exception ex) {
             throw new ExceptionInChainedStubException(this.taskName, ex);

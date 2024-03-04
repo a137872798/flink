@@ -34,6 +34,7 @@ import static org.apache.flink.runtime.io.network.partition.hybrid.tiered.common
 /**
  * A wrapper internal shuffle master class for tiered storage. All the tiered storage operations
  * with the shuffle master should be wrapped in this class.
+ * 分层存储的一个主控制器
  */
 public class TieredInternalShuffleMaster {
 
@@ -45,6 +46,8 @@ public class TieredInternalShuffleMaster {
                                 conf.getString(NETWORK_HYBRID_SHUFFLE_REMOTE_STORAGE_BASE_PATH))
                         .build();
         TieredStorageResourceRegistry resourceRegistry = new TieredStorageResourceRegistry();
+
+        // 使用各个工厂创建探针
         List<TierMasterAgent> tierFactories =
                 tieredStorageConfiguration.getTierFactories().stream()
                         .map(tierFactory -> tierFactory.createMasterAgent(resourceRegistry))

@@ -49,10 +49,20 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * bulk's {@link ExecutionSlotSharingGroup}s.
  */
 class SharingPhysicalSlotRequestBulk implements PhysicalSlotRequestBulk {
+
+    /**
+     * 维护组与execution的关系
+     */
     private final Map<ExecutionSlotSharingGroup, List<ExecutionVertexID>> executions;
 
+    /**
+     * 表示还未请求到slot
+     */
     private final Map<ExecutionSlotSharingGroup, ResourceProfile> pendingRequests;
 
+    /**
+     * 表示该组分配到的物理slot (共享slot)
+     */
     private final Map<ExecutionSlotSharingGroup, AllocationID> fulfilledRequests;
 
     private final BiConsumer<ExecutionVertexID, Throwable> logicalSlotRequestCanceller;
@@ -77,6 +87,10 @@ class SharingPhysicalSlotRequestBulk implements PhysicalSlotRequestBulk {
         return new HashSet<>(fulfilledRequests.values());
     }
 
+    /**
+     * 使用函数处理每个对象
+     * @param cause
+     */
     @Override
     public void cancel(Throwable cause) {
         // pending requests must be canceled first otherwise they might be fulfilled by
@@ -98,6 +112,7 @@ class SharingPhysicalSlotRequestBulk implements PhysicalSlotRequestBulk {
      *
      * @param group {@link ExecutionSlotSharingGroup} of the pending request
      * @param allocationId {@link AllocationID} of the fulfilled request
+     *                                         标记某个分配好了
      */
     void markFulfilled(ExecutionSlotSharingGroup group, AllocationID allocationId) {
         pendingRequests.remove(group);

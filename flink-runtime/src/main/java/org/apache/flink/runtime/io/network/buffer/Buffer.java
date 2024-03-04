@@ -51,12 +51,15 @@ import static org.apache.flink.util.Preconditions.checkState;
  * #getMemorySegment()} directly, or on {@link ByteBuffer} wrappers of this buffer which do not
  * modify either index, so the indices need to be updated manually via {@link #setReaderIndex(int)}
  * and {@link #setSize(int)}.
+ *
+ * 表示一个缓冲区对象
  */
 public interface Buffer {
     /**
      * Returns whether this buffer represents a buffer or an event.
      *
      * @return <tt>true</tt> if this is a real buffer, <tt>false</tt> if this is an event
+     * 内部可以存储buffer 也可以是一个event
      */
     boolean isBuffer();
 
@@ -67,6 +70,7 @@ public interface Buffer {
      * <p>This method will be removed in the future. For writing use {@link BufferBuilder}.
      *
      * @return the memory segment backing this buffer
+     * 获取内部的内存块
      */
     @Deprecated
     MemorySegment getMemorySegment();
@@ -84,6 +88,7 @@ public interface Buffer {
      * Gets the buffer's recycler.
      *
      * @return buffer recycler
+     * 获取内存回收器
      */
     BufferRecycler getRecycler();
 
@@ -104,6 +109,7 @@ public interface Buffer {
      * reference count reaches <tt>0</tt>.
      *
      * @see #retainBuffer()
+     * 回收内存
      */
     void recycleBuffer();
 
@@ -111,6 +117,7 @@ public interface Buffer {
      * Returns whether this buffer has been recycled or not.
      *
      * @return <tt>true</tt> if already recycled, <tt>false</tt> otherwise
+     * 本对象内的buffer是否已经被回收
      */
     boolean isRecycled();
 
@@ -119,6 +126,7 @@ public interface Buffer {
      *
      * @return <tt>this</tt> instance (for chained calls)
      * @see #recycleBuffer()
+     * 增加引用计数 避免被直接回收
      */
     Buffer retainBuffer();
 
@@ -130,6 +138,7 @@ public interface Buffer {
      * but the slice is not {@link #retainBuffer() retained} automatically.
      *
      * @return a read-only sliced buffer
+     * 获取只读分片对象
      */
     Buffer readOnlySlice();
 
@@ -142,6 +151,7 @@ public interface Buffer {
      * @param index the index to start from
      * @param length the length of the slice
      * @return a read-only sliced buffer
+     * 未指定范围创建只读分片
      */
     Buffer readOnlySlice(int index, int length);
 
@@ -150,6 +160,7 @@ public interface Buffer {
      * MemorySegment}.
      *
      * @return size of the buffer
+     * 获取buffer的最大容量
      */
     int getMaxCapacity();
 
@@ -160,6 +171,7 @@ public interface Buffer {
      *
      * @return reader index (from 0 (inclusive) to the size of the backing {@link MemorySegment}
      *     (inclusive))
+     *     获取buffer当前的读指针
      */
     int getReaderIndex();
 
@@ -168,6 +180,7 @@ public interface Buffer {
      *
      * @throws IndexOutOfBoundsException if the index is less than <tt>0</tt> or greater than {@link
      *     #getSize()}
+     *     设置读指针
      */
     void setReaderIndex(int readerIndex) throws IndexOutOfBoundsException;
 
@@ -192,6 +205,7 @@ public interface Buffer {
     /**
      * Returns the number of readable bytes (same as <tt>{@link #getSize()} - {@link
      * #getReaderIndex()}</tt>).
+     * 获取还可以读的字节数
      */
     int readableBytes();
 
@@ -202,6 +216,7 @@ public interface Buffer {
      * <p>Please note that neither index is updated by the returned buffer.
      *
      * @return byte buffer sharing the contents of the underlying memory segment
+     *
      */
     ByteBuffer getNioBufferReadable();
 
@@ -221,19 +236,24 @@ public interface Buffer {
      * Sets the buffer allocator for use in netty.
      *
      * @param allocator netty buffer allocator
+     *                  这个是netty的内存分配器
      */
     void setAllocator(ByteBufAllocator allocator);
 
     /** @return self as ByteBuf implementation. */
     ByteBuf asByteBuf();
 
-    /** @return whether the buffer is compressed or not. */
+    /** @return whether the buffer is compressed or not.
+     * 该buffer是否具备压缩能力
+     * */
     boolean isCompressed();
 
     /** Tags the buffer as compressed or uncompressed. */
     void setCompressed(boolean isCompressed);
 
-    /** Gets the type of data this buffer represents. */
+    /** Gets the type of data this buffer represents.
+     * 表示buffer内存储的数据类型
+     * */
     DataType getDataType();
 
     /** Sets the type of data this buffer represents. */
@@ -242,6 +262,7 @@ public interface Buffer {
     /**
      * The current reference counter. Increased by {@link #retainBuffer()} and decreased with {@link
      * #recycleBuffer()}.
+     * 返回该buffer的引用计数
      */
     int refCnt();
 
@@ -317,6 +338,7 @@ public interface Buffer {
          * announced, by a special announcement message. Announcement messages are {@link
          * #PRIORITIZED_EVENT_BUFFER} processed out of order. It allows readers of the input to
          * react sooner on arrival of such Events, before it will be able to be processed normally.
+         * 为true时 要给队列额外加一个优先事件
          */
         private final boolean requiresAnnouncement;
 

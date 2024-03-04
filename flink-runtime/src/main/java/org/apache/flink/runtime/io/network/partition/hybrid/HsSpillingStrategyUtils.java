@@ -44,11 +44,12 @@ public class HsSpillingStrategyUtils {
      * @param expectedSize number of result buffers.
      * @return mapping for subpartitionId to buffers, the value of map entry must be order by
      *     bufferIndex ascending.
+     *     找到最先需要被消费的数据
      */
     public static TreeMap<Integer, List<BufferIndexAndChannel>>
             getBuffersByConsumptionPriorityInOrder(
-                    List<Integer> nextBufferIndexToConsume,
-                    TreeMap<Integer, Deque<BufferIndexAndChannel>> subpartitionToAllBuffers,
+                    List<Integer> nextBufferIndexToConsume,  // 每个子分区下个消费的index
+                    TreeMap<Integer, Deque<BufferIndexAndChannel>> subpartitionToAllBuffers,  // 未spill的buffer
                     int expectedSize) {
         if (expectedSize <= 0) {
             return new TreeMap<>();
@@ -76,6 +77,7 @@ public class HsSpillingStrategyUtils {
                     .computeIfAbsent(bufferIndexAndChannel.getChannel(), ArrayList::new)
                     .add(bufferIndexAndChannel);
             // if this iterator has next, re-added it.
+            // 重新归队
             if (bufferConsumptionPriorityIterator.hasNext()) {
                 heap.add(bufferConsumptionPriorityIterator);
             }

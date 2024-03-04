@@ -22,7 +22,9 @@ import org.apache.flink.runtime.io.network.partition.consumer.InputGate;
 
 import java.io.IOException;
 
-/** Reads channel state saved during checkpoint/savepoint. */
+/** Reads channel state saved during checkpoint/savepoint.
+ *
+ * */
 @Internal
 public interface SequentialChannelStateReader extends AutoCloseable {
 

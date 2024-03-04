@@ -27,15 +27,19 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Job level shuffle context which can offer some job information like job ID and through it, the
  * shuffle plugin notify the job to stop tracking the lost result partitions.
+ * 维护上下文信息
  */
 public interface JobShuffleContext {
 
-    /** @return the corresponding {@link JobID}. */
+    /** @return the corresponding {@link JobID}.
+     * 当前关联的洗牌job
+     * */
     JobID getJobId();
 
     /**
      * Notifies the job to stop tracking and release the target result partitions, which means these
      * partitions will be removed and will be reproduced if used afterwards.
+     * 表示不再追踪一组分区  并释放
      */
     CompletableFuture<?> stopTrackingAndReleasePartitions(
             Collection<ResultPartitionID> partitionIds);

@@ -30,9 +30,16 @@ import java.io.IOException;
  */
 public interface CheckpointedResultPartition {
 
-    /** Gets the checkpointed subpartition info with the given subpartitionIndex. */
+    /** Gets the checkpointed subpartition info with the given subpartitionIndex.
+     * 返回分区和子分区下标
+     * */
     ResultSubpartitionInfo getCheckpointedSubpartitionInfo(int subpartitionIndex);
 
+    /**
+     * 表示数据恢复阶段结束
+     * @param notifyAndBlockOnCompletion
+     * @throws IOException
+     */
     void finishReadRecoveredState(boolean notifyAndBlockOnCompletion) throws IOException;
 
     BufferBuilder requestBufferBuilderBlocking()

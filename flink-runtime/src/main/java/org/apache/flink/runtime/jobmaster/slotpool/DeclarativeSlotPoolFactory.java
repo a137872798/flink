@@ -27,6 +27,16 @@ import java.util.function.Consumer;
 
 /** Factory for a {@link DeclarativeSlotPool}. */
 public interface DeclarativeSlotPoolFactory {
+
+    /**
+     *
+     * @param jobId
+     * @param notifyNewResourceRequirements 该函数会消耗一组资源对象
+     * 记录各种超时时间
+     * @param idleSlotTimeout
+     * @param rpcTimeout
+     * @return
+     */
     DeclarativeSlotPool create(
             JobID jobId,
             Consumer<? super Collection<ResourceRequirement>> notifyNewResourceRequirements,

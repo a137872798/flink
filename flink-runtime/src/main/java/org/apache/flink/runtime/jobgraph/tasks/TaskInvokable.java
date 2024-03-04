@@ -42,6 +42,7 @@ import javax.annotation.Nullable;
  * @see CheckpointableTask
  * @see CoordinatedTask
  * @see AbstractInvokable
+ * 该对象可以执行任务
  */
 @Internal
 public interface TaskInvokable {
@@ -53,6 +54,7 @@ public interface TaskInvokable {
      *
      * <p>All resources should be cleaned up by calling {@link #cleanUp(Throwable)} after the method
      * returns.
+     * 执行任务
      */
     void invoke() throws Exception;
 
@@ -63,6 +65,7 @@ public interface TaskInvokable {
      * <p>If {@link #invoke()} is not called after this method for some reason (e.g. task
      * cancellation); then all resources should be cleaned up by calling {@link #cleanUp(Throwable)}
      * ()} after the method returns.
+     * 用于恢复之前的state
      */
     void restore() throws Exception;
 
@@ -74,18 +77,21 @@ public interface TaskInvokable {
      *     #invoke()}, null otherwise.
      *     <p>ATTENTION: {@link org.apache.flink.runtime.execution.CancelTaskException
      *     CancelTaskException} should not be treated as a failure.
+     *                  清理invoke或者restore流
      */
     void cleanUp(@Nullable Throwable throwable) throws Exception;
 
     /**
      * This method is called when a task is canceled either as a result of a user abort or an
      * execution failure. It can be overwritten to respond to shut down the user code properly.
+     * 取消本次任务
      */
     void cancel() throws Exception;
 
     /**
      * @return true if blocking input such as {@link InputGate#getNext()} is used (as opposed to
      *     {@link InputGate#pollNext()}. To be removed together with the DataSet API.
+     *     是否使用了非阻塞的输入流
      */
     boolean isUsingNonBlockingInput();
 
@@ -96,6 +102,8 @@ public interface TaskInvokable {
      * @param toInterrupt
      * @param taskName optional taskName to log stack trace
      * @param timeout optional timeout to log stack trace
+     *
+     *                检查任务是否被中断
      */
     void maybeInterruptOnCancel(
             Thread toInterrupt, @Nullable String taskName, @Nullable Long timeout);

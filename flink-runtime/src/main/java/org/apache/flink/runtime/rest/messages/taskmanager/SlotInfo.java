@@ -38,6 +38,7 @@ import java.util.Objects;
 /**
  * Class containing information for a slot of {@link
  * org.apache.flink.runtime.resourcemanager.slotmanager.TaskManagerSlotInformation}.
+ * 描述一个已经分配的slot
  */
 public class SlotInfo implements ResponseBody, Serializable {
     private static final long serialVersionUID = 1L;
@@ -49,6 +50,9 @@ public class SlotInfo implements ResponseBody, Serializable {
     @JsonProperty(FIELD_NAME_RESOURCE)
     private final ResourceProfileInfo resource;
 
+    /**
+     * 表示分配到哪个Job上
+     */
     @JsonProperty(FIELD_NAME_JOB_ID)
     @JsonSerialize(using = JobIDSerializer.class)
     private final JobID jobId;

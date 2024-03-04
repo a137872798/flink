@@ -37,7 +37,9 @@ import org.apache.flink.util.SerializedValue;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
-/** Implementation of the {@link TaskManagerGateway} for Flink's RPC system. */
+/** Implementation of the {@link TaskManagerGateway} for Flink's RPC system.
+ * 这是一个代理对象 逻辑都委托给 TaskExecutorGateway
+ * */
 public class RpcTaskManagerGateway implements TaskManagerGateway {
 
     private final TaskExecutorGateway taskExecutorGateway;

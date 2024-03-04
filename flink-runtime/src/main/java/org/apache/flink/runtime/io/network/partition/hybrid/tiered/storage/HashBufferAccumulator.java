@@ -45,12 +45,19 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>Note that this class need not be thread-safe, because it should only be accessed from the main
  * thread.
+ *
  */
 public class HashBufferAccumulator
         implements BufferAccumulator, HashSubpartitionBufferAccumulatorContext {
 
+    /**
+     * 这个管理内存申请
+     */
     private final TieredStorageMemoryManager memoryManager;
 
+    /**
+     * 对应每个子分区
+     */
     private final HashSubpartitionBufferAccumulator[] hashSubpartitionBufferAccumulators;
 
     /**
@@ -86,6 +93,7 @@ public class HashBufferAccumulator
             Buffer.DataType dataType,
             boolean isBroadcast)
             throws IOException {
+        // 接收数据 找到对应的子分区 触发append
         getSubpartitionAccumulator(subpartitionId).append(record, dataType);
     }
 

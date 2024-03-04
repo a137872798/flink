@@ -80,6 +80,7 @@ import static java.util.Collections.emptyList;
 /**
  * The base class for all batch tasks. Encapsulated common behavior and implements the main
  * life-cycle of the user code.
+ * 继承AbstractInvokable 对象 可以启动driver driver中包含了fun 可以处理输入并发送到下游
  */
 public class BatchTask<S extends Function, OT> extends AbstractInvokable
         implements TaskContext<S, OT> {
@@ -91,21 +92,26 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
     /**
      * The driver that invokes the user code (the stub implementation). The central driver in this
      * task (further drivers may be chained behind this driver).
+     * 一个驱动对应一个函数
      */
     protected volatile Driver<S, OT> driver;
 
     /**
      * The instantiated user code of this task's main operator (driver). May be null if the operator
      * has no udf.
+     * 表示用户定义的函数  用于处理数据
      */
     protected S stub;
 
-    /** The udf's runtime context. */
+    /** The udf's runtime context.
+     * 提供一些上下文信息
+     * */
     protected DistributedRuntimeUDFContext runtimeUdfContext;
 
     /**
      * The collector that forwards the user code's results. May forward to a channel or to chained
      * drivers within this task.
+     * 采集driver处理后的数据
      */
     protected Collector<OT> output;
 
@@ -122,7 +128,9 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
     /** The input readers for the configured broadcast variables for this task. */
     protected MutableReader<?>[] broadcastInputReaders;
 
-    /** The inputs reader, wrapped in an iterator. Prior to the local strategies, etc... */
+    /** The inputs reader, wrapped in an iterator. Prior to the local strategies, etc...
+     * 对一个输入流  每个流对应一个 MutableObjectIterator
+     * */
     protected MutableObjectIterator<?>[] inputIterators;
 
     /** The indices of the iterative inputs. Empty, if the task is not iterative. */
@@ -131,15 +139,20 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
     /** The indices of the iterative broadcast inputs. Empty, if non of the inputs is iterative. */
     protected int[] iterativeBroadcastInputs;
 
-    /** The local strategies that are applied on the inputs. */
+    /** The local strategies that are applied on the inputs.
+     * 该对象可以产生输入迭代器
+     * */
     protected volatile CloseableInputProvider<?>[] localStrategies;
 
     /**
      * The optional temp barriers on the inputs for dead-lock breaking. Are optionally resettable.
+     * 屏障  使用一个后台线程读取数据 并写入到buffer中   外部获取数据时会被阻塞
      */
     protected volatile TempBarrier<?>[] tempBarriers;
 
-    /** The resettable inputs in the case where no temp barrier is needed. */
+    /** The resettable inputs in the case where no temp barrier is needed.
+     * spill的特性 先将数据读取到内存中, 当内存不足时 则写入磁盘。  并且配合reset 之前写入的数据可以被重复读取
+     * */
     protected volatile SpillingResettableMutableObjectIterator<?>[] resettableInputs;
 
     /**
@@ -182,7 +195,9 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
     /** The flag that tags the task as still running. Checked periodically to abort processing. */
     protected volatile boolean running = true;
 
-    /** The accumulator map used in the RuntimeContext. */
+    /** The accumulator map used in the RuntimeContext.
+     * 累加器 维护各个累加值  该对象与context中的是一样的
+     * */
     protected Map<String, Accumulator<?, ?>> accumulatorMap;
 
     private InternalOperatorMetricGroup metrics;
@@ -194,7 +209,7 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
     /**
      * Create an Invokable task and set its environment.
      *
-     * @param environment The environment assigned to this invokable.
+     * @param environment The environment assigned to this invokable.  使用环境对象来初始化 很多属性需要从环境中获得
      */
     public BatchTask(Environment environment) {
         super(environment);
@@ -204,7 +219,9 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
     //                                  Task Interface
     // --------------------------------------------------------------------------------------------
 
-    /** The main work method. */
+    /** The main work method.
+     * 执行驱动
+     * */
     @Override
     public void invoke() throws Exception {
         // --------------------------------------------------------------------
@@ -220,8 +237,10 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
 
         // now get the operator class which drives the operation
         final Class<? extends Driver<S, OT>> driverClass = this.config.getDriver();
+        // 实例化驱动对象
         this.driver = InstantiationUtil.instantiate(driverClass, Driver.class);
 
+        // TODO 统计相关的先忽略
         String headName = getEnvironment().getTaskInfo().getTaskName().split("->")[0].trim();
         this.metrics =
                 getEnvironment()
@@ -235,10 +254,14 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
 
         // initialize the readers.
         // this does not yet trigger any stream consuming or processing.
+        // 先初始化从上游读取数据的reader对象
         initInputReaders();
+
+        // 初始化读取广播数据的reader  操作和initInputReaders 基本相同
         initBroadcastInputReaders();
 
         // initialize the writers.
+        // 初始化输出对象 把数据发往下游  链式对象的逻辑会被包裹进去
         initOutputs();
 
         if (LOG.isDebugEnabled()) {
@@ -264,12 +287,16 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
             // initialize the remaining data structures on the input and trigger the local
             // processing
             // the local processing includes building the dams / caches
+
+            // 准备工作已结束
             try {
                 int numInputs = driver.getNumberOfInputs();
                 int numComparators = driver.getNumberOfDriverComparators();
                 int numBroadcastInputs = this.config.getNumBroadcastInputs();
 
+                // 初始化迭代器  比较器
                 initInputsSerializersAndComparators(numInputs, numComparators);
+                // 初始化广播的序列化对象
                 initBroadcastInputsSerializers(numBroadcastInputs);
 
                 // set the iterative status for inputs and broadcast inputs
@@ -297,10 +324,12 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
                             }
                         }
                     }
+                    // 这些input表示可迭代
                     this.iterativeInputs = asArray(iterativeInputs);
                 }
 
                 {
+                    // 这个是针对广播input
                     List<Integer> iterativeBcInputs = new ArrayList<>();
 
                     for (int i = 0; i < numBroadcastInputs; i++) {
@@ -328,6 +357,7 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
                     this.iterativeBroadcastInputs = asArray(iterativeBcInputs);
                 }
 
+                // 根据配置信息 对输入流做处理
                 initLocalStrategies(numInputs);
             } catch (Exception e) {
                 throw new RuntimeException(
@@ -343,20 +373,26 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
                 return;
             }
 
+            // 此时输入流已经初始化好了
+
             // pre main-function initialization
+            // 初始化driver 和 udf
             initialize();
 
             // read the broadcast variables. they will be released in the finally clause
             for (int i = 0; i < this.config.getNumBroadcastInputs(); i++) {
                 final String name = this.config.getBroadcastInputName(i);
+                // 读取广播数据
                 readAndSetBroadcastInput(
                         i, name, this.runtimeUdfContext, 1 /* superstep one for the start */);
             }
 
             // the work goes here
+            // 设置完广播变量后 就可以运行driver了
             run();
         } finally {
             // clean up in any case!
+            // 此时本任务已经执行完了  进行清理工作
             closeLocalStrategiesAndCaches();
 
             clearReaders(inputReaders);
@@ -395,6 +431,10 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
     //                                  Main Work Methods
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 进行初始化操作
+     * @throws Exception
+     */
     protected void initialize() throws Exception {
         // create the operator
         try {
@@ -422,6 +462,15 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
         }
     }
 
+    /**
+     * 读取广播数据
+     * @param inputNum
+     * @param bcVarName
+     * @param context
+     * @param superstep
+     * @param <X>
+     * @throws IOException
+     */
     protected <X> void readAndSetBroadcastInput(
             int inputNum, String bcVarName, DistributedRuntimeUDFContext context, int superstep)
             throws IOException {
@@ -441,6 +490,7 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
 
         final MutableReader<?> reader = this.broadcastInputReaders[inputNum];
 
+        // 产生广播变量 并存储到context中
         BroadcastVariableMaterialization<X, ?> variable =
                 getEnvironment()
                         .getBroadcastVariableManager()
@@ -449,6 +499,12 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
         context.setBroadcastVariable(bcVarName, variable);
     }
 
+    /**
+     * 本task不再引用广播变量
+     * @param bcVarName
+     * @param superstep
+     * @param context
+     */
     protected void releaseBroadcastVariables(
             String bcVarName, int superstep, DistributedRuntimeUDFContext context) {
         if (LOG.isDebugEnabled()) {
@@ -464,6 +520,10 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
         context.clearBroadcastVariable(bcVarName);
     }
 
+    /**
+     * 运行驱动
+     * @throws Exception
+     */
     protected void run() throws Exception {
         // ---------------------------- Now, the actual processing starts ------------------------
         // check for asynchronous canceling
@@ -565,6 +625,9 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
         }
     }
 
+    /**
+     * 清理数据
+     */
     protected void closeLocalStrategiesAndCaches() {
 
         // make sure that all broadcast variable references held by this task are released
@@ -651,6 +714,12 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
         return (numChained == 0) ? config : chainedTasks.get(numChained - 1).getTaskConfig();
     }
 
+    /**
+     * 初始化用户函数
+     * @param stubSuperClass
+     * @return
+     * @throws Exception
+     */
     protected S initStub(Class<? super S> stubSuperClass) throws Exception {
         try {
             ClassLoader userCodeClassLoader = getUserCodeClassLoader();
@@ -678,9 +747,12 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
      * Creates the record readers for the number of inputs as defined by {@link
      * #getNumTaskInputs()}. This method requires that the task configuration, the driver, and the
      * user-code class loader are set.
+     * inputReader用于从上游读取数据
      */
     protected void initInputReaders() throws Exception {
         final int numInputs = getNumTaskInputs();
+
+        // 针对每个输入流 生成一个reader对象
         final MutableReader<?>[] inputReaders = new MutableReader<?>[numInputs];
 
         int currentReaderOffset = 0;
@@ -688,6 +760,7 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
         for (int i = 0; i < numInputs; i++) {
             //  ---------------- create the input readers ---------------------
             // in case where a logical input unions multiple physical inputs, create a union reader
+            // 获取某个input的group数量  每个group对应一个gate(一个分区) 每个分区有多个子分区
             final int groupSize = this.config.getGroupSize(i);
 
             if (groupSize == 1) {
@@ -696,6 +769,8 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
                         new MutableRecordReader<>(
                                 getEnvironment().getInputGate(currentReaderOffset),
                                 getEnvironment().getTaskManagerInfo().getTmpDirectories());
+
+                // 当该input的group数量 > 1 产生多个gate
             } else if (groupSize > 1) {
                 // union case
                 IndexedInputGate[] readers = new IndexedInputGate[groupSize];
@@ -725,13 +800,17 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
      * Creates the record readers for the extra broadcast inputs as configured by {@link
      * TaskConfig#getNumBroadcastInputs()}. This method requires that the task configuration, the
      * driver, and the user-code class loader are set.
+     * 初始化读取广播数据的reader
      */
     protected void initBroadcastInputReaders() throws Exception {
+
+        // 获取广播输入流的数量
         final int numBroadcastInputs = this.config.getNumBroadcastInputs();
         final MutableReader<?>[] broadcastInputReaders = new MutableReader<?>[numBroadcastInputs];
 
         int currentReaderOffset = config.getNumInputs();
 
+        // 下面的操作和普通reader对象其实是一样的
         for (int i = 0; i < this.config.getNumBroadcastInputs(); i++) {
             //  ---------------- create the input readers ---------------------
             // in case where a logical input unions multiple physical inputs, create a union reader
@@ -761,7 +840,9 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
         this.broadcastInputReaders = broadcastInputReaders;
     }
 
-    /** Creates all the serializers and comparators. */
+    /** Creates all the serializers and comparators.
+     * 创建序列化对象和比较器
+     * */
     protected void initInputsSerializersAndComparators(int numInputs, int numComparators) {
         this.inputSerializers = new TypeSerializerFactory<?>[numInputs];
         this.inputComparators = numComparators > 0 ? new TypeComparator<?>[numComparators] : null;
@@ -807,6 +888,7 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
     /**
      * NOTE: This method must be invoked after the invocation of {@code #initInputReaders()} and
      * {@code #initInputSerializersAndComparators(int)}!
+     * 为输入流设置策略
      */
     protected void initLocalStrategies(int numInputs) throws Exception {
 
@@ -823,6 +905,7 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
         // set up the local strategies first, such that the can work before any temp barrier is
         // created
         for (int i = 0; i < numInputs; i++) {
+            // 基于每个流的信息 初始化策略
             initInputLocalStrategy(i);
         }
 
@@ -836,11 +919,14 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
         // the second variant spills to the side and will not read unless the result is also
         // consumed
         // in a pipelined fashion.
+
         this.resettableInputs = new SpillingResettableMutableObjectIterator<?>[numInputs];
         this.tempBarriers = new TempBarrier<?>[numInputs];
 
         for (int i = 0; i < numInputs; i++) {
             final int memoryPages;
+
+            // 根据是否缓存和 是否异步 设置标识
             final boolean async = this.config.isInputAsynchronouslyMaterialized(i);
             final boolean cached = this.config.isInputCached(i);
 
@@ -860,7 +946,9 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
                 memoryPages = 0;
             }
 
+            // 根据异步 or cache  借助不同的组件
             if (async) {
+                // 异步读取时 使用后台线程
                 @SuppressWarnings({"unchecked", "rawtypes"})
                 TempBarrier<?> barrier =
                         new TempBarrier(
@@ -875,6 +963,7 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
                 this.tempBarriers[i] = barrier;
                 this.inputs[i] = null;
             } else if (cached) {
+                // 如果是缓存 利用SpillingResettableMutableObjectIterator  该对象可以重复读取数据
                 @SuppressWarnings({"unchecked", "rawtypes"})
                 SpillingResettableMutableObjectIterator<?> iter =
                         new SpillingResettableMutableObjectIterator(
@@ -987,6 +1076,11 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
         this.excludeFromReset[inputNum] = true;
     }
 
+    /**
+     * 设置某个输入流的策略 在本地读取数据前 会对数据流做处理 比如排序 比如合并
+     * @param inputNum
+     * @throws Exception
+     */
     private void initInputLocalStrategy(int inputNum) throws Exception {
         // check if there is already a strategy
         if (this.localStrategies[inputNum] != null) {
@@ -994,6 +1088,7 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
         }
 
         // now set up the local strategy
+        // 从配置中获取策略
         final LocalStrategy localStrategy = this.config.getInputLocalStrategy(inputNum);
         if (localStrategy != null) {
             switch (localStrategy) {
@@ -1020,6 +1115,7 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
                     // set the input to null such that it will be lazily fetched from the input
                     // strategy
                     this.inputs[inputNum] = null;
+                    // 这样就变成通过 localStrategies 获取数据
                     this.localStrategies[inputNum] = sorter;
                     break;
                 case COMBININGSORT:
@@ -1075,6 +1171,7 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
 
                     // set the input to null such that it will be lazily fetched from the input
                     // strategy
+                    // 产生排序对象
                     this.inputs[inputNum] = null;
                     this.localStrategies[inputNum] = cSorter;
                     break;
@@ -1084,6 +1181,7 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
             }
         } else {
             // no local strategy in the config
+            // 其余情况表示没有策略  直接将 inputIterators 作为 inputs
             this.inputs[inputNum] = this.inputIterators[inputNum];
         }
     }
@@ -1098,6 +1196,12 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
         return compFact.createComparator();
     }
 
+    /**
+     * 将reader对象的读取逻辑  转换成迭代器的遍历
+     * @param inputReader
+     * @param serializerFactory
+     * @return
+     */
     protected MutableObjectIterator<?> createInputIterator(
             MutableReader<?> inputReader, TypeSerializerFactory<?> serializerFactory) {
         @SuppressWarnings("unchecked")
@@ -1116,6 +1220,7 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
     /**
      * Creates a writer for each output. Creates an OutputCollector which forwards its input to all
      * writers. The output collector applies the configured shipping strategies for each writer.
+     * 初始化输出对象
      */
     protected void initOutputs() throws Exception {
         this.chainedTasks = new ArrayList<>();
@@ -1197,6 +1302,12 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
         return metrics;
     }
 
+    /**
+     * driver在运行时 会通过该方法获取输入流
+     * @param index
+     * @param <X>
+     * @return
+     */
     @Override
     public <X> MutableObjectIterator<X> getInput(int index) {
         if (index < 0 || index > this.driver.getNumberOfInputs()) {
@@ -1204,11 +1315,14 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
         }
 
         // check for lazy assignment from input strategies
+        // 普通的inputs如果存在 直接返回
         if (this.inputs[index] != null) {
             @SuppressWarnings("unchecked")
             MutableObjectIterator<X> in = (MutableObjectIterator<X>) this.inputs[index];
             return in;
         } else {
+
+            // 在一些有本地策略的输入流  inputs会被置null  就会从其他数组中读取
             final MutableObjectIterator<X> in;
             try {
                 if (this.tempBarriers[index] != null) {
@@ -1338,9 +1452,10 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
      * @param cl The classloader used to load user defined types.
      * @param eventualOutputs The output writers that this task forwards to the next task for each
      *     output.
-     * @param outputOffset The offset to start to get the writers for the outputs
+     * @param outputOffset The offset to start to get the writers for the outputs   根据output数量 产生等量的writer对象 并添加到列表中
      * @param numOutputs The number of outputs described in the configuration.
      * @return The OutputCollector that data produced in this task is submitted to.
+     * 获取输出采集器对象
      */
     public static <T> Collector<T> getOutputCollector(
             AbstractInvokable task,
@@ -1350,6 +1465,8 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
             int outputOffset,
             int numOutputs)
             throws Exception {
+
+        // 表示不需要输出 返回null
         if (numOutputs == 0) {
             return null;
         }
@@ -1359,6 +1476,7 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
         final List<RecordWriter<SerializationDelegate<T>>> writers = new ArrayList<>(numOutputs);
 
         // create a writer for each output
+        // 针对每个output 产生一个writer对象  (每个output是一个partition)
         for (int i = 0; i < numOutputs; i++) {
             // create the OutputEmitter from output ship strategy
             final ShipStrategyType strategy = config.getOutputShipStrategy(i);
@@ -1367,9 +1485,12 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
 
             final ChannelSelector<SerializationDelegate<T>> oe;
             if (compFactory == null) {
+                // 这是一个普通的output对象 在写入数据前会根据一定规则 选择合适的分区
                 oe = new OutputEmitter<>(strategy, indexInSubtaskGroup);
             } else {
+                // 这个是描述数据分布的
                 final DataDistribution dataDist = config.getOutputDataDistribution(i, cl);
+                // 这个可以根据key来进行分区  (这个分区是指子分区)
                 final Partitioner<?> partitioner = config.getOutputPartitioner(i, cl);
 
                 final TypeComparator<T> comparator = compFactory.createComparator();
@@ -1378,6 +1499,7 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
                                 strategy, indexInSubtaskGroup, comparator, partitioner, dataDist);
             }
 
+            // 每个output对应一个 RecordWriter
             final RecordWriter<SerializationDelegate<T>> recordWriter =
                     new RecordWriterBuilder()
                             .setChannelSelector(oe)
@@ -1398,6 +1520,7 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
     /**
      * Creates a writer for each output. Creates an OutputCollector which forwards its input to all
      * writers. The output collector applies the configured shipping strategy.
+     * 基于传入的参数 产生结果收集器
      */
     @SuppressWarnings("unchecked")
     public static <T> Collector<T> initOutputs(
@@ -1413,8 +1536,10 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
 
         // check whether we got any chained tasks
         final int numChained = config.getNumberOfChainedStubs();
+        // 表示有链式任务
         if (numChained > 0) {
             // got chained stubs. that means that this one may only have a single forward connection
+            // 如果是链式任务  那么output数量应该是1 且连接策略应该是本地连接
             if (numOutputs != 1 || config.getOutputShipStrategy(0) != ShipStrategyType.FORWARD) {
                 throw new RuntimeException(
                         "Plan Generation Bug: Found a chained stub that is not connected via an only forward connection.");
@@ -1423,10 +1548,12 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
             // instantiate each task
             @SuppressWarnings("rawtypes")
             Collector previous = null;
+            // 从后往前获取
             for (int i = numChained - 1; i >= 0; --i) {
                 // get the task first
                 final ChainedDriver<?, ?> ct;
                 try {
+                    // 获取链式驱动对象
                     Class<? extends ChainedDriver<?, ?>> ctc = config.getChainedTask(i);
                     ct = ctc.newInstance();
                 } catch (Exception ex) {
@@ -1437,6 +1564,7 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
                 final TaskConfig chainedStubConf = config.getChainedStubConfig(i);
                 final String taskName = config.getChainedTaskName(i);
 
+                // 表示最后一个链式驱动 在最内层 需要被初始化成collector
                 if (i == numChained - 1) {
                     // last in chain, instantiate the output collector for this task
                     previous =
@@ -1449,6 +1577,7 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
                                     chainedStubConf.getNumOutputs());
                 }
 
+                // 此时 eventualOutputs 已经填充完毕 其他chain对象就是对output进行包装
                 ct.setup(
                         chainedStubConf,
                         taskName,
@@ -1457,6 +1586,8 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
                         cl,
                         executionConfig,
                         accumulatorMap);
+
+                // 链式对象将会从后往前添加
                 chainedTasksTarget.add(0, ct);
 
                 if (i == numChained - 1) {
@@ -1471,6 +1602,7 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
         // else
 
         // instantiate the output collector the default way from this configuration
+        // 配置中没有链式对象  直接产生output即可
         return getOutputCollector(
                 containingTask, config, cl.asClassLoader(), eventualOutputs, 0, numOutputs);
     }
@@ -1531,6 +1663,7 @@ public class BatchTask<S extends Function, OT> extends AbstractInvokable
      * @param tasks The tasks to be opened.
      * @param parent The parent task, used to obtain parameters to include in the log message.
      * @throws Exception Thrown, if the opening encounters an exception.
+     * 调用所有链式驱动的open
      */
     public static void openChainedTasks(List<ChainedDriver<?, ?>> tasks, AbstractInvokable parent)
             throws Exception {

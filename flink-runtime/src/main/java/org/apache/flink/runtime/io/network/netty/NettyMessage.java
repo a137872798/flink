@@ -59,6 +59,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>This class must be public as long as we are using a Netty version prior to 4.0.45. Please
  * check FLINK-7845 for more information.
+ * 表示使用netty传输的一条消息
  */
 public abstract class NettyMessage {
 
@@ -67,6 +68,9 @@ public abstract class NettyMessage {
     // constructor in order to work with the generic deserializer.
     // ------------------------------------------------------------------------
 
+    /**
+     * 头部长度
+     */
     static final int FRAME_HEADER_LENGTH =
             4 + 4 + 1; // frame length (4), magic number (4), msg ID (1)
 
@@ -127,6 +131,8 @@ public abstract class NettyMessage {
      *     (<tt>false</tt>)
      * @return a newly allocated direct buffer with header data written for {@link
      *     NettyMessageEncoder}
+     *
+     *     分配一个缓冲区
      */
     private static ByteBuf allocateBuffer(
             ByteBufAllocator allocator,
@@ -148,6 +154,8 @@ public abstract class NettyMessage {
             // FRAME_HEADER_LENGTH only):
             buffer = allocator.directBuffer();
         }
+
+        // 写入FRAME_HEADER_LENGTH
         buffer.writeInt(
                 FRAME_HEADER_LENGTH
                         + messageHeaderLength
@@ -162,6 +170,9 @@ public abstract class NettyMessage {
     // Generic NettyMessage encoder and decoder
     // ------------------------------------------------------------------------
 
+    /**
+     * 消息编码器
+     */
     @ChannelHandler.Sharable
     static class NettyMessageEncoder extends ChannelOutboundHandlerAdapter {
 
@@ -190,6 +201,8 @@ public abstract class NettyMessage {
      * | FRAME LENGTH (4) | MAGIC NUMBER (4) | ID (1) || CUSTOM MESSAGE |
      * +------------------+------------------+--------++----------------+
      * </pre>
+     *
+     * 作为服务端  接收到数据后使用该对象解码
      */
     static class NettyMessageDecoder extends LengthFieldBasedFrameDecoder {
         /** Creates a new message decoded with the required frame properties. */
@@ -212,6 +225,7 @@ public abstract class NettyMessage {
                             "Network stream corrupted: received incorrect magic number.");
                 }
 
+                // id 提示了消息类型
                 byte msgId = msg.readByte();
 
                 final NettyMessage decodedMsg;
@@ -339,6 +353,13 @@ public abstract class NettyMessage {
         // Serialization
         // --------------------------------------------------------------------
 
+        /**
+         * 将该消息写入channel
+         * @param out
+         * @param promise
+         * @param allocator
+         * @throws IOException
+         */
         @Override
         void write(ChannelOutboundInvoker out, ChannelPromise promise, ByteBufAllocator allocator)
                 throws IOException {
@@ -349,6 +370,8 @@ public abstract class NettyMessage {
 
                 headerBuf = fillHeader(allocator);
                 out.write(headerBuf);
+
+                // 再写入buffer内部的数据
                 if (buffer instanceof FileRegionBuffer) {
                     out.write(buffer, promise);
                 } else {
@@ -381,6 +404,11 @@ public abstract class NettyMessage {
             }
         }
 
+        /**
+         * 填充头部信息
+         * @param allocator
+         * @return
+         */
         private ByteBuf fillHeader(ByteBufAllocator allocator) {
             // only allocate header buffer - we will combine it with the data buffer below
             ByteBuf headerBuf =
@@ -404,9 +432,12 @@ public abstract class NettyMessage {
          * @return a BufferResponse object with the header parsed and the data buffer to fill in
          *     later. The data buffer will be null if the target channel has been released or the
          *     buffer size is 0.
+         *
          */
         static BufferResponse readFrom(
                 ByteBuf messageHeader, NetworkBufferAllocator bufferAllocator) {
+
+            // 还原出header
             InputChannelID receiverId = InputChannelID.fromByteBuf(messageHeader);
             int sequenceNumber = messageHeader.readInt();
             int backlog = messageHeader.readInt();
@@ -437,6 +468,9 @@ public abstract class NettyMessage {
         }
     }
 
+    /**
+     * 表示某条channel出现了异常
+     */
     static class ErrorResponse extends NettyMessage {
 
         static final byte ID = 1;
@@ -482,6 +516,12 @@ public abstract class NettyMessage {
             }
         }
 
+        /**
+         * 还原错误信息
+         * @param buffer
+         * @return
+         * @throws Exception
+         */
         static ErrorResponse readFrom(ByteBuf buffer) throws Exception {
             try (ObjectInputStream ois = new ObjectInputStream(new ByteBufInputStream(buffer))) {
                 Object obj = ois.readObject();
@@ -508,6 +548,9 @@ public abstract class NettyMessage {
     // Client requests
     // ------------------------------------------------------------------------
 
+    /**
+     * 表示收到一个分区请求
+     */
     static class PartitionRequest extends NettyMessage {
 
         private static final byte ID = 2;
@@ -543,6 +586,7 @@ public abstract class NettyMessage {
                         bb.writeInt(credit);
                     };
 
+            // 将数据写入out
             writeToChannel(
                     out,
                     promise,
@@ -574,6 +618,9 @@ public abstract class NettyMessage {
         }
     }
 
+    /**
+     * 也是一种消息
+     */
     static class TaskEventRequest extends NettyMessage {
 
         private static final byte ID = 3;
@@ -804,7 +851,9 @@ public abstract class NettyMessage {
         }
     }
 
-    /** Backlog announcement from the producer to the consumer for credit allocation. */
+    /** Backlog announcement from the producer to the consumer for credit allocation.
+     * 产生一个数据积压消息
+     * */
     static class BacklogAnnouncement extends NettyMessage {
 
         static final byte ID = 9;

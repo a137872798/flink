@@ -31,9 +31,13 @@ import org.apache.flink.runtime.executiongraph.IntermediateResultPartition;
  */
 public enum DistributionPattern {
 
-    /** Each producing sub task is connected to each sub task of the consuming task. */
+    /** Each producing sub task is connected to each sub task of the consuming task.
+     * 每个生产子任务  与每个消费子任务相连
+     * */
     ALL_TO_ALL,
 
-    /** Each producing sub task is connected to one or more subtask(s) of the consuming task. */
+    /** Each producing sub task is connected to one or more subtask(s) of the consuming task.
+     * 每个生产子任务 与一个或多个子任务相连
+     * */
     POINTWISE
 }

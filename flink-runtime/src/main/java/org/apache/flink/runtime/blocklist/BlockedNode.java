@@ -22,15 +22,27 @@ import java.io.Serializable;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** This class represents a blocked node record. */
+/** This class represents a blocked node record.
+ * 表示一个被阻塞的节点
+ * 在调度器上会检测execution的执行费时  当任务比较慢时 就会将节点标记为阻塞
+ * */
 public class BlockedNode implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 节点id
+     */
     private final String nodeId;
 
+    /**
+     * 阻塞原因
+     */
     private final String cause;
 
+    /**
+     * 解除阻塞的时间
+     */
     private final long endTimestamp;
 
     public BlockedNode(String nodeId, String cause, long endTimestamp) {

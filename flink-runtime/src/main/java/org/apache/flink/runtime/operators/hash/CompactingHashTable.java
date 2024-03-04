@@ -50,6 +50,7 @@ import java.util.List;
  * memory of the partition to compact.
  *
  * @param <T> Record type stored in hash table
+ *           表示一个紧凑的hashTable  应该是表示数据是紧贴的  InPlaceMutableHashTable会产生一些空洞
  */
 public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
 
@@ -160,7 +161,10 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
 
     // ------------------------------------------------------------------------
 
-    /** The partitions of the hash table. */
+    /** The partitions of the hash table.
+     * 每个InMemoryPartition 对应一个分区的数据
+     * 每个分区由多个page(segment)组成
+     * */
     private final ArrayList<InMemoryPartition<T>> partitions;
 
     /**
@@ -172,12 +176,14 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
     /**
      * Temporary storage for partition compaction (always attempts to allocate as many segments as
      * the largest partition)
+     * 在压缩分区数据时 使用的临时对象
      */
     private InMemoryPartition<T> compactionMemory;
 
     /**
      * The number of buckets in the current table. The bucket array is not necessarily fully used,
      * when not all buckets that would fit into the last segment are actually used.
+     * record计算hash后 在bucket中找到数据的偏移量
      */
     private int numBuckets;
 
@@ -201,6 +207,13 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
         this(buildSideSerializer, buildSideComparator, memorySegments, DEFAULT_RECORD_LEN);
     }
 
+    /**
+     *
+     * @param buildSideSerializer
+     * @param buildSideComparator
+     * @param memorySegments
+     * @param avgRecordLen  表示一条记录的平均长度
+     */
     public CompactingHashTable(
             TypeSerializer<T> buildSideSerializer,
             TypeComparator<T> buildSideComparator,
@@ -225,6 +238,7 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
                         ? (ArrayList<MemorySegment>) memorySegments
                         : new ArrayList<MemorySegment>(memorySegments);
 
+        // getLength() == -1  表示长度不固定
         this.avgRecordLen =
                 buildSideSerializer.getLength() > 0
                         ? buildSideSerializer.getLength()
@@ -241,6 +255,7 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
 
         this.pageSizeInBits = MathUtils.log2strict(this.segmentSize);
 
+        // 表示一个segment中 应当有多少个bucket
         int bucketsPerSegment = this.segmentSize >> NUM_INTRA_BUCKET_BITS;
         if (bucketsPerSegment == 0) {
             throw new IllegalArgumentException(
@@ -258,7 +273,9 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
     //  life cycle
     // ------------------------------------------------------------------------
 
-    /** Initialize the hash table */
+    /** Initialize the hash table
+     * 进行初始化工作
+     * */
     @Override
     public void open() {
         synchronized (stateLock) {
@@ -268,8 +285,11 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
             closed = false;
         }
 
-        // create the partitions
+        // create the partitions  一开始还是不知道会有多少个分区
+        // 通过计算获得分区数
         final int partitionFanOut = getPartitioningFanOutNoEstimates(this.availableMemory.size());
+
+        // 创建分区对象
         createPartitions(partitionFanOut);
 
         // set up the table structure. the write behind buffers are taken away, as are one buffer
@@ -278,9 +298,10 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
                 getInitialTableSize(
                         this.availableMemory.size(),
                         this.segmentSize,
-                        partitionFanOut,
+                        partitionFanOut,   // 预估会产生多少个分区
                         this.avgRecordLen);
 
+        // 初始化每个segment的bucket数据 (head数据)
         initTable(numBuckets, (byte) partitionFanOut);
     }
 
@@ -290,6 +311,7 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
      * inputs were properly processed, and as an cancellation call, which cleans up all resources
      * that are currently held by the hash join. If another process still access the hash table
      * after close has been called no operations will be performed.
+     * 关闭 hash表对象
      */
     @Override
     public void close() {
@@ -304,9 +326,11 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
         LOG.debug("Closing hash table and releasing resources.");
 
         // release the table structure
+        // 释放bucket对应的segment
         releaseTable();
 
         // clear the memory in the partitions
+        // 清理每个分区的数据
         clearPartitions();
     }
 
@@ -329,6 +353,11 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
     //  adding data to the hash table
     // ------------------------------------------------------------------------
 
+    /**
+     * 使用迭代器中的数据 来填充本对象
+     * @param input
+     * @throws IOException
+     */
     public void buildTableWithUniqueKey(final MutableObjectIterator<T> input) throws IOException {
         // go over the complete input and insert every element into the hash table
 
@@ -338,6 +367,11 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
         }
     }
 
+    /**
+     * 插入一条新记录
+     * @param record
+     * @throws IOException
+     */
     @Override
     public final void insert(T record) throws IOException {
         if (this.closed) {
@@ -354,10 +388,14 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
         final MemorySegment bucket = this.buckets[bucketArrayPos];
 
         // get the basic characteristics of the bucket
+        // 找到对应的分区
         final int partitionNumber = bucket.get(bucketInSegmentPos + HEADER_PARTITION_OFFSET);
+        // 数据存储在该分区中
         InMemoryPartition<T> partition = this.partitions.get(partitionNumber);
 
+        // 将数据插入到该分区对应的数据块中  就是简单的追加数据
         long pointer = insertRecordIntoPartition(record, partition, false);
+        // 尝试更新bucket的指针数据
         insertBucketEntryFromStart(bucket, bucketInSegmentPos, hashCode, pointer, partitionNumber);
     }
 
@@ -367,12 +405,14 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
      *
      * @param record record to insert or replace
      * @throws IOException
+     * 插入数据 当遇到相同的时候 则进行替换
      */
     public void insertOrReplaceRecord(T record) throws IOException {
         if (this.closed) {
             return;
         }
 
+        // 先计算record的hash值
         final int searchHashCode = MathUtils.jenkinsHash(this.buildSideComparator.hash(record));
         final int posHashCode = searchHashCode % this.numBuckets;
 
@@ -386,12 +426,15 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
         int bucketInSegmentOffset = originalBucketOffset;
 
         // get the basic characteristics of the bucket
+        // 找到bucket 并获取索引信息
         final int partitionNumber = bucket.get(bucketInSegmentOffset + HEADER_PARTITION_OFFSET);
         final InMemoryPartition<T> partition = this.partitions.get(partitionNumber);
+        // 顺便取出 分区相关的overflow
         final MemorySegment[] overflowSegments = partition.overflowSegments;
 
         this.buildSideComparator.setReference(record);
 
+        // 分别获取数量和 hashcode/pointer指针
         int countInSegment = bucket.getInt(bucketInSegmentOffset + HEADER_COUNT_OFFSET);
         int numInSegment = 0;
         int posInSegment = bucketInSegmentOffset + BUCKET_HEADER_LENGTH;
@@ -400,14 +443,17 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
         // buckets)
         while (true) {
 
+            // 开始挨个遍历 落在同一bucket上的entry
             while (numInSegment < countInSegment) {
 
                 final int thisCode = bucket.getInt(posInSegment);
                 posInSegment += HASH_CODE_LEN;
 
                 // check if the hash code matches
+                // 表示hashCode匹配  一个entry可能存在多个相同的hashCode  但是还是要通过比较(查看)对象才能确定是否相等
                 if (thisCode == searchHashCode) {
                     // get the pointer to the pair
+                    // 找到对应的pointer
                     final int pointerOffset =
                             bucketInSegmentOffset
                                     + BUCKET_POINTER_START_OFFSET
@@ -416,8 +462,11 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
 
                     // deserialize the key to check whether it is really equal, or whether we had
                     // only a hash collision
+                    // 获取对应的值
                     T valueAtPosition = partition.readRecordAt(pointer);
+                    // 表示对应的记录已经存在 进行替换
                     if (this.buildSideComparator.equalToReference(valueAtPosition)) {
+                        // 注意这里是追加数据 并没有进行替换 而是修改了entry对应的指针
                         long newPointer = insertRecordIntoPartition(record, partition, true);
                         bucket.putLong(pointerOffset, newPointer);
                         return;
@@ -426,13 +475,18 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
                 numInSegment++;
             }
 
+            // 首先外层的bucket检查完了  还要检查overflow中的bucket
+
             // this segment is done. check if there is another chained bucket
             long newForwardPointer = bucket.getLong(bucketInSegmentOffset + HEADER_FORWARD_OFFSET);
+
+            // overflow中没有相关数据 那么就可以执行插入逻辑了
             if (newForwardPointer == BUCKET_FORWARD_POINTER_NOT_SET) {
 
                 // nothing found. append and insert
                 long pointer = insertRecordIntoPartition(record, partition, false);
 
+                // 下面准备添加索引
                 if (countInSegment < NUM_ENTRIES_PER_BUCKET) {
                     // we are good in our current bucket, put the values
                     bucket.putInt(
@@ -468,14 +522,24 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
         }
     }
 
+    /**
+     * 将数据插入到某个分区中
+     * @param record    需要处理的记录
+     * @param partition   目标分区
+     * @param fragments
+     * @return
+     * @throws IOException
+     */
     private long insertRecordIntoPartition(
             T record, InMemoryPartition<T> partition, boolean fragments) throws IOException {
         try {
+            // 这个是总偏移量
             long pointer = partition.appendRecord(record);
             if (fragments) {
                 partition.setIsCompacted(false);
             }
             if ((pointer >> this.pageSizeInBits) > this.compactionMemory.getBlockCount()) {
+                // compactionMemory 要保证有相同数量的segment
                 this.compactionMemory.allocateSegments((int) (pointer >> this.pageSizeInBits));
             }
             return pointer;
@@ -519,6 +583,10 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
      * IMPORTANT!!! We pass only the partition number, because we must make sure we get a fresh
      * partition reference. The partition reference used during search for the key may have become
      * invalid during the compaction.
+     * 尝试更新bucket的指针数据
+     * @param bucket  该bucket 所处的segment
+     * @param bucketInSegmentPos  该bucket在segment的位置
+     * @param pointer 本次需要存储的指针位置
      */
     private void insertBucketEntryFromStart(
             MemorySegment bucket,
@@ -529,24 +597,30 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
             throws IOException {
         boolean checkForResize = false;
         // find the position to put the hash code and pointer
+        // 一个bucket可以存储多个hash值
         final int count = bucket.getInt(bucketInSegmentPos + HEADER_COUNT_OFFSET);
         if (count < NUM_ENTRIES_PER_BUCKET) {
             // we are good in our current bucket, put the values
+            // 一个位置记录多个hash值  也有可能是相同的值
             bucket.putInt(
                     bucketInSegmentPos + BUCKET_HEADER_LENGTH + (count * HASH_CODE_LEN),
                     hashCode); // hash code
+            // 维护该hash值对应的指针
             bucket.putLong(
                     bucketInSegmentPos + BUCKET_POINTER_START_OFFSET + (count * POINTER_LEN),
                     pointer); // pointer
+            // 更新该entry维护的hash值数量
             bucket.putInt(bucketInSegmentPos + HEADER_COUNT_OFFSET, count + 1); // update count
         } else {
             // we need to go to the overflow buckets
+            // 表示该bucket存储的数量过多  需要借助 overflow buckets
             final InMemoryPartition<T> p = this.partitions.get(partitionNumber);
 
             final long originalForwardPointer =
                     bucket.getLong(bucketInSegmentPos + HEADER_FORWARD_OFFSET);
             final long forwardForNewBucket;
 
+            // 表示已经使用了 overflow容器
             if (originalForwardPointer != BUCKET_FORWARD_POINTER_NOT_SET) {
 
                 // forward pointer set
@@ -554,9 +628,11 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
                 final int segOffset = (int) originalForwardPointer;
                 final MemorySegment seg = p.overflowSegments[overflowSegNum];
 
+                // 该segment总存储的类似与bucket数据
                 final int obCount = seg.getInt(segOffset + HEADER_COUNT_OFFSET);
 
                 // check if there is space in this overflow bucket
+                // 将指针记录在overflow bucket
                 if (obCount < NUM_ENTRIES_PER_BUCKET) {
                     // space in this bucket and we are done
                     seg.putInt(
@@ -570,20 +646,24 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
                 } else {
                     // no space here, we need a new bucket. this current overflow bucket will be the
                     // target of the new overflow bucket
+                    // 看来要构成一个链式结构
                     forwardForNewBucket = originalForwardPointer;
                 }
             } else {
                 // no overflow bucket yet, so we need a first one
+                // 表示此时映射到同一个bucket的entry过多
                 forwardForNewBucket = BUCKET_FORWARD_POINTER_NOT_SET;
             }
 
             // we need a new overflow bucket
+            // 此时表示需要一个新的bucket  (还没有使用overflow作为bucket记录 或者上个bucket记满了)
             MemorySegment overflowSeg;
             final int overflowBucketNum;
             final int overflowBucketOffset;
 
             // first, see if there is space for an overflow bucket remaining in the last overflow
             // segment
+            // 表示还没有段 或者需要一个新段
             if (p.nextOverflowBucket == 0) {
                 // no space left in last bucket, or no bucket yet, so create an overflow segment
                 overflowSeg = getNextBuffer();
@@ -591,25 +671,30 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
                 overflowBucketNum = p.numOverflowSegments;
 
                 // add the new overflow segment
+                // 每次写满了就会对数组进行扩容
                 if (p.overflowSegments.length <= p.numOverflowSegments) {
                     MemorySegment[] newSegsArray = new MemorySegment[p.overflowSegments.length * 2];
                     System.arraycopy(
                             p.overflowSegments, 0, newSegsArray, 0, p.overflowSegments.length);
                     p.overflowSegments = newSegsArray;
                 }
+                // 添加一个 overflow容器
                 p.overflowSegments[p.numOverflowSegments] = overflowSeg;
                 p.numOverflowSegments++;
                 checkForResize = true;
             } else {
                 // there is space in the last overflow bucket
+                // 找到最后一个段  因为是按照顺序写的
                 overflowBucketNum = p.numOverflowSegments - 1;
                 overflowSeg = p.overflowSegments[overflowBucketNum];
+                // 找到下个bucket对应的偏移量
                 overflowBucketOffset = p.nextOverflowBucket << NUM_INTRA_BUCKET_BITS;
             }
 
             // next overflow bucket is one ahead. if the segment is full, the next will be at the
             // beginning
             // of a new segment
+            // 先尝试更新 nextOverflowBucket
             p.nextOverflowBucket =
                     (p.nextOverflowBucket == this.bucketsPerSegmentMask
                             ? 0
@@ -618,21 +703,28 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
             // insert the new overflow bucket in the chain of buckets
             // 1) set the old forward pointer
             // 2) let the bucket in the main table point to this one
+            // overflow 中的bucket 通过pointer组成了链表
             overflowSeg.putLong(overflowBucketOffset + HEADER_FORWARD_OFFSET, forwardForNewBucket);
+
+            // 这个指针要更新到外面的bucket中  通过反向查询就可以找到所有相关的entry了
             final long pointerToNewBucket =
                     (((long) overflowBucketNum) << 32) | ((long) overflowBucketOffset);
             bucket.putLong(bucketInSegmentPos + HEADER_FORWARD_OFFSET, pointerToNewBucket);
 
             // finally, insert the values into the overflow buckets
+            // 这里记录hash值和指针
             overflowSeg.putInt(overflowBucketOffset + BUCKET_HEADER_LENGTH, hashCode); // hash code
             overflowSeg.putLong(
                     overflowBucketOffset + BUCKET_POINTER_START_OFFSET, pointer); // pointer
 
             // set the count to one
+            // 记录出现的数量  当超过3个时 又需要新的entry了
             overflowSeg.putInt(overflowBucketOffset + HEADER_COUNT_OFFSET, 1);
 
+            // 当entry数量很多的时候 会尝试进行重建
             if (checkForResize && !this.isResizing) {
                 // check if we should resize buckets
+                // 表示分区的overflow segment已经很多了
                 if (this.buckets.length <= getOverflowSegmentCount()) {
                     resizeHashTable();
                 }
@@ -644,6 +736,13 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
     //  Access to the entries
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 获取本对象相关的探测器
+     * @param probeSideComparator
+     * @param pairComparator
+     * @param <PT>
+     * @return
+     */
     @Override
     public <PT> HashTableProber<PT> getProber(
             TypeComparator<PT> probeSideComparator, TypePairComparator<PT, T> pairComparator) {
@@ -662,9 +761,14 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
     //  Setup and Tear Down of Structures
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 创建指定数量的分区
+     * @param numPartitions
+     */
     private void createPartitions(int numPartitions) {
         this.partitions.clear();
 
+        // 每个分区都是从这里申请segment
         ListMemorySegmentSource memSource = new ListMemorySegmentSource(this.availableMemory);
 
         for (int i = 0; i < numPartitions; i++) {
@@ -676,12 +780,17 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
                             this.segmentSize,
                             pageSizeInBits));
         }
+        // 应该是在压缩分区时使用的临时对象
         this.compactionMemory =
                 new InMemoryPartition<T>(
                         this.buildSideSerializer, -1, memSource, this.segmentSize, pageSizeInBits);
     }
 
+    /**
+     * 清理分区数据
+     */
     private void clearPartitions() {
+        // 每个InMemoryPartition内有 多个segment  用于存储数据
         for (InMemoryPartition<T> p : this.partitions) {
             p.clearAllMemory(this.availableMemory);
         }
@@ -689,25 +798,39 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
         this.compactionMemory.clearAllMemory(availableMemory);
     }
 
+    /**
+     * 初始化table
+     * @param numBuckets   总计需要多少个bucket  每个bucket存储一个hash对应的起始偏移量
+     * @param numPartitions
+     */
     private void initTable(int numBuckets, byte numPartitions) {
         final int bucketsPerSegment = this.bucketsPerSegmentMask + 1;
+
+        // 计算需要使用多少segment
         final int numSegs =
                 (numBuckets >>> this.bucketsPerSegmentBits)
                         + ((numBuckets & this.bucketsPerSegmentMask) == 0 ? 0 : 1);
+
+        // 这个table就是维护hash与偏移量的关系
         final MemorySegment[] table = new MemorySegment[numSegs];
 
         // go over all segments that are part of the table
         for (int i = 0, bucket = 0; i < numSegs && bucket < numBuckets; i++) {
+
+            // 获取一个segment
             final MemorySegment seg = getNextBuffer();
 
             // go over all buckets in the segment
+            // 为每个segment 设置bucket的初始值
             for (int k = 0; k < bucketsPerSegment && bucket < numBuckets; k++, bucket++) {
                 final int bucketOffset = k * HASH_BUCKET_SIZE;
 
                 // compute the partition that the bucket corresponds to
+                // 每个桶对应一个分区的数据
                 final byte partition = assignPartition(bucket, numPartitions);
 
                 // initialize the header fields
+                // 插入每个bucket的头部信息  第一个记录了该bucket对应的分区数据
                 seg.put(bucketOffset + HEADER_PARTITION_OFFSET, partition);
                 seg.putInt(bucketOffset + HEADER_COUNT_OFFSET, 0);
                 seg.putLong(bucketOffset + HEADER_FORWARD_OFFSET, BUCKET_FORWARD_POINTER_NOT_SET);
@@ -719,6 +842,9 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
         this.numBuckets = numBuckets;
     }
 
+    /**
+     * 回收存储bucket的segment
+     */
     private void releaseTable() {
         // set the counters back
         this.numBuckets = 0;
@@ -842,14 +968,22 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
      * tries to find a good value for the number of buckets will ensure that the number of buckets
      * is a multiple of numPartitions
      *
+     * @param numPartitions 预估会产生多少个分区
      * @return number of buckets
+     * 计算table的大小
      */
     private static int getInitialTableSize(
             int numBuffers, int bufferSize, int numPartitions, int recordLenBytes) {
         final long totalSize = ((long) bufferSize) * numBuffers;
+        // 预估可以存储多少条记录
         final long numRecordsStorable = totalSize / (recordLenBytes + RECORD_OVERHEAD_BYTES);
+        // 这个是 bucket的预估总开销
         final long bucketBytes = numRecordsStorable * RECORD_OVERHEAD_BYTES;
+
+        // 计算大概会使用多少个bucket
         long numBuckets = bucketBytes / (2 * HASH_BUCKET_SIZE) + 1;
+
+        // 根据分区数 做略微的调整
         numBuckets += numPartitions - numBuckets % numPartitions;
         return numBuckets > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) numBuckets;
     }
@@ -870,17 +1004,24 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
      *
      * @return true on success
      * @throws IOException
+     * 重建hash表
      */
     @VisibleForTesting
     boolean resizeHashTable() throws IOException {
+        // 需要扩容的原因是  分区中的overflow被大量使用  这样间接寻址次数会变多  不如将其展开(展开到bucket中)
         final int newNumBuckets = 2 * this.numBuckets;
         final int bucketsPerSegment = this.bucketsPerSegmentMask + 1;
+        // 计算扩容需要的segment数量
         final int newNumSegments = (newNumBuckets + (bucketsPerSegment - 1)) / bucketsPerSegment;
+
+        // 表示新需要的segment
         final int additionalSegments = newNumSegments - this.buckets.length;
         final int numPartitions = this.partitions.size();
 
+        // 此时内存块不足  先对数据进行压缩
         if (this.availableMemory.size() < additionalSegments) {
             for (int i = 0; i < numPartitions; i++) {
+                // 每次压缩 都会有内存块被归还
                 compactPartition(i);
                 if (this.availableMemory.size() >= additionalSegments) {
                     break;
@@ -888,9 +1029,12 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
             }
         }
 
+        // 表示内存还是不足 无法扩容
         if (this.availableMemory.size() < additionalSegments || this.closed) {
             return false;
         } else {
+
+            // 开始扩容
             this.isResizing = true;
             // allocate new buckets
             final int startOffset = (this.numBuckets * HASH_BUCKET_SIZE) % this.segmentSize;
@@ -903,19 +1047,23 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
             // initialize all new buckets
             boolean oldSegment = (startOffset != 0);
             final int startSegment = oldSegment ? (oldNumSegments - 1) : oldNumSegments;
+
+            // 外层遍历segment
             for (int i = startSegment, bucket = oldNumBuckets;
                     i < newNumSegments && bucket < this.numBuckets;
                     i++) {
                 MemorySegment seg;
                 int bucketOffset;
+                // 表示最后一个segment还有空间 要分配bucket
                 if (oldSegment) { // the first couple of new buckets may be located on an old
                     // segment
                     seg = this.buckets[i];
+                    // 内层遍历bucket
                     for (int k = (oldNumBuckets % bucketsPerSegment);
                             k < bucketsPerSegment && bucket < this.numBuckets;
                             k++, bucket++) {
                         bucketOffset = k * HASH_BUCKET_SIZE;
-                        // initialize the header fields
+                        // initialize the header fields  这是在初始化头部信息
                         seg.put(
                                 bucketOffset + HEADER_PARTITION_OFFSET,
                                 assignPartition(bucket, (byte) numPartitions));
@@ -925,6 +1073,7 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
                                 BUCKET_FORWARD_POINTER_NOT_SET);
                     }
                 } else {
+                    // 申请新segment 并初始化bucket
                     seg = getNextBuffer();
                     // go over all buckets in the segment
                     for (int k = 0;
@@ -944,6 +1093,9 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
                 this.buckets[i] = seg;
                 oldSegment = false; // we write on at most one old segment
             }
+
+            // 上面完成了bucket的初始化工作
+
             int hashOffset;
             int hash;
             int pointerOffset;
@@ -954,16 +1106,19 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
             LongArrayList overflowPointers = new LongArrayList(64);
 
             // go over all buckets and split them between old and new buckets
+            // 以分区为单位处理
             for (int i = 0; i < numPartitions; i++) {
                 InMemoryPartition<T> partition = this.partitions.get(i);
                 final MemorySegment[] overflowSegments = partition.overflowSegments;
 
                 int posHashCode;
+
                 for (int j = 0, bucket = i;
                         j < this.buckets.length && bucket < oldNumBuckets;
                         j++) {
                     MemorySegment segment = this.buckets[j];
                     // go over all buckets in the segment belonging to the partition
+                    // 处理老数据
                     for (int k = bucket % bucketsPerSegment;
                             k < bucketsPerSegment && bucket < oldNumBuckets;
                             k += numPartitions, bucket += numPartitions) {
@@ -981,6 +1136,8 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
                         int numInSegment = 0;
                         pointerOffset = bucketOffset + BUCKET_POINTER_START_OFFSET;
                         hashOffset = bucketOffset + BUCKET_HEADER_LENGTH;
+
+                        // 取出该bucket关联到的所有hash和pointer
                         while (true) {
                             while (numInSegment < countInSegment) {
                                 hash = segment.getInt(hashOffset);
@@ -995,6 +1152,7 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
                                                     + hash % this.numBuckets);
                                 }
                                 pointer = segment.getLong(pointerOffset);
+                                // 老数据的hash值和pointer都存储在list中
                                 hashList.add(hash);
                                 pointerList.add(pointer);
                                 pointerOffset += POINTER_LEN;
@@ -1015,9 +1173,10 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
                             hashOffset = bucketOffset + BUCKET_HEADER_LENGTH;
                             numInSegment = 0;
                         }
+
                         segment = this.buckets[j];
                         bucketOffset = k * HASH_BUCKET_SIZE;
-                        // reset bucket for re-insertion
+                        // reset bucket for re-insertion  重置该bucket的entry信息 因为扩容后之前的信息失效了
                         segment.putInt(bucketOffset + HEADER_COUNT_OFFSET, 0);
                         segment.putLong(
                                 bucketOffset + HEADER_FORWARD_OFFSET,
@@ -1030,16 +1189,22 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
                                             + " pointer: "
                                             + pointerList.size());
                         }
+
+                        // 找到扩容后对应的新下标
                         int newSegmentIndex = (bucket + oldNumBuckets) / bucketsPerSegment;
                         MemorySegment newSegment = this.buckets[newSegmentIndex];
 
                         // we need to avoid overflows in the first run
                         int oldBucketCount = 0;
                         int newBucketCount = 0;
+
+                        // 遍历之前读到的所有hash和pointer
                         while (!hashList.isEmpty()) {
                             hash = hashList.removeLast();
                             pointer = pointerList.removeLong(pointerList.size() - 1);
+
                             posHashCode = hash % this.numBuckets;
+                            // 表示落在原bucket上
                             if (posHashCode == bucket && oldBucketCount < NUM_ENTRIES_PER_BUCKET) {
                                 bucketOffset = (bucket % bucketsPerSegment) * HASH_BUCKET_SIZE;
                                 insertBucketEntryFromStart(
@@ -1049,6 +1214,8 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
                                         pointer,
                                         partition.getPartitionNumber());
                                 oldBucketCount++;
+
+                                // 落在新bucket上
                             } else if (posHashCode == (bucket + oldNumBuckets)
                                     && newBucketCount < NUM_ENTRIES_PER_BUCKET) {
                                 bucketOffset =
@@ -1061,6 +1228,7 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
                                         pointer,
                                         partition.getPartitionNumber());
                                 newBucketCount++;
+                                // 此时entry数量超过了3  需要占用overflow
                             } else if (posHashCode == (bucket + oldNumBuckets)
                                     || posHashCode == bucket) {
                                 overflowHashes.add(hash);
@@ -1079,7 +1247,10 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
                         pointerList.clear();
                     }
                 }
+
+                // 上面已经将新pointer添加到bucket中了 剩下的是多出来的部分 需要加入到overflow中
                 // reset partition's overflow buckets and reclaim their memory
+                // 现在可以回收partition原本的overflow数据了
                 this.availableMemory.addAll(partition.resetOverflowBuckets());
                 // clear overflow lists
                 int bucketArrayPos;
@@ -1108,6 +1279,10 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
         }
     }
 
+    /**
+     * 对每个分区进行数据压缩
+     * @throws IOException
+     */
     @VisibleForTesting
     void compactPartitions() throws IOException {
         for (int x = 0; x < partitions.size(); x++) {
@@ -1120,6 +1295,7 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
      *
      * @param partitionNumber partition to compact
      * @throws IOException
+     * 可以看到更新数据并不是通过覆盖实现的  而是直接追加 所以在压缩分区数据时就是去掉重复数据
      */
     private void compactPartition(final int partitionNumber) throws IOException {
         // do nothing if table was closed, parameter is invalid or no garbage exists
@@ -1129,6 +1305,7 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
             return;
         }
         // release all segments owned by compaction partition
+        // 使用临时容器
         this.compactionMemory.clearAllMemory(availableMemory);
         this.compactionMemory.allocateSegments(1);
         this.compactionMemory.pushDownPages();
@@ -1140,13 +1317,20 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
         int pointerOffset;
         int bucketOffset;
         final int bucketsPerSegment = this.bucketsPerSegmentMask + 1;
+
+        // 开始处理
         for (int i = 0, bucket = partitionNumber;
                 i < this.buckets.length && bucket < this.numBuckets;
                 i++) {
+
+            // 外层是遍历存储bucket的每个segment
             MemorySegment segment = this.buckets[i];
             // go over all buckets in the segment belonging to the partition
+
+            // 遍历segment的每个bucket
             for (int k = bucket % bucketsPerSegment;
                     k < bucketsPerSegment && bucket < this.numBuckets;
+                    // 每次推进numPartitions  这样读取到的bucket属于同一个分区
                     k += numPartitions, bucket += numPartitions) {
                 bucketOffset = k * HASH_BUCKET_SIZE;
                 if ((int) segment.get(bucketOffset + HEADER_PARTITION_OFFSET) != partitionNumber) {
@@ -1165,7 +1349,9 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
                     while (numInSegment < countInSegment) {
                         pointer = segment.getLong(pointerOffset);
                         tempHolder = partition.readRecordAt(pointer, tempHolder);
+                        // 将数据加入临时容器中
                         pointer = this.compactionMemory.appendRecord(tempHolder);
+                        // 同时更新指针
                         segment.putLong(pointerOffset, pointer);
                         pointerOffset += POINTER_LEN;
                         numInSegment++;
@@ -1186,9 +1372,13 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
                 segment = this.buckets[i];
             }
         }
+        // 以上已经处理完所有有关该分区的数据了
+
         // swap partition with compaction partition
         this.compactionMemory.setPartitionNumber(partitionNumber);
+        // 覆盖原分区数据
         this.partitions.add(partitionNumber, compactionMemory);
+        // overflow相关的数据要保留
         this.partitions.get(partitionNumber).overflowSegments = partition.overflowSegments;
         this.partitions.get(partitionNumber).numOverflowSegments = partition.numOverflowSegments;
         this.partitions.get(partitionNumber).nextOverflowBucket = partition.nextOverflowBucket;
@@ -1212,6 +1402,8 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
      * Iterator that traverses the whole hash table once
      *
      * <p>If entries are inserted during iteration they may be overlooked by the iterator
+     *
+     * 该对象用于迭代 内部元素
      */
     public class EntryIterator implements MutableObjectIterator<T> {
 
@@ -1238,6 +1430,11 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
             return next();
         }
 
+        /**
+         * 挨个读取记录
+         * @return
+         * @throws IOException
+         */
         @Override
         public T next() throws IOException {
             if (done || this.table.closed) {
@@ -1262,13 +1459,18 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
          *
          * @return true if last bucket was not reached yet
          * @throws IOException
+         *
+         * 通过该方法补充数据
          */
         private boolean fillCache() throws IOException {
+            // 表示所有bucket都已经被加载了
             if (currentBucketIndex >= table.numBuckets) {
                 return false;
             }
+            // 挨个读取bucket
             MemorySegment bucket = table.buckets[currentSegmentIndex];
             // get the basic characteristics of the bucket
+            // 加载每个bucket的数据
             final int partitionNumber = bucket.get(currentBucketOffset + HEADER_PARTITION_OFFSET);
             final InMemoryPartition<T> partition = table.partitions.get(partitionNumber);
             final MemorySegment[] overflowSegments = partition.overflowSegments;
@@ -1288,6 +1490,7 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
                     T target = table.buildSideSerializer.createInstance();
                     try {
                         target = partition.readRecordAt(pointer, target);
+                        // 读取到记录就加入cache
                         cache.add(target);
                     } catch (IOException e) {
                         throw new RuntimeException(
@@ -1307,6 +1510,8 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
                 posInSegment = bucketOffset + BUCKET_POINTER_START_OFFSET;
                 numInSegment = 0;
             }
+
+            // 以上操作是读取完一个bucket  所有bucket都要读取
             currentBucketIndex++;
             if (currentBucketIndex % bucketsPerSegment == 0) {
                 currentSegmentIndex++;
@@ -1318,6 +1523,10 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
         }
     }
 
+    /**
+     * 探测器 可以扫描各分区各page的记录 并判断是否有相同的记录
+     * @param <PT>
+     */
     public final class HashTableProber<PT> extends AbstractHashTableProber<PT, T> {
 
         private InMemoryPartition<T> partition;
@@ -1331,6 +1540,12 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
             super(probeTypeComparator, pairComparator);
         }
 
+        /**
+         *
+         * @param probeSideRecord  检查是否有与该条匹配的记录
+         * @param reuse
+         * @return
+         */
         public T getMatchFor(PT probeSideRecord, T reuse) {
             if (closed) {
                 return null;
@@ -1346,8 +1561,10 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
                     (posHashCode & bucketsPerSegmentMask) << NUM_INTRA_BUCKET_BITS;
 
             // get the basic characteristics of the bucket
+            // 先找到分区
             final int partitionNumber = bucket.get(bucketInSegmentOffset + HEADER_PARTITION_OFFSET);
             final InMemoryPartition<T> p = partitions.get(partitionNumber);
+            // 获取overflow
             final MemorySegment[] overflowSegments = p.overflowSegments;
 
             this.pairComparator.setReference(probeSideRecord);
@@ -1378,8 +1595,10 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
                         // deserialize the key to check whether it is really equal, or whether we
                         // had only a hash collision
                         try {
+                            // 读取数据
                             reuse = p.readRecordAt(pointer, reuse);
 
+                            // 数据匹配 返回
                             if (this.pairComparator.equalToReference(reuse)) {
                                 this.partition = p;
                                 this.bucket = bucket;
@@ -1413,6 +1632,11 @@ public class CompactingHashTable<T> extends AbstractMutableHashTable<T> {
             }
         }
 
+        /**
+         * 查找匹配的记录 跟上面步骤一样
+         * @param probeSideRecord
+         * @return
+         */
         public T getMatchFor(PT probeSideRecord) {
             if (closed) {
                 return null;

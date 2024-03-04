@@ -33,14 +33,27 @@ import org.apache.flink.util.Preconditions;
  * @param <K> The type of the key.
  * @param <N> The type of the namespace.
  * @param <SV> The type of the values in the state.
+ *
+ *            InternalKvState开放api 可以通过namespace和key 查询value 还可以用visitor查看entry
+ *            AbstractHeapState 表示利用内存来存储state
+ *
+ *            作为state的基类  然后根据不同的state类型 又分化出ValueState/MapState等类型
  */
 public abstract class AbstractHeapState<K, N, SV> implements InternalKvState<K, N, SV> {
 
-    /** Map containing the actual key/value pairs. */
+    /** Map containing the actual key/value pairs.
+     * StateTable利用 keyGroup对数据先进行一次散列 然后分配到同一个key的数据 又使用 StateMap进行存储
+     * StateMap 存储数据的容器(也是手写了一个hash桶)  每个元素还携带版本号
+     * 该数据结构存储的state 都是以kv形式展现的  并且多了一个namespace
+     * */
     protected final StateTable<K, N, SV> stateTable;
 
-    /** The current namespace, which the access methods will refer to. */
+    /** The current namespace, which the access methods will refer to.
+     * 当前使用的命名空间
+     * */
     protected N currentNamespace;
+
+    // 各自的序列化对象
 
     protected final TypeSerializer<K> keySerializer;
 
@@ -48,6 +61,9 @@ public abstract class AbstractHeapState<K, N, SV> implements InternalKvState<K, 
 
     protected TypeSerializer<N> namespaceSerializer;
 
+    /**
+     * 应该是state的默认值
+     */
     private SV defaultValue;
 
     /**
@@ -58,6 +74,7 @@ public abstract class AbstractHeapState<K, N, SV> implements InternalKvState<K, 
      * @param valueSerializer The serializer for the state.
      * @param namespaceSerializer The serializer for the namespace.
      * @param defaultValue The default value for the state.
+     *                     使用相关组件进行初始化
      */
     AbstractHeapState(
             StateTable<K, N, SV> stateTable,
@@ -76,6 +93,9 @@ public abstract class AbstractHeapState<K, N, SV> implements InternalKvState<K, 
 
     // ------------------------------------------------------------------------
 
+    /**
+     * 配合当前上下文的信息删除ns的数据
+     */
     @Override
     public final void clear() {
         stateTable.remove(currentNamespace);
@@ -87,6 +107,18 @@ public abstract class AbstractHeapState<K, N, SV> implements InternalKvState<K, 
                 Preconditions.checkNotNull(namespace, "Namespace must not be null.");
     }
 
+    /**
+     * 利用序列化对象 解析数据 并得到value
+     * @param serializedKeyAndNamespace Serialized key and namespace
+     * @param safeKeySerializer A key serializer which is safe to be used even in multi-threaded
+     *     context
+     * @param safeNamespaceSerializer A namespace serializer which is safe to be used even in
+     *     multi-threaded context
+     * @param safeValueSerializer A value serializer which is safe to be used even in multi-threaded
+     *     context
+     * @return
+     * @throws Exception
+     */
     @Override
     public byte[] getSerializedValue(
             final byte[] serializedKeyAndNamespace,
@@ -100,15 +132,18 @@ public abstract class AbstractHeapState<K, N, SV> implements InternalKvState<K, 
         Preconditions.checkNotNull(safeNamespaceSerializer);
         Preconditions.checkNotNull(safeValueSerializer);
 
+        // 读出了key和ns
         Tuple2<K, N> keyAndNamespace =
                 KvStateSerializer.deserializeKeyAndNamespace(
                         serializedKeyAndNamespace, safeKeySerializer, safeNamespaceSerializer);
 
+        // 使用他们查询value
         SV result = stateTable.get(keyAndNamespace.f0, keyAndNamespace.f1);
 
         if (result == null) {
             return null;
         }
+        // 对解析进行序列化处理
         return KvStateSerializer.serializeValue(result, safeValueSerializer);
     }
 
@@ -118,6 +153,10 @@ public abstract class AbstractHeapState<K, N, SV> implements InternalKvState<K, 
         return stateTable;
     }
 
+    /**
+     * 返回默认值
+     * @return
+     */
     protected SV getDefaultValue() {
         if (defaultValue != null) {
             return valueSerializer.copy(defaultValue);

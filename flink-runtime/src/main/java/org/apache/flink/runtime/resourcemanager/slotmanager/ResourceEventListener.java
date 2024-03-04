@@ -23,12 +23,15 @@ import org.apache.flink.runtime.slots.ResourceRequirement;
 
 import java.util.Collection;
 
-/** Listener for resource events of {@link SlotManager}. */
+/** Listener for resource events of {@link SlotManager}.
+ * 设置在 SlotManager上 监听资源相关事件
+ * */
 @FunctionalInterface
 public interface ResourceEventListener {
     /**
      * @param jobId job for which not enough resources are available
      * @param acquiredResources the resources that have been acquired for the job
+     *                          通知该job没有足够的资源
      */
     void notEnoughResourceAvailable(JobID jobId, Collection<ResourceRequirement> acquiredResources);
 }

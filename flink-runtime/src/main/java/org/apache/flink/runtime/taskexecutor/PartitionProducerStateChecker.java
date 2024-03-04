@@ -32,6 +32,7 @@ import java.util.concurrent.CompletableFuture;
  * <p>These checks are triggered when a partition request is answered with a PartitionNotFound
  * event. This usually happens when the producer of that partition has not registered itself with
  * the network stack or terminated.
+ * 该对象可以检查产生某个分区数据的 生产者状态
  */
 public interface PartitionProducerStateChecker {
 
@@ -41,7 +42,7 @@ public interface PartitionProducerStateChecker {
      * @param jobId ID of the job the partition belongs to.
      * @param intermediateDataSetId ID of the parent intermediate data set.
      * @param resultPartitionId ID of the result partition to check. This identifies the producing
-     *     execution and partition.
+     *     execution and partition.   这里记录了生产者id
      * @return Future holding the execution state of the producing execution.
      */
     CompletableFuture<ExecutionState> requestPartitionProducerState(

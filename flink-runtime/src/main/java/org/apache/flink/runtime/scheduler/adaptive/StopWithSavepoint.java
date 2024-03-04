@@ -72,6 +72,8 @@ import java.util.concurrent.ScheduledFuture;
  * ordering/lateness issues. Be careful to not liberally use {@link Context#runIfState(State,
  * Runnable, Duration)} because it can result in a message being lost if multiple operations are
  * queued and the first initiates a state transition.
+ *
+ * 表示停止等待保存点的状态
  */
 class StopWithSavepoint extends StateWithExecutionGraph {
 
@@ -84,6 +86,9 @@ class StopWithSavepoint extends StateWithExecutionGraph {
      */
     private final CompletableFuture<String> operationFuture;
 
+    /**
+     * 通过它来起停检查点
+     */
     private final CheckpointScheduling checkpointScheduling;
 
     @Nullable private Throwable operationFailureCause;
@@ -192,6 +197,7 @@ class StopWithSavepoint extends StateWithExecutionGraph {
      *
      * <p>For maintainability reasons this method should not mutate any state that affects state
      * transitions in other methods.
+     * 表示保存点处理失败
      */
     private void onSavepointFailure(Throwable cause) {
         // revert side-effect of Executing#stopWithSavepoint
@@ -200,6 +206,7 @@ class StopWithSavepoint extends StateWithExecutionGraph {
         // otherwise we will attempt 2 state transitions, which is forbidden
         if (!hasPendingStateTransition) {
             operationFailureCause = cause;
+            // 回到执行状态
             context.goToExecuting(
                     getExecutionGraph(),
                     getExecutionGraphHandler(),
@@ -208,6 +215,10 @@ class StopWithSavepoint extends StateWithExecutionGraph {
         }
     }
 
+    /**
+     * 处理异常
+     * @param cause
+     */
     @Override
     void onFailure(Throwable cause) {
         if (hasPendingStateTransition) {

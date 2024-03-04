@@ -23,7 +23,9 @@ import org.apache.flink.runtime.taskexecutor.partition.ClusterPartitionReport;
 
 import java.util.Collection;
 
-/** Utility for tracking partitions. */
+/** Utility for tracking partitions.
+ * 维护了多个分区   基于jobId检索TaskExecutorPartitionInfo信息的能力
+ * */
 public interface TaskExecutorPartitionTracker
         extends PartitionTracker<JobID, TaskExecutorPartitionInfo> {
 
@@ -44,7 +46,9 @@ public interface TaskExecutorPartitionTracker
      */
     void stopTrackingAndReleaseJobPartitionsFor(JobID producingJobId);
 
-    /** Promotes the given partitions. */
+    /** Promotes the given partitions.
+     * ResultPartitionID中包含了分区信息
+     * */
     void promoteJobPartitions(Collection<ResultPartitionID> partitionsToPromote);
 
     /**

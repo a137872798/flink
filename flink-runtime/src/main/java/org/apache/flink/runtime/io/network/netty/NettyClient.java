@@ -48,6 +48,9 @@ import java.net.SocketOption;
 
 import static org.apache.flink.util.Preconditions.checkState;
 
+/**
+ * 客户端对象    一个bootstrap可以与多个地址建立连接
+ */
 class NettyClient {
 
     private static final Logger LOG = LoggerFactory.getLogger(NettyClient.class);
@@ -101,7 +104,7 @@ class NettyClient {
         }
 
         // --------------------------------------------------------------------
-        // Configuration
+        // Configuration   进行各种配置行为
         // --------------------------------------------------------------------
 
         bootstrap.option(ChannelOption.TCP_NODELAY, true);
@@ -230,6 +233,7 @@ class NettyClient {
                                             serverSocketAddress.getPort());
                             channel.pipeline().addLast("ssl", sslHandler);
                         }
+                        // 在连接创建成功后 设置protocol的请求处理器
                         channel.pipeline().addLast(protocol.getClientChannelHandlers());
                     }
                 });

@@ -35,6 +35,7 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 /**
  * Static factory that gives out the write and readers for different versions of {@link
  * StateMetaInfoSnapshot}.
+ * 使用该对象对元数据快照进行读写
  */
 public class StateMetaInfoSnapshotReadersWriters {
 
@@ -93,6 +94,7 @@ public class StateMetaInfoSnapshotReadersWriters {
      *   <li>4. Serializer configuration map, consisting of the map size (int) followed by the key
      *       value pairs (String, TypeSerializerSnapshot)
      * </ul>
+     * 该对象负责状态元数据的写入
      */
     static class CurrentWriterImpl implements StateMetaInfoWriter {
 
@@ -102,7 +104,11 @@ public class StateMetaInfoSnapshotReadersWriters {
         public void writeStateMetaInfoSnapshot(
                 @Nonnull StateMetaInfoSnapshot snapshot, @Nonnull DataOutputView outputView)
                 throws IOException {
+
+            // 得到options
             final Map<String, String> optionsMap = snapshot.getOptionsImmutable();
+
+            // 得到序列化对象的信息
             final Map<String, TypeSerializerSnapshot<?>> serializerConfigSnapshotsMap =
                     snapshot.getSerializerSnapshotsImmutable();
 
@@ -129,6 +135,7 @@ public class StateMetaInfoSnapshotReadersWriters {
     /**
      * Implementation of {@link StateMetaInfoReader} for the current version and generic for all
      * state types.
+     * 读取就是反向操作
      */
     static class CurrentReaderImpl implements StateMetaInfoReader {
 

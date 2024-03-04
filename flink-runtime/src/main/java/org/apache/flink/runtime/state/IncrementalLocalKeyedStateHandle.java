@@ -43,10 +43,14 @@ public class IncrementalLocalKeyedStateHandle extends DirectoryKeyedStateHandle
     /** UUID to identify the backend which created this state handle. */
     @Nonnull private final UUID backendIdentifier;
 
-    /** Handle to Flink's state meta data. */
+    /** Handle to Flink's state meta data.
+     * 对应的是元数据
+     * */
     @Nonnull private final StreamStateHandle metaDataState;
 
-    /** All shared state handles and the corresponding localPath used by the checkpoint. */
+    /** All shared state handles and the corresponding localPath used by the checkpoint.
+     * 共享状态及位置信息
+     * */
     @Nonnull private final List<HandleAndLocalPath> sharedState;
 
     public IncrementalLocalKeyedStateHandle(

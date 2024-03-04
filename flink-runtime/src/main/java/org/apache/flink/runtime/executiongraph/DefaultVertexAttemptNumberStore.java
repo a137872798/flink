@@ -26,7 +26,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Maintains the attempt number per subtask. */
+/** Maintains the attempt number per subtask.
+ * 实际上是一个简单的map
+ * */
 public class DefaultVertexAttemptNumberStore implements MutableVertexAttemptNumberStore {
     private final Map<JobVertexID, List<Integer>> vertexSubtaskToAttemptCounts = new HashMap<>();
 

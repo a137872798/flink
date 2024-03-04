@@ -30,6 +30,10 @@ import java.io.InputStream;
 public class CompressibleFSDataInputStream extends FSDataInputStream {
 
     private final FSDataInputStream delegate;
+
+    /**
+     * 包装一层压缩逻辑
+     */
     private final InputStream compressingDelegate;
 
     public CompressibleFSDataInputStream(

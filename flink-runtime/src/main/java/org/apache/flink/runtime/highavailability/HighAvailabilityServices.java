@@ -46,6 +46,7 @@ import java.util.concurrent.Executor;
  *   <li>Registry that marks a job's status
  *   <li>Naming of RPC endpoints
  * </ul>
+ * 表示一个高可用服务
  */
 public interface HighAvailabilityServices
         extends ClientHighAvailabilityServices, GloballyCleanableResource {
@@ -71,12 +72,15 @@ public interface HighAvailabilityServices
     //  Services
     // ------------------------------------------------------------------------
 
-    /** Gets the leader retriever for the cluster's resource manager. */
+    /** Gets the leader retriever for the cluster's resource manager.
+     * 这暗示资源管理器 也是主从模式 可以获取LeaderRetrievalService 来感知leader的地址
+     * */
     LeaderRetrievalService getResourceManagerLeaderRetriever();
 
     /**
      * Gets the leader retriever for the dispatcher. This leader retrieval service is not always
      * accessible.
+     * dispatcher 也是主从模式  获取leader地址查询对象
      */
     LeaderRetrievalService getDispatcherLeaderRetriever();
 
@@ -98,6 +102,7 @@ public interface HighAvailabilityServices
      * @param defaultJobManagerAddress JobManager address which will be returned by a static leader
      *     retrieval service.
      * @return Leader retrieval service to retrieve the job manager for the given job
+     * JobMaster 也是主从模式
      */
     LeaderRetrievalService getJobManagerLeaderRetriever(
             JobID jobID, String defaultJobManagerAddress);
@@ -119,6 +124,8 @@ public interface HighAvailabilityServices
                         + "make sure that #getClusterRestEndpointLeaderRetriever has been "
                         + "implemented by your HighAvailabilityServices implementation.");
     }
+
+    // 获取这3个主从模式的相关的LeaderElection对象
 
     /** Gets the {@link LeaderElection} for the cluster's resource manager. */
     LeaderElection getResourceManagerLeaderElection();
@@ -148,6 +155,7 @@ public interface HighAvailabilityServices
      * Gets the checkpoint recovery factory for the job manager.
      *
      * @return Checkpoint recovery factory
+     * 该对象可以创建存储检查点的store  和id计数器
      */
     CheckpointRecoveryFactory getCheckpointRecoveryFactory() throws Exception;
 
@@ -156,6 +164,7 @@ public interface HighAvailabilityServices
      *
      * @return Submitted job graph store
      * @throws Exception if the submitted job graph store could not be created
+     * 通过该对象可以借助ZK 存储和查询job图   (一个JobId 对应一个Job图)
      */
     JobGraphStore getJobGraphStore() throws Exception;
 
@@ -164,6 +173,7 @@ public interface HighAvailabilityServices
      *
      * @return Store of finished job results
      * @throws Exception if job result store could not be created
+     * 获取存储job执行结果的对象
      */
     JobResultStore getJobResultStore() throws Exception;
 
@@ -172,6 +182,7 @@ public interface HighAvailabilityServices
      *
      * @return Blob store
      * @throws IOException if the blob store could not be created
+     * 获取 blob数据仓库
      */
     BlobStore createBlobStore() throws IOException;
 

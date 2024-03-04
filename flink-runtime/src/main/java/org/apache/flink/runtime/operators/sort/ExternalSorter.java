@@ -58,13 +58,17 @@ public class ExternalSorter<E> implements Sorter<E> {
     //                                  Threads
     // ------------------------------------------------------------------------
 
+    // 对应3种职能的线程
+
     /** The thread that reads the input channels into buffers and passes them on to the merger. */
     private final StageRunner readThread;
 
     /** The thread that merges the buffer handed from the reading thread. */
     private final StageRunner sortThread;
 
-    /** The thread that handles spilling to secondary storage. */
+    /** The thread that handles spilling to secondary storage.
+     * 该线程负责数据的倾倒 以及merge
+     * */
     private final StageRunner spillThread;
 
     // ------------------------------------------------------------------------
@@ -133,6 +137,8 @@ public class ExternalSorter<E> implements Sorter<E> {
                                 ExternalSorter.this.close();
                             }
                         });
+
+        // 该排序对象初始化后  开启几个特殊线程
         startThreads();
     }
 
@@ -187,6 +193,7 @@ public class ExternalSorter<E> implements Sorter<E> {
             this.queues.close();
 
             // Dispose all in memory sorter in order to clear memory references
+            // 释放内存
             for (InMemorySorter<?> inMemorySorter : inMemorySorters) {
                 inMemorySorter.dispose();
             }
@@ -245,6 +252,11 @@ public class ExternalSorter<E> implements Sorter<E> {
     //                           Result Iterator
     // ------------------------------------------------------------------------
 
+    /**
+     * 阻塞等待结果
+     * @return
+     * @throws InterruptedException
+     */
     @Override
     public MutableObjectIterator<E> getIterator() throws InterruptedException {
         try {

@@ -28,6 +28,7 @@ import java.io.IOException;
 /**
  * {@link EndOfSegmentEvent} is used to notify the downstream switch tiers in tiered storage shuffle
  * mode.
+ * 表示某个segment处理完了
  */
 @Internal
 public class EndOfSegmentEvent extends RuntimeEvent {

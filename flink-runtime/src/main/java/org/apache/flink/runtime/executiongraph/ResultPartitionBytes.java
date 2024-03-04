@@ -22,7 +22,9 @@ import java.io.Serializable;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** This class represents a snapshot of the result partition bytes metrics. */
+/** This class represents a snapshot of the result partition bytes metrics.
+ * 记录每个子分区的字节数
+ * */
 public class ResultPartitionBytes implements Serializable {
 
     private final long[] subpartitionBytes;

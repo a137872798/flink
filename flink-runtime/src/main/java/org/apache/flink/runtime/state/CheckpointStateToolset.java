@@ -26,6 +26,7 @@ import java.util.List;
 /**
  * A toolset of operations that can be performed on a location embedded within the class. Created in
  * {@link CheckpointStorageWorkerView}.
+ * 工具集接口
  */
 @Internal
 public interface CheckpointStateToolset {
@@ -37,6 +38,7 @@ public interface CheckpointStateToolset {
      *
      * @param stateHandle The handle to duplicate
      * @return true, if we can perform the duplication
+     * 判断能否快速拷贝状态
      */
     boolean canFastDuplicate(StreamStateHandle stateHandle) throws IOException;
 
@@ -49,6 +51,7 @@ public interface CheckpointStateToolset {
      *
      * @param stateHandle The handles to duplicate
      * @return The duplicated handles
+     * 拷贝状态
      */
     List<StreamStateHandle> duplicate(List<StreamStateHandle> stateHandle) throws IOException;
 }

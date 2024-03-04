@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @param <I> Type of the incoming heartbeat payload
  * @param <O> Type of the outgoing heartbeat payload
+ *           发送服务 每间隔一定时间让所有target发送心跳包
  */
 class HeartbeatManagerSenderImpl<I, O> extends HeartbeatManagerImpl<I, O> implements Runnable {
 
@@ -89,14 +90,19 @@ class HeartbeatManagerSenderImpl<I, O> extends HeartbeatManagerImpl<I, O> implem
         }
     }
 
+    /**
+     * 让target发送心跳包
+     * @param heartbeatMonitor
+     */
     private void requestHeartbeat(HeartbeatMonitor<O> heartbeatMonitor) {
+        // 获取下个要发送的数据
         O payload = getHeartbeatListener().retrievePayload(heartbeatMonitor.getHeartbeatTargetId());
         final HeartbeatTarget<O> heartbeatTarget = heartbeatMonitor.getHeartbeatTarget();
 
         heartbeatTarget
-                .requestHeartbeat(getOwnResourceID(), payload)
+                .requestHeartbeat(getOwnResourceID(), payload)  // 发出心跳包
                 .whenCompleteAsync(
-                        handleHeartbeatRpc(heartbeatMonitor.getHeartbeatTargetId()),
+                        handleHeartbeatRpc(heartbeatMonitor.getHeartbeatTargetId()),  // 处理rpc结果
                         getMainThreadExecutor());
     }
 }

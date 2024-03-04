@@ -34,7 +34,9 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 
-/** The implementation of {@link TierFactory} for memory tier. */
+/** The implementation of {@link TierFactory} for memory tier.
+ * 使用内存作为存储数据的媒介
+ * */
 public class MemoryTierFactory implements TierFactory {
 
     private final int segmentSizeBytes;

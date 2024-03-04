@@ -27,7 +27,9 @@ import static org.apache.flink.runtime.io.network.netty.NettyMessage.BacklogAnno
 import static org.apache.flink.runtime.io.network.netty.NettyMessage.BufferResponse;
 import static org.apache.flink.runtime.io.network.netty.NettyMessage.ErrorResponse;
 
-/** The decoder for messages other than {@link BufferResponse}. */
+/** The decoder for messages other than {@link BufferResponse}.
+ * 针对一些简单的数据包
+ * */
 class NonBufferResponseDecoder extends NettyMessageDecoder {
 
     /** The initial size of the message header accumulation buffer. */
@@ -48,6 +50,12 @@ class NonBufferResponseDecoder extends NettyMessageDecoder {
         ensureBufferCapacity();
     }
 
+    /**
+     * 进行解析
+     * @param data The data received.
+     * @return
+     * @throws Exception
+     */
     @Override
     public DecodingResult onChannelRead(ByteBuf data) throws Exception {
         ByteBuf fullFrameHeaderBuf =

@@ -28,9 +28,12 @@ import org.apache.flink.runtime.util.ResourceCounter;
 import java.util.Collection;
 import java.util.Map;
 
-/** Tracks TaskManager's resource and slot status. */
+/** Tracks TaskManager's resource and slot status.
+ * 该对象追踪每个 TaskManager的资源
+ * */
 interface TaskManagerTracker
-        extends TaskManagerResourceInfoProvider, ClusterResourceStatisticsProvider {
+        extends TaskManagerResourceInfoProvider,   // 提供TM信息
+        ClusterResourceStatisticsProvider {  // 提供集群层面的信息
 
     // ---------------------------------------------------------------------------------------------
     // Add / Remove (pending) Resource
@@ -42,6 +45,7 @@ interface TaskManagerTracker
      * @param taskExecutorConnection of the new task manager
      * @param totalResourceProfile of the new task manager
      * @param defaultSlotResourceProfile of the new task manager
+     *                                   追加一个TM信息
      */
     void addTaskManager(
             TaskExecutorConnection taskExecutorConnection,
@@ -59,6 +63,7 @@ interface TaskManagerTracker
      * Add a new pending task manager.
      *
      * @param pendingTaskManager to be added
+     *                           追加一个申请中的TM
      */
     void addPendingTaskManager(PendingTaskManager pendingTaskManager);
 
@@ -67,6 +72,7 @@ interface TaskManagerTracker
      *
      * @param pendingTaskManagerId of the pending task manager
      * @return the allocation records associated to the removed pending task manager
+     * 移除的同时 返回该TM的已分配信息
      */
     Map<JobID, ResourceCounter> removePendingTaskManager(PendingTaskManagerId pendingTaskManagerId);
 
@@ -74,6 +80,7 @@ interface TaskManagerTracker
      * Add an unwanted task manager.
      *
      * @param instanceId identifier of task manager.
+     *                   添加一个不需要的 TM
      */
     void addUnWantedTaskManager(InstanceID instanceId);
 
@@ -85,6 +92,7 @@ interface TaskManagerTracker
      *
      * @param jobId the job for which the task executors must have a slot
      * @return task managers with at least 1 slot for the job
+     * 找到job id 可以找到分配给它的slot  然后找到相关的的TM
      */
     Collection<TaskManagerInfo> getTaskManagersWithAllocatedSlotsForJob(JobID jobId);
 
@@ -100,6 +108,7 @@ interface TaskManagerTracker
      * @param instanceId of the slot
      * @param resourceProfile of the slot
      * @param slotState of the slot
+     *                  通知某个slot此时的状态
      */
     void notifySlotStatus(
             AllocationID allocationId,
@@ -113,6 +122,7 @@ interface TaskManagerTracker
      * allocations.
      *
      * @param pendingSlotAllocations new pending slot allocations be recorded
+     *                               更新某些Pending slot 此时的状态
      */
     void replaceAllPendingAllocations(
             Map<PendingTaskManagerId, Map<JobID, ResourceCounter>> pendingSlotAllocations);

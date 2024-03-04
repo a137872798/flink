@@ -31,6 +31,8 @@ import org.apache.flink.configuration.HighAvailabilityOptions;
  * the responsibilities of the old leader - FACTORY_CLASS: Use implementation of {@link
  * org.apache.flink.runtime.highavailability.HighAvailabilityServicesFactory} specified in
  * configuration property high-availability
+ *
+ * 表示采用的高可用模式
  */
 public enum HighAvailabilityMode {
     NONE(false),

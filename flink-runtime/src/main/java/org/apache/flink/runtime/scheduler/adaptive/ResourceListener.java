@@ -21,12 +21,17 @@ package org.apache.flink.runtime.scheduler.adaptive;
 /**
  * Interface which denotes that {@link State} can react to newly available resource (slots) and
  * changes in resource requirements.
+ * 资源监听器   配合WaitingForResources使用  在进行执行图创建前 需要先申请资源
  */
 interface ResourceListener {
 
-    /** Notifies that new resources are available. */
+    /** Notifies that new resources are available.
+     * 表示有资源可用了
+     * */
     void onNewResourcesAvailable();
 
-    /** Notifies that the resource requirements have changed. */
+    /** Notifies that the resource requirements have changed.
+     * 表示对资源的需求发生变化
+     * */
     void onNewResourceRequirements();
 }

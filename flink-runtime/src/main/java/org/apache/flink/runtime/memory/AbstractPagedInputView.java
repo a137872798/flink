@@ -33,13 +33,25 @@ import java.io.UTFDataFormatException;
  */
 public abstract class AbstractPagedInputView implements DataInputView {
 
+    /**
+     * 当前装有数据的内存块
+     */
     private MemorySegment currentSegment;
 
+    /**
+     * 表示每个内存快的开始字节不需要读取
+     */
     protected final int
             headerLength; // the number of bytes to skip at the beginning of each segment
 
+    /**
+     * 当前偏移量
+     */
     private int positionInSegment; // the offset in the current segment
 
+    /**
+     * 允许写入的最大偏移量
+     */
     private int limitInSegment; // the limit in the current segment before switching to the next
 
     private byte[] utfByteBuffer; // reusable byte buffer for utf-8 decoding
@@ -131,6 +143,7 @@ public abstract class AbstractPagedInputView implements DataInputView {
      * @throws EOFException Thrown, if no further segment is available.
      * @throws IOException Thrown, if the method cannot provide the next page due to an I/O related
      *     problem.
+     *     传入当前内存块 得到下个内存块
      */
     protected abstract MemorySegment nextSegment(MemorySegment current)
             throws EOFException, IOException;
@@ -143,6 +156,7 @@ public abstract class AbstractPagedInputView implements DataInputView {
      *
      * @param segment The segment to determine the limit for.
      * @return The limit for the given memory segment.
+     * 获取该内存块的最大偏移量
      */
     protected abstract int getLimitForSegment(MemorySegment segment);
 
@@ -159,6 +173,10 @@ public abstract class AbstractPagedInputView implements DataInputView {
         doAdvance();
     }
 
+    /**
+     * 推进到下个内存块
+     * @throws IOException
+     */
     protected void doAdvance() throws IOException {
         // note: this code ensures that in case of EOF, we stay at the same position such that
         // EOF is reproducible (if nextSegment throws a reproducible EOFException)
@@ -181,6 +199,7 @@ public abstract class AbstractPagedInputView implements DataInputView {
      * @param positionInSegment The position in the segment to start reading from.
      * @param limitInSegment The limit in the segment. When reached, the view will attempt to switch
      *     to the next segment.
+     *                       更新内存块 以及偏移量信息
      */
     protected void seekInput(MemorySegment segment, int positionInSegment, int limitInSegment) {
         this.currentSegment = segment;
@@ -192,6 +211,7 @@ public abstract class AbstractPagedInputView implements DataInputView {
      * Clears the internal state of the view. After this call, all read attempts will fail, until
      * the {@link #advance()} or {@link #seekInput(MemorySegment, int, int)} method have been
      * invoked.
+     * 重置数据
      */
     protected void clear() {
         this.currentSegment = null;
@@ -216,10 +236,12 @@ public abstract class AbstractPagedInputView implements DataInputView {
 
         int remaining = this.limitInSegment - this.positionInSegment;
         if (remaining >= len) {
+            // 表示不需要切换内存块
             this.currentSegment.get(this.positionInSegment, b, off, len);
             this.positionInSegment += len;
             return len;
         } else {
+            // 直接切换内存块
             if (remaining == 0) {
                 try {
                     advance();
@@ -232,6 +254,7 @@ public abstract class AbstractPagedInputView implements DataInputView {
             int bytesRead = 0;
             while (true) {
                 int toRead = Math.min(remaining, len - bytesRead);
+                // 先读满当前内存块
                 this.currentSegment.get(this.positionInSegment, b, off, toRead);
                 off += toRead;
                 bytesRead += toRead;
@@ -258,6 +281,13 @@ public abstract class AbstractPagedInputView implements DataInputView {
         readFully(b, 0, b.length);
     }
 
+    /**
+     * 将数组中所有数据都读取出来
+     * @param b
+     * @param off
+     * @param len
+     * @throws IOException
+     */
     @Override
     public void readFully(byte[] b, int off, int len) throws IOException {
         int bytesRead = read(b, off, len);

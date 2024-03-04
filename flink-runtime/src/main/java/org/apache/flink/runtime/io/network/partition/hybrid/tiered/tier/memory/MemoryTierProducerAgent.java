@@ -54,15 +54,20 @@ public class MemoryTierProducerAgent implements TierProducerAgent, NettyServiceP
     /**
      * Record the writ bytes to each subpartition. When starting a new segment, the value will be
      * reset to 0.
+     * 当前seg已经写入多少buffer
      */
     private final int[] currentSubpartitionWriteBuffers;
 
     /**
      * Whether a subpartition's netty connection has been established. The array index is
      * corresponding to the subpartition id.
+     * 表示哪些连接已经建立
      */
     private final boolean[] nettyConnectionEstablished;
 
+    /**
+     * 每个对象 对应一个子分区
+     */
     private final MemoryTierSubpartitionProducerAgent[] subpartitionProducerAgents;
 
     public MemoryTierProducerAgent(
@@ -95,20 +100,29 @@ public class MemoryTierProducerAgent implements TierProducerAgent, NettyServiceP
             subpartitionProducerAgents[subpartitionId] =
                     new MemoryTierSubpartitionProducerAgent(subpartitionId);
         }
+        // 当本对象被释放时  触发 releaseResources
         resourceRegistry.registerResource(partitionId, this::releaseResources);
     }
 
+    /**
+     * 开始一个新段
+     * @param subpartitionId subpartition id that the new segment belongs to
+     * @param segmentId id of the new segment
+     * @return
+     */
     @Override
     public boolean tryStartNewSegment(TieredStorageSubpartitionId subpartitionId, int segmentId) {
         boolean canStartNewSegment =
                 nettyConnectionEstablished[subpartitionId.getSubpartitionId()]
                         // Ensure that a subpartition's memory tier does not excessively use
                         // buffers, which may result in insufficient buffers for other subpartitions
+                        // 因为是用内存做存储 不能超过队列上限
                         && subpartitionProducerAgents[subpartitionId.getSubpartitionId()]
                                         .numQueuedBuffers()
                                 < subpartitionMaxQueuedBuffers
                         && (memoryManager.getMaxNonReclaimableBuffers(this)
                                         - memoryManager.numOwnerRequestedBuffer(this))
+                        // 表示空闲的buffer数满足一个segment
                                 > numBuffersPerSegment;
         if (canStartNewSegment) {
             subpartitionProducerAgents[subpartitionId.getSubpartitionId()].updateSegmentId(
@@ -117,6 +131,13 @@ public class MemoryTierProducerAgent implements TierProducerAgent, NettyServiceP
         return canStartNewSegment;
     }
 
+    /**
+     * 开始写入数据
+     * @param subpartitionId the subpartition id that the buffer is writing to
+     * @param finishedBuffer the writing buffer
+     * @param bufferOwner the current owner of this writing buffer
+     * @return
+     */
     @Override
     public boolean tryWrite(
             TieredStorageSubpartitionId subpartitionId, Buffer finishedBuffer, Object bufferOwner) {
@@ -167,6 +188,10 @@ public class MemoryTierProducerAgent implements TierProducerAgent, NettyServiceP
                 .forEach(MemoryTierSubpartitionProducerAgent::release);
     }
 
+    /**
+     * 添加一个 到seg末尾的事件
+     * @param subpartitionId
+     */
     private void appendEndOfSegmentEvent(int subpartitionId) {
         try {
             MemorySegment memorySegment =

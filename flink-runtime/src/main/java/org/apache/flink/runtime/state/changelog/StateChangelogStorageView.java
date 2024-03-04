@@ -23,6 +23,8 @@ import org.apache.flink.annotation.Internal;
 /**
  * A storage view for changelog. Could produce {@link StateChangelogHandleReader} for read. Please
  * use {@link StateChangelogStorageLoader} to obtain an instance.
+ *
+ * 产生reader对象 读取stateStream 得到一组stateChange
  */
 @Internal
 public interface StateChangelogStorageView<Handle extends ChangelogStateHandle>

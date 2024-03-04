@@ -75,13 +75,35 @@ import java.util.concurrent.CompletableFuture;
  *       messages between the JobManager and the TaskManager about deployment of tasks and updates
  *       in the task status always use the ExecutionAttemptID to address the message receiver.
  * </ul>
+ *
+ * AccessExecutionGraph 提供了一些访问性质的接口
  */
 public interface ExecutionGraph extends AccessExecutionGraph {
 
+    /**
+     * 使用指定的执行器启动图对象
+     * @param jobMasterMainThreadExecutor
+     */
     void start(@Nonnull ComponentMainThreadExecutor jobMasterMainThreadExecutor);
 
+    /**
+     * 获取拓扑信息
+     * @return
+     */
     SchedulingTopology getSchedulingTopology();
 
+    /**
+     * 传入检查点相关的一系列组件 并开启检查点
+     * @param chkConfig
+     * @param masterHooks
+     * @param checkpointIDCounter
+     * @param checkpointStore
+     * @param checkpointStateBackend
+     * @param checkpointStorage
+     * @param statsTracker
+     * @param checkpointsCleaner
+     * @param changelogStorage
+     */
     void enableCheckpointing(
             CheckpointCoordinatorConfiguration chkConfig,
             List<MasterTriggerRestoreHook<?>> masterHooks,
@@ -93,20 +115,44 @@ public interface ExecutionGraph extends AccessExecutionGraph {
             CheckpointsCleaner checkpointsCleaner,
             String changelogStorage);
 
+    /**
+     * 可以从执行图中拿到 检查点协调者
+     * @return
+     */
     @Nullable
     CheckpointCoordinator getCheckpointCoordinator();
 
+    /**
+     * 借助该对象可以查询kvState的位置
+     * @return
+     */
     KvStateLocationRegistry getKvStateLocationRegistry();
 
+    /**
+     * 设置计划信息
+     * @param jsonPlan
+     */
     void setJsonPlan(String jsonPlan);
 
     Configuration getJobConfiguration();
 
+    /**
+     * 获取执行失败的错误信息
+     * @return
+     */
     Throwable getFailureCause();
 
+    /**
+     * graph 对应的其实就是拓扑图  这里获取可拓扑的所有顶点 (job级别)
+     * @return
+     */
     @Override
     Iterable<ExecutionJobVertex> getVerticesTopologically();
 
+    /**
+     * 获取更细粒度的顶点 subtask级别
+     * @return
+     */
     @Override
     Iterable<ExecutionVertex> getAllExecutionVertices();
 
@@ -121,9 +167,15 @@ public interface ExecutionGraph extends AccessExecutionGraph {
      * is currently pending, this recovery is included in the count.
      *
      * @return The number of restarts so far
+     *
+     * 获取重试次数
      */
     long getNumberOfRestarts();
 
+    /**
+     * 获取产生的所有中间结果集
+     * @return
+     */
     Map<IntermediateDataSetID, IntermediateResult> getAllIntermediateResults();
 
     /**
@@ -132,6 +184,8 @@ public interface ExecutionGraph extends AccessExecutionGraph {
      *
      * @param id of the intermediate result partition
      * @return intermediate result partition
+     *
+     * 通过id查询被分区的中间结果集
      */
     IntermediateResultPartition getResultPartitionOrThrow(final IntermediateResultPartitionID id);
 
@@ -139,6 +193,8 @@ public interface ExecutionGraph extends AccessExecutionGraph {
      * Merges all accumulator results from the tasks previously executed in the Executions.
      *
      * @return The accumulator map
+     *
+     * 获取所有累加值
      */
     Map<String, OptionalFailure<Accumulator<?, ?>>> aggregateUserAccumulators();
 
@@ -147,17 +203,35 @@ public interface ExecutionGraph extends AccessExecutionGraph {
      * transferred through the UpdateTaskExecutionState message.
      *
      * @param accumulatorSnapshot The serialized flink and user-defined accumulators
+     *                            使用快照中保留的累加值更新图的累加值
      */
     void updateAccumulators(AccumulatorSnapshot accumulatorSnapshot);
 
+
+    /**
+     * 设置监听器  捕获本地异常和全局异常
+     * @param internalTaskFailuresListener
+     */
     void setInternalTaskFailuresListener(InternalFailuresListener internalTaskFailuresListener);
 
+    /**
+     * 将一组顶点加入到graph中
+     * @param topologicallySorted
+     * @param jobManagerJobMetricGroup
+     * @throws JobException
+     */
     void attachJobGraph(
             List<JobVertex> topologicallySorted, JobManagerJobMetricGroup jobManagerJobMetricGroup)
             throws JobException;
 
+    /**
+     * 运行graph
+     */
     void transitionToRunning();
 
+    /**
+     * 取消运行
+     */
     void cancel();
 
     /**
@@ -172,9 +246,15 @@ public interface ExecutionGraph extends AccessExecutionGraph {
      * another JobManager.
      *
      * @param suspensionCause Cause of the suspension
+     *                        暂停运行
      */
     void suspend(Throwable suspensionCause);
 
+    /**
+     * 通知job执行失败
+     * @param cause
+     * @param timestamp
+     */
     void failJob(Throwable cause, long timestamp);
 
     /**
@@ -186,11 +266,19 @@ public interface ExecutionGraph extends AccessExecutionGraph {
      */
     CompletableFuture<JobStatus> getTerminationFuture();
 
+    /**
+     * 等待 直到进入终止状态
+     * @return
+     * @throws InterruptedException
+     */
     @VisibleForTesting
     JobStatus waitUntilTerminal() throws InterruptedException;
 
     boolean transitionState(JobStatus current, JobStatus newState);
 
+    /**
+     * 增加重试次数
+     */
     void incrementRestarts();
 
     void initFailureCause(Throwable t, long timestamp);
@@ -202,20 +290,36 @@ public interface ExecutionGraph extends AccessExecutionGraph {
      * @param state The state update.
      * @return True, if the task update was properly applied, false, if the execution attempt was
      *     not found.
+     *     更新的信息包含在TaskExecutionStateTransition中
      */
     boolean updateState(TaskExecutionStateTransition state);
 
+    /**
+     * 获取属于该graph的所有execution
+     * @return
+     */
     Map<ExecutionAttemptID, Execution> getRegisteredExecutions();
 
     void registerJobStatusListener(JobStatusListener listener);
 
     ResultPartitionAvailabilityChecker getResultPartitionAvailabilityChecker();
 
+    /**
+     * 返回结束的顶点
+     * @return
+     */
     int getNumFinishedVertices();
 
     @Nonnull
     ComponentMainThreadExecutor getJobMasterMainThreadExecutor();
 
+    /**
+     * 初始化某个task
+     * @param ejv
+     * @param createTimestamp
+     * @param jobManagerJobMetricGroup
+     * @throws JobException
+     */
     default void initializeJobVertex(
             ExecutionJobVertex ejv,
             long createTimestamp,
@@ -237,6 +341,7 @@ public interface ExecutionGraph extends AccessExecutionGraph {
      * @param createTimestamp The timestamp for creating execution vertices, used to initialize the
      *     first Execution with.
      * @param jobVertexInputInfos The input infos of this job vertex.
+     *                            根据这些信息初始化顶点
      */
     void initializeJobVertex(
             ExecutionJobVertex ejv,
@@ -250,10 +355,21 @@ public interface ExecutionGraph extends AccessExecutionGraph {
      * scheduling topology.
      *
      * @param vertices The execution job vertices that are newly initialized.
+     *                 通知有顶点更新了
      */
     void notifyNewlyInitializedJobVertices(List<ExecutionJobVertex> vertices);
 
+    /**
+     * 获取顶点信息 以及重试次数
+     * @param attemptId
+     * @return
+     */
     Optional<String> findVertexWithAttempt(final ExecutionAttemptID attemptId);
 
+    /**
+     * 找到执行对象
+     * @param attemptId
+     * @return
+     */
     Optional<AccessExecution> findExecution(final ExecutionAttemptID attemptId);
 }

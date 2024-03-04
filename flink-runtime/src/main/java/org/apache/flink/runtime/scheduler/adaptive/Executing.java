@@ -43,7 +43,9 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
 
-/** State which represents a running job with an {@link ExecutionGraph} and assigned slots. */
+/** State which represents a running job with an {@link ExecutionGraph} and assigned slots.
+ * 在创建完执行图后 进入执行阶段
+ * */
 class Executing extends StateWithExecutionGraph implements ResourceListener {
 
     private final Context context;
@@ -68,6 +70,7 @@ class Executing extends StateWithExecutionGraph implements ResourceListener {
         Preconditions.checkState(
                 executionGraph.getState() == JobStatus.RUNNING, "Assuming running execution graph");
 
+        // 对执行图相关的所有execution进行部署
         deploy();
 
         // check if new resources have come available in the meantime
@@ -98,9 +101,13 @@ class Executing extends StateWithExecutionGraph implements ResourceListener {
         context.goToFinished(ArchivedExecutionGraph.createFrom(getExecutionGraph()));
     }
 
+    /**
+     * 进行部署
+     */
     private void deploy() {
         for (ExecutionJobVertex executionJobVertex :
                 getExecutionGraph().getVerticesTopologically()) {
+            // 遍历子任务
             for (ExecutionVertex executionVertex : executionJobVertex.getTaskVertices()) {
                 if (executionVertex.getExecutionState() == ExecutionState.CREATED
                         || executionVertex.getExecutionState() == ExecutionState.SCHEDULED) {
@@ -110,6 +117,10 @@ class Executing extends StateWithExecutionGraph implements ResourceListener {
         }
     }
 
+    /**
+     * 进行部署
+     * @param executionVertex
+     */
     private void deploySafely(ExecutionVertex executionVertex) {
         try {
             executionVertex.deploy();
@@ -118,6 +129,11 @@ class Executing extends StateWithExecutionGraph implements ResourceListener {
         }
     }
 
+    /**
+     * 处理部署失败的问题
+     * @param executionVertex
+     * @param e
+     */
     private void handleDeploymentFailure(ExecutionVertex executionVertex, JobException e) {
         executionVertex.markFailed(e);
     }
@@ -133,8 +149,10 @@ class Executing extends StateWithExecutionGraph implements ResourceListener {
     }
 
     private void maybeRescale() {
+        // 需要重新调节的话
         if (context.shouldRescale(getExecutionGraph())) {
             getLogger().info("Can change the parallelism of job. Restarting job.");
+            // 切换到重启状态
             context.goToRestarting(
                     getExecutionGraph(),
                     getExecutionGraphHandler(),
@@ -144,12 +162,20 @@ class Executing extends StateWithExecutionGraph implements ResourceListener {
         }
     }
 
+    /**
+     * 表示为了产生保存点而终止
+     * @param targetDirectory
+     * @param terminate
+     * @param formatType
+     * @return
+     */
     CompletableFuture<String> stopWithSavepoint(
             @Nullable final String targetDirectory,
             boolean terminate,
             SavepointFormatType formatType) {
         final ExecutionGraph executionGraph = getExecutionGraph();
 
+        // 检查前置条件
         StopWithSavepointTerminationManager.checkSavepointActionPreconditions(
                 executionGraph.getCheckpointCoordinator(),
                 targetDirectory,
@@ -160,6 +186,7 @@ class Executing extends StateWithExecutionGraph implements ResourceListener {
 
         CheckpointScheduling schedulingProvider = new CheckpointSchedulingProvider(executionGraph);
 
+        // 停止检查点
         schedulingProvider.stopCheckpointScheduler();
 
         final CompletableFuture<String> savepointFuture =
@@ -197,6 +224,7 @@ class Executing extends StateWithExecutionGraph implements ResourceListener {
          *
          * @param executionGraph executionGraph for making the scaling decision.
          * @return true, if we should rescale
+         * 判断是否需要重新调节
          */
         boolean shouldRescale(ExecutionGraph executionGraph);
 

@@ -22,9 +22,16 @@ import org.apache.flink.core.io.IOReadableWritable;
 
 import java.io.IOException;
 
-/** A record-oriented reader for mutable record types. */
+/** A record-oriented reader for mutable record types.
+ * */
 public interface MutableReader<T extends IOReadableWritable> extends ReaderBase {
 
+    /**
+     * @param target   该对象会从input中读取数据
+     * @return
+     * @throws IOException
+     * @throws InterruptedException
+     */
     boolean next(T target) throws IOException, InterruptedException;
 
     void clearBuffers();

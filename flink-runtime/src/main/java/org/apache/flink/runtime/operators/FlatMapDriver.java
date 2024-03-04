@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
  * @see org.apache.flink.api.common.functions.FlatMapFunction
  * @param <IT> The mapper's input data type.
  * @param <OT> The mapper's output data type.
+ *            将数据转换后下发
  */
 public class FlatMapDriver<IT, OT> implements Driver<FlatMapFunction<IT, OT>, OT> {
 
@@ -101,6 +102,7 @@ public class FlatMapDriver<IT, OT> implements Driver<FlatMapFunction<IT, OT>, OT
         if (objectReuseEnabled) {
             IT record = this.taskContext.<IT>getInputSerializer(0).getSerializer().createInstance();
 
+            // 读取数据 转换后下发
             while (this.running && ((record = input.next(record)) != null)) {
                 numRecordsIn.inc();
                 function.flatMap(record, output);

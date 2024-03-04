@@ -21,6 +21,7 @@ package org.apache.flink.runtime.rpc.messages;
 /**
  * Interface for rpc invocation messages. The interface allows to request all necessary information
  * to lookup a method and call it with the corresponding arguments.
+ * 通过该对象发起rpc调用
  */
 public interface RpcInvocation extends Message {
 

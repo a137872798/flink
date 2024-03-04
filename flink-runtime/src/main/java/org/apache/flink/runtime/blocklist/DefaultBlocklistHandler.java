@@ -35,17 +35,31 @@ import java.util.stream.Stream;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Default implementation of {@link BlocklistHandler}. */
+/** Default implementation of {@link BlocklistHandler}.
+ * 阻塞列表处理器的默认实现
+ * */
 public class DefaultBlocklistHandler implements BlocklistHandler, AutoCloseable {
 
     private final Logger log;
 
+    /**
+     * 将资源id 兑换成节点id
+     */
     private final Function<ResourceID, String> taskManagerNodeIdRetriever;
 
+    /**
+     * 该对象开放了一些阻塞节点相关的api
+     */
     private final BlocklistTracker blocklistTracker;
 
+    /**
+     * 通过上下文 可以添加移除某些阻塞节点
+     */
     private final BlocklistContext blocklistContext;
 
+    /**
+     * 维护监听器
+     */
     private final Set<BlocklistListener> blocklistListeners = new HashSet<>();
 
     private final Duration timeoutCheckInterval;
@@ -71,6 +85,9 @@ public class DefaultBlocklistHandler implements BlocklistHandler, AutoCloseable 
         scheduleTimeoutCheck();
     }
 
+    /**
+     * 启动定时任务
+     */
     private void scheduleTimeoutCheck() {
         this.timeoutCheckFuture =
                 mainThreadExecutor.schedule(
@@ -82,6 +99,9 @@ public class DefaultBlocklistHandler implements BlocklistHandler, AutoCloseable 
                         TimeUnit.MILLISECONDS);
     }
 
+    /**
+     * 将超时节点从阻塞状态恢复
+     */
     private void removeTimeoutNodes() {
         assertRunningInMainThread();
         Collection<BlockedNode> removedNodes =
@@ -101,6 +121,7 @@ public class DefaultBlocklistHandler implements BlocklistHandler, AutoCloseable 
                         removedNodes.size(),
                         blocklistTracker.getAllBlockedNodes().size());
             }
+            // 解除阻塞
             blocklistContext.unblockResources(removedNodes);
         }
     }
@@ -109,6 +130,11 @@ public class DefaultBlocklistHandler implements BlocklistHandler, AutoCloseable 
         mainThreadExecutor.assertRunningInMainThread();
     }
 
+    /**
+     * 添加新的阻塞节点
+     * @param newNodes the new blocked node records
+     *
+     */
     @Override
     public void addNewBlockedNodes(Collection<BlockedNode> newNodes) {
         assertRunningInMainThread();
@@ -118,7 +144,11 @@ public class DefaultBlocklistHandler implements BlocklistHandler, AutoCloseable 
         }
 
         BlockedNodeAdditionResult result = blocklistTracker.addNewBlockedNodes(newNodes);
+
+        // 表示完全新增的节点
         Collection<BlockedNode> newlyAddedNodes = result.getNewlyAddedNodes();
+
+        // 重复并且合并的节点 + 新增节点 表示本次所有受到影响的节点
         Collection<BlockedNode> allNodes =
                 Stream.concat(newlyAddedNodes.stream(), result.getMergedNodes().stream())
                         .collect(Collectors.toList());
@@ -139,13 +169,20 @@ public class DefaultBlocklistHandler implements BlocklistHandler, AutoCloseable 
                         blocklistTracker.getAllBlockedNodes().size());
             }
 
+            // 用所有变化的节点触发
             blocklistListeners.forEach(listener -> listener.notifyNewBlockedNodes(allNodes));
+            // 只有newlyAddedNodes 是新增的
             blocklistContext.blockResources(newlyAddedNodes);
         } else if (!allNodes.isEmpty()) {
             blocklistListeners.forEach(listener -> listener.notifyNewBlockedNodes(allNodes));
         }
     }
 
+    /**
+     * 将taskManagerId转换成nodeId  然后查看节点是否被阻塞
+     * @param taskManagerId ID of the task manager to query
+     * @return
+     */
     @Override
     public boolean isBlockedTaskManager(ResourceID taskManagerId) {
         assertRunningInMainThread();
@@ -165,6 +202,7 @@ public class DefaultBlocklistHandler implements BlocklistHandler, AutoCloseable 
         assertRunningInMainThread();
 
         checkNotNull(blocklistListener);
+        // 首次注册监听器  使用现有的节点直接触发
         if (!blocklistListeners.contains(blocklistListener)) {
             blocklistListeners.add(blocklistListener);
             Collection<BlockedNode> allBlockedNodes = blocklistTracker.getAllBlockedNodes();
@@ -189,7 +227,8 @@ public class DefaultBlocklistHandler implements BlocklistHandler, AutoCloseable 
         }
     }
 
-    /** The factory to instantiate {@link DefaultBlocklistHandler}. */
+    /** The factory to instantiate {@link DefaultBlocklistHandler}.
+     * */
     public static class Factory implements BlocklistHandler.Factory {
 
         private final Duration timeoutCheckInterval;

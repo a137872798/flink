@@ -31,6 +31,8 @@ import static org.apache.flink.util.concurrent.FutureUtils.checkStateAndGet;
  * A builder for {@link CheckpointMetrics}.
  *
  * <p>This class is not thread safe, but parts of it can actually be used from different threads.
+ *
+ * 检查点的一些统计信息
  */
 @NotThreadSafe
 public class CheckpointMetricsBuilder {

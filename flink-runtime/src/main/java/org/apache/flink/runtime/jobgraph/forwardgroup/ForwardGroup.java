@@ -34,17 +34,35 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * A forward group is a set of job vertices connected via forward edges. Parallelisms of all job
  * vertices in the same {@link ForwardGroup} must be the same.
+ *
+ * 正向组  表示一组正向边连接的作业顶点
+ * 在同一个forwardGroup的所有作业并行度必须相同
  */
 public class ForwardGroup {
 
+    /**
+     * 表示这组顶点的 并行度
+     */
     private int parallelism = ExecutionConfig.PARALLELISM_DEFAULT;
 
+    /**
+     * 他们允许接收的最大并行度
+     */
     private int maxParallelism = JobVertex.MAX_PARALLELISM_DEFAULT;
+
+    /**
+     * 存储job顶点
+     */
     private final Set<JobVertexID> jobVertexIds = new HashSet<>();
 
+    /**
+     * 通过一组job顶点id进行初始化
+     * @param jobVertices
+     */
     public ForwardGroup(final Set<JobVertex> jobVertices) {
         checkNotNull(jobVertices);
 
+        // 获取这些job的并行度
         Set<Integer> configuredParallelisms =
                 jobVertices.stream()
                         .filter(
@@ -55,6 +73,7 @@ public class ForwardGroup {
                         .map(JobVertex::getParallelism)
                         .collect(Collectors.toSet());
 
+        // 表示他们的并行度应当一致  否则set的size就会超过1
         checkState(configuredParallelisms.size() <= 1);
         if (configuredParallelisms.size() == 1) {
             this.parallelism = configuredParallelisms.iterator().next();
@@ -66,8 +85,11 @@ public class ForwardGroup {
                         .filter(val -> val > 0)
                         .collect(Collectors.toSet());
 
+        // 使用最小值 作为公共的最大并行度
         if (!configuredMaxParallelisms.isEmpty()) {
             this.maxParallelism = Collections.min(configuredMaxParallelisms);
+
+            // 确保此时并行度 <= 最大并行度
             checkState(
                     parallelism == ExecutionConfig.PARALLELISM_DEFAULT
                             || maxParallelism >= parallelism,
@@ -75,6 +97,10 @@ public class ForwardGroup {
         }
     }
 
+    /**
+     * 只有当前并行度未设置的情况下 才能调用该方法
+     * @param parallelism
+     */
     public void setParallelism(int parallelism) {
         checkState(this.parallelism == ExecutionConfig.PARALLELISM_DEFAULT);
         this.parallelism = parallelism;

@@ -18,7 +18,9 @@
 
 package org.apache.flink.runtime.io.network.partition.hybrid.tiered.storage;
 
-/** The metric statistics for the tiered storage producer. */
+/** The metric statistics for the tiered storage producer.
+ * 记录每次生产者导致的数据变化
+ * */
 public class TieredStorageProducerMetricUpdate {
 
     private final int numWriteBuffersDelta;

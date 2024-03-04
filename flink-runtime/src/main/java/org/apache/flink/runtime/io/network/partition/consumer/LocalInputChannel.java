@@ -51,7 +51,9 @@ import java.util.TimerTask;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** An input channel, which requests a local subpartition. */
+/** An input channel, which requests a local subpartition.
+ * 本地channel  也就是不需要经过网络模块
+ * */
 public class LocalInputChannel extends InputChannel implements BufferAvailabilityListener {
 
     private static final Logger LOG = LoggerFactory.getLogger(LocalInputChannel.class);
@@ -60,19 +62,45 @@ public class LocalInputChannel extends InputChannel implements BufferAvailabilit
 
     private final Object requestLock = new Object();
 
-    /** The local partition manager. */
+    /** The local partition manager.
+     * ResultPartitionManager 包含了各分区数据  并且可以单独获取某个子分区的视图   而inputChannel对标的也是子分区
+     * */
     private final ResultPartitionManager partitionManager;
 
-    /** Task event dispatcher for backwards events. */
+    /** Task event dispatcher for backwards events.
+     * 管理事件监听器   以及可以发送事件
+     * */
     private final TaskEventPublisher taskEventPublisher;
 
-    /** The consumed subpartition. */
+    /** The consumed subpartition.
+     * 该子分区数据的视图
+     * */
     @Nullable private volatile ResultSubpartitionView subpartitionView;
 
+    /**
+     * 表示该channel是否被释放
+     */
     private volatile boolean isReleased;
 
+    /**
+     * 借助该对象来持久化状态
+     */
     private final ChannelStatePersister channelStatePersister;
 
+    /**
+     *
+     * @param inputGate
+     * @param channelIndex
+     * @param partitionId
+     * @param consumedSubpartitionIndex
+     * @param partitionManager
+     * @param taskEventPublisher
+     * @param initialBackoff
+     * @param maxBackoff
+     * @param numBytesIn
+     * @param numBuffersIn
+     * @param stateWriter  初始化的时候 就需要传入用于写state数据的对象
+     */
     public LocalInputChannel(
             SingleInputGate inputGate,
             int channelIndex,
@@ -105,6 +133,11 @@ public class LocalInputChannel extends InputChannel implements BufferAvailabilit
     // Consume
     // ------------------------------------------------------------------------
 
+    /**
+     * 设置检查点屏障 并开始产生检查点 作为下游一旦发现开始标识数据 就应该意识到要产生检查点了
+     * @param barrier
+     * @throws CheckpointException
+     */
     public void checkpointStarted(CheckpointBarrier barrier) throws CheckpointException {
         channelStatePersister.startPersisting(barrier.getId(), Collections.emptyList());
     }
@@ -113,6 +146,10 @@ public class LocalInputChannel extends InputChannel implements BufferAvailabilit
         channelStatePersister.stopPersisting(checkpointId);
     }
 
+    /**
+     * 请求某个子分区
+     * @throws IOException
+     */
     @Override
     protected void requestSubpartition() throws IOException {
 
@@ -123,6 +160,7 @@ public class LocalInputChannel extends InputChannel implements BufferAvailabilit
         synchronized (requestLock) {
             checkState(!isReleased, "LocalInputChannel has been released already");
 
+            // 请求子分区数据时    创建子分区视图
             if (subpartitionView == null) {
                 LOG.debug(
                         "{}: Requesting LOCAL subpartition {} of partition {}. {}",
@@ -167,13 +205,16 @@ public class LocalInputChannel extends InputChannel implements BufferAvailabilit
         // Do this outside of the lock scope as this might lead to a
         // deadlock with a concurrent release of the channel via the
         // input gate.
+        // 当发现PartitionNotFoundException时 触发
         if (retriggerRequest) {
             inputGate.retriggerPartitionRequest(
                     partitionId.getPartitionId(), consumedSubpartitionIndex);
         }
     }
 
-    /** Retriggers a subpartition request. */
+    /** Retriggers a subpartition request.
+     * 在一定延时后 重新请求分区数据
+     * */
     void retriggerSubpartitionRequest(Timer timer) {
         synchronized (requestLock) {
             checkState(subpartitionView == null, "already requested partition");
@@ -193,6 +234,11 @@ public class LocalInputChannel extends InputChannel implements BufferAvailabilit
         }
     }
 
+    /**
+     * 读取下个数据
+     * @return
+     * @throws IOException
+     */
     @Override
     public Optional<BufferAndAvailability> getNextBuffer() throws IOException {
         checkError();
@@ -238,6 +284,7 @@ public class LocalInputChannel extends InputChannel implements BufferAvailabilit
 
         Buffer buffer = next.buffer();
 
+        // 将数据读取到从gate申请的buffer
         if (buffer instanceof FileRegionBuffer) {
             buffer = ((FileRegionBuffer) buffer).readInto(inputGate.getUnpooledSegment());
         }
@@ -248,7 +295,10 @@ public class LocalInputChannel extends InputChannel implements BufferAvailabilit
 
         numBytesIn.inc(buffer.readableBytes());
         numBuffersIn.inc();
+        // 检查该buffer内的数据是否是检查点相关的
         channelStatePersister.checkForBarrier(buffer);
+
+        // 调用next时 却通过writer写入吗
         channelStatePersister.maybePersist(buffer);
         NetworkActionsLogger.traceInput(
                 "LocalInputChannel#getNextBuffer",
@@ -265,6 +315,9 @@ public class LocalInputChannel extends InputChannel implements BufferAvailabilit
                         next.getSequenceNumber()));
     }
 
+    /**
+     * 通知此时可以拉取数据了
+     */
     @Override
     public void notifyDataAvailable() {
         notifyChannelNonEmpty();

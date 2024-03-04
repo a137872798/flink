@@ -21,7 +21,9 @@ package org.apache.flink.runtime.io.disk.iomanager;
 import java.io.Closeable;
 import java.util.concurrent.LinkedBlockingQueue;
 
-/** A {@link LinkedBlockingQueue} that is extended with closing methods. */
+/** A {@link LinkedBlockingQueue} that is extended with closing methods.
+ * 使用阻塞队列存储待处理的请求
+ * */
 public final class RequestQueue<E> extends LinkedBlockingQueue<E> implements Closeable {
 
     private static final long serialVersionUID = 3804115535778471680L;

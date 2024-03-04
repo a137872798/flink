@@ -24,8 +24,14 @@ import org.apache.flink.util.Preconditions;
 import java.util.HashMap;
 import java.util.Map;
 
-/** Utility class for counting workers per {@link WorkerResourceSpec}. */
+/** Utility class for counting workers per {@link WorkerResourceSpec}.
+ * 计数器
+ * */
 class WorkerCounter {
+
+    /**
+     * WorkerResourceSpec 表示资源的规格   Integer 表示按照这个规格的worker数量
+     */
     private final Map<WorkerResourceSpec, Integer> workerNums;
 
     WorkerCounter() {
@@ -36,10 +42,20 @@ class WorkerCounter {
         return workerNums.values().stream().reduce(0, Integer::sum);
     }
 
+    /**
+     * 获取使用这个规格的worker数量
+     * @param workerResourceSpec
+     * @return
+     */
     int getNum(final WorkerResourceSpec workerResourceSpec) {
         return workerNums.getOrDefault(Preconditions.checkNotNull(workerResourceSpec), 0);
     }
 
+    /**
+     * 增加某个规格的 worker数量
+     * @param workerResourceSpec
+     * @return
+     */
     int increaseAndGet(final WorkerResourceSpec workerResourceSpec) {
         return workerNums.compute(
                 Preconditions.checkNotNull(workerResourceSpec),

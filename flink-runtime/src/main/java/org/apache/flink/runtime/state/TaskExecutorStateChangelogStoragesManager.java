@@ -42,7 +42,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-/** This class holds the all {@link StateChangelogStorage} objects for a task executor (manager). */
+/** This class holds the all {@link StateChangelogStorage} objects for a task executor (manager).
+ * 存储的是  changelog
+ * */
 @ThreadSafe
 public class TaskExecutorStateChangelogStoragesManager {
 
@@ -54,6 +56,7 @@ public class TaskExecutorStateChangelogStoragesManager {
      * This map holds all state changelog storages for tasks running on the task manager / executor
      * that own the instance of this. Maps from job id to all the subtask's state changelog
      * storages. Value type Optional is for containing the null value.
+     * changelog是以job为单位的吗    本地状态是以subtask为单位的
      */
     @GuardedBy("lock")
     private final Map<JobID, Optional<StateChangelogStorage<?>>> changelogStoragesByJobId;
@@ -150,6 +153,14 @@ public class TaskExecutorStateChangelogStoragesManager {
         }
     }
 
+    /**
+     * 插入
+     * @param jobID
+     * @param configuration
+     * @param changelogStateHandle
+     * @return
+     * @throws IOException
+     */
     @Nullable
     StateChangelogStorageView<?> stateChangelogStorageViewForJob(
             @Nonnull JobID jobID,

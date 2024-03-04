@@ -24,7 +24,9 @@ import org.apache.flink.runtime.taskmanager.TaskExecutionState;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Wraps {@link TaskExecutionState}, along with actions to take if it is FAILED state. */
+/** Wraps {@link TaskExecutionState}, along with actions to take if it is FAILED state.
+ * 任务执行状态转变对象
+ * */
 public class TaskExecutionStateTransition {
 
     private final TaskExecutionState taskExecutionState;
@@ -54,6 +56,8 @@ public class TaskExecutionStateTransition {
     public Throwable getError(ClassLoader userCodeClassloader) {
         return taskExecutionState.getError(userCodeClassloader);
     }
+
+    // 获取执行状态的信息
 
     public ExecutionAttemptID getID() {
         return taskExecutionState.getID();

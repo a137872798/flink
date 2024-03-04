@@ -28,7 +28,9 @@ import java.io.IOException;
 import static org.apache.flink.runtime.operators.sort.CircularElement.EOF_MARKER;
 import static org.apache.flink.runtime.operators.sort.CircularElement.SPILLING_MARKER;
 
-/** The thread that sorts filled buffers. */
+/** The thread that sorts filled buffers.
+ * 该线程对数据进行排序
+ * */
 class SortingThread<E> extends ThreadBase<E> {
 
     /** Logging. */
@@ -58,10 +60,12 @@ class SortingThread<E> extends ThreadBase<E> {
 
         // loop as long as the thread is marked alive
         while (isRunning() && alive) {
+            // 从排序队列获取元素   sort队列中的元素都是由SorterInputGateway设置的  而SorterInputGateway的数据则是 ReadingThread从某个input中读取的
             final CircularElement<E> element = this.dispatcher.take(SortStage.SORT);
 
             if (element != EOF_MARKER && element != SPILLING_MARKER) {
 
+                // 归还内存块
                 if (element.getBuffer().size() == 0) {
                     element.getBuffer().reset();
                     this.dispatcher.send(SortStage.READ, element);
@@ -69,13 +73,16 @@ class SortingThread<E> extends ThreadBase<E> {
                 }
 
                 LOG.debug("Sorting buffer {}.", element.getId());
+                // 对内存块进行排序
                 this.sorter.sort(element.getBuffer());
 
                 LOG.debug("Sorted buffer {}.", element.getId());
             } else if (element == EOF_MARKER) {
+                // 表示上层数据已经发送完了 该线程就不需要再工作了
                 LOG.debug("Sorting thread done.");
                 alive = false;
             }
+            // 排序后的数据才方便写入
             this.dispatcher.send(SortStage.SPILL, element);
         }
     }

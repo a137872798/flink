@@ -44,6 +44,7 @@ import java.util.NoSuchElementException;
  * from that buffer.
  *
  * @param <T> The type of record that the iterator handles.
+ *           与SpillingResettableMutableObjectIterator相比 实现的接口不一样
  */
 public class SpillingResettableIterator<T> implements ResettableIterator<T> {
 

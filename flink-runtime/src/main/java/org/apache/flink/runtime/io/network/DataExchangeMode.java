@@ -21,18 +21,22 @@ package org.apache.flink.runtime.io.network;
 import org.apache.flink.api.common.ExecutionMode;
 import org.apache.flink.runtime.operators.shipping.ShipStrategyType;
 
-/** Defines how the data exchange between two specific operators happens. */
+/** Defines how the data exchange between two specific operators happens.
+ * 表示结果集的传递方式   (上游产生 下游获取)
+ * */
 public enum DataExchangeMode {
 
     /**
      * The data exchange is streamed, sender and receiver are online at the same time, and the
      * receiver back-pressures the sender.
+     * 管道模式  也就是一边产生一边拉取
      */
     PIPELINED,
 
     /**
      * The data exchange is decoupled. The sender first produces its entire result and finishes.
      * After that, the receiver is started and may consume the data.
+     * 批模式 必须等待所有数据准备完毕
      */
     BATCH,
 

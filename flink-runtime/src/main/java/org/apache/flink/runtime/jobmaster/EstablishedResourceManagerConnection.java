@@ -26,11 +26,18 @@ import javax.annotation.Nonnull;
 /**
  * Class which contains the connection details of an established connection with the
  * ResourceManager.
+ * 表示通往RM的一个连接
  */
 class EstablishedResourceManagerConnection {
 
+    /**
+     * 通过该对象可以与 RM交互
+     */
     @Nonnull private final ResourceManagerGateway resourceManagerGateway;
 
+    /**
+     * 标记RM
+     */
     @Nonnull private final ResourceID resourceManagerResourceID;
 
     EstablishedResourceManagerConnection(

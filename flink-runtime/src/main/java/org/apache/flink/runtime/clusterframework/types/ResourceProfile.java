@@ -59,6 +59,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * </ol>
  *
  * The extended resources are compared ordered by the resource names.
+ *
+ * 资源侧写对象
  */
 public class ResourceProfile implements Serializable {
 
@@ -145,6 +147,7 @@ public class ResourceProfile implements Serializable {
         this.managedMemory = checkNotNull(managedMemory);
         this.networkMemory = checkNotNull(networkMemory);
 
+        // 只保留有有效值的资源对象
         this.extendedResources =
                 checkNotNull(extendedResources).entrySet().stream()
                         .filter(entry -> !checkNotNull(entry.getValue()).isZero())
@@ -256,6 +259,8 @@ public class ResourceProfile implements Serializable {
      *
      * @param required the required resource profile
      * @return true if the requirement is matched, otherwise false
+     *
+     * 2个资源是否匹配
      */
     public boolean isMatching(final ResourceProfile required) {
         checkNotNull(required, "Cannot check matching with null resources");
@@ -371,6 +376,8 @@ public class ResourceProfile implements Serializable {
      *
      * @param other The other resource profile to add.
      * @return The merged resource profile.
+     *
+     * 将2个资源对象合并
      */
     @Nonnull
     public ResourceProfile merge(final ResourceProfile other) {
@@ -391,10 +398,12 @@ public class ResourceProfile implements Serializable {
                     resultExtendedResource.compute(
                             name,
                             (ignored, oldResource) ->
+                                    // 将数值相加
                                     oldResource == null ? resource : oldResource.merge(resource));
                 });
 
         return new ResourceProfile(
+                // 累加各种资源值
                 cpuCores.merge(other.cpuCores),
                 taskHeapMemory.add(other.taskHeapMemory),
                 taskOffHeapMemory.add(other.taskOffHeapMemory),
@@ -541,6 +550,12 @@ public class ResourceProfile implements Serializable {
         return fromResourceSpec(resourceSpec, MemorySize.ZERO);
     }
 
+    /**
+     * 读取 spec的信息产生profile对象 他们的字段基本是一样的
+     * @param resourceSpec
+     * @param networkMemory
+     * @return
+     */
     public static ResourceProfile fromResourceSpec(
             ResourceSpec resourceSpec, MemorySize networkMemory) {
         if (ResourceSpec.UNKNOWN.equals(resourceSpec)) {

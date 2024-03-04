@@ -24,6 +24,7 @@ package org.apache.flink.runtime.state;
  *
  * <p>Different checkpoint storage implementations may treat checkpointed state of different scopes
  * differently, for example put it into different folders or tables.
+ * 描述状态块的作用域  定义状态由一个检查点持有 还是由多个检查点共享
  */
 public enum CheckpointedStateScope {
 

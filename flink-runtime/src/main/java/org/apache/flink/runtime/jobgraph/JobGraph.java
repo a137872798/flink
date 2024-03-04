@@ -65,6 +65,9 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>The JobGraph defines the job-wide configuration settings, while each vertex and intermediate
  * result define the characteristics of the concrete operation and intermediate data.
+ *
+ *
+ * 表示某个job的拓扑图
  */
 public class JobGraph implements Serializable {
 
@@ -74,19 +77,26 @@ public class JobGraph implements Serializable {
 
     // --- job and configuration ---
 
-    /** List of task vertices included in this job graph. */
+    /** List of task vertices included in this job graph.
+     * 维护该图中出现的所有顶点
+     * */
     private final Map<JobVertexID, JobVertex> taskVertices =
             new LinkedHashMap<JobVertexID, JobVertex>();
 
     /** The job configuration attached to this job. */
     private final Configuration jobConfiguration = new Configuration();
 
-    /** ID of this job. May be set if specific job id is desired (e.g. session management) */
+    /** ID of this job. May be set if specific job id is desired (e.g. session management)
+     * 该job的id
+     * */
     private JobID jobID;
 
     /** Name of this job. */
     private final String jobName;
 
+    /**
+     * 看来这个都是批任务
+     */
     private JobType jobType = JobType.BATCH;
 
     private boolean dynamic;
@@ -94,10 +104,13 @@ public class JobGraph implements Serializable {
     /**
      * Whether approximate local recovery is enabled. This flag will be removed together with legacy
      * scheduling strategies.
+     * 是否启用近似本地恢复
      */
     private boolean approximateLocalRecovery = false;
 
     // --- checkpointing ---
+
+    // 都是一些配置信息
 
     /** Job specific execution config. */
     private SerializedValue<ExecutionConfig> serializedExecutionConfig;
@@ -110,20 +123,31 @@ public class JobGraph implements Serializable {
 
     // --- attached resources ---
 
-    /** Set of JAR files required to run this job. */
+    /** Set of JAR files required to run this job.
+     * 表示运行job需要的一些jar包
+     * */
     private final List<Path> userJars = new ArrayList<Path>();
 
-    /** Set of custom files required to run this job. */
+    /** Set of custom files required to run this job.
+     * 设置一些用于运行该job的自定义文件
+     * 每个 DistributedCacheEntry 代表一个文件
+     * */
     private final Map<String, DistributedCache.DistributedCacheEntry> userArtifacts =
             new HashMap<>();
 
-    /** Set of blob keys identifying the JAR files required to run this job. */
+    /** Set of blob keys identifying the JAR files required to run this job.
+     * 表示jar包的key
+     * */
     private final List<PermanentBlobKey> userJarBlobKeys = new ArrayList<>();
 
-    /** List of classpaths required to run this job. */
+    /** List of classpaths required to run this job.
+     * 需要检索的classpath
+     * */
     private List<URL> classpaths = Collections.emptyList();
 
-    /** List of user-defined job status change hooks. */
+    /** List of user-defined job status change hooks.
+     * 根据job生命周期设置的 钩子
+     * */
     private List<JobStatusHook> jobStatusHooks = Collections.emptyList();
 
     // --------------------------------------------------------------------------------------------
@@ -145,8 +169,11 @@ public class JobGraph implements Serializable {
      *
      * @param jobId The id of the job. A random ID is generated, if {@code null} is passed.
      * @param jobName The name of the job.
+     *
+     *                使用id 和name 进行初始化
      */
     public JobGraph(@Nullable JobID jobId, String jobName) {
+        // 未指定情况下使用 UUID
         this.jobID = jobId == null ? new JobID() : jobId;
         this.jobName = jobName == null ? "(unnamed job)" : jobName;
 
@@ -170,6 +197,7 @@ public class JobGraph implements Serializable {
     public JobGraph(@Nullable JobID jobId, String jobName, JobVertex... vertices) {
         this(jobId, jobName);
 
+        // 生成图的时候 加入这些顶点
         for (JobVertex vertex : vertices) {
             addVertex(vertex);
         }
@@ -285,12 +313,15 @@ public class JobGraph implements Serializable {
      * Adds a new task vertex to the job graph if it is not already included.
      *
      * @param vertex the new task vertex to be added
+     *
+     *               往图中加入一个顶点
      */
     public void addVertex(JobVertex vertex) {
         final JobVertexID id = vertex.getID();
         JobVertex previous = taskVertices.put(id, vertex);
 
         // if we had a prior association, restore and throw an exception
+        // 不应该重复添加顶点
         if (previous != null) {
             taskVertices.put(id, previous);
             throw new IllegalArgumentException(
@@ -302,6 +333,7 @@ public class JobGraph implements Serializable {
      * Returns an Iterable to iterate all vertices registered with the job graph.
      *
      * @return an Iterable to iterate all vertices registered with the job graph
+     * 返回该图相关的所有顶点
      */
     public Iterable<JobVertex> getVertices() {
         return this.taskVertices.values();
@@ -326,6 +358,10 @@ public class JobGraph implements Serializable {
         return this.taskVertices.size();
     }
 
+    /**
+     * 获取所有出现的共享组  每个顶点会属于某个共享组
+     * @return
+     */
     public Set<SlotSharingGroup> getSlotSharingGroups() {
         final Set<SlotSharingGroup> slotSharingGroups =
                 IterableUtils.toStream(getVertices())
@@ -338,6 +374,7 @@ public class JobGraph implements Serializable {
      * Returns all {@link CoLocationGroup} instances associated with this {@code JobGraph}.
      *
      * @return The associated {@code CoLocationGroup} instances.
+     * 获取所有的位置组
      */
     public Set<CoLocationGroup> getCoLocationGroups() {
         final Set<CoLocationGroup> coLocationGroups =
@@ -388,6 +425,8 @@ public class JobGraph implements Serializable {
      * @param id the ID of the vertex to search for
      * @return the vertex with the matching ID or <code>null</code> if no vertex with such ID could
      *     be found
+     *
+     *     通过id查询顶点
      */
     public JobVertex findVertexByID(JobVertexID id) {
         return this.taskVertices.get(id);
@@ -410,6 +449,8 @@ public class JobGraph implements Serializable {
      * Gets the maximum parallelism of all operations in this job graph.
      *
      * @return The maximum parallelism of this job graph
+     *
+     * 获取所有顶点的最大并行度
      */
     public int getMaximumParallelism() {
         int maxParallelism = -1;
@@ -430,6 +471,7 @@ public class JobGraph implements Serializable {
             return Collections.emptyList();
         }
 
+        // 准备好空容器
         List<JobVertex> sorted = new ArrayList<JobVertex>(this.taskVertices.size());
         Set<JobVertex> remaining = new LinkedHashSet<JobVertex>(this.taskVertices.values());
 
@@ -440,6 +482,7 @@ public class JobGraph implements Serializable {
             while (iter.hasNext()) {
                 JobVertex vertex = iter.next();
 
+                // 得到还没有关联到任何上游顶点的顶点   暂定为top顶点
                 if (vertex.hasNoConnectedInputs()) {
                     sorted.add(vertex);
                     iter.remove();
@@ -450,6 +493,7 @@ public class JobGraph implements Serializable {
         int startNodePos = 0;
 
         // traverse from the nodes that were added until we found all elements
+        // 剩下的这些已经有了input
         while (!remaining.isEmpty()) {
 
             // first check if we have more candidates to start traversing from. if not, then the
@@ -465,11 +509,19 @@ public class JobGraph implements Serializable {
         return sorted;
     }
 
+    /**
+     *
+     * @param start
+     * @param target
+     * @param remaining
+     */
     private void addNodesThatHaveNoNewPredecessors(
             JobVertex start, List<JobVertex> target, Set<JobVertex> remaining) {
 
         // forward traverse over all produced data sets and all their consumers
+        // 遍历由该顶点产生的数据 这些数据将由下面的顶点消费
         for (IntermediateDataSet dataSet : start.getProducedDataSets()) {
+            // 遍历该结果集的消费者
             for (JobEdge edge : dataSet.getConsumers()) {
 
                 // a vertex can be added, if it has no predecessors that are still in the
@@ -479,14 +531,18 @@ public class JobGraph implements Serializable {
                     continue;
                 }
 
+                // 发现消费数据的边 指向了某个顶点  那么就可以将这2个顶点连接起来
                 boolean hasNewPredecessors = false;
 
+                // 反向遍历上游
                 for (JobEdge e : v.getInputs()) {
                     // skip the edge through which we came
+                    // 忽略掉本次引向该点的边
                     if (e == edge) {
                         continue;
                     }
 
+                    // 顺带发现通往该边的所有数据集的 producer是否已经加入 remaining
                     IntermediateDataSet source = e.getSource();
                     if (remaining.contains(source.getProducer())) {
                         hasNewPredecessors = true;
@@ -495,7 +551,9 @@ public class JobGraph implements Serializable {
                 }
 
                 if (!hasNewPredecessors) {
+                    // 如果v的input还没有加入 remaining 就加入target
                     target.add(v);
+                    // 从remaining移除掉该v
                     remaining.remove(v);
                     addNodesThatHaveNoNewPredecessors(v, target, remaining);
                 }
@@ -610,6 +668,12 @@ public class JobGraph implements Serializable {
         return "JobGraph(jobId: " + jobID + ")";
     }
 
+    /**
+     * 为某个实体设置key
+     * @param entryName
+     * @param blobKey
+     * @throws IOException
+     */
     public void setUserArtifactBlobKey(String entryName, PermanentBlobKey blobKey)
             throws IOException {
         byte[] serializedBlobKey;
@@ -617,6 +681,7 @@ public class JobGraph implements Serializable {
 
         userArtifacts.computeIfPresent(
                 entryName,
+                // 如果已经存在 则更新key
                 (key, originalEntry) ->
                         new DistributedCache.DistributedCacheEntry(
                                 originalEntry.filePath,
@@ -639,6 +704,7 @@ public class JobGraph implements Serializable {
     public void writeUserArtifactEntriesToConfiguration() {
         for (Map.Entry<String, DistributedCache.DistributedCacheEntry> userArtifact :
                 userArtifacts.entrySet()) {
+            // 写入文件信息
             DistributedCache.writeFileInfoToConfig(
                     userArtifact.getKey(), userArtifact.getValue(), jobConfiguration);
         }

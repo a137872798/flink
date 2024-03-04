@@ -23,7 +23,9 @@ import org.apache.flink.runtime.messages.Acknowledge;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 
-/** A listener that want to be notified when blocklist changes. */
+/** A listener that want to be notified when blocklist changes.
+ * 通知有一组新的节点被阻塞
+ * */
 public interface BlocklistListener {
 
     /**
@@ -31,6 +33,7 @@ public interface BlocklistListener {
      *
      * @param newNodes the new blocked node records
      * @return Future acknowledge once the new nodes have successfully notified.
+     *
      */
     CompletableFuture<Acknowledge> notifyNewBlockedNodes(Collection<BlockedNode> newNodes);
 }

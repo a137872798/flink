@@ -30,6 +30,7 @@ import java.io.InputStream;
  * partitionable state.
  *
  * <p>TODO use bounded stream that fail fast if the limit is exceeded on corrupted reads.
+ * 表示该数据流中仅包含单个分区的数据
  */
 @PublicEvolving
 public class StatePartitionStreamProvider {

@@ -22,13 +22,16 @@ import org.apache.flink.runtime.executiongraph.ExecutionAttemptID;
 
 import java.util.Collection;
 
-/** Interface for triggering actions in case of state mismatches. */
+/** Interface for triggering actions in case of state mismatches.
+ * */
 public interface ExecutionDeploymentReconciliationHandler {
+
     /**
      * Called if some executions are expected to be hosted on a task executor, but aren't.
+     * 表示当一组execution尝试在预期的 taskExecutor执行时  却发现不存在
      *
-     * @param executionAttemptIds ids of the missing deployments
-     * @param hostingTaskExecutor expected hosting task executor
+     * @param executionAttemptIds ids of the missing deployments  表示一组execution的第某次执行
+     * @param hostingTaskExecutor expected hosting task executor  该资源id对应一个 taskExecutor
      */
     void onMissingDeploymentsOf(
             Collection<ExecutionAttemptID> executionAttemptIds, ResourceID hostingTaskExecutor);

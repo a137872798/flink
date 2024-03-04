@@ -29,6 +29,8 @@ import java.util.Objects;
  * can not be used because it: a) identifies the whole {@link
  * org.apache.flink.runtime.io.network.partition.ResultPartition ResultPartition} b) is generated
  * randomly.
+ *
+ * 表示一个子分区信息
  */
 @Internal
 public class ResultSubpartitionInfo implements Serializable {

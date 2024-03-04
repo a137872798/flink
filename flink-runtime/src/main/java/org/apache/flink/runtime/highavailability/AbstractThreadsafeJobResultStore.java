@@ -35,13 +35,20 @@ import java.util.Set;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-/** An abstract class for threadsafe implementations of the {@link JobResultStore}. */
+/** An abstract class for threadsafe implementations of the {@link JobResultStore}.
+ * 表示一个线程安全的存储 JobResult 的仓库
+ * */
 public abstract class AbstractThreadsafeJobResultStore implements JobResultStore {
 
     private static final Logger LOG =
             LoggerFactory.getLogger(AbstractThreadsafeJobResultStore.class);
 
+    /**
+     * 通过读写锁保证线程安全
+     */
     private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
+
+    // 将各操作通过读写锁包裹 具体的逻辑由子类实现
 
     @Override
     public void createDirtyResult(JobResultEntry jobResultEntry) throws IOException {

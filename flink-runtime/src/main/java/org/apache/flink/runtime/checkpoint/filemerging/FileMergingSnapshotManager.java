@@ -100,12 +100,14 @@ public interface FileMergingSnapshotManager extends Closeable {
      * @param subtaskKey the subtask key identifying the subtask.
      * @param scope the checkpoint scope.
      * @return the managed directory for one subtask in specified checkpoint scope.
+     * 看来一个key对应一个目录
      */
     Path getManagedDir(SubtaskKey subtaskKey, CheckpointedStateScope scope);
 
     /**
      * A key identifies a subtask. A subtask can be identified by the operator id, subtask index and
      * the parallelism. Note that this key should be consistent across job attempts.
+     * 可以标识一个子任务
      */
     final class SubtaskKey {
         final String operatorIDString;

@@ -23,6 +23,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Coordinator interface which can handle {@link CoordinationRequest}s and response with {@link
  * CoordinationResponse}s to the client or operator.
+ * 作为协调者 接收协调请求并产生结果
  */
 public interface CoordinationRequestHandler {
 

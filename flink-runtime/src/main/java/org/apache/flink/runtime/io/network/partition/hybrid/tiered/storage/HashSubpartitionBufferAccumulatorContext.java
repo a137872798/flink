@@ -28,6 +28,7 @@ import java.util.List;
 /**
  * This interface is used by {@link HashSubpartitionBufferAccumulator} to operate {@link
  * HashBufferAccumulator}.
+ * HashBufferAccumulator对应的上下文
  */
 public interface HashSubpartitionBufferAccumulatorContext {
 
@@ -35,6 +36,7 @@ public interface HashSubpartitionBufferAccumulatorContext {
      * Request {@link BufferBuilder} from the {@link BufferPool}.
      *
      * @return the requested buffer
+     * 从bufferPool中请求buffer
      */
     BufferBuilder requestBufferBlocking();
 
@@ -43,6 +45,7 @@ public interface HashSubpartitionBufferAccumulatorContext {
      *
      * @param subpartitionId the subpartition id
      * @param accumulatedBuffers the accumulated buffers
+     *                           将已经积累的数据刷盘
      */
     void flushAccumulatedBuffers(
             TieredStorageSubpartitionId subpartitionId, List<Buffer> accumulatedBuffers);

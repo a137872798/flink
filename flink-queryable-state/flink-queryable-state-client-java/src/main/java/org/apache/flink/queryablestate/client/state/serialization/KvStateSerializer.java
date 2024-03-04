@@ -80,6 +80,7 @@ public final class KvStateSerializer {
      * @param <N> Namespace
      * @return Tuple2 holding deserialized key and namespace
      * @throws IOException if the deserialization fails for any reason
+     * 使用序列化对象解析 字节流
      */
     public static <K, N> Tuple2<K, N> deserializeKeyAndNamespace(
             byte[] serializedKeyAndNamespace,
@@ -92,6 +93,7 @@ public final class KvStateSerializer {
                         serializedKeyAndNamespace, 0, serializedKeyAndNamespace.length);
 
         try {
+            // 这里按照规则解析就可以了
             K key = keySerializer.deserialize(dis);
             byte magicNumber = dis.readByte();
             if (magicNumber != MAGIC_NUMBER) {

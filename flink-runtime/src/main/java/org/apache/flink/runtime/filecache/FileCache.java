@@ -59,6 +59,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * <p>Retrieved directories will be expanded in "{@code <system-tmp-dir>/tmp_<jobID>/}" and deleted
  * when the task is unregistered after a 5 second delay, unless a new task requests the file in the
  * meantime.
+ * 缓存文件
  */
 public class FileCache {
 
@@ -179,15 +180,19 @@ public class FileCache {
      * @param entry The cache entry descriptor (path, executable flag)
      * @param jobID The ID of the job for which the file is copied.
      * @return The handle to the task that copies the file.
+     * 在本地创建临时文件
      */
     public Future<Path> createTmpFile(
             String name, DistributedCacheEntry entry, JobID jobID, ExecutionAttemptID executionId)
             throws Exception {
         synchronized (lock) {
+
+            // 每个job关联一个路径
             Map<String, Future<Path>> jobEntries =
                     entries.computeIfAbsent(jobID, k -> new HashMap<>());
 
             // register reference holder
+            // 每个ExecutionAttemptID 对应一个子任务  这些子任务都关于该job
             final Set<ExecutionAttemptID> refHolders =
                     jobRefHolders.computeIfAbsent(jobID, id -> new HashSet<>());
             refHolders.add(executionId);
@@ -198,9 +203,11 @@ public class FileCache {
                 // immediately returns the file
                 return fileEntry;
             } else {
+                // 路径未产生 代表文件还没有缓存到本地
+
                 // need to copy the file
 
-                // create the target path
+                // create the target path   按照规则产生目录
                 File tempDirToUse = new File(storageDirectories[nextDirectory++], jobID.toString());
                 if (nextDirectory >= storageDirectories.length) {
                     nextDirectory = 0;
@@ -208,6 +215,7 @@ public class FileCache {
 
                 // kick off the copying
                 Callable<Path> cp;
+                // 表示2种不同的存储方式  则使用不同的加载方式
                 if (entry.blobKey != null) {
                     cp =
                             new CopyFromBlobProcess(
@@ -219,9 +227,11 @@ public class FileCache {
                     cp = new CopyFromDFSProcess(entry, new Path(tempDirToUse.getAbsolutePath()));
                 }
                 FutureTask<Path> copyTask = new FutureTask<>(cp);
+                // 提交给后台任务
                 executorService.submit(copyTask);
 
                 // store our entry
+                // 存储结果
                 jobEntries.put(name, copyTask);
 
                 return copyTask;
@@ -257,7 +267,9 @@ public class FileCache {
     //  background processes
     // ------------------------------------------------------------------------
 
-    /** Asynchronous file copy process from blob server. */
+    /** Asynchronous file copy process from blob server.
+     * 从PermanentBlobService 加载数据并缓存在本地
+     * */
     private static class CopyFromBlobProcess implements Callable<Path> {
 
         private final PermanentBlobKey blobKey;

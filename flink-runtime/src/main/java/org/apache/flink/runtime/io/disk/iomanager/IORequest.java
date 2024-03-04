@@ -31,6 +31,7 @@ interface IORequest {
      *
      * @param ioex The exception that occurred while processing the I/O request. Is <tt>null</tt> if
      *     everything was fine.
+     *             表示请求处理完成
      */
     public void requestDone(IOException ioex);
 }
@@ -42,6 +43,7 @@ interface ReadRequest extends IORequest {
      * Called by the target I/O thread to perform the actual reading operation.
      *
      * @throws IOException My be thrown by the method to indicate an I/O problem.
+     * 发起读取操作
      */
     public void read() throws IOException;
 }
@@ -53,6 +55,7 @@ interface WriteRequest extends IORequest {
      * Called by the target I/O thread to perform the actual writing operation.
      *
      * @throws IOException My be thrown by the method to indicate an I/O problem.
+     * 发起写操作
      */
     public void write() throws IOException;
 }

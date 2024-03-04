@@ -31,6 +31,7 @@ public interface ClientHighAvailabilityServices extends AutoCloseable {
      * Get the leader retriever for the cluster's rest endpoint.
      *
      * @return the leader retriever for cluster's rest endpoint.
+     * LeaderRetrievalService 服务可以获取当前leader的地址
      */
     LeaderRetrievalService getClusterRestEndpointLeaderRetriever();
 }

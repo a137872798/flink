@@ -40,18 +40,31 @@ import java.util.Objects;
  *
  * @param <N> Type of namespace
  * @param <S> Type of state value
+ *
+ *           对应kv类型state的元数据对象
  */
 public class RegisteredKeyValueStateBackendMetaInfo<N, S> extends RegisteredStateMetaInfoBase {
 
+    /**
+     * 描述状态类型
+     */
     @Nonnull private final StateDescriptor.Type stateType;
+
+    /**
+     * 提供序列化对象
+     */
     @Nonnull private final StateSerializerProvider<N> namespaceSerializerProvider;
     @Nonnull private final StateSerializerProvider<S> stateSerializerProvider;
+
+    /**
+     * 可以产生转换对象 进行序列化/反序列化
+     */
     @Nonnull private StateSnapshotTransformFactory<S> stateSnapshotTransformFactory;
 
     public RegisteredKeyValueStateBackendMetaInfo(
             @Nonnull StateDescriptor.Type stateType,
             @Nonnull String name,
-            @Nonnull TypeSerializer<N> namespaceSerializer,
+            @Nonnull TypeSerializer<N> namespaceSerializer,  // 直接使用这2个序列化对象
             @Nonnull TypeSerializer<S> stateSerializer) {
 
         this(
@@ -59,7 +72,7 @@ public class RegisteredKeyValueStateBackendMetaInfo<N, S> extends RegisteredStat
                 name,
                 StateSerializerProvider.fromNewRegisteredSerializer(namespaceSerializer),
                 StateSerializerProvider.fromNewRegisteredSerializer(stateSerializer),
-                StateSnapshotTransformFactory.noTransform());
+                StateSnapshotTransformFactory.noTransform());  // 转换器默认为空
     }
 
     public RegisteredKeyValueStateBackendMetaInfo(
@@ -77,6 +90,10 @@ public class RegisteredKeyValueStateBackendMetaInfo<N, S> extends RegisteredStat
                 stateSnapshotTransformFactory);
     }
 
+    /**
+     * 元数据信息也可以从快照还原过来
+     * @param snapshot
+     */
     @SuppressWarnings("unchecked")
     public RegisteredKeyValueStateBackendMetaInfo(@Nonnull StateMetaInfoSnapshot snapshot) {
         this(
@@ -84,6 +101,8 @@ public class RegisteredKeyValueStateBackendMetaInfo<N, S> extends RegisteredStat
                         snapshot.getOption(
                                 StateMetaInfoSnapshot.CommonOptionsKeys.KEYED_STATE_TYPE)),
                 snapshot.getName(),
+
+                // 元数据快照中 应该存储了序列化对象的快照 可以检索出来
                 StateSerializerProvider.fromPreviousSerializerSnapshot(
                         (TypeSerializerSnapshot<N>)
                                 Preconditions.checkNotNull(
@@ -98,6 +117,7 @@ public class RegisteredKeyValueStateBackendMetaInfo<N, S> extends RegisteredStat
                                                         .VALUE_SERIALIZER))),
                 StateSnapshotTransformFactory.noTransform());
 
+        // 确保使用的类型一致
         Preconditions.checkState(
                 StateMetaInfoSnapshot.BackendStateType.KEY_VALUE == snapshot.getBackendStateType());
     }
@@ -126,6 +146,11 @@ public class RegisteredKeyValueStateBackendMetaInfo<N, S> extends RegisteredStat
         return namespaceSerializerProvider.currentSchemaSerializer();
     }
 
+    /**
+     * 注意只有基于快照初始化的 才能直接设置新的
+     * @param newNamespaceSerializer
+     * @return
+     */
     @Nonnull
     public TypeSerializerSchemaCompatibility<N> updateNamespaceSerializer(
             TypeSerializer<N> newNamespaceSerializer) {
@@ -218,6 +243,10 @@ public class RegisteredKeyValueStateBackendMetaInfo<N, S> extends RegisteredStat
         return result;
     }
 
+    /**
+     * 为整个元数据信息产生快照
+     * @return
+     */
     @Nonnull
     @Override
     public StateMetaInfoSnapshot snapshot() {
@@ -256,8 +285,13 @@ public class RegisteredKeyValueStateBackendMetaInfo<N, S> extends RegisteredStat
         }
     }
 
+    /**
+     * 产生快照
+     * @return
+     */
     @Nonnull
     private StateMetaInfoSnapshot computeSnapshot() {
+        // 存储后端类型
         Map<String, String> optionsMap =
                 Collections.singletonMap(
                         StateMetaInfoSnapshot.CommonOptionsKeys.KEYED_STATE_TYPE.toString(),

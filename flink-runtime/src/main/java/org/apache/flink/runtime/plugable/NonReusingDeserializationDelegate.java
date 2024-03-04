@@ -24,7 +24,9 @@ import org.apache.flink.core.memory.DataOutputView;
 
 import java.io.IOException;
 
-/** A {@link DeserializationDelegate} that always creates a new instance upon deserialization. */
+/** A {@link DeserializationDelegate} that always creates a new instance upon deserialization.
+ * 不会复用实例 与ReusingDeserializationDelegate 对应
+ * */
 public class NonReusingDeserializationDelegate<T> implements DeserializationDelegate<T> {
 
     private T instance;

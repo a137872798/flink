@@ -36,9 +36,18 @@ import static org.apache.flink.util.Preconditions.checkState;
 
 /**
  * When getting buffers, The {@link SortBasedDataBuffer} need not recycle the read target buffer..
+ * 使用分层存储时使用的buffer
  */
 public class TieredStorageSortBuffer extends SortBuffer {
 
+    /**
+     *
+     * @param freeSegments
+     * @param bufferRecycler
+     * @param numSubpartitions
+     * @param bufferSize
+     * @param numGuaranteedBuffers  要求保证的buffer数
+     */
     public TieredStorageSortBuffer(
             LinkedList<MemorySegment> freeSegments,
             BufferRecycler bufferRecycler,
@@ -54,11 +63,17 @@ public class TieredStorageSortBuffer extends SortBuffer {
                 null);
     }
 
+    /**
+     * 读取下条记录
+     * @param transitBuffer
+     * @return
+     */
     @Override
     public BufferWithChannel getNextBuffer(@Nullable MemorySegment transitBuffer) {
         checkState(isFinished, "Sort buffer is not ready to be read.");
         checkState(!isReleased, "Sort buffer is already released.");
 
+        // 表示数据已经读完了  顺便把buffer拿走了
         if (!hasRemaining()) {
             freeSegments.add(transitBuffer);
             return null;
@@ -66,10 +81,13 @@ public class TieredStorageSortBuffer extends SortBuffer {
 
         int numBytesRead = 0;
         Buffer.DataType bufferDataType = Buffer.DataType.DATA_BUFFER;
+
+        // 映射到子分区
         int currentReadingSubpartitionId = subpartitionReadOrder[readOrderIndex];
 
         do {
             // Get the buffer index and offset from the index entry
+            // 转换得到index
             int toReadBufferIndex = getSegmentIndexFromPointer(readIndexEntryAddress);
             int toReadOffsetInBuffer = getSegmentOffsetFromPointer(readIndexEntryAddress);
 
@@ -77,6 +95,7 @@ public class TieredStorageSortBuffer extends SortBuffer {
             MemorySegment toReadBuffer = segments.get(toReadBufferIndex);
 
             // From the lengthAndDataType buffer, read and get the length and the data type
+            // 从这里开始是元数据
             long lengthAndDataType = toReadBuffer.getLong(toReadOffsetInBuffer);
             int recordLength = getSegmentIndexFromPointer(lengthAndDataType);
             Buffer.DataType dataType =
@@ -84,12 +103,14 @@ public class TieredStorageSortBuffer extends SortBuffer {
 
             // If the buffer is an event and some data has been read, return it directly to ensure
             // that the event will occupy one buffer independently
+            // 事件必然是一次读完的  保证一个事件占用一个缓冲区
             if (dataType.isEvent() && numBytesRead > 0) {
                 break;
             }
             bufferDataType = dataType;
 
             // Get the next index entry address and move the read position forward
+            // 这是下个索引块的位置
             long nextReadIndexEntryAddress = toReadBuffer.getLong(toReadOffsetInBuffer + 8);
             toReadOffsetInBuffer += INDEX_ENTRY_SIZE;
 
@@ -100,6 +121,7 @@ public class TieredStorageSortBuffer extends SortBuffer {
             }
 
             // Start reading data from the data buffer
+            // 此时完成数据拷贝了
             numBytesRead +=
                     copyRecordOrEvent(
                             transitBuffer,

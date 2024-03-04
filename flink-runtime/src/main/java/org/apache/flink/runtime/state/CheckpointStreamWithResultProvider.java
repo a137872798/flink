@@ -37,16 +37,23 @@ import java.util.UUID;
  * Interface that provides access to a CheckpointStateOutputStream and a method to provide the
  * {@link SnapshotResult}. This abstracts from different ways that a result is obtained from
  * checkpoint output streams.
+ *
+ * 可用于访问包含检查点数据的stream
  */
 public interface CheckpointStreamWithResultProvider extends Closeable {
 
     Logger LOG = LoggerFactory.getLogger(CheckpointStreamWithResultProvider.class);
 
-    /** Closes the stream ans returns a snapshot result with the stream handle(s). */
+    /** Closes the stream ans returns a snapshot result with the stream handle(s).
+     * 关闭检查点流 并得到结果
+     * StreamStateHandle 表示可以以stream的形式读取state
+     * */
     @Nonnull
     SnapshotResult<StreamStateHandle> closeAndFinalizeCheckpointStreamResult() throws IOException;
 
-    /** Returns the encapsulated output stream. */
+    /** Returns the encapsulated output stream.
+     * 使用该输出流保存检查点
+     * */
     @Nonnull
     CheckpointStateOutputStream getCheckpointOutputStream();
 
@@ -58,6 +65,8 @@ public interface CheckpointStreamWithResultProvider extends Closeable {
     /**
      * Implementation of {@link CheckpointStreamWithResultProvider} that only creates the
      * primary/remote/jm-owned state.
+     *
+     * 表示只有一个简单的流
      */
     class PrimaryStreamOnly implements CheckpointStreamWithResultProvider {
 
@@ -67,6 +76,11 @@ public interface CheckpointStreamWithResultProvider extends Closeable {
             this.outputStream = outputStream;
         }
 
+        /**
+         * 关闭流 并包装结果
+         * @return
+         * @throws IOException
+         */
         @Nonnull
         @Override
         public SnapshotResult<StreamStateHandle> closeAndFinalizeCheckpointStreamResult()
@@ -84,6 +98,7 @@ public interface CheckpointStreamWithResultProvider extends Closeable {
     /**
      * Implementation of {@link CheckpointStreamWithResultProvider} that creates both, the
      * primary/remote/jm-owned state and the secondary/local/tm-owned state.
+     * 同时包含2个流  会进行双写
      */
     class PrimaryAndSecondaryStream implements CheckpointStreamWithResultProvider {
 
@@ -102,6 +117,11 @@ public interface CheckpointStreamWithResultProvider extends Closeable {
             this.outputStream = outputStream;
         }
 
+        /**
+         * 关闭并返回结果
+         * @return
+         * @throws IOException
+         */
         @Nonnull
         @Override
         public SnapshotResult<StreamStateHandle> closeAndFinalizeCheckpointStreamResult()
@@ -130,9 +150,11 @@ public interface CheckpointStreamWithResultProvider extends Closeable {
 
             if (primaryStreamStateHandle != null) {
                 if (secondaryStreamStateHandle != null) {
+                    // SnapshotResult中的2个结果 一个代表 jobManager 一个代表本地
                     return SnapshotResult.withLocalState(
                             primaryStreamStateHandle, secondaryStreamStateHandle);
                 } else {
+                    // 单个就是  jobManaqer
                     return SnapshotResult.of(primaryStreamStateHandle);
                 }
             } else {
@@ -147,18 +169,37 @@ public interface CheckpointStreamWithResultProvider extends Closeable {
         }
     }
 
+    /**
+     * 创建单个流
+     * @param checkpointedStateScope
+     * @param primaryStreamFactory
+     * @return
+     * @throws IOException
+     */
     @Nonnull
     static CheckpointStreamWithResultProvider createSimpleStream(
             @Nonnull CheckpointedStateScope checkpointedStateScope,
             @Nonnull CheckpointStreamFactory primaryStreamFactory)
             throws IOException {
 
+        // scope会变成类似路径的东西  然后产生文件  (针对基于fileSystem的检查点输出流来说)
+        // 注意在flink中 文件系统不一定是本地文件系统 也可能是分布式文件系统(hdfs)
         CheckpointStateOutputStream primaryOut =
                 primaryStreamFactory.createCheckpointStateOutputStream(checkpointedStateScope);
 
+        // 产生文件输出流
         return new CheckpointStreamWithResultProvider.PrimaryStreamOnly(primaryOut);
     }
 
+    /**
+     * 要产生2个流  一个通往jobManager 一个通往local
+     * @param checkpointId
+     * @param checkpointedStateScope
+     * @param primaryStreamFactory
+     * @param secondaryStreamDirProvider
+     * @return
+     * @throws IOException
+     */
     @Nonnull
     static CheckpointStreamWithResultProvider createDuplicatingStream(
             @Nonnegative long checkpointId,
@@ -167,10 +208,12 @@ public interface CheckpointStreamWithResultProvider extends Closeable {
             @Nonnull LocalRecoveryDirectoryProvider secondaryStreamDirProvider)
             throws IOException {
 
+        // 产生fs输出流
         CheckpointStateOutputStream primaryOut =
                 primaryStreamFactory.createCheckpointStateOutputStream(checkpointedStateScope);
 
         try {
+            // 这是本地文件
             File outFile =
                     new File(
                             secondaryStreamDirProvider.subtaskSpecificCheckpointDirectory(
@@ -208,6 +251,7 @@ public interface CheckpointStreamWithResultProvider extends Closeable {
      * Helper method that takes a {@link SnapshotResult<StreamStateHandle>} and a {@link
      * KeyGroupRangeOffsets} and creates a {@link SnapshotResult<KeyedStateHandle>} by combining the
      * key groups offsets with all the present stream state handles.
+     * 加工StreamStateHandle
      */
     @Nonnull
     static SnapshotResult<KeyedStateHandle> toKeyedStateHandleSnapshotResult(
@@ -215,16 +259,19 @@ public interface CheckpointStreamWithResultProvider extends Closeable {
             @Nonnull KeyGroupRangeOffsets keyGroupRangeOffsets,
             @Nonnull KeyedStateHandleFactory stateHandleFactory) {
 
+        // 获取写入到jobManager的句柄
         StreamStateHandle jobManagerOwnedSnapshot = snapshotResult.getJobManagerOwnedSnapshot();
 
         if (jobManagerOwnedSnapshot != null) {
 
+            // 加工变成KeyedStateHandle
             KeyedStateHandle jmKeyedState =
                     stateHandleFactory.create(keyGroupRangeOffsets, jobManagerOwnedSnapshot);
             StreamStateHandle taskLocalSnapshot = snapshotResult.getTaskLocalSnapshot();
 
             if (taskLocalSnapshot != null) {
 
+                // 对本地结果也处理一次
                 KeyedStateHandle localKeyedState =
                         stateHandleFactory.create(keyGroupRangeOffsets, taskLocalSnapshot);
                 return SnapshotResult.withLocalState(jmKeyedState, localKeyedState);

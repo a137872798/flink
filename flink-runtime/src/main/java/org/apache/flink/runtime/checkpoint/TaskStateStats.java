@@ -30,6 +30,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * Statistics for a single task/operator that gathers all statistics of its subtasks and provides
  * summary statistics about all subtasks.
+ * 任务状态统计信息
  */
 public class TaskStateStats implements Serializable {
 
@@ -38,21 +39,42 @@ public class TaskStateStats implements Serializable {
     /** ID of the task the stats belong to. */
     private final JobVertexID jobVertexId;
 
+    /**
+     * 关联一组子任务状态统计信息
+     */
     private final SubtaskStateStats[] subtaskStats;
 
-    /** A summary of the subtask stats. */
+    /** A summary of the subtask stats.
+     * 统计所有子任务
+     * */
     private final TaskStateStatsSummary summaryStats = new TaskStateStatsSummary();
 
+    /**
+     * 已经收到的subtask数量
+     */
     private int numAcknowledgedSubtasks;
 
+    /**
+     * 最近一个subtask的统计数据
+     */
     @Nullable private SubtaskStateStats latestAckedSubtaskStats;
 
+    /**
+     *
+     * @param jobVertexId
+     * @param numSubtasks   总subtask数量
+     */
     TaskStateStats(JobVertexID jobVertexId, int numSubtasks) {
         this.jobVertexId = checkNotNull(jobVertexId, "JobVertexID");
         checkArgument(numSubtasks > 0, "Number of subtasks <= 0");
         this.subtaskStats = new SubtaskStateStats[numSubtasks];
     }
 
+    /**
+     * 上报某个子任务的统计数据
+     * @param subtask
+     * @return
+     */
     boolean reportSubtaskStats(SubtaskStateStats subtask) {
         checkNotNull(subtask, "Subtask stats");
         int subtaskIndex = subtask.getSubtaskIndex();
@@ -102,6 +124,7 @@ public class TaskStateStats implements Serializable {
     /**
      * @return Ack timestamp of the latest acknowledged subtask or <code>-1</code> if none was
      *     acknowledged yet..
+     *     获取最近一个上报的subtask的ack时间
      */
     public long getLatestAckTimestamp() {
         SubtaskStateStats subtask = latestAckedSubtaskStats;
@@ -137,6 +160,8 @@ public class TaskStateStats implements Serializable {
      *
      * @return Duration of this checkpoint at the task/operator or <code>-1</code> if no subtask was
      *     acknowledged yet.
+     *
+     *     返回ack与trigger的时间差值
      */
     public long getEndToEndDuration(long triggerTimestamp) {
         SubtaskStateStats subtask = getLatestAcknowledgedSubtaskStats();
@@ -166,7 +191,9 @@ public class TaskStateStats implements Serializable {
         return summaryStats;
     }
 
-    /** Summary of the subtask stats of a single task/operator. */
+    /** Summary of the subtask stats of a single task/operator.
+     * 以子任务为单位  里面包含了各值的统计信息
+     * */
     public static class TaskStateStatsSummary implements Serializable {
 
         private static final long serialVersionUID = 1009476026522091909L;

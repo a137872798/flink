@@ -32,6 +32,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * Not thread safe class for filling in the content of the {@link MemorySegment}. To access written
  * data please use {@link BufferConsumer} which allows to build {@link Buffer} instances from the
  * written data.
+ * 该对象构建 Buffer对象
  */
 @NotThreadSafe
 public class BufferBuilder implements AutoCloseable {
@@ -41,6 +42,9 @@ public class BufferBuilder implements AutoCloseable {
 
     private final SettablePositionMarker positionMarker = new SettablePositionMarker();
 
+    /**
+     * 表示已经创建了consumer
+     */
     private boolean bufferConsumerCreated = false;
 
     public BufferBuilder(MemorySegment memorySegment, BufferRecycler recycler) {
@@ -55,6 +59,7 @@ public class BufferBuilder implements AutoCloseable {
      * visible for that {@link BufferConsumer}.
      *
      * @return created matching instance of {@link BufferConsumer} to this {@link BufferBuilder}.
+     * 每当出现一个buffer的使用者 就创建一个BufferConsumer  该对象会额外维护一份指针
      */
     public BufferConsumer createBufferConsumer() {
         return createBufferConsumer(positionMarker.cachedPosition);
@@ -94,10 +99,12 @@ public class BufferBuilder implements AutoCloseable {
         checkState(!isFinished());
 
         int needed = source.remaining();
+        // 表示当前buffer空余量
         int available = getMaxCapacity() - positionMarker.getCached();
         int toCopy = Math.min(needed, available);
 
         memorySegment.put(positionMarker.getCached(), source, toCopy);
+        // 会认为这些数据是写入的  所以要移动cachedpointer
         positionMarker.move(toCopy);
         return toCopy;
     }
@@ -156,6 +163,9 @@ public class BufferBuilder implements AutoCloseable {
                 Math.min(Math.max(newSize, positionMarker.getCached()), buffer.getMaxCapacity());
     }
 
+    /**
+     * 关闭时回收buffer
+     */
     @Override
     public void close() {
         buffer.recycleBuffer();
@@ -165,6 +175,7 @@ public class BufferBuilder implements AutoCloseable {
      * Holds a reference to the current writer position. Negative values indicate that writer
      * ({@link BufferBuilder} has finished. Value {@code Integer.MIN_VALUE} represents finished
      * empty buffer.
+     * 辅助实现mark
      */
     @ThreadSafe
     interface PositionMarker {
@@ -201,11 +212,19 @@ public class BufferBuilder implements AutoCloseable {
          */
         private int cachedPosition = 0;
 
+        /**
+         * 获取当前偏移量
+         * @return
+         */
         @Override
         public int get() {
             return position;
         }
 
+        /**
+         * 负数代表结束了
+         * @return
+         */
         public boolean isFinished() {
             return PositionMarker.isFinished(cachedPosition);
         }
@@ -218,6 +237,7 @@ public class BufferBuilder implements AutoCloseable {
          * Marks this position as finished and returns the current position.
          *
          * @return current position as of {@link #getCached()}
+         * 设置成负数 就代表finished了   并返回当前偏移量
          */
         public int markFinished() {
             int currentPosition = getCached();
@@ -233,10 +253,12 @@ public class BufferBuilder implements AutoCloseable {
             set(cachedPosition + offset);
         }
 
+        // 保留当前偏移量
         public void set(int value) {
             cachedPosition = value;
         }
 
+        // 使得修改生效
         public void commit() {
             position = cachedPosition;
         }

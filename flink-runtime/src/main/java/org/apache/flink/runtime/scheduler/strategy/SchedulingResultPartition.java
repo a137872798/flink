@@ -25,7 +25,9 @@ import org.apache.flink.runtime.topology.Result;
 
 import java.util.List;
 
-/** Representation of {@link IntermediateResultPartition}. */
+/** Representation of {@link IntermediateResultPartition}.
+ * 表示结果 或者说中间结果集
+ * */
 public interface SchedulingResultPartition
         extends Result<
                 ExecutionVertexID,
@@ -51,6 +53,7 @@ public interface SchedulingResultPartition
      * Gets the {@link ConsumerVertexGroup}s.
      *
      * @return list of {@link ConsumerVertexGroup}s
+     * 消费数据的对象
      */
     List<ConsumerVertexGroup> getConsumerVertexGroups();
 
@@ -58,6 +61,7 @@ public interface SchedulingResultPartition
      * Gets the {@link ConsumedPartitionGroup}s this partition belongs to.
      *
      * @return list of {@link ConsumedPartitionGroup}s
+     * 数据集
      */
     List<ConsumedPartitionGroup> getConsumedPartitionGroups();
 }

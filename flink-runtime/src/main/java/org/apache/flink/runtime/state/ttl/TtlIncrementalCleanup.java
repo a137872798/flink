@@ -32,20 +32,26 @@ import java.util.Collection;
  *
  * @param <K> type of state key
  * @param <N> type of state namespace
+ *
+ *           使用TTL进行状态的增量清理
  */
 class TtlIncrementalCleanup<K, N, S> {
-    /** Global state entry iterator is advanced for {@code cleanupSize} entries. */
+    /** Global state entry iterator is advanced for {@code cleanupSize} entries.
+     * 用于控制visitor的entries数量
+     * */
     @Nonnegative private final int cleanupSize;
 
     /**
      * Particular state with TTL object is used to check whether currently iterated entry has
      * expired.
+     * 需要被清理的目标state
      */
     private AbstractTtlState<K, N, ?, S, ?> ttlState;
 
     /**
      * Global state entry iterator, advanced for {@code cleanupSize} entries every state and/or
      * record processing.
+     * 该对象可以查看指定数量的entries
      */
     private StateIncrementalVisitor<K, N, S> stateIterator;
 
@@ -58,6 +64,10 @@ class TtlIncrementalCleanup<K, N, S> {
         this.cleanupSize = cleanupSize;
     }
 
+    /**
+     * 每当读写state 或者切换key时 就是触发该方法
+     * 相当于惰性清理
+     */
     void stateAccessed() {
         initIteratorIfNot();
         try {
@@ -73,6 +83,7 @@ class TtlIncrementalCleanup<K, N, S> {
         }
     }
 
+
     private void runCleanup() {
         int entryNum = 0;
         Collection<StateEntry<K, N, S>> nextEntries;
@@ -80,10 +91,12 @@ class TtlIncrementalCleanup<K, N, S> {
                 && stateIterator.hasNext()
                 && !(nextEntries = stateIterator.nextEntries()).isEmpty()) {
 
+            // 每次会读取到一组数据
             for (StateEntry<K, N, S> state : nextEntries) {
                 S cleanState = ttlState.getUnexpiredOrNull(state.getState());
                 if (cleanState == null) {
                     stateIterator.remove(state);
+                    // 代表更新了时间戳
                 } else if (cleanState != state.getState()) {
                     stateIterator.update(state, cleanState);
                 }
@@ -96,6 +109,7 @@ class TtlIncrementalCleanup<K, N, S> {
     /**
      * As TTL state wrapper depends on this class through access callback, it has to be set here
      * after its construction is done.
+     * 设置需要监控的state
      */
     public void setTtlState(@Nonnull AbstractTtlState<K, N, ?, S, ?> ttlState) {
         this.ttlState = ttlState;

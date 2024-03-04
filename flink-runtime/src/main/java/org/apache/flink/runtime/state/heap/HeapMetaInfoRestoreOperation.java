@@ -41,12 +41,18 @@ import java.util.Map;
  * StateMetaInfoSnapshots}.
  *
  * @param <K> The key by which state is keyed.
+ *           用于恢复元数据相关的
  */
 class HeapMetaInfoRestoreOperation<K> {
+    /**
+     * 用于反序列化
+     */
     private final StateSerializerProvider<K> keySerializerProvider;
-    private final HeapPriorityQueueSetFactory priorityQueueSetFactory;
     @Nonnull private final KeyGroupRange keyGroupRange;
     @Nonnegative private final int numberOfKeyGroups;
+
+    // 使用工厂初始化内存结构
+    private final HeapPriorityQueueSetFactory priorityQueueSetFactory;
     private final StateTableFactory<K> stateTableFactory;
     private final InternalKeyContext<K> keyContext;
 
@@ -65,23 +71,37 @@ class HeapMetaInfoRestoreOperation<K> {
         this.keyContext = keyContext;
     }
 
+    /**
+     * 通过元数据快照  恢复快照id
+     * @param restoredMetaInfo
+     * @param registeredKVStates
+     * @param registeredPQStates
+     * @return
+     */
     Map<Integer, StateMetaInfoSnapshot> createOrCheckStateForMetaInfo(
             List<StateMetaInfoSnapshot> restoredMetaInfo,
             Map<String, StateTable<K, ?, ?>> registeredKVStates,
             Map<String, HeapPriorityQueueSnapshotRestoreWrapper<?>> registeredPQStates) {
 
         final Map<Integer, StateMetaInfoSnapshot> kvStatesById = new HashMap<>();
+
+        // 遍历每个state元数据
         for (StateMetaInfoSnapshot metaInfoSnapshot : restoredMetaInfo) {
             final StateSnapshotRestore registeredState;
 
+            // 先找到相应的类型
             switch (metaInfoSnapshot.getBackendStateType()) {
                 case KEY_VALUE:
+                    // 先查找是否已经加载了该state
                     registeredState = registeredKVStates.get(metaInfoSnapshot.getName());
                     if (registeredState == null) {
+                        // 产生元数据
                         RegisteredKeyValueStateBackendMetaInfo<?, ?>
                                 registeredKeyedBackendStateMetaInfo =
                                         new RegisteredKeyValueStateBackendMetaInfo<>(
                                                 metaInfoSnapshot);
+
+                        // 构建 stateTable (此时的stateTable只是一个空壳) 元数据中包含了序列化对象 辅助数据恢复
                         registeredKVStates.put(
                                 metaInfoSnapshot.getName(),
                                 stateTableFactory.newStateTable(
@@ -109,12 +129,19 @@ class HeapMetaInfoRestoreOperation<K> {
 
             // always put metaInfo into kvStatesById, because kvStatesById is KeyGroupsStateHandle
             // related
+            // id 跟着size走
             kvStatesById.put(kvStatesById.size(), metaInfoSnapshot);
         }
 
         return kvStatesById;
     }
 
+    /**
+     * 产生一个基于优先队列存储state的对象
+     * @param metaInfo
+     * @param <T>
+     * @return
+     */
     @SuppressWarnings({"unchecked", "rawtypes"})
     private <T extends HeapPriorityQueueElement & PriorityComparable<? super T> & Keyed<?>>
             HeapPriorityQueueSnapshotRestoreWrapper<T> createInternal(

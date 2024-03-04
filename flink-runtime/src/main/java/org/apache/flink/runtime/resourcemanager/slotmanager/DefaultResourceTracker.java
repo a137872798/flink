@@ -33,13 +33,23 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
-/** Default {@link ResourceTracker} implementation. */
+/** Default {@link ResourceTracker} implementation.
+ * 追踪每个job的资源
+ * */
 public class DefaultResourceTracker implements ResourceTracker {
 
     private static final Logger LOG = LoggerFactory.getLogger(DefaultResourceTracker.class);
 
+    /**
+     * 每个 JobScopedResourceTracker 追踪每个job的资源需求
+     */
     private final Map<JobID, JobScopedResourceTracker> trackers = new HashMap<>();
 
+    /**
+     * 通知资源需求
+     * @param jobId the job that the resource requirements belongs to
+     * @param resourceRequirements new resource requirements
+     */
     @Override
     public void notifyResourceRequirements(
             JobID jobId, Collection<ResourceRequirement> resourceRequirements) {
@@ -51,18 +61,25 @@ public class DefaultResourceTracker implements ResourceTracker {
                 resourceRequirements);
         getOrCreateTracker(jobId).notifyResourceRequirements(resourceRequirements);
 
+        // 表示可能是清理操作
         if (resourceRequirements.isEmpty()) {
             checkWhetherTrackerCanBeRemoved(jobId, trackers.get(jobId));
         }
     }
 
     private void checkWhetherTrackerCanBeRemoved(JobID jobId, JobScopedResourceTracker tracker) {
+        // 在上面的操作中 resourceRequirements 已经变空 只要没有excessResources 即可  也就是一开始内部还不能有资源 不然都会变成excessResources
         if (tracker.isEmpty()) {
             LOG.debug("Stopping tracking of resources for job {}.", jobId);
             trackers.remove(jobId);
         }
     }
 
+    /**
+     * 分配给某个job 资源
+     * @param jobId the job that acquired the resource
+     * @param resourceProfile profile of the resource
+     */
     @Override
     public void notifyAcquiredResource(JobID jobId, ResourceProfile resourceProfile) {
         Preconditions.checkNotNull(jobId);
@@ -74,6 +91,11 @@ public class DefaultResourceTracker implements ResourceTracker {
         getOrCreateTracker(jobId).notifyAcquiredResource(resourceProfile);
     }
 
+    /**
+     * 获取/创建 job的资源追踪对象
+     * @param jobId
+     * @return
+     */
     private JobScopedResourceTracker getOrCreateTracker(JobID jobId) {
         return trackers.computeIfAbsent(
                 jobId,
@@ -83,6 +105,11 @@ public class DefaultResourceTracker implements ResourceTracker {
                 });
     }
 
+    /**
+     * 通知job失去了某个资源
+     * @param jobId the job that lost the resource
+     * @param resourceProfile profile of the resource
+     */
     @Override
     public void notifyLostResource(JobID jobId, ResourceProfile resourceProfile) {
         Preconditions.checkNotNull(jobId);
@@ -112,6 +139,10 @@ public class DefaultResourceTracker implements ResourceTracker {
         trackers.clear();
     }
 
+    /**
+     * 获取缺失(需要)的资源
+     * @return
+     */
     @Override
     public Map<JobID, Collection<ResourceRequirement>> getMissingResources() {
         Map<JobID, Collection<ResourceRequirement>> allMissingResources = new HashMap<>();
@@ -125,6 +156,11 @@ public class DefaultResourceTracker implements ResourceTracker {
         return allMissingResources;
     }
 
+    /**
+     * 返回已经分配的资源
+     * @param jobId job ID
+     * @return
+     */
     @Override
     public Collection<ResourceRequirement> getAcquiredResources(JobID jobId) {
         Preconditions.checkNotNull(jobId);

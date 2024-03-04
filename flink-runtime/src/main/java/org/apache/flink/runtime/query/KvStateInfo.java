@@ -31,6 +31,7 @@ import java.util.Objects;
  * @param <K> The type of key the state is associated to
  * @param <N> The type of the namespace the state is associated to
  * @param <V> The type of values kept internally in state
+ *           简单的bean对象
  */
 public class KvStateInfo<K, N, V> {
 

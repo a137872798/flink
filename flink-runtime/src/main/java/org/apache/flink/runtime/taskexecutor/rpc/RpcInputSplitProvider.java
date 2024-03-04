@@ -31,9 +31,19 @@ import org.apache.flink.util.Preconditions;
 
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * 获取下一个已经被拆分过的数据
+ */
 public class RpcInputSplitProvider implements InputSplitProvider {
+
+    /**
+     * 通过JM 获取数据
+     */
     private final JobMasterGateway jobMasterGateway;
     private final JobVertexID jobVertexID;
+    /**
+     * 能够定位到某个 Execution
+     */
     private final ExecutionAttemptID executionAttemptID;
     private final Time timeout;
 
@@ -53,6 +63,7 @@ public class RpcInputSplitProvider implements InputSplitProvider {
             throws InputSplitProviderException {
         Preconditions.checkNotNull(userCodeClassLoader);
 
+        // 通过JM 获取下一份数据
         CompletableFuture<SerializedInputSplit> futureInputSplit =
                 jobMasterGateway.requestNextInputSplit(jobVertexID, executionAttemptID);
 
@@ -63,6 +74,7 @@ public class RpcInputSplitProvider implements InputSplitProvider {
             if (serializedInputSplit.isEmpty()) {
                 return null;
             } else {
+                // 反序列化
                 return InstantiationUtil.deserializeObject(
                         serializedInputSplit.getInputSplitData(), userCodeClassLoader);
             }

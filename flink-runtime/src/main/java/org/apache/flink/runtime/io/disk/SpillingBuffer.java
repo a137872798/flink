@@ -31,7 +31,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/** An output view that buffers written data in memory pages and spills them when they are full. */
+/** An output view that buffers written data in memory pages and spills them when they are full.
+ * 当内存足够时 暂存在内存  当内存不足时 则先将数据写入磁盘
+ * */
 public class SpillingBuffer extends AbstractPagedOutputView {
 
     private final ArrayList<MemorySegment> fullSegments;
@@ -40,8 +42,14 @@ public class SpillingBuffer extends AbstractPagedOutputView {
 
     private BlockChannelWriter<MemorySegment> writer;
 
+    /**
+     * 表示数据来源于内存数据
+     */
     private RandomAccessInputView inMemInView;
 
+    /**
+     * 表示数据来源于已经写入的底层文件
+     */
     private HeaderlessChannelReaderInputView externalInView;
 
     private final IOManager ioManager;
@@ -50,6 +58,9 @@ public class SpillingBuffer extends AbstractPagedOutputView {
 
     private int numBytesInLastSegment;
 
+    /**
+     * 表示待写入的buffer数量
+     */
     private int numMemorySegmentsInWriter;
 
     public SpillingBuffer(IOManager ioManager, MemorySegmentSource memSource, int segmentSize) {
@@ -60,45 +71,64 @@ public class SpillingBuffer extends AbstractPagedOutputView {
         this.ioManager = ioManager;
     }
 
+    /**
+     * 尝试获取下个数据页时触发该方法
+     * @param current The current memory segment
+     * @param positionInCurrent The position in the segment, one after the last valid byte.
+     * @return
+     * @throws IOException
+     */
     @Override
     protected MemorySegment nextSegment(MemorySegment current, int positionInCurrent)
             throws IOException {
         // check if we are still in memory
+        // 第一次调用 writer还是null
         if (this.writer == null) {
+            // 将使用完的内存块加入 fullSegments
             this.fullSegments.add(current);
 
+            // 生成新的内存块
             final MemorySegment nextSeg = this.memorySource.nextSegment();
             if (nextSeg != null) {
                 return nextSeg;
             } else {
                 // out of memory, need to spill: create a writer
+                // 表示所有内存块都已经使用完毕了  可以开始写数据了 初始化writer
                 this.writer =
                         this.ioManager.createBlockChannelWriter(this.ioManager.createChannel());
 
                 // add all segments to the writer
                 this.blockCount = this.fullSegments.size();
                 this.numMemorySegmentsInWriter = this.blockCount;
+                // 一次性全部写入
                 for (int i = 0; i < this.fullSegments.size(); i++) {
                     this.writer.writeBlock(this.fullSegments.get(i));
                 }
                 this.fullSegments.clear();
+                // 阻塞等待结果
                 final MemorySegment seg = this.writer.getNextReturnedBlock();
                 this.numMemorySegmentsInWriter--;
                 return seg;
             }
         } else {
-            // spilling
+            // spilling   一开始累计到一定量后一次性触发全部写请求 然后后面的请求就是直接加入了
             this.writer.writeBlock(current);
             this.blockCount++;
             return this.writer.getNextReturnedBlock();
         }
     }
 
+    /**
+     * 将输出流反转成一个输入流
+     * @return
+     * @throws IOException
+     */
     public DataInputView flip() throws IOException {
         // check whether this is the first flip and we need to add the current segment to the full
         // ones
+        // 表示当前有数据块
         if (getCurrentSegment() != null) {
-            // first flip
+            // first flip  表示此时还处于积累阶段  数据还在fullSegments中  直接利用该容器生成RandomAccessInputView
             if (this.writer == null) {
                 // in memory
                 this.fullSegments.add(getCurrentSegment());
@@ -114,6 +144,7 @@ public class SpillingBuffer extends AbstractPagedOutputView {
                 this.numBytesInLastSegment = getCurrentPositionInSegment();
                 this.blockCount++;
                 this.writer.close();
+                // 把内存块再取出来 回填到fullSegments
                 for (int i = this.numMemorySegmentsInWriter; i > 0; i--) {
                     this.fullSegments.add(this.writer.getNextReturnedBlock());
                 }
@@ -134,8 +165,10 @@ public class SpillingBuffer extends AbstractPagedOutputView {
                 this.externalInView.close();
             }
 
+            // 此时数据已经写入到writer下的channel了  现在以输入流形式打开底层对象
             final BlockChannelReader<MemorySegment> reader =
                     this.ioManager.createBlockChannelReader(this.writer.getChannelID());
+
             this.externalInView =
                     new HeaderlessChannelReaderInputView(
                             reader,
@@ -161,6 +194,7 @@ public class SpillingBuffer extends AbstractPagedOutputView {
             clear();
         }
 
+        // 将所有数据移动到临时容器
         moveAll(this.fullSegments, segments);
         this.fullSegments.clear();
 
@@ -175,7 +209,7 @@ public class SpillingBuffer extends AbstractPagedOutputView {
             this.writer = null;
         }
 
-        // clean up the views
+        // clean up the views  内存对象 置为null就会自动释放
         if (this.inMemInView != null) {
             this.inMemInView = null;
         }

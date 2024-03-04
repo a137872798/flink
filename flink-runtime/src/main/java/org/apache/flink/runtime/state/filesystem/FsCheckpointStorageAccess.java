@@ -38,10 +38,17 @@ import java.io.IOException;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** An implementation of durable checkpoint storage to file systems. */
+/** An implementation of durable checkpoint storage to file systems.
+ * AbstractFsCheckpointStorageAccess 只是定义了如何产生目录
+ * */
 public class FsCheckpointStorageAccess extends AbstractFsCheckpointStorageAccess {
 
+    /**
+     * 使用的文件系统
+     */
     private final FileSystem fileSystem;
+
+    // 各种目录
 
     private final Path checkpointsDirectory;
 
@@ -49,8 +56,14 @@ public class FsCheckpointStorageAccess extends AbstractFsCheckpointStorageAccess
 
     private final Path taskOwnedStateDirectory;
 
+    /**
+     * 文件大小限制
+     */
     private final int fileSizeThreshold;
 
+    /**
+     * buffer大小
+     */
     private final int writeBufferSize;
 
     private boolean baseLocationsInitialized = false;
@@ -144,12 +157,20 @@ public class FsCheckpointStorageAccess extends AbstractFsCheckpointStorageAccess
                 writeBufferSize);
     }
 
+    /**
+     * 解开路径信息得到检查点文件流
+     * @param checkpointId The ID of the checkpoint that the location is initialized for.
+     * @param reference The checkpoint location reference.
+     * @return
+     * @throws IOException
+     */
     @Override
     public CheckpointStreamFactory resolveCheckpointStorageLocation(
             long checkpointId, CheckpointStorageLocationReference reference) throws IOException {
 
         if (reference.isDefaultReference()) {
             // default reference, construct the default location for that particular checkpoint
+            // 表示没有有效的路径信息 要根据检查点id产生
             final Path checkpointDir =
                     createCheckpointDirectory(checkpointsDirectory, checkpointId);
 
@@ -163,8 +184,10 @@ public class FsCheckpointStorageAccess extends AbstractFsCheckpointStorageAccess
                     writeBufferSize);
         } else {
             // location encoded in the reference
+            // 先解码
             final Path path = decodePathFromReference(reference);
 
+            // 指定路径的情况 这些目录都是对应该路径
             return new FsCheckpointStorageLocation(
                     path.getFileSystem(),
                     path,

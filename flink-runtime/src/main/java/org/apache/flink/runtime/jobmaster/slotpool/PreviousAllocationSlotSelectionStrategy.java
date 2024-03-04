@@ -39,6 +39,9 @@ public class PreviousAllocationSlotSelectionStrategy implements SlotSelectionStr
     private static final Logger LOG =
             LoggerFactory.getLogger(PreviousAllocationSlotSelectionStrategy.class);
 
+    /**
+     * 内部有一个降级策略
+     */
     private final SlotSelectionStrategy fallbackSlotSelectionStrategy;
 
     private PreviousAllocationSlotSelectionStrategy(
@@ -56,6 +59,7 @@ public class PreviousAllocationSlotSelectionStrategy implements SlotSelectionStr
 
         // First, if there was a prior allocation try to schedule to the same/old slot
         if (!priorAllocations.isEmpty()) {
+            // 按照 PreferredAllocations来分配
             for (AllocationID availableSlot : freeSlotInfoTracker.getAvailableSlots()) {
                 if (priorAllocations.contains(availableSlot)) {
                     return Optional.of(
@@ -67,6 +71,7 @@ public class PreviousAllocationSlotSelectionStrategy implements SlotSelectionStr
         }
 
         // Second, select based on location preference, excluding blacklisted allocations
+        // 降级处理
         return fallbackSlotSelectionStrategy.selectBestSlotForProfile(
                 freeSlotInfoTracker.createNewFreeSlotInfoTrackerWithoutBlockedSlots(
                         slotProfile.getReservedAllocations()),

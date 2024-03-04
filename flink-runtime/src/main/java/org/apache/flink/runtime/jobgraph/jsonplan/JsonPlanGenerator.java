@@ -35,18 +35,26 @@ import org.apache.commons.text.StringEscapeUtils;
 import java.io.StringWriter;
 import java.util.List;
 
+/**
+ * 将job的计划以json格式输出
+ */
 @Internal
 public class JsonPlanGenerator {
 
     private static final String NOT_SET = "";
     private static final String EMPTY = "{}";
 
+    /**
+     * 取出job图的相关信息 产生json格式的计划
+     * @param jg
+     * @return
+     */
     public static String generatePlan(JobGraph jg) {
         return generatePlan(
                 jg.getJobID(),
                 jg.getName(),
                 jg.getJobType(),
-                jg.getVertices(),
+                jg.getVertices(),  // 一个图关联一个jobId  又关联一组顶点   2个顶点相连就是一个edge 属于同一个graph的vertices属于同一个组 也就有相同的并行度
                 VertexParallelism.empty());
     }
 
@@ -59,32 +67,42 @@ public class JsonPlanGenerator {
         try {
             final StringWriter writer = new StringWriter(1024);
 
+            // 产生json字符串的工厂
             final JsonFactory factory = new JsonFactory();
             final JsonGenerator gen = factory.createGenerator(writer);
 
             // start of everything
             gen.writeStartObject();
+
+            // 填入基础信息
             gen.writeStringField("jid", jobID.toString());
             gen.writeStringField("name", jobName);
             gen.writeStringField("type", jobType.name());
+
+            // 表示要插入一个 jsonArray 并且key是 nodes
             gen.writeArrayFieldStart("nodes");
 
             // info per vertex
+            // 开始写入顶点信息
             for (JobVertex vertex : vertices) {
 
+                // 获取该顶点相关的算子名称
                 String operator =
                         vertex.getOperatorName() != null ? vertex.getOperatorName() : NOT_SET;
 
+                // 获取算子描述信息
                 String operatorDescr =
                         vertex.getOperatorDescription() != null
                                 ? vertex.getOperatorDescription()
                                 : NOT_SET;
 
+                // 表示一些优化的属性  也是可以展示在plan中的
                 String optimizerProps =
                         vertex.getResultOptimizerProperties() != null
                                 ? vertex.getResultOptimizerProperties()
                                 : EMPTY;
 
+                // 顶点名称 
                 String description =
                         vertex.getOperatorPrettyName() != null
                                 ? vertex.getOperatorPrettyName()

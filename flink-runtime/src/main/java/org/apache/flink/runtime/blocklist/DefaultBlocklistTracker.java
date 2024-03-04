@@ -28,8 +28,14 @@ import java.util.Set;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Default implementation of {@link BlocklistTracker}. */
+/** Default implementation of {@link BlocklistTracker}.
+ * 默认的 阻塞节点列表追踪对象
+ * */
 public class DefaultBlocklistTracker implements BlocklistTracker {
+
+    /**
+     * 维护所有阻塞节点
+     */
     private final Map<String, BlockedNode> blockedNodes = new HashMap<>();
 
     /**
@@ -38,6 +44,7 @@ public class DefaultBlocklistTracker implements BlocklistTracker {
      *
      * @param newNode the new blocked node record
      * @return the add status
+     * 将节点插入map  已存在则尝试合并
      */
     private AddStatus tryAddOrMerge(BlockedNode newNode) {
         checkNotNull(newNode);
@@ -48,6 +55,7 @@ public class DefaultBlocklistTracker implements BlocklistTracker {
             blockedNodes.put(nodeId, newNode);
             return AddStatus.ADDED;
         } else {
+            // 就是更新阻塞时间戳
             BlockedNode merged =
                     newNode.getEndTimestamp() >= existingNode.getEndTimestamp()
                             ? newNode
@@ -60,6 +68,11 @@ public class DefaultBlocklistTracker implements BlocklistTracker {
         }
     }
 
+    /**
+     * 要增加一组阻塞节点
+     * @param newNodes the new blocked node records
+     * @return
+     */
     @Override
     public BlockedNodeAdditionResult addNewBlockedNodes(Collection<BlockedNode> newNodes) {
         checkNotNull(newNodes);

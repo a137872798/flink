@@ -32,8 +32,12 @@ import java.util.Optional;
  * <p>Note: {@link #decideActionWithGlobalInfo} is usually expensive, in the sense of both the
  * computation complexity of the strategy algorithm and the synchronization overhead for providing
  * the global information. Thus, it should only be called when global information is needed.
+ * 数据倾倒策略
  */
 public interface HsSpillingStrategy {
+
+    // 当发生一些动作时  产生一些决定
+
     /**
      * Make a decision when memory usage is changed.
      *
@@ -77,12 +81,14 @@ public interface HsSpillingStrategy {
      *
      * @param spillingInfoProvider that provides information about the current status.
      * @return A {@link Decision} based on the global information.
+     * 当该分区被关闭时 生成决策对象
      */
     Decision onResultPartitionClosed(HsSpillingInfoProvider spillingInfoProvider);
 
     /**
      * This class represents the spill and release decision made by {@link HsSpillingStrategy}, in
      * other words, which data is to be spilled and which data is to be released.
+     * 表示 "决定"
      */
     class Decision {
         /** A collection of buffer that needs to be spilled to disk. */
@@ -113,9 +119,13 @@ public interface HsSpillingStrategy {
             return new Builder();
         }
 
-        /** Builder for {@link Decision}. */
+        /** Builder for {@link Decision}.
+         * 用于构造decision对象
+         * */
         static class Builder {
-            /** A collection of buffer that needs to be spilled to disk. */
+            /** A collection of buffer that needs to be spilled to disk.
+             * key 代表channel编号 同时也是子分区编号 value 对应一组buffer 表示需要倾倒至磁盘
+             * */
             private final Map<Integer, List<BufferIndexAndChannel>> bufferToSpill = new HashMap<>();
 
             /** A collection of buffer that needs to be released. */
@@ -128,6 +138,8 @@ public interface HsSpillingStrategy {
                 bufferToSpill.computeIfAbsent(buffer.getChannel(), ArrayList::new).add(buffer);
                 return this;
             }
+
+            // 2类api  一类是用于spill 一类是用于release
 
             public Builder addBufferToSpill(
                     int subpartitionId, List<BufferIndexAndChannel> buffers) {

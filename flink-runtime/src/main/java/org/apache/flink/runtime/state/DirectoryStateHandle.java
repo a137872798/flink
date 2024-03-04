@@ -29,6 +29,7 @@ import java.nio.file.Paths;
 /**
  * This state handle represents a directory. This class is, for example, used to represent the
  * directory of RocksDB's native checkpoint directories for local recovery.
+ * 对应到一个文件
  */
 public class DirectoryStateHandle implements StateObject {
 

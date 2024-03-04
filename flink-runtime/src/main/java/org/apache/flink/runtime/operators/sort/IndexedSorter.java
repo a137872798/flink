@@ -18,6 +18,9 @@
 
 package org.apache.flink.runtime.operators.sort;
 
+/**
+ * 排序器  暴露api 并在传入排序对象后 可以借助排序对象暴露的api对数据进行排序
+ */
 public interface IndexedSorter {
 
     /**

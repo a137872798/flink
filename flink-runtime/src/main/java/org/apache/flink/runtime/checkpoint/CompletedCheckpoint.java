@@ -69,6 +69,8 @@ import static org.apache.flink.util.Preconditions.checkState;
  * checkpoint in a file system, that pointer is the file path to the checkpoint's folder or the
  * metadata file. For a state backend that stores metadata in database tables, the pointer could be
  * the table name and row key. The pointer is encoded as a String.
+ *
+ * 表示一个完成的检查点
  */
 @NotThreadSafe
 public class CompletedCheckpoint implements Serializable, Checkpoint {
@@ -79,19 +81,27 @@ public class CompletedCheckpoint implements Serializable, Checkpoint {
 
     // ------------------------------------------------------------------------
 
-    /** The ID of the job that the checkpoint belongs to. */
+    /** The ID of the job that the checkpoint belongs to.
+     * 检查点针对的是一个job  (job对应task  对应多个subtask)
+     * */
     private final JobID job;
 
     /** The ID (logical timestamp) of the checkpoint. */
     private final long checkpointID;
 
-    /** The timestamp when the checkpoint was triggered. */
+    /** The timestamp when the checkpoint was triggered.
+     * 触发产生检查点的时间
+     * */
     private final long timestamp;
 
-    /** The timestamp when the checkpoint was completed. */
+    /** The timestamp when the checkpoint was completed.
+     * 完成检查点的时间
+     * */
     private final long completionTimestamp;
 
-    /** States of the different operator groups belonging to this checkpoint. */
+    /** States of the different operator groups belonging to this checkpoint.
+     * 一个检查点 保存的状态信息
+     * */
     private final Map<OperatorID, OperatorState> operatorStates;
 
     /** Properties of this checkpoint. Might change during recovery. */
@@ -100,22 +110,33 @@ public class CompletedCheckpoint implements Serializable, Checkpoint {
     /**
      * Properties of this checkpoint as they were during checkpoint creation. Might be null for
      * older versions.
+     *
      */
     @Nullable private final CheckpointProperties restoredProps;
 
-    /** States that were created by a hook on the master (in the checkpoint coordinator). */
+    /** States that were created by a hook on the master (in the checkpoint coordinator).
+     * 由checkpoint coordinator创建的一组状态
+     * */
     private final Collection<MasterState> masterHookStates;
 
-    /** The location where the checkpoint is stored. */
+    /** The location where the checkpoint is stored.
+     * 检查点在存储中的位置
+     * */
     private final CompletedCheckpointStorageLocation storageLocation;
 
-    /** The state handle to the externalized meta data. */
+    /** The state handle to the externalized meta data.
+     * 用于读取数据
+     * */
     private final StreamStateHandle metadataHandle;
 
-    /** External pointer to the completed checkpoint (for example file path). */
+    /** External pointer to the completed checkpoint (for example file path).
+     * 在外部系统中通过该指针访问检查点
+     * */
     private final String externalPointer;
 
-    /** Completed statistic for managing discard marker. */
+    /** Completed statistic for managing discard marker.
+     * 这个是检查点的统计信息
+     * */
     @Nullable private final transient CompletedCheckpointStats completedCheckpointStats;
 
     // ------------------------------------------------------------------------
@@ -166,6 +187,7 @@ public class CompletedCheckpoint implements Serializable, Checkpoint {
 
         // we create copies here, to make sure we have no shared mutable
         // data structure with the "outside world"
+        // 都是简单赋值
         this.operatorStates = new HashMap<>(checkNotNull(operatorStates));
         this.masterHookStates =
                 masterHookStates == null || masterHookStates.isEmpty()
@@ -249,6 +271,7 @@ public class CompletedCheckpoint implements Serializable, Checkpoint {
     public void registerSharedStatesAfterRestored(
             SharedStateRegistry sharedStateRegistry, RestoreMode restoreMode) {
         // in claim mode we should not register any shared handles
+        // 表示检查点需要被sharedStateRegistry管理
         if (!props.isUnclaimed()) {
             sharedStateRegistry.registerAllAfterRestored(this, restoreMode);
         }
@@ -278,6 +301,11 @@ public class CompletedCheckpoint implements Serializable, Checkpoint {
         return props.discardOnSubsumed();
     }
 
+    /**
+     * 根据不同状态 判断是否应当生成 丢弃对象
+     * @param jobStatus
+     * @return
+     */
     public boolean shouldBeDiscardedOnShutdown(JobStatus jobStatus) {
         return jobStatus == JobStatus.FINISHED && props.discardOnJobFinished()
                 || jobStatus == JobStatus.CANCELED && props.discardOnJobCancelled()
@@ -289,6 +317,12 @@ public class CompletedCheckpoint implements Serializable, Checkpoint {
     //  Miscellaneous
     // ------------------------------------------------------------------------
 
+    /**
+     * 判断2个容器的检查点是否匹配
+     * @param first
+     * @param second
+     * @return
+     */
     public static boolean checkpointsMatch(
             Collection<CompletedCheckpoint> first, Collection<CompletedCheckpoint> second) {
         if (first.size() != second.size()) {
@@ -297,6 +331,7 @@ public class CompletedCheckpoint implements Serializable, Checkpoint {
 
         List<Tuple2<Long, JobID>> firstInterestingFields = new ArrayList<>(first.size());
 
+        // 比较2个id
         for (CompletedCheckpoint checkpoint : first) {
             firstInterestingFields.add(
                     new Tuple2<>(checkpoint.getCheckpointID(), checkpoint.getJobId()));
@@ -324,7 +359,9 @@ public class CompletedCheckpoint implements Serializable, Checkpoint {
                 props.getCheckpointType().getName(), checkpointID, timestamp, job, externalPointer);
     }
 
-    /** Implementation of {@link org.apache.flink.runtime.checkpoint.Checkpoint.DiscardObject}. */
+    /** Implementation of {@link org.apache.flink.runtime.checkpoint.Checkpoint.DiscardObject}.
+     * 提供discard方法
+     * */
     @NotThreadSafe
     public class CompletedCheckpointDiscardObject implements DiscardObject {
 
@@ -341,6 +378,7 @@ public class CompletedCheckpoint implements Serializable, Checkpoint {
 
                 // drop the metadata
                 try {
+                    // 委托给handle对象
                     metadataHandle.discardState();
                 } catch (Exception e) {
                     exception = e;
@@ -348,6 +386,7 @@ public class CompletedCheckpoint implements Serializable, Checkpoint {
 
                 // discard private state objects
                 try {
+                    // 触发这些state的丢弃方法
                     StateUtil.bestEffortDiscardAllStateObjects(operatorStates.values());
                 } catch (Exception e) {
                     exception = ExceptionUtils.firstOrSuppressed(e, exception);
@@ -355,6 +394,7 @@ public class CompletedCheckpoint implements Serializable, Checkpoint {
 
                 // discard location as a whole
                 try {
+                    // 释放句柄
                     storageLocation.disposeStorageLocation();
                 } catch (Exception e) {
                     exception = ExceptionUtils.firstOrSuppressed(e, exception);

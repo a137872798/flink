@@ -82,6 +82,14 @@ class ChannelStateHandleSerializer {
                 context);
     }
 
+    /**
+     * 序列化数据
+     * @param handle
+     * @param dos
+     * @param infoWriter
+     * @param <I>
+     * @throws IOException
+     */
     private static <I> void serializeChannelStateHandle(
             AbstractChannelStateHandle<I> handle,
             DataOutputStream dos,
@@ -94,9 +102,21 @@ class ChannelStateHandleSerializer {
             dos.writeLong(offset);
         }
         dos.writeLong(handle.getStateSize());
+        // 写入数据流
         serializeStreamStateHandle(handle.getDelegate(), dos);
     }
 
+    /**
+     * 上面的逆操作
+     * @param infoReader
+     * @param handleBuilder
+     * @param dis
+     * @param context
+     * @param <Info>
+     * @param <Handle>
+     * @return
+     * @throws IOException
+     */
     private static <Info, Handle extends AbstractChannelStateHandle<Info>>
             Handle deserializeChannelStateHandle(
                     FunctionWithException<DataInputStream, Info, IOException> infoReader,
@@ -114,6 +134,7 @@ class ChannelStateHandleSerializer {
             offsets.add(dis.readLong());
         }
         final long size = dis.readLong();
+        // 还原handle
         return handleBuilder.apply(
                 subtaskIndex,
                 info,

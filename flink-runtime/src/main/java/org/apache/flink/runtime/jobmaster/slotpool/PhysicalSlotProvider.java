@@ -35,6 +35,7 @@ public interface PhysicalSlotProvider {
      *
      * @param physicalSlotRequests physicalSlotRequest slot requirements
      * @return futures of the allocated slots
+     * 提交请求后 为其分配物理slot
      */
     Map<SlotRequestId, CompletableFuture<PhysicalSlotRequest.Result>> allocatePhysicalSlots(
             Collection<PhysicalSlotRequest> physicalSlotRequests);
@@ -46,12 +47,14 @@ public interface PhysicalSlotProvider {
      *
      * @param slotRequestId identifying the slot request to cancel
      * @param cause of the cancellation
+     *              取消某个请求
      */
     void cancelSlotRequest(SlotRequestId slotRequestId, Throwable cause);
 
     /**
      * Disables batch slot request timeout check. Invoked when someone else wants to take over the
      * timeout check responsibility.
+     * 禁用 有关批处理请求slot的超时检查
      */
     void disableBatchSlotRequestTimeoutCheck();
 }

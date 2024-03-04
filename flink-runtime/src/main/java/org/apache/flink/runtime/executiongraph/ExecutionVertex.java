@@ -56,6 +56,7 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * The ExecutionVertex is a parallel subtask of the execution. It may be executed once, or several
  * times, each of which time it spawns an {@link Execution}.
+ * 对应一个子任务
  */
 public class ExecutionVertex
         implements AccessExecutionVertex, Archiveable<ArchivedExecutionVertex> {
@@ -91,6 +92,9 @@ public class ExecutionVertex
     /** This field holds the allocation id of the last successful assignment. */
     @Nullable private TaskManagerLocation lastAssignedLocation;
 
+    /**
+     * 对应最近一次分配的slot
+     */
     @Nullable private AllocationID lastAssignedAllocationID;
 
     // --------------------------------------------------------------------------------------------
@@ -273,6 +277,10 @@ public class ExecutionVertex
         return currentExecution;
     }
 
+    /**
+     * 每个 Execution 表示一次重试  一个子任务可能会重试多次 就会对应多个execution
+     * @return
+     */
     public Collection<Execution> getCurrentExecutions() {
         return Collections.singleton(currentExecution);
     }
@@ -360,6 +368,7 @@ public class ExecutionVertex
     /**
      * Gets the preferred location to execute the current task execution attempt, based on the state
      * that the execution attempt will resume.
+     * 获取TM位置
      */
     public Optional<TaskManagerLocation> getPreferredLocationBasedOnState() {
         // only restore to same execution if it has state
@@ -375,7 +384,9 @@ public class ExecutionVertex
     //   Actions
     // --------------------------------------------------------------------------------------------
 
-    /** Archives the current Execution and creates a new Execution for this vertex. */
+    /** Archives the current Execution and creates a new Execution for this vertex.
+     * 产生新的 Execution 表示开始新的执行
+     * */
     public void resetForNewExecution() {
         resetForNewExecutionInternal(System.currentTimeMillis());
     }
@@ -433,6 +444,10 @@ public class ExecutionVertex
         executionHistory.add(execution.archive());
     }
 
+    /**
+     * 给本对象分配slot
+     * @param slot
+     */
     public void tryAssignResource(LogicalSlot slot) {
         if (!currentExecution.tryAssignResource(slot)) {
             throw new IllegalStateException(
@@ -444,6 +459,10 @@ public class ExecutionVertex
         }
     }
 
+    /**
+     * execution 具备部署的方法
+     * @throws JobException
+     */
     public void deploy() throws JobException {
         currentExecution.deploy();
     }

@@ -25,7 +25,9 @@ import org.apache.flink.runtime.io.network.partition.hybrid.tiered.tier.TierMast
 import static org.apache.flink.runtime.io.network.partition.hybrid.tiered.file.SegmentPartitionFile.deletePathQuietly;
 import static org.apache.flink.runtime.io.network.partition.hybrid.tiered.file.SegmentPartitionFile.getPartitionPath;
 
-/** The implementation of {@link TierMasterAgent} for the remote tier. */
+/** The implementation of {@link TierMasterAgent} for the remote tier.
+ * 起到资源管理的作用 当某个分区不再被需要时 删除相关文件
+ * */
 public class RemoteTierMasterAgent implements TierMasterAgent {
 
     private final TieredStorageResourceRegistry resourceRegistry;
@@ -40,6 +42,7 @@ public class RemoteTierMasterAgent implements TierMasterAgent {
 
     @Override
     public void addPartition(TieredStoragePartitionId partitionID) {
+        // 维护每个结果集分区的信息
         resourceRegistry.registerResource(
                 partitionID,
                 () -> deletePathQuietly(getPartitionPath(partitionID, remoteStorageBasePath)));

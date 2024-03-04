@@ -35,10 +35,16 @@ import java.util.Optional;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
+/**
+ * 服务端配置
+ */
 public class NettyConfig {
 
     private static final Logger LOG = LoggerFactory.getLogger(NettyConfig.class);
 
+    /**
+     * 使用的传输类型
+     */
     enum TransportType {
         NIO,
         EPOLL,

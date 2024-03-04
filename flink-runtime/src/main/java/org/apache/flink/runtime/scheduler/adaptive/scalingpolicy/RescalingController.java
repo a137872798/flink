@@ -22,7 +22,9 @@ import org.apache.flink.runtime.jobgraph.JobResourceRequirements;
 import org.apache.flink.runtime.scheduler.adaptive.AdaptiveScheduler;
 import org.apache.flink.runtime.scheduler.adaptive.allocator.VertexParallelism;
 
-/** Simple policy for controlling the scale up/down behavior of the {@link AdaptiveScheduler}. */
+/** Simple policy for controlling the scale up/down behavior of the {@link AdaptiveScheduler}.
+ * 用于控制AdaptiveScheduler 伸缩行为的简单策略
+ * */
 @Internal
 public interface RescalingController {
 
@@ -33,6 +35,8 @@ public interface RescalingController {
      * @param currentParallelism parallelism of the currently running job graph.
      * @param newParallelism Potential new parallelism with the additional resources.
      * @return true if the policy decided to rescale based on the provided information.
+     *
+     * 表示各顶点前后不同的并行度
      */
     boolean shouldRescale(VertexParallelism currentParallelism, VertexParallelism newParallelism);
 }

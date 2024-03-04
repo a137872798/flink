@@ -33,6 +33,9 @@ import org.apache.flink.api.common.state.AppendingState;
  */
 public interface InternalAppendingState<K, N, IN, SV, OUT>
         extends InternalKvState<K, N, SV>, AppendingState<IN, OUT> {
+
+    // AppendingState 可以理解为状态是一个容器 可以追加数据  这里开放了获取/修改内部状态的api
+
     /**
      * Get internally stored value.
      *

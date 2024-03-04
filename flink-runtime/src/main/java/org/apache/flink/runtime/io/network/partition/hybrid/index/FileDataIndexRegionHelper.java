@@ -24,6 +24,7 @@ import java.nio.channels.FileChannel;
 /**
  * {@link FileDataIndexRegionHelper} is responsible for writing a {@link Region} to the file or
  * reading a {@link Region} from file.
+ * 为region提供辅助能力
  */
 public interface FileDataIndexRegionHelper<T extends FileDataIndexRegionHelper.Region> {
 
@@ -32,6 +33,7 @@ public interface FileDataIndexRegionHelper<T extends FileDataIndexRegionHelper.R
      *
      * @param channel the file channel to write the region
      * @param region the region to be written to the file
+     *               将区域内的数据写入到文件中
      */
     void writeRegionToFile(FileChannel channel, T region) throws IOException;
 
@@ -42,6 +44,7 @@ public interface FileDataIndexRegionHelper<T extends FileDataIndexRegionHelper.R
      * @param fileOffset the current region data is from this file offset, so start reading the file
      *     from the offset when reading the region
      * @return the region read from the file
+     * 从文件指定位置开始读取一个region的数据
      */
     T readRegionFromFile(FileChannel channel, long fileOffset) throws IOException;
 
@@ -67,28 +70,40 @@ public interface FileDataIndexRegionHelper<T extends FileDataIndexRegionHelper.R
      *
      * <p>Note: This index may not always maintain the longest possible regions. E.g., 2-1, 2-2, 2-3
      * are in two separate regions.
+     * 表示一个文件区域
      */
     interface Region {
 
-        /** Get the total size in bytes of this region, including the fields and the buffers. */
+        /** Get the total size in bytes of this region, including the fields and the buffers.
+         * 区域内文件大小
+         * */
         int getSize();
 
-        /** Get the first buffer index of this region. */
+        /** Get the first buffer index of this region.
+         * 区域内第一个buffer的编号
+         * */
         int getFirstBufferIndex();
 
-        /** Get the file start offset of this region. */
+        /** Get the file start offset of this region.
+         * 区域的起始偏移量
+         * */
         long getRegionStartOffset();
 
-        /** Get the file end offset of the region. */
+        /** Get the file end offset of the region.
+         * 终止偏移量
+         * */
         long getRegionEndOffset();
 
-        /** Get the number of buffers in this region. */
+        /** Get the number of buffers in this region.
+         * 区域内有多少buffer
+         * */
         int getNumBuffers();
 
         /**
          * Whether the current region contain the buffer.
          *
          * @param bufferIndex the specific buffer index
+         *                    当前区域是否包含该buffer
          */
         boolean containBuffer(int bufferIndex);
     }

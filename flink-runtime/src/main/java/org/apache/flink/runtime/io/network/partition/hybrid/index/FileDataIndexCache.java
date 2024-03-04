@@ -40,6 +40,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * A cache layer of hybrid data index. This class encapsulates the logic of the index's put and get,
  * and automatically caches some indexes in memory. When there are too many cached indexes, it is
  * this class's responsibility to decide and eliminate some indexes to disk.
+ * 索引缓存
  */
 public class FileDataIndexCache<T extends FileDataIndexRegionHelper.Region> {
     /**
@@ -48,6 +49,7 @@ public class FileDataIndexCache<T extends FileDataIndexRegionHelper.Region> {
      * subpartition corresponding to the subscript. The value of this treeMap is a {@link
      * FileDataIndexRegionHelper.Region}, and the key is firstBufferIndex of this region. Only
      * cached in memory region will be put to here.
+     * 对应每个子分区下 每个bufferIndex相关的region数据
      */
     private final List<TreeMap<Integer, T>> subpartitionFirstBufferIndexRegions;
 
@@ -56,11 +58,18 @@ public class FileDataIndexCache<T extends FileDataIndexRegionHelper.Region> {
      * each in memory region, the value is just a placeholder. Note that this internal cache must be
      * consistent with subpartitionFirstBufferIndexHsBaseRegions, that means both of them must add
      * or delete elements at the same time.
+     * 使用子分区+第一个bufferIndex来定位数据
      */
     private final Cache<CachedRegionKey, Object> internalCache;
 
+    /**
+     * 通过该对象管理region
+     */
     private final FileDataIndexSpilledRegionManager<T> spilledRegionManager;
 
+    /**
+     * 存放索引文件的位置
+     */
     private final Path indexFilePath;
 
     /**
@@ -69,6 +78,13 @@ public class FileDataIndexCache<T extends FileDataIndexRegionHelper.Region> {
      */
     public static final Object PLACEHOLDER = new Object();
 
+    /**
+     *
+     * @param numSubpartitions
+     * @param indexFilePath
+     * @param numRetainedInMemoryRegionsMax
+     * @param spilledRegionManagerFactory
+     */
     public FileDataIndexCache(
             int numSubpartitions,
             Path indexFilePath,
@@ -88,10 +104,13 @@ public class FileDataIndexCache<T extends FileDataIndexRegionHelper.Region> {
                 spilledRegionManagerFactory.create(
                         numSubpartitions,
                         indexFilePath,
+                        // 消费region数据的函数
                         (subpartition, region) -> {
+                            // 表示未找到数据
                             if (!getCachedRegionContainsTargetBufferIndex(
                                             subpartition, region.getFirstBufferIndex())
                                     .isPresent()) {
+                                // 加入到2个缓存结构
                                 subpartitionFirstBufferIndexRegions
                                         .get(subpartition)
                                         .put(region.getFirstBufferIndex(), region);
@@ -101,6 +120,7 @@ public class FileDataIndexCache<T extends FileDataIndexRegionHelper.Region> {
                                         PLACEHOLDER);
                             } else {
                                 // this is needed for cache entry remove algorithm like LRU.
+                                // 尝试同步到缓存
                                 internalCache.getIfPresent(
                                         new CachedRegionKey(
                                                 subpartition, region.getFirstBufferIndex()));
@@ -115,6 +135,7 @@ public class FileDataIndexCache<T extends FileDataIndexRegionHelper.Region> {
      * @param bufferIndex the index of target buffer.
      * @return If target region can be founded from memory or disk, return optional contains target
      *     region. Otherwise, return {@code Optional#empty()};
+     *     根据下标查询数据
      */
     public Optional<T> get(int subpartitionId, int bufferIndex) {
         // first of all, try to get region in memory.
@@ -129,6 +150,7 @@ public class FileDataIndexCache<T extends FileDataIndexRegionHelper.Region> {
             return Optional.of(region);
         } else {
             // try to find target region and load it into cache if founded.
+            // 缓存未命中时 通过manager查找
             spilledRegionManager.findRegion(subpartitionId, bufferIndex, true);
             return getCachedRegionContainsTargetBufferIndex(subpartitionId, bufferIndex);
         }
@@ -139,9 +161,11 @@ public class FileDataIndexCache<T extends FileDataIndexRegionHelper.Region> {
      *
      * @param subpartition the subpartition's id of regions.
      * @param fileRegions regions to be cached.
+     *                    将数据加入到缓存
      */
     public void put(int subpartition, List<T> fileRegions) {
         TreeMap<Integer, T> treeMap = subpartitionFirstBufferIndexRegions.get(subpartition);
+        // 每个子分区  都加入了这些region
         for (T region : fileRegions) {
             internalCache.put(
                     new CachedRegionKey(subpartition, region.getFirstBufferIndex()), PLACEHOLDER);
@@ -159,9 +183,11 @@ public class FileDataIndexCache<T extends FileDataIndexRegionHelper.Region> {
     }
 
     // This is a callback after internal cache removed an entry from itself.
+    // 当缓存中某个key被移除时 触发该方法
     private void handleRemove(RemovalNotification<CachedRegionKey, Object> removedEntry) {
         CachedRegionKey removedKey = removedEntry.getKey();
         // remove the corresponding region from memory.
+        // 同步移除树中的数据
         T removedRegion =
                 subpartitionFirstBufferIndexRegions
                         .get(removedKey.getSubpartition())
@@ -169,6 +195,7 @@ public class FileDataIndexCache<T extends FileDataIndexRegionHelper.Region> {
 
         // write this region to file. After that, no strong reference point to this region, it can
         // be safely released by gc.
+        // 表示从缓存移除时  触发文件写入
         writeRegion(removedKey.getSubpartition(), removedRegion);
     }
 
@@ -201,8 +228,12 @@ public class FileDataIndexCache<T extends FileDataIndexRegionHelper.Region> {
     /**
      * This class represents the key of cached region, it is uniquely identified by the region's
      * subpartition id and firstBufferIndex.
+     * 缓存key
      */
     private static class CachedRegionKey {
+
+        // 包含子分区和第一个buffer的下标
+
         /** The subpartition id of cached region. */
         private final int subpartition;
 

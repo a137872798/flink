@@ -24,7 +24,9 @@ import java.io.Serializable;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Statistics for a restored checkpoint. */
+/** Statistics for a restored checkpoint.
+ * 有关一个已经恢复的检查点信息
+ * */
 public class RestoredCheckpointStats implements Serializable {
 
     private static final long serialVersionUID = 2305815319666360821L;
@@ -35,10 +37,14 @@ public class RestoredCheckpointStats implements Serializable {
     /** Properties of the restored checkpoint. */
     private final CheckpointProperties props;
 
-    /** Timestamp when the checkpoint was restored at the coordinator. */
+    /** Timestamp when the checkpoint was restored at the coordinator.
+     * 恢复的时间
+     * */
     private final long restoreTimestamp;
 
-    /** Optional external path. */
+    /** Optional external path.
+     * 存储检查点数据的路径
+     * */
     @Nullable private final String externalPath;
 
     /**

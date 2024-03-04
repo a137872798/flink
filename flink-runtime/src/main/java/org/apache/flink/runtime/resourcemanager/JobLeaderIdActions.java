@@ -31,6 +31,7 @@ public interface JobLeaderIdActions {
      *
      * @param jobId identifying the job whose leader lost leadership
      * @param oldJobMasterId of the job manager which lost leadership
+     *                       监控当某个 job/job master  当之前的jobMaster不再是leader时  触发钩子
      */
     void jobLeaderLostLeadership(JobID jobId, JobMasterId oldJobMasterId);
 
@@ -40,6 +41,7 @@ public interface JobLeaderIdActions {
      *
      * @param jobId JobID which identifies the timed out job
      * @param timeoutId Id of the calling timeout to differentiate valid from invalid timeouts
+     *                  当一个job在时限内 没有找到 leader的地址 就返回超时
      */
     void notifyJobTimeout(JobID jobId, UUID timeoutId);
 

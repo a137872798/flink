@@ -17,7 +17,9 @@
 
 package org.apache.flink.runtime.rpc;
 
-/** Enum specifying whether address resolution should be tried. */
+/** Enum specifying whether address resolution should be tried.
+ * 表示是否要尝试解析地址
+ * */
 public enum AddressResolution {
     TRY_ADDRESS_RESOLUTION,
     NO_ADDRESS_RESOLUTION

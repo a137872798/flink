@@ -29,7 +29,9 @@ import static org.apache.flink.runtime.operators.DamBehavior.FULL_DAM;
 import static org.apache.flink.runtime.operators.DamBehavior.MATERIALIZING;
 import static org.apache.flink.runtime.operators.DamBehavior.PIPELINED;
 
-/** Enumeration of all available operator strategies. */
+/** Enumeration of all available operator strategies.
+ * 所有可用的函数策略  通过辨别策略 可以知道如何转换udf
+ * */
 public enum DriverStrategy {
     // no local strategy, as for sources and sinks
     NONE(null, null, PIPELINED, 0),

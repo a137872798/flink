@@ -34,6 +34,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * the slot needed in {@link FineGrainedSlotManager}.
  *
  * <p>Note that it should not in the state of {@link SlotState#FREE}.
+ * 细粒度的slot
  */
 public class FineGrainedTaskManagerSlot implements TaskManagerSlotInformation {
     /** The resource profile of this slot. */

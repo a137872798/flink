@@ -28,12 +28,20 @@ import org.slf4j.LoggerFactory;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Main accumulator registry which encapsulates user-defined accumulators. */
+/** Main accumulator registry which encapsulates user-defined accumulators.
+ * 累加器注册器 用于管理用户定义的累加器
+ * 每个task可以关联一个 聚合器注册器  也就是说一个task可能会用上多个聚合函数 然后通过该对象进行统一管理
+ * */
 public class AccumulatorRegistry {
 
     protected static final Logger LOG = LoggerFactory.getLogger(AccumulatorRegistry.class);
 
+    // Job应该比task要高一级   然后这是2个id
     protected final JobID jobID;
+
+    /**
+     * 先简单的看作是一个唯一标识
+     */
     protected final ExecutionAttemptID taskID;
 
     /* User-defined Accumulator values stored for the executing task. */
@@ -48,6 +56,8 @@ public class AccumulatorRegistry {
      * Creates a snapshot of this accumulator registry.
      *
      * @return a serialized accumulator map
+     *
+     * 将当前信息固化成快照 在之后重启时可以自动恢复
      */
     public AccumulatorSnapshot getSnapshot() {
         try {

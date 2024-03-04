@@ -32,11 +32,12 @@ import java.io.Serializable;
  * <p>In order to fail fast and report an appropriate error message to the user, we check that the
  * parameter types and the arguments are serializable. In case the invocation call contains a
  * non-serializable object, then an {@link IOException} is thrown.
+ * 填充了相关信息后 该对象作为消息发送给对端 并进行远程调用
  */
 public class RemoteRpcInvocation implements RpcInvocation, Serializable {
     private static final long serialVersionUID = 1L;
 
-    // Wrap the invocation information to ease the serialization.
+    // Wrap the invocation information to ease the serialization.  这里包含了调用信息
     private RemoteRpcInvocation.MethodInvocation methodInvocation;
 
     private transient String toString;
@@ -121,7 +122,9 @@ public class RemoteRpcInvocation implements RpcInvocation, Serializable {
     // Utility classes
     // -------------------------------------------------------------------
 
-    /** Wrapper class for the method invocation information. */
+    /** Wrapper class for the method invocation information.
+     * 维护要调用的class method parameterTypes args信息
+     * */
     private static final class MethodInvocation implements Serializable {
         private static final long serialVersionUID = 1L;
 

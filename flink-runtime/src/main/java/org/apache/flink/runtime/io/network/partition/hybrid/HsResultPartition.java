@@ -56,6 +56,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * {@link HsResultPartition} appends records and events to {@link HsMemoryDataManager}, the shuffle
  * data maybe spilled to disk according to the {@link HsSpillingStrategy}, and the downstream can
  * consume data from memory or disk.
+ * 使用hybrid的分区对象
  */
 public class HsResultPartition extends ResultPartition {
     public static final String DATA_FILE_SUFFIX = ".hybrid.data";
@@ -64,8 +65,14 @@ public class HsResultPartition extends ResultPartition {
 
     public static final int BROADCAST_CHANNEL = 0;
 
+    /**
+     * 存储了索引数据
+     */
     private final HsFileDataIndex dataIndex;
 
+    /**
+     * 使用该对象可以统一控制所有子分区的reader对象
+     */
     private final HsFileDataManager fileDataManager;
 
     private final Path dataFilePath;
@@ -74,7 +81,9 @@ public class HsResultPartition extends ResultPartition {
 
     private final HybridShuffleConfiguration hybridShuffleConfiguration;
 
-    /** Record the last assigned consumerId for each subpartition. */
+    /** Record the last assigned consumerId for each subpartition.
+     * 维护每个子分区最近消费数据的对象
+     * */
     private final HsConsumerId[] lastConsumerIds;
 
     private boolean hasNotifiedEndOfUserRecords;
@@ -161,6 +170,12 @@ public class HsResultPartition extends ResultPartition {
                                 metrics.getHardBackPressuredTimePerSecond()));
     }
 
+    /**
+     * 写入一条记录
+     * @param record
+     * @param targetSubpartition
+     * @throws IOException
+     */
     @Override
     public void emitRecord(ByteBuffer record, int targetSubpartition) throws IOException {
         resultPartitionBytes.inc(targetSubpartition, record.remaining());
@@ -200,6 +215,14 @@ public class HsResultPartition extends ResultPartition {
         checkNotNull(memoryDataManager).append(record, targetSubpartition, dataType);
     }
 
+
+    /**
+     * 创建某个子分区的reader对象
+     * @param subpartitionId
+     * @param availabilityListener
+     * @return
+     * @throws IOException
+     */
     @Override
     public ResultSubpartitionView createSubpartitionView(
             int subpartitionId, BufferAvailabilityListener availabilityListener)

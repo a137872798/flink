@@ -72,6 +72,10 @@ public final class ExternalSorterBuilder<T> {
     private final TaskInvokable parentTask;
     private final TypeSerializer<T> serializer;
     private final TypeComparator<T> comparator;
+
+    /**
+     * 用于生成内存排序对象
+     */
     private InMemorySorterFactory<T> inMemorySorterFactory;
     private int maxNumFileHandles = AlgorithmOptions.SPILLING_MAX_FAN.defaultValue();
     private boolean objectReuseEnabled = false;
@@ -81,6 +85,9 @@ public final class ExternalSorterBuilder<T> {
     private double startSpillingFraction = AlgorithmOptions.SORT_SPILLING_THRESHOLD.defaultValue();
     private IOManager ioManager;
     private boolean noSpillingMemory = true;
+    /**
+     * 对key组进行合并
+     */
     private GroupCombineFunction<T, T> combineFunction;
     private Configuration udfConfig;
     private List<MemorySegment> memorySegments = null;
@@ -374,6 +381,7 @@ public final class ExternalSorterBuilder<T> {
         final List<InMemorySorter<T>> inMemorySorters = new ArrayList<>(numSortBuffers);
 
         // allocate the sort buffers and fill empty queue with them
+        // 提前准备好内存块
         final Iterator<MemorySegment> segments = memory.iterator();
         for (int i = 0; i < numSortBuffers; i++) {
             // grab some memory

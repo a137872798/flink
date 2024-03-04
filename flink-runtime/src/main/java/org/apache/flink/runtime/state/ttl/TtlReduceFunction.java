@@ -25,6 +25,7 @@ import org.apache.flink.api.common.state.StateTtlConfig;
  * This class wraps reducing function with TTL logic.
  *
  * @param <T> Type of the user value of state with TTL
+ *           为一般的ReduceFunction追加ttl
  */
 class TtlReduceFunction<T> extends AbstractTtlDecorator<ReduceFunction<T>>
         implements ReduceFunction<TtlValue<T>> {

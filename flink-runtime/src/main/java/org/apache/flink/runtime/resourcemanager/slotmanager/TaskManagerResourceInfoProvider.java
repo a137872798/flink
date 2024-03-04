@@ -24,13 +24,16 @@ import org.apache.flink.runtime.instance.InstanceID;
 import java.util.Collection;
 import java.util.Optional;
 
-/** Provide the information of TaskManager's resource and slot status. */
+/** Provide the information of TaskManager's resource and slot status.
+ * 提供TM的信息
+ * */
 interface TaskManagerResourceInfoProvider {
 
     /**
      * Get the {@link TaskManagerInfo}s of all registered task managers.
      *
      * @return a collection of {@link TaskManagerInfo}s of all registered task managers.
+     * 获取TM信息
      */
     Collection<? extends TaskManagerInfo> getRegisteredTaskManagers();
 
@@ -39,6 +42,7 @@ interface TaskManagerResourceInfoProvider {
      *
      * @param instanceId of the task manager
      * @return An Optional of {@link TaskManagerInfo}, if find, of the task manager
+     * 精准查询
      */
     Optional<TaskManagerInfo> getRegisteredTaskManager(InstanceID instanceId);
 
@@ -54,6 +58,7 @@ interface TaskManagerResourceInfoProvider {
      *
      * @param allocationId of the slot
      * @return An Optional of {@link TaskManagerSlotInformation}, if find, of the slot
+     * 获取分配该slot的TM
      */
     Optional<TaskManagerSlotInformation> getAllocatedOrPendingSlot(AllocationID allocationId);
 
@@ -63,6 +68,7 @@ interface TaskManagerResourceInfoProvider {
      * @param totalResourceProfile of the pending task manager
      * @param defaultSlotResourceProfile of the pending task manager
      * @return Collection of all matching pending task managers
+     * 按照信息找到匹配的TM
      */
     Collection<PendingTaskManager> getPendingTaskManagersByTotalAndDefaultSlotResourceProfile(
             ResourceProfile totalResourceProfile, ResourceProfile defaultSlotResourceProfile);

@@ -44,13 +44,26 @@ import java.util.stream.Collectors;
  */
 public class ExecutionVertexVersioner {
 
+    /**
+     * 记录每个子任务的版本
+     */
     private final Map<ExecutionVertexID, Long> executionVertexToVersion = new HashMap<>();
 
+    /**
+     * 增加版本号
+     * @param executionVertexId
+     * @return
+     */
     public ExecutionVertexVersion recordModification(final ExecutionVertexID executionVertexId) {
         final Long newVersion = executionVertexToVersion.merge(executionVertexId, 1L, Long::sum);
         return new ExecutionVertexVersion(executionVertexId, newVersion);
     }
 
+    /**
+     * 更新一组子任务的版本
+     * @param vertices
+     * @return
+     */
     public Map<ExecutionVertexID, ExecutionVertexVersion> recordVertexModifications(
             final Collection<ExecutionVertexID> vertices) {
         return vertices.stream()
@@ -60,6 +73,11 @@ public class ExecutionVertexVersioner {
                                 ExecutionVertexVersion::getExecutionVertexId, Function.identity()));
     }
 
+    /**
+     * 比较版本号是否有变化
+     * @param executionVertexVersion
+     * @return
+     */
     public boolean isModified(final ExecutionVertexVersion executionVertexVersion) {
         final Long currentVersion =
                 getCurrentVersion(executionVertexVersion.getExecutionVertexId());
@@ -75,6 +93,11 @@ public class ExecutionVertexVersioner {
         return currentVersion;
     }
 
+    /**
+     * 返回未变化的 ExecutionVertexVersion
+     * @param executionVertexVersions
+     * @return
+     */
     public Set<ExecutionVertexID> getUnmodifiedExecutionVertices(
             final Set<ExecutionVertexVersion> executionVertexVersions) {
         return executionVertexVersions.stream()
@@ -83,6 +106,11 @@ public class ExecutionVertexVersioner {
                 .collect(Collectors.toSet());
     }
 
+    /**
+     * 通过一组id查询相关的版本号
+     * @param executionVertexIds
+     * @return
+     */
     public Map<ExecutionVertexID, ExecutionVertexVersion> getExecutionVertexVersions(
             Collection<ExecutionVertexID> executionVertexIds) {
         return executionVertexIds.stream()

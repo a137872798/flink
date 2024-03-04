@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
  * <p>The replicated data will then be filtered before processing the record.
  *
  * <p>Note that channel mappings are cached for the same parallelism changes.
+ * 利用 RescaleMappings 对已有的状态进行重分区
  */
 @NotThreadSafe
 public class MappingBasedRepartitioner<T> implements OperatorStateRepartitioner<T> {
@@ -41,6 +42,13 @@ public class MappingBasedRepartitioner<T> implements OperatorStateRepartitioner<
         this.newToOldSubtasksMapping = newToOldSubtasksMapping;
     }
 
+    /**
+     *
+     * @param previousParallelSubtaskStates  所有数据
+     * @param oldIndexes  被选中的旧分区
+     * @param <T>
+     * @return
+     */
     private static <T> List<T> extractOldState(
             List<List<T>> previousParallelSubtaskStates, int[] oldIndexes) {
         switch (oldIndexes.length) {
@@ -60,6 +68,7 @@ public class MappingBasedRepartitioner<T> implements OperatorStateRepartitioner<
     public List<List<T>> repartitionState(
             List<List<T>> previousParallelSubtaskStates, int oldParallelism, int newParallelism) {
         List<List<T>> repartitioned = new ArrayList<>();
+        // 将state按照新分区排序
         for (int newIndex = 0; newIndex < newParallelism; newIndex++) {
             repartitioned.add(
                     extractOldState(

@@ -19,18 +19,24 @@ package org.apache.flink.runtime.state.changelog;
 import org.apache.flink.runtime.state.changelog.SequenceNumber.GenericSequenceNumber;
 import org.apache.flink.util.Preconditions;
 
+/**
+ * 表示一个范围  由2个SequenceNumber组成
+ */
 public interface SequenceNumberRange {
     /** Inclusive. */
     SequenceNumber from();
     /** Exclusive. */
     SequenceNumber to();
 
-    /** @return the size of this range (positive) or zero if it is empty */
+    /** @return the size of this range (positive) or zero if it is empty
+     * 表示范围内一共有多少元素
+     * */
     long size();
 
     /**
      * @return true if {@link #from} &le; sqn &lt; {@link #to} (this implies that the range is not
      *     empty, i.e. to &gt; from)
+     *     判断某个值是否在范围内
      */
     boolean contains(SequenceNumber sqn);
 
@@ -46,6 +52,9 @@ public interface SequenceNumberRange {
                 (GenericSequenceNumber) from, (GenericSequenceNumber) to);
     }
 
+    /**
+     * 表示通用的范围对象
+     */
     class GenericSequenceNumberRange implements SequenceNumberRange {
         private final GenericSequenceNumber from;
         private final GenericSequenceNumber to;

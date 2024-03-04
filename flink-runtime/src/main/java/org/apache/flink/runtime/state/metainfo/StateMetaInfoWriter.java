@@ -34,6 +34,7 @@ public interface StateMetaInfoWriter {
      * @param snapshot the snapshot to write.
      * @param outputView the output to write into.
      * @throws IOException on write problems.
+     * 持久化元数据快照
      */
     void writeStateMetaInfoSnapshot(
             @Nonnull StateMetaInfoSnapshot snapshot, @Nonnull DataOutputView outputView)

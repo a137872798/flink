@@ -40,9 +40,14 @@ import static java.util.Objects.requireNonNull;
 /**
  * Default implementation of KeyedStateStore that currently forwards state registration to a {@link
  * RuntimeContext}.
+ *
+ * 表示一个存储仓库 可以使用状态的描述符查询状态
  */
 public class DefaultKeyedStateStore implements KeyedStateStore {
 
+    /**
+     * 使用状态后端存储状态
+     */
     protected final KeyedStateBackend<?> keyedStateBackend;
     protected final ExecutionConfig executionConfig;
 
@@ -69,6 +74,8 @@ public class DefaultKeyedStateStore implements KeyedStateStore {
         try {
             stateProperties.initializeSerializerUnlessSet(executionConfig);
             ListState<T> originalState = getPartitionedState(stateProperties);
+
+            // 需要包装一层门面对象
             return new UserFacingListState<>(originalState);
         } catch (Exception e) {
             throw new RuntimeException("Error while getting state", e);
@@ -112,6 +119,7 @@ public class DefaultKeyedStateStore implements KeyedStateStore {
 
     protected <S extends State> S getPartitionedState(StateDescriptor<S, ?> stateDescriptor)
             throws Exception {
+        // 不存在则会触发创建   默认使用空的namespace   表示在逻辑上没有ns这层隔离
         return keyedStateBackend.getPartitionedState(
                 VoidNamespace.INSTANCE, VoidNamespaceSerializer.INSTANCE, stateDescriptor);
     }

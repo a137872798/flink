@@ -22,12 +22,18 @@ import org.apache.flink.runtime.jobgraph.DistributionPattern;
 import org.apache.flink.runtime.jobgraph.JobEdge;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 
-/** Represents an edge in {@link LogicalTopology}, i.e. {@link JobEdge}. */
+/** Represents an edge in {@link LogicalTopology}, i.e. {@link JobEdge}.
+ * 在任务图中的一条边
+ * */
 public interface LogicalEdge {
 
-    /** Returns the distribution pattern used for this edge. */
+    /** Returns the distribution pattern used for this edge.
+     * 描述了边的连接方式  一个生产任务到一个(一个或多个)消费任务
+     * */
     DistributionPattern getDistributionPattern();
 
-    /** Returns the ID of producer vertex. */
+    /** Returns the ID of producer vertex.
+     * 这里edge应该是有向的 这里获取的是起点的id
+     * */
     JobVertexID getProducerVertexId();
 }

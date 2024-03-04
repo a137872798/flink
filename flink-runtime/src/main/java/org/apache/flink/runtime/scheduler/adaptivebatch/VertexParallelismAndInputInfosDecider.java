@@ -29,14 +29,15 @@ import java.util.List;
  * {@link VertexParallelismAndInputInfosDecider} is responsible for deciding the parallelism and
  * {@link JobVertexInputInfo}s of a job vertex, based on the information of the consumed blocking
  * results.
+ * 获取有关并行度和数据范围的信息
  */
 public interface VertexParallelismAndInputInfosDecider {
 
     /**
      * Decide the parallelism and {@link JobVertexInputInfo}s for this job vertex.
      *
-     * @param jobVertexId The job vertex id
-     * @param consumedResults The information of consumed blocking results
+     * @param jobVertexId The job vertex id  对标一个task
+     * @param consumedResults The information of consumed blocking results   该对象记录了范围内的字节数
      * @param vertexInitialParallelism The initial parallelism of the job vertex. If it's a positive
      *     number, it will be respected. If it's not set(equals to {@link
      *     ExecutionConfig#PARALLELISM_DEFAULT}), a parallelism will be automatically decided for

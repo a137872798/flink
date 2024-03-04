@@ -25,6 +25,7 @@ import org.apache.flink.runtime.jobgraph.JobVertexID;
 /**
  * Common interface for the runtime {@link ExecutionJobVertex} and {@link
  * ArchivedExecutionJobVertex}.
+ * 这个顶点是job层面的   然后AccessExecutionVertex 应该是针对每个subtask的
  */
 public interface AccessExecutionJobVertex {
     /**
@@ -66,6 +67,7 @@ public interface AccessExecutionJobVertex {
      * Returns all execution vertices for this job vertex.
      *
      * @return all execution vertices for this job vertex
+     * 获取下面所有task的顶点
      */
     AccessExecutionVertex[] getTaskVertices();
 

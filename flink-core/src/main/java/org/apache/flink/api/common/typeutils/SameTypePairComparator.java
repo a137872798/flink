@@ -19,6 +19,11 @@ package org.apache.flink.api.common.typeutils;
 
 import org.apache.flink.annotation.Internal;
 
+/**
+ * 本来 TypePairComparator 是比较2个不同类型的comparator
+ * SameTypePairComparator 则是2个比较器比较相同类型
+ * @param <T>
+ */
 @Internal
 public class SameTypePairComparator<T> extends TypePairComparator<T, T> {
 

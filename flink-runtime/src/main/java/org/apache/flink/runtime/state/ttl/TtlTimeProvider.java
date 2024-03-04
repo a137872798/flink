@@ -18,7 +18,9 @@
 
 package org.apache.flink.runtime.state.ttl;
 
-/** Provides time to TTL logic to judge about state expiration. */
+/** Provides time to TTL logic to judge about state expiration.
+ * 提供当前时间  默认就是 System::currentTimeMillis
+ * */
 public interface TtlTimeProvider {
     TtlTimeProvider DEFAULT = System::currentTimeMillis;
 

@@ -37,12 +37,14 @@ import java.util.Optional;
 /**
  * Common interface for the runtime {@link DefaultExecutionGraph} and {@link
  * ArchivedExecutionGraph}.
+ * 提供一些访问信息的接口
  */
 public interface AccessExecutionGraph extends JobStatusProvider {
     /**
      * Returns the job plan as a JSON string.
      *
      * @return job plan as a JSON string
+     * 获取描述plan的json串
      */
     String getJsonPlan();
 
@@ -50,6 +52,7 @@ public interface AccessExecutionGraph extends JobStatusProvider {
      * Returns the {@link JobID} for this execution graph.
      *
      * @return job ID for this execution graph
+     * 整个任务图 属于某个job  返回jobId
      */
     JobID getJobID();
 
@@ -64,6 +67,7 @@ public interface AccessExecutionGraph extends JobStatusProvider {
      * Returns the current {@link JobStatus} for this execution graph.
      *
      * @return job status for this execution graph
+     * 获取job状态
      */
     JobStatus getState();
 
@@ -72,6 +76,7 @@ public interface AccessExecutionGraph extends JobStatusProvider {
      * not recoverable and triggered job failure.
      *
      * @return failure causing exception, or null
+     * 获取失败信息
      */
     @Nullable
     ErrorInfo getFailureInfo();
@@ -81,6 +86,7 @@ public interface AccessExecutionGraph extends JobStatusProvider {
      *
      * @param id id of job vertex to be returned
      * @return job vertex for the given id, or {@code null}
+     * 获取每个顶点信息
      */
     @Nullable
     AccessExecutionJobVertex getJobVertex(JobVertexID id);
@@ -89,6 +95,7 @@ public interface AccessExecutionGraph extends JobStatusProvider {
      * Returns a map containing all job vertices for this execution graph.
      *
      * @return map containing all job vertices for this execution graph
+     * 获取所有顶点
      */
     Map<JobVertexID, ? extends AccessExecutionJobVertex> getAllVertices();
 
@@ -130,6 +137,7 @@ public interface AccessExecutionGraph extends JobStatusProvider {
      * disabled.
      *
      * @return Snapshot of the checkpoint statistics for this execution graph
+     * 获取快照
      */
     @Nullable
     CheckpointStatsSnapshot getCheckpointStatsSnapshot();
@@ -167,6 +175,8 @@ public interface AccessExecutionGraph extends JobStatusProvider {
      * Returns the state backend name for this ExecutionGraph.
      *
      * @return The state backend name, or an empty Optional in the case of batch jobs
+     *
+     * 状态后端用于存储state
      */
     Optional<String> getStateBackendName();
 
@@ -181,6 +191,7 @@ public interface AccessExecutionGraph extends JobStatusProvider {
      * Returns whether the state changelog is enabled for this ExecutionGraph.
      *
      * @return true, if state changelog enabled, false otherwise.
+     * 是否支持使用changelog
      */
     TernaryBoolean isChangelogStateBackendEnabled();
 

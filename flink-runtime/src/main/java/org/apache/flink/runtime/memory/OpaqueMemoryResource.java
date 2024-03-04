@@ -30,6 +30,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * example for this is a native resource, like RocksDB's block cache memory pool.
  *
  * <p>The resource must be closed after it is not used any more.
+ * 被包装的资源对象
  */
 public final class OpaqueMemoryResource<T> implements AutoCloseable {
 

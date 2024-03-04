@@ -78,6 +78,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * in the application without a default savepoint directory, it will pick up a default savepoint
  * directory specified in the Flink configuration of the running job/cluster. That behavior is
  * implemented via the {@link #configure(ReadableConfig, ClassLoader)} method.
+ *
+ * 表示基于文件系统来保存检查点
  */
 @PublicEvolving
 public class FileSystemCheckpointStorage
@@ -90,7 +92,9 @@ public class FileSystemCheckpointStorage
 
     // ------------------------------------------------------------------------
 
-    /** The location where snapshots will be externalized. */
+    /** The location where snapshots will be externalized.
+     * 包含了检查点/保存点的位置信息
+     * */
     private final ExternalizedSnapshotLocation location;
 
     /**
@@ -223,6 +227,8 @@ public class FileSystemCheckpointStorage
      *
      * @param original The checkpoint storage to re-configure
      * @param configuration The configuration
+     *
+     *                      通过另一个对象来初始化
      */
     private FileSystemCheckpointStorage(
             FileSystemCheckpointStorage original, ReadableConfig configuration) {

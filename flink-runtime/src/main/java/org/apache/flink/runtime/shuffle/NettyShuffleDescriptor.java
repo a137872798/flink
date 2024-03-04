@@ -32,10 +32,19 @@ public class NettyShuffleDescriptor implements ShuffleDescriptor {
 
     private static final long serialVersionUID = 852181945034989215L;
 
+    /**
+     * ResourceID 对应一个 TM对象  这里就是表示产生该数据的TMid
+     */
     private final ResourceID producerLocation;
 
+    /**
+     * 通往生产者的连接信息
+     */
     private final PartitionConnectionInfo partitionConnectionInfo;
 
+    /**
+     * 描述一个被某生产者产生的某分区数据
+     */
     private final ResultPartitionID resultPartitionID;
 
     public NettyShuffleDescriptor(
@@ -64,11 +73,19 @@ public class NettyShuffleDescriptor implements ShuffleDescriptor {
         return Optional.of(producerLocation);
     }
 
+
+    /**
+     * 判断资源所在位置是否在本地
+     * @param consumerLocation
+     * @return
+     */
     public boolean isLocalTo(ResourceID consumerLocation) {
         return producerLocation.equals(consumerLocation);
     }
 
-    /** Information for connection to partition producer for shuffle exchange. */
+    /** Information for connection to partition producer for shuffle exchange.
+     * 该对象指向了 产生数据的分区
+     * */
     public interface PartitionConnectionInfo extends Serializable {
         InetSocketAddress getAddress();
 
@@ -80,6 +97,7 @@ public class NettyShuffleDescriptor implements ShuffleDescriptor {
      *
      * <p>Normal connection information with network address and port for connection in case of
      * distributed execution.
+     * 连接到另一个节点
      */
     public static class NetworkPartitionConnectionInfo implements PartitionConnectionInfo {
 
@@ -116,6 +134,7 @@ public class NettyShuffleDescriptor implements ShuffleDescriptor {
      * Local partition connection information.
      *
      * <p>Does not have any network connection information in case of local execution.
+     * 表示2个分区都在同一个节点的情况
      */
     public enum LocalExecutionPartitionConnectionInfo implements PartitionConnectionInfo {
         INSTANCE;

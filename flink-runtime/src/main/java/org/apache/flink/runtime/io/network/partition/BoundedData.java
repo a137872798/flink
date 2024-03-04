@@ -41,24 +41,28 @@ import java.nio.file.Path;
  *
  * <p>The implementations generally make no assumptions about thread safety. The only contract is
  * that multiple created readers must be able to work independently concurrently.
+ * 表示一个有界的数据
  */
 interface BoundedData extends Closeable {
 
     /**
      * Writes this buffer to the bounded data. This call fails if the writing phase was already
      * finished via {@link #finishWrite()}.
+     * 将buffer的数据写入 BoundedData
      */
     void writeBuffer(Buffer buffer) throws IOException;
 
     /**
      * Finishes the current region and prevents further writes. After calling this method, further
      * calls to {@link #writeBuffer(Buffer)} will fail.
+     * 表示写入完成了
      */
     void finishWrite() throws IOException;
 
     /**
      * Gets a reader for the bounded data. Multiple readers may be created. This call only succeeds
      * once the write phase was finished via {@link #finishWrite()}.
+     * 生成reader对象 用于读取之前写入的数据
      */
     BoundedData.Reader createReader(ResultSubpartitionView subpartitionView) throws IOException;
 
@@ -75,12 +79,16 @@ interface BoundedData extends Closeable {
      */
     long getSize();
 
-    /** The file path for the persisted {@link BoundedBlockingSubpartition}. */
+    /** The file path for the persisted {@link BoundedBlockingSubpartition}.
+     * 当使用文件存储数据时  返回文件的路径
+     * */
     Path getFilePath();
 
     // ------------------------------------------------------------------------
 
-    /** A reader to the bounded data. */
+    /** A reader to the bounded data.
+     * 可以读取BoundedData内的数据
+     * */
     interface Reader extends Closeable {
 
         @Nullable

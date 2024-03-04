@@ -21,6 +21,7 @@ package org.apache.flink.runtime.checkpoint;
 /**
  * A specialized {@link OperatorSubtaskState} representing the subtask is finished. It is also
  * read-only and could not have actual states.
+ * 表示一个完成的子任务状态
  */
 public class FinishedOperatorSubtaskState extends OperatorSubtaskState {
 

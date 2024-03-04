@@ -63,6 +63,10 @@ class CheckpointRequestDecider {
     private final long minPauseBetweenCheckpoints;
     private final IntSupplier pendingCheckpointsSizeSupplier;
     private final IntSupplier numberOfCleaningCheckpointsSupplier;
+
+    /**
+     * 一个请求队列  CheckpointTriggerRequest 表示申请触发检查点
+     */
     private final NavigableSet<CheckpointTriggerRequest> queuedRequests =
             new TreeSet<>(checkpointTriggerRequestsComparator());
     private final int maxQueuedRequests;
@@ -106,23 +110,29 @@ class CheckpointRequestDecider {
     /**
      * Submit a new checkpoint request and decide whether it or some other request can be executed.
      *
+     * @param newRequest  提交一个新的请求  并尝试返回一个需要执行的请求
      * @return request that should be executed
+     *
      */
     Optional<CheckpointTriggerRequest> chooseRequestToExecute(
             CheckpointTriggerRequest newRequest, boolean isTriggering, long lastCompletionMs) {
+        // 此时请求已经堆满了  并且没有可以立即执行的req  那么本次req只能失败了
         if (queuedRequests.size() >= maxQueuedRequests && !queuedRequests.last().isPeriodic) {
             // there are only non-periodic (ie user-submitted) requests enqueued - retain them and
             // drop the new one
             newRequest.completeExceptionally(new CheckpointException(TOO_MANY_CHECKPOINT_REQUESTS));
             return Optional.empty();
         } else {
+            // 这里会进行排序
             queuedRequests.add(newRequest);
             if (queuedRequests.size() > maxQueuedRequests) {
                 queuedRequests
                         .pollLast()
+                        // 这次丢弃了其他请求
                         .completeExceptionally(
                                 new CheckpointException(TOO_MANY_CHECKPOINT_REQUESTS));
             }
+            // 选择一个需要执行的请求
             Optional<CheckpointTriggerRequest> request =
                     chooseRequestToExecute(isTriggering, lastCompletionMs);
             request.ifPresent(CheckpointRequestDecider::logInQueueTime);
@@ -134,6 +144,7 @@ class CheckpointRequestDecider {
      * Choose one of the queued requests to execute, if any.
      *
      * @return request that should be executed
+     * 直接从队列中选择一个请求
      */
     Optional<CheckpointTriggerRequest> chooseQueuedRequestToExecute(
             boolean isTriggering, long lastCompletionMs) {
@@ -148,15 +159,18 @@ class CheckpointRequestDecider {
      * candidate and the current state. Acquires a lock and may update the state.
      *
      * @return request that should be executed
+     * 选择一个合适的req去执行
      */
     private Optional<CheckpointTriggerRequest> chooseRequestToExecute(
             boolean isTriggering, long lastCompletionMs) {
         if (isTriggering
                 || queuedRequests.isEmpty()
-                || numberOfCleaningCheckpointsSupplier.getAsInt()
+                || numberOfCleaningCheckpointsSupplier.getAsInt()  // 这个是代表并发执行的检查点太多
                         > maxConcurrentCheckpointAttempts) {
             return Optional.empty();
         }
+
+        // 当pending数量超过并发值时 如果是强制的 那么允许执行
         if (pendingCheckpointsSizeSupplier.getAsInt() >= maxConcurrentCheckpointAttempts) {
             return Optional.of(queuedRequests.first())
                     .filter(CheckpointTriggerRequest::isForce)
@@ -164,6 +178,7 @@ class CheckpointRequestDecider {
         }
 
         CheckpointTriggerRequest first = queuedRequests.first();
+        // 表示这是周期性触发的
         if (!first.isForce() && first.isPeriodic) {
             long nextTriggerDelayMillis = nextTriggerDelayMillis(lastCompletionMs);
             if (nextTriggerDelayMillis > 0) {
@@ -171,6 +186,7 @@ class CheckpointRequestDecider {
                         .pollFirst()
                         .completeExceptionally(
                                 new CheckpointException(MINIMUM_TIME_BETWEEN_CHECKPOINTS));
+                // 在一定延时后 会重新触发检查点
                 rescheduleTrigger.accept(nextTriggerDelayMillis);
                 return Optional.empty();
             }
@@ -179,6 +195,11 @@ class CheckpointRequestDecider {
         return Optional.of(queuedRequests.pollFirst());
     }
 
+    /**
+     * 计算最快多久开始下个检查点
+     * @param lastCheckpointCompletionRelativeTime
+     * @return
+     */
     private long nextTriggerDelayMillis(long lastCheckpointCompletionRelativeTime) {
         return lastCheckpointCompletionRelativeTime
                 - clock.relativeTimeMillis()
@@ -201,6 +222,10 @@ class CheckpointRequestDecider {
         return queuedRequests.size();
     }
 
+    /**
+     * 用于对触发请求排序
+     * @return
+     */
     private static Comparator<CheckpointTriggerRequest> checkpointTriggerRequestsComparator() {
         return (r1, r2) -> {
             if (r1.props.isSavepoint() != r2.props.isSavepoint()) {

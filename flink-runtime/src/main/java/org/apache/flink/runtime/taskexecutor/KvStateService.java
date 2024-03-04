@@ -35,13 +35,16 @@ import org.slf4j.LoggerFactory;
 /**
  * KvState related components of each {@link TaskExecutor} instance. This service can create the
  * kvState registration for a single task.
+ * 通过该对象可以使用KvState
  */
 public class KvStateService {
     private static final Logger LOG = LoggerFactory.getLogger(KvStateService.class);
 
     private final Object lock = new Object();
 
-    /** Registry for {@link InternalKvState} instances. */
+    /** Registry for {@link InternalKvState} instances.
+     * 简单来将就是维护 job的 KvState的  并且提供监听器能力
+     * */
     private final KvStateRegistry kvStateRegistry;
 
     /** Server for {@link InternalKvState} requests. */
@@ -93,6 +96,7 @@ public class KvStateService {
 
             if (kvStateServer != null) {
                 try {
+                    // 启动 kv服务器
                     kvStateServer.start();
                 } catch (Throwable ie) {
                     kvStateServer.shutdown();

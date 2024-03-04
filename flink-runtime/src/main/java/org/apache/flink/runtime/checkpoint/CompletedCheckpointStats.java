@@ -33,6 +33,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * <p>The reported statistics are immutable except for the discarded flag, which is updated via the
  * {@link DiscardCallback} and the {@link CompletedCheckpoint} after an instance of this class has
  * been created.
+ *
+ * 表示检查点成功了
  */
 public class CompletedCheckpointStats extends AbstractCheckpointStats {
 
@@ -50,7 +52,9 @@ public class CompletedCheckpointStats extends AbstractCheckpointStats {
 
     private final boolean unalignedCheckpoint;
 
-    /** The latest acknowledged subtask stats. */
+    /** The latest acknowledged subtask stats.
+     * 最后一个收到ack的 subtask
+     * */
     private final SubtaskStateStats latestAcknowledgedSubtask;
 
     /** The external pointer of the checkpoint. */
@@ -194,7 +198,9 @@ public class CompletedCheckpointStats extends AbstractCheckpointStats {
         return discarded;
     }
 
-    /** Mark the checkpoint has been discarded. */
+    /** Mark the checkpoint has been discarded.
+     * 表示这个检查点已经被废弃了
+     * */
     void discard() {
         discarded = true;
     }

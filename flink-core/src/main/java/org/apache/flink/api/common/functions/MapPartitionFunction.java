@@ -54,7 +54,7 @@ public interface MapPartitionFunction<T, O> extends Function, Serializable {
      * @param out The collector to hand results to.
      * @throws Exception This method may throw exceptions. Throwing an exception will cause the
      *     operation to fail and may trigger recovery.
-     *     将多个输入分区后 通过collector采集输出
+     *     为数据添加分区信息后 发送到下游
      */
     void mapPartition(Iterable<T> values, Collector<O> out) throws Exception;
 }

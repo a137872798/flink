@@ -41,10 +41,18 @@ import java.util.concurrent.TimeUnit;
  * blocks on disk, or even whether the file was written in blocks of the same size, or in blocks at
  * all. Ensuring that the writing and reading is consistent with each other (same blocks sizes) is
  * up to the programmer.
+ *
+ * AsynchronousFileIOChannel 提供了一套模型 ----- 外部可以将请求插入阻塞队列
+ * MemorySegment 表示存储数据的容器
+ * ReadRequest 表示接受的请求类型
  */
 public class AsynchronousBlockReader extends AsynchronousFileIOChannel<MemorySegment, ReadRequest>
         implements BlockChannelReader<MemorySegment> {
 
+    /**
+     * 维护所有读取到的数据块
+     * 异步发起的请求在channel收到并处理后 会产生数据块 并存入该队列
+     */
     private final LinkedBlockingQueue<MemorySegment> returnSegments;
 
     /**
@@ -74,6 +82,7 @@ public class AsynchronousBlockReader extends AsynchronousFileIOChannel<MemorySeg
      * @throws IOException Thrown, when the reader encounters an I/O error. Due to the asynchronous
      *     nature of the reader, the exception thrown here may have been caused by an earlier read
      *     request.
+     *     发起读取请求时  生成req 并加入队列
      */
     @Override
     public void readBlock(MemorySegment segment) throws IOException {
@@ -97,6 +106,7 @@ public class AsynchronousBlockReader extends AsynchronousFileIOChannel<MemorySeg
      * @return The next memory segment from the reader's return queue.
      * @throws IOException Thrown, if an I/O error occurs in the reader while waiting for the
      *     request to return.
+     *     读取准备好的数据块
      */
     @Override
     public MemorySegment getNextReturnedBlock() throws IOException {
@@ -123,6 +133,7 @@ public class AsynchronousBlockReader extends AsynchronousFileIOChannel<MemorySeg
      * complete.
      *
      * @return The queue with the full memory segments.
+     * 返回所有准备好的数据块
      */
     @Override
     public LinkedBlockingQueue<MemorySegment> getReturnQueue() {

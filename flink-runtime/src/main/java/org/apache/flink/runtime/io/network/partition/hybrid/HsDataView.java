@@ -28,6 +28,7 @@ import java.util.Optional;
 /**
  * A view for {@link HsSubpartitionConsumer} to find out what data exists in memory or disk and
  * polling the data.
+ * 表示一个视图对象
  */
 public interface HsDataView {
 
@@ -36,7 +37,7 @@ public interface HsDataView {
      *
      * <p>Only invoked by consumer thread.
      *
-     * @param nextBufferToConsume next buffer index to consume.
+     * @param nextBufferToConsume next buffer index to consume.  下个要消费的buffer 下标
      * @param buffersToRecycle buffers to recycle if needed.
      * @return If the target buffer does exist, return buffer and next buffer's backlog, otherwise
      *     return {@link Optional#empty()}.

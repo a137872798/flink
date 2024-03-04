@@ -37,15 +37,25 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * BlockChannelReader}, making it effectively a data input stream. The view reads it data in blocks
  * from the underlying channel. The view can read data that has been written by a {@link
  * FileChannelOutputView}, or that was written in blocks in another fashion.
+ *
  */
 public class SeekableFileChannelInputView extends AbstractPagedInputView {
 
+    /**
+     * 读取文件channel的数据
+     */
     private BlockChannelReader<MemorySegment> reader;
 
+    /**
+     * 该对象管理读写线程
+     */
     private final IOManager ioManager;
 
     private final FileIOChannel.ID channelId;
 
+    /**
+     * 该对象分配内存块
+     */
     private final MemoryManager memManager;
 
     private final List<MemorySegment> memory;
@@ -83,6 +93,7 @@ public class SeekableFileChannelInputView extends AbstractPagedInputView {
         this.sizeOfLastBlock = sizeOfLastBlock;
         this.segmentSize = memManager.getPageSize();
 
+        // 创建reader对象
         this.reader = ioManager.createBlockChannelReader(channelId);
 
         try {
@@ -105,6 +116,11 @@ public class SeekableFileChannelInputView extends AbstractPagedInputView {
         }
     }
 
+    /**
+     * 可以直接设定偏移量
+     * @param position
+     * @throws IOException
+     */
     public void seek(long position) throws IOException {
         final int block = MathUtils.checkedDownCast(position / segmentSize);
         final int positionInBlock = (int) (position % segmentSize);
@@ -120,8 +136,10 @@ public class SeekableFileChannelInputView extends AbstractPagedInputView {
             reader.close();
         }
 
+        // 重新创建reader
         reader = ioManager.createBlockChannelReader(channelId);
 
+        // 设置偏移量
         if (block > 0) {
             reader.seekToPosition(((long) block) * segmentSize);
         }
@@ -129,11 +147,13 @@ public class SeekableFileChannelInputView extends AbstractPagedInputView {
         this.numBlocksRemaining = this.numBlocksTotal - block;
         this.numRequestsRemaining = numBlocksRemaining;
 
+        // 重新发送请求
         for (int i = 0; i < memory.size(); i++) {
             sendReadRequest(memory.get(i));
         }
 
         numBlocksRemaining--;
+        // 等待读取数据 并设置偏移量
         seekInput(
                 reader.getNextReturnedBlock(),
                 positionInBlock,

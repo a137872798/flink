@@ -24,13 +24,16 @@ import org.apache.flink.runtime.taskexecutor.TaskExecutor;
 
 import java.io.File;
 
-/** Interface to access {@link TaskExecutor} information. */
+/** Interface to access {@link TaskExecutor} information.
+ * 关于任务管理器的运行时信息
+ * */
 public interface TaskManagerRuntimeInfo {
 
     /**
      * Gets the configuration that the TaskManager was started with.
      *
      * @return The configuration that the TaskManager was started with.
+     *
      */
     Configuration getConfiguration();
 

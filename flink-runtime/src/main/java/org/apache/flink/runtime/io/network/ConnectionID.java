@@ -35,6 +35,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * <p>The connection index is assigned by the {@link IntermediateResult} and ensures that it is safe
  * to multiplex multiple data transfers over the same physical TCP connection.
+ * 可以定位到一个远端(非本机)资源
  */
 public class ConnectionID implements Serializable {
 

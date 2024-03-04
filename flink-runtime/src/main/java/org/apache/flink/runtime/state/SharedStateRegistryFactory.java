@@ -24,7 +24,9 @@ import org.apache.flink.runtime.jobgraph.RestoreMode;
 import java.util.Collection;
 import java.util.concurrent.Executor;
 
-/** Simple factory to produce {@link SharedStateRegistry} objects. */
+/** Simple factory to produce {@link SharedStateRegistry} objects.
+ * 该对象可以产生共享状态注册器
+ * */
 public interface SharedStateRegistryFactory {
 
     /**

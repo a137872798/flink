@@ -46,6 +46,8 @@ import static org.apache.flink.util.Preconditions.checkState;
  * the files should be removed. This tracker maintains a lock to avoid concurrent modification. To
  * avoid the inconsistency, make sure that hold the READ/WRITE lock in {@link PermanentBlobCache}
  * first and then hold the lock here.
+ *
+ * 记录缓存的大小
  */
 public class BlobCacheSizeTracker {
 
@@ -55,14 +57,23 @@ public class BlobCacheSizeTracker {
 
     private final Object lock = new Object();
 
+    /**
+     * 缓存blob总大小
+     */
     protected final long sizeLimit;
 
     @GuardedBy("lock")
     private long total;
 
+    /**
+     * Long 对应blob的大小
+     */
     @GuardedBy("lock")
     private final LinkedHashMap<Tuple2<JobID, BlobKey>, Long> caches;
 
+    /**
+     * 维护每个job关联的blob
+     */
     @GuardedBy("lock")
     private final HashMap<JobID, Set<BlobKey>> blobKeyByJob;
 
@@ -80,6 +91,7 @@ public class BlobCacheSizeTracker {
      *
      * @param size size of the BLOB intended to put into the cache
      * @return list of BLOBs to delete before putting into the target BLOB
+     * 判断是否还有size的空间 没有的话 则将多出来的存入list 准备删除
      */
     public List<Tuple2<JobID, BlobKey>> checkLimit(long size) {
         checkArgument(size >= 0);
@@ -89,6 +101,7 @@ public class BlobCacheSizeTracker {
 
             long current = total;
 
+            // 从最旧未访问开始返回
             for (Map.Entry<Tuple2<JobID, BlobKey>, Long> entry : caches.entrySet()) {
                 if (current + size > sizeLimit) {
                     blobsToDelete.add(entry.getKey());
@@ -100,7 +113,9 @@ public class BlobCacheSizeTracker {
         }
     }
 
-    /** Register the BLOB to the tracker. */
+    /** Register the BLOB to the tracker.
+     * 追踪某个blob
+     * */
     public void track(JobID jobId, BlobKey blobKey, long size) {
         checkNotNull(jobId);
         checkNotNull(blobKey);
@@ -110,6 +125,7 @@ public class BlobCacheSizeTracker {
             if (caches.putIfAbsent(Tuple2.of(jobId, blobKey), size) == null) {
                 blobKeyByJob.computeIfAbsent(jobId, ignore -> new HashSet<>()).add(blobKey);
 
+                // 当加入该blob后 超出了size限制
                 total += size;
                 if (total > sizeLimit) {
                     LOG.warn(
@@ -131,7 +147,9 @@ public class BlobCacheSizeTracker {
         }
     }
 
-    /** Remove the BLOB from the tracker. */
+    /** Remove the BLOB from the tracker.
+     * 移除某个blob
+     * */
     public void untrack(Tuple2<JobID, BlobKey> key) {
         checkNotNull(key);
         checkNotNull(key.f0);
@@ -165,11 +183,14 @@ public class BlobCacheSizeTracker {
         checkNotNull(blobKey);
 
         synchronized (lock) {
+            // 触发get 会更新linkedHashMap中的访问时间  这样在迭代时 顺序就会变了
             caches.get(Tuple2.of(jobId, blobKey));
         }
     }
 
-    /** Unregister all the tracked BLOBs related to the given job. */
+    /** Unregister all the tracked BLOBs related to the given job.
+     * 移除某个job相关的所有 blob
+     * */
     public void untrackAll(JobID jobId) {
         checkNotNull(jobId);
 

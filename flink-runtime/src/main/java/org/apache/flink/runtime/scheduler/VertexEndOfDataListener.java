@@ -34,10 +34,14 @@ import java.util.Set;
 /**
  * Records the end of data event of each task, and allows for checking whether all tasks of a {@link
  * JobGraph} have reached the end of data.
+ * 监听task是否处理完数据
  */
 public class VertexEndOfDataListener {
     private final ExecutionGraph executionGraph;
 
+    /**
+     * 每个JobVertexID 对应一个task   位图对应subtask
+     */
     private final Map<JobVertexID, BitSet> tasksReachedEndOfData;
 
     public VertexEndOfDataListener(ExecutionGraph executionGraph) {
@@ -48,11 +52,19 @@ public class VertexEndOfDataListener {
         }
     }
 
+    /**
+     *
+     * @param executionAttemptID  细化到subtask
+     */
     public void recordTaskEndOfData(ExecutionAttemptID executionAttemptID) {
         BitSet subtaskStatus = tasksReachedEndOfData.get(executionAttemptID.getJobVertexId());
         subtaskStatus.set(executionAttemptID.getSubtaskIndex());
     }
 
+    /**
+     * 判断是否所有任务都完成
+     * @return
+     */
     public boolean areAllTasksEndOfData() {
         Iterator<Map.Entry<JobVertexID, BitSet>> iterator =
                 tasksReachedEndOfData.entrySet().iterator();
@@ -60,6 +72,7 @@ public class VertexEndOfDataListener {
             Map.Entry<JobVertexID, BitSet> entry = iterator.next();
             JobVertexID vertex = entry.getKey();
             BitSet status = entry.getValue();
+            // 设置的位与并行度相同
             if (status.cardinality() != executionGraph.getJobVertex(vertex).getParallelism()) {
                 return false;
             } else {
@@ -69,6 +82,10 @@ public class VertexEndOfDataListener {
         return true;
     }
 
+    /**
+     * 将这些子任务重置成false
+     * @param executionVertices
+     */
     public void restoreVertices(Set<ExecutionVertexID> executionVertices) {
         for (ExecutionVertexID executionVertex : executionVertices) {
             JobVertexID jobVertexId = executionVertex.getJobVertexId();

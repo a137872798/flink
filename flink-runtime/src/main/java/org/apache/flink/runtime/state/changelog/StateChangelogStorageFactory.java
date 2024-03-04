@@ -29,6 +29,7 @@ import java.io.IOException;
 /**
  * A factory for {@link StateChangelogStorage}. Please use {@link StateChangelogStorageLoader} to
  * create {@link StateChangelogStorage}.
+ * 工厂提供产生stateChange记录的api
  */
 @Internal
 public interface StateChangelogStorageFactory {

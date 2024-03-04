@@ -27,6 +27,7 @@ import java.util.Iterator;
  * This class defines a range of key-group indexes. Key-groups are the granularity into which the
  * keyspace of a job is partitioned for keyed state-handling in state backends. The boundaries of
  * the range are inclusive.
+ * 表示一个范围所包含的内容  作为list的元素
  */
 public class KeyGroupRange implements KeyGroupsList, Serializable {
 
@@ -35,6 +36,7 @@ public class KeyGroupRange implements KeyGroupsList, Serializable {
     /** The empty key-group */
     public static final KeyGroupRange EMPTY_KEY_GROUP_RANGE = new KeyGroupRange();
 
+    // 上下限
     private final int startKeyGroup;
     private final int endKeyGroup;
 
@@ -74,6 +76,8 @@ public class KeyGroupRange implements KeyGroupsList, Serializable {
      *
      * @param other A KeyGroupRange to intersect.
      * @return Key-group range that is the intersection between this and the given key-group range.
+     *
+     * 返回跟另一个 keyGroup的交集
      */
     public KeyGroupRange getIntersection(KeyGroupRange other) {
         int start = Math.max(startKeyGroup, other.startKeyGroup);
@@ -140,6 +144,9 @@ public class KeyGroupRange implements KeyGroupsList, Serializable {
         return new KeyGroupIterator();
     }
 
+    /**
+     * 产生迭代器 遍历所有keyGroup
+     */
     private final class KeyGroupIterator implements Iterator<Integer> {
 
         public KeyGroupIterator() {

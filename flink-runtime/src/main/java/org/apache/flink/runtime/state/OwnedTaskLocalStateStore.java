@@ -33,6 +33,7 @@ public interface OwnedTaskLocalStateStore extends TaskLocalStateStore {
     /**
      * Disposes the task local state store. Disposal can happen asynchronously and completion is
      * signaled through the returned future.
+     * 表示可以丢弃数据
      */
     CompletableFuture<Void> dispose();
 }

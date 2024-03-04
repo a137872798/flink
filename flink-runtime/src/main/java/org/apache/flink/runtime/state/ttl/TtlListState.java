@@ -39,6 +39,8 @@ import java.util.NoSuchElementException;
  * @param <K> The type of key the state is associated to
  * @param <N> The type of the namespace
  * @param <T> Type of the user entry value of state with TTL
+ *
+ *           表示state内是 list类型的
  */
 class TtlListState<K, N, T>
         extends AbstractTtlState<
@@ -67,6 +69,8 @@ class TtlListState<K, N, T>
         accessCallback.run();
         Iterable<TtlValue<T>> ttlValue = original.get();
         ttlValue = ttlValue == null ? Collections.emptyList() : ttlValue;
+
+        // 更新时间戳
         if (updateTsOnRead) {
             List<TtlValue<T>> collected = collect(ttlValue);
             ttlValue = collected;
@@ -76,18 +80,27 @@ class TtlListState<K, N, T>
             updateTs(collected);
         }
         final Iterable<TtlValue<T>> finalResult = ttlValue;
+
+        // 惰性检测
         return () -> new IteratorWithCleanup(finalResult.iterator());
     }
 
+    /**
+     * 更新list内元素的时间戳
+     * @param ttlValues
+     * @throws Exception
+     */
     private void updateTs(List<TtlValue<T>> ttlValues) throws Exception {
         List<TtlValue<T>> unexpiredWithUpdatedTs = new ArrayList<>(ttlValues.size());
         long currentTimestamp = timeProvider.currentTimestamp();
         for (TtlValue<T> ttlValue : ttlValues) {
+            // 未过期的才能更新时间戳
             if (!TtlUtils.expired(ttlValue, ttl, currentTimestamp)) {
                 unexpiredWithUpdatedTs.add(
                         TtlUtils.wrapWithTs(ttlValue.getUserValue(), currentTimestamp));
             }
         }
+        // 此时已经完成state的更新了
         if (!unexpiredWithUpdatedTs.isEmpty()) {
             original.update(unexpiredWithUpdatedTs);
         }
@@ -97,6 +110,7 @@ class TtlListState<K, N, T>
     public void add(T value) throws Exception {
         accessCallback.run();
         Preconditions.checkNotNull(value, "You cannot add null to a ListState.");
+        // 添加元素前 需要附加时间戳
         original.add(wrapWithTs(value));
     }
 
@@ -113,6 +127,8 @@ class TtlListState<K, N, T>
         TypeSerializer<TtlValue<T>> elementSerializer =
                 ((ListSerializer<TtlValue<T>>) original.getValueSerializer())
                         .getElementSerializer();
+
+        // 返回未过期的值
         for (TtlValue<T> ttlValue : ttlValues) {
             if (!TtlUtils.expired(ttlValue, ttl, currentTimestamp)) {
                 // we have to do the defensive copy to update the value
@@ -142,6 +158,12 @@ class TtlListState<K, N, T>
         return collect(get());
     }
 
+    /**
+     * 将迭代器内的元素采集起来
+     * @param iterable
+     * @param <E>
+     * @return
+     */
     private <E> List<E> collect(Iterable<E> iterable) {
         if (iterable instanceof List) {
             return (List<E>) iterable;
@@ -160,6 +182,11 @@ class TtlListState<K, N, T>
         original.update(withTs(valueToStore));
     }
 
+    /**
+     * 更新列表中每个元素的访问时间
+     * @param values
+     * @return
+     */
     private List<TtlValue<T>> withTs(List<T> values) {
         long currentTimestamp = timeProvider.currentTimestamp();
         List<TtlValue<T>> withTs = new ArrayList<>(values.size());
@@ -170,6 +197,9 @@ class TtlListState<K, N, T>
         return withTs;
     }
 
+    /**
+     * 在迭代元素时  会检查并跳过过期的值
+     */
     private class IteratorWithCleanup implements Iterator<T> {
         private final Iterator<TtlValue<T>> originalIterator;
         private boolean anyUnexpired = false;
@@ -189,6 +219,8 @@ class TtlListState<K, N, T>
 
         private void cleanupIfEmpty() {
             boolean endOfIter = !originalIterator.hasNext() && nextUnexpired == null;
+
+            // !anyUnexpired  代表没有一个有效的数据 全是过期数据  那么就可以清理整个state了
             if (uncleared && !anyUnexpired && endOfIter) {
                 original.clear();
                 uncleared = false;
@@ -205,6 +237,9 @@ class TtlListState<K, N, T>
             throw new NoSuchElementException();
         }
 
+        /**
+         * 找寻下个未过期值
+         */
         private void findNextUnexpired() {
             while (nextUnexpired == null && originalIterator.hasNext()) {
                 TtlValue<T> ttlValue = originalIterator.next();
@@ -215,6 +250,7 @@ class TtlListState<K, N, T>
                 if (unexpired) {
                     anyUnexpired = true;
                 }
+                // 表示过期且允许返回
                 if (unexpired || returnExpired) {
                     nextUnexpired = ttlValue.getUserValue();
                 }

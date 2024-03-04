@@ -23,7 +23,14 @@ package org.apache.flink.runtime.iterative.task;
  */
 public interface Terminable {
 
+    /**
+     * 判断是否请求了终止
+     * @return
+     */
     boolean terminationRequested();
 
+    /**
+     * 请求终止
+     */
     void requestTermination();
 }

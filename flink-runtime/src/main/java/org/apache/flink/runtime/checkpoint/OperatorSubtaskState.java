@@ -56,6 +56,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * operator subtask can become responsible for the state of multiple previous subtasks. The
  * collections can then store all the state handles that are relevant to build up the new subtask
  * state.
+ *
+ * 内部是各种state 外加有关input/output的重映射对象
  */
 public class OperatorSubtaskState implements CompositeStateHandle {
 
@@ -63,7 +65,9 @@ public class OperatorSubtaskState implements CompositeStateHandle {
 
     private static final long serialVersionUID = -2394696997971923995L;
 
-    /** Snapshot from the {@link org.apache.flink.runtime.state.OperatorStateBackend}. */
+    /** Snapshot from the {@link org.apache.flink.runtime.state.OperatorStateBackend}.
+     * 维护该子任务相关的所有状态
+     * */
     private final StateObjectCollection<OperatorStateHandle> managedOperatorState;
 
     /**
@@ -72,7 +76,9 @@ public class OperatorSubtaskState implements CompositeStateHandle {
      */
     private final StateObjectCollection<OperatorStateHandle> rawOperatorState;
 
-    /** Snapshot from {@link org.apache.flink.runtime.state.KeyedStateBackend}. */
+    /** Snapshot from {@link org.apache.flink.runtime.state.KeyedStateBackend}.
+     * 这组handle 包含keyGroup信息
+     * */
     private final StateObjectCollection<KeyedStateHandle> managedKeyedState;
 
     /**
@@ -81,9 +87,13 @@ public class OperatorSubtaskState implements CompositeStateHandle {
      */
     private final StateObjectCollection<KeyedStateHandle> rawKeyedState;
 
+    // 一个表示输入  一个表示输出
+
     private final StateObjectCollection<InputChannelStateHandle> inputChannelState;
 
     private final StateObjectCollection<ResultSubpartitionStateHandle> resultSubpartitionState;
+
+    // InflightDataRescalingDescriptor 用于重映射分区
 
     /**
      * The subpartitions mappings per partition set when the output operator for a partition was
@@ -111,6 +121,17 @@ public class OperatorSubtaskState implements CompositeStateHandle {
 
     private final long checkpointedSize;
 
+    /**
+     * 使用各种状态容器来初始化
+     * @param managedOperatorState
+     * @param rawOperatorState
+     * @param managedKeyedState
+     * @param rawKeyedState
+     * @param inputChannelState
+     * @param resultSubpartitionState
+     * @param inputRescalingDescriptor
+     * @param outputRescalingDescriptor
+     */
     private OperatorSubtaskState(
             StateObjectCollection<OperatorStateHandle> managedOperatorState,
             StateObjectCollection<OperatorStateHandle> rawOperatorState,
@@ -136,6 +157,7 @@ public class OperatorSubtaskState implements CompositeStateHandle {
         calculateStateSize += rawKeyedState.getStateSize();
         calculateStateSize += inputChannelState.getStateSize();
         calculateStateSize += resultSubpartitionState.getStateSize();
+        // 计算出所有state的总大小
         stateSize = calculateStateSize;
 
         long calculateCheckpointedSize = managedOperatorState.getCheckpointedSize();
@@ -144,6 +166,7 @@ public class OperatorSubtaskState implements CompositeStateHandle {
         calculateCheckpointedSize += rawKeyedState.getCheckpointedSize();
         calculateCheckpointedSize += inputChannelState.getCheckpointedSize();
         calculateCheckpointedSize += resultSubpartitionState.getCheckpointedSize();
+        // 计算所有检查点大小  默认情况下检查点大小就是state大小
         this.checkpointedSize = calculateCheckpointedSize;
     }
 
@@ -222,6 +245,12 @@ public class OperatorSubtaskState implements CompositeStateHandle {
         registerSharedState(sharedStateRegistry, rawKeyedState, checkpointID);
     }
 
+    /**
+     * 将本对象内部的state作为共享state
+     * @param sharedStateRegistry
+     * @param stateHandles
+     * @param checkpointID
+     */
     private static void registerSharedState(
             SharedStateRegistry sharedStateRegistry,
             Iterable<KeyedStateHandle> stateHandles,

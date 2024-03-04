@@ -26,17 +26,25 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Map;
 
-/** Interface of a state handle for operator state. */
+/** Interface of a state handle for operator state.
+ * 算子状态有一个id
+ * */
 public interface OperatorStateHandle extends StreamStateHandle {
 
-    /** Returns a map of meta data for all contained states by their name. */
+    /** Returns a map of meta data for all contained states by their name.
+     * 里面包含了多个状态
+     * */
     Map<String, StateMetaInfo> getStateNameToPartitionOffsets();
 
-    /** Returns an input stream to read the operator state information. */
+    /** Returns an input stream to read the operator state information.
+     * 利用offset读取状态
+     * */
     @Override
     FSDataInputStream openInputStream() throws IOException;
 
-    /** Returns the underlying stream state handle that points to the state data. */
+    /** Returns the underlying stream state handle that points to the state data.
+     * 解包装
+     * */
     StreamStateHandle getDelegateStateHandle();
 
     /**
@@ -44,14 +52,19 @@ public interface OperatorStateHandle extends StreamStateHandle {
      * restore.
      */
     enum Mode {
+        // 状态分裂且分布在每个task上
         SPLIT_DISTRIBUTE, // The operator state partitions in the state handle are split and
         // distributed to one task each.
+        // 合并后发送到所有task
         UNION, // The operator state partitions are UNION-ed upon restoring and sent to all tasks.
+        // 每个task收到的state是一样的
         BROADCAST // The operator states are identical, as the state is produced from a broadcast
         // stream.
     }
 
-    /** Meta information about the operator state handle. */
+    /** Meta information about the operator state handle.
+     * 偏移量应该是状态在stream的位置
+     * */
     class StateMetaInfo implements Serializable {
 
         private static final long serialVersionUID = 3593817615858941166L;

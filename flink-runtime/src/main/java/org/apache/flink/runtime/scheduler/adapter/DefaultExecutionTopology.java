@@ -66,29 +66,51 @@ import java.util.stream.Stream;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** Adapter of {@link ExecutionGraph} to {@link SchedulingTopology}. */
+/** Adapter of {@link ExecutionGraph} to {@link SchedulingTopology}.
+ * 拓扑图对象
+ * */
 public class DefaultExecutionTopology implements SchedulingTopology {
 
     private static final Logger LOG = LoggerFactory.getLogger(DefaultExecutionTopology.class);
 
+    /**
+     * 存储各顶点
+     */
     private final Map<ExecutionVertexID, DefaultExecutionVertex> executionVerticesById;
 
+    /**
+     * 存储相关的所有顶点
+     */
     private final List<DefaultExecutionVertex> executionVerticesList;
 
+    /**
+     * id 对应分区对象
+     */
     private final Map<IntermediateResultPartitionID, DefaultResultPartition> resultPartitionsById;
 
+    /**
+     * 每个消费对象属于一条流水线
+     */
     private final Map<ExecutionVertexID, DefaultSchedulingPipelinedRegion> pipelinedRegionsByVertex;
 
     private final List<DefaultSchedulingPipelinedRegion> pipelinedRegions;
 
+    /**
+     * 该对象记录数据集和消费者的关系
+     */
     private final EdgeManager edgeManager;
 
     private final Supplier<List<ExecutionVertexID>> sortedExecutionVertexIds;
 
+    /**
+     * 每个逻辑层面的顶点 与对应的流水线
+     */
     private final Map<JobVertexID, DefaultLogicalPipelinedRegion>
             logicalPipelinedRegionsByJobVertexId;
 
-    /** Listeners that will be notified whenever the scheduling topology is updated. */
+    /** Listeners that will be notified whenever the scheduling topology is updated.
+     * 监听拓扑图的变化
+     * */
     private final List<SchedulingTopologyListener> schedulingTopologyListeners = new ArrayList<>();
 
     private DefaultExecutionTopology(
@@ -107,6 +129,10 @@ public class DefaultExecutionTopology implements SchedulingTopology {
         this.pipelinedRegions = new ArrayList<>();
     }
 
+    /**
+     * 返回所有顶点
+     * @return
+     */
     @Override
     public Iterable<DefaultExecutionVertex> getVertices() {
         return Collections.unmodifiableList(executionVerticesList);
@@ -133,6 +159,10 @@ public class DefaultExecutionTopology implements SchedulingTopology {
         return resultPartition;
     }
 
+    /**
+     * 添加监听器
+     * @param listener the registered listener.
+     */
     @Override
     public void registerSchedulingTopologyListener(SchedulingTopologyListener listener) {
         checkNotNull(listener);
@@ -146,6 +176,12 @@ public class DefaultExecutionTopology implements SchedulingTopology {
         return Collections.unmodifiableCollection(pipelinedRegions);
     }
 
+    /**
+     * 找到顶点所属的流水线    看来一个顶点只属于一个流水线
+     * @param vertexId the vertex id identifying the vertex for which the pipelined region should be
+     *     returned
+     * @return
+     */
     @Override
     public DefaultSchedulingPipelinedRegion getPipelinedRegionOfVertex(
             final ExecutionVertexID vertexId) {
@@ -163,6 +199,11 @@ public class DefaultExecutionTopology implements SchedulingTopology {
         return edgeManager;
     }
 
+    /**
+     *
+     * @param executionGraph  通过执行图计算一些东西
+     * @return
+     */
     private static Map<JobVertexID, DefaultLogicalPipelinedRegion>
             computeLogicalPipelinedRegionsByJobVertexId(final ExecutionGraph executionGraph) {
         List<JobVertex> topologicallySortedJobVertices =

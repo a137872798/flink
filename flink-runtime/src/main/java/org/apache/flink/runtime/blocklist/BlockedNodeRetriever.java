@@ -19,7 +19,9 @@ package org.apache.flink.runtime.blocklist;
 
 import java.util.Set;
 
-/** This class helps to retrieve the blocked nodes. */
+/** This class helps to retrieve the blocked nodes.
+ * 该对象可以检索被阻塞的节点
+ * */
 public interface BlockedNodeRetriever {
 
     /**

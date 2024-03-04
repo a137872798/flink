@@ -94,6 +94,9 @@ public class ExecutionJobVertex
 
     @Nullable private ExecutionVertex[] taskVertices;
 
+    /**
+     * 代表结果集 或者说输出
+     */
     @Nullable private IntermediateResult[] producedDataSets;
 
     @Nullable private List<IntermediateResult> inputs;
@@ -338,6 +341,10 @@ public class ExecutionJobVertex
         return getJobVertex().getName();
     }
 
+    /**
+     * 获取并行度  每个并行度其实对应一个子任务   也就是某个任务下的多个子任务 就是并行的具像化
+     * @return
+     */
     @Override
     public int getParallelism() {
         return parallelismInfo.getParallelism();
@@ -353,6 +360,11 @@ public class ExecutionJobVertex
         return resourceProfile;
     }
 
+    /**
+     * 检测是否能提升到该并行度
+     * @param desiredMaxParallelism
+     * @return
+     */
     public boolean canRescaleMaxParallelism(int desiredMaxParallelism) {
         return parallelismInfo.canRescaleMaxParallelism(desiredMaxParallelism);
     }
@@ -605,9 +617,10 @@ public class ExecutionJobVertex
      * on.
      *
      * @param verticesPerState The number of vertices in each state (indexed by the ordinal of the
-     *     ExecutionState values).
-     * @param parallelism The parallelism of the ExecutionJobVertex
+     *     ExecutionState values).    每种状态出现的次数
+     * @param parallelism The parallelism of the ExecutionJobVertex   job的并行度  也就是有多少subtask
      * @return The aggregate state of this ExecutionJobVertex.
+     *
      */
     public static ExecutionState getAggregateJobVertexState(
             int[] verticesPerState, int parallelism) {
@@ -616,6 +629,7 @@ public class ExecutionJobVertex
                     "Must provide an array as large as there are execution states.");
         }
 
+        // 根据情况判断最终状态
         if (verticesPerState[ExecutionState.FAILED.ordinal()] > 0) {
             return ExecutionState.FAILED;
         }
@@ -629,7 +643,7 @@ public class ExecutionJobVertex
             return ExecutionState.RUNNING;
         } else if (verticesPerState[ExecutionState.FINISHED.ordinal()] > 0) {
             return verticesPerState[ExecutionState.FINISHED.ordinal()] == parallelism
-                    ? ExecutionState.FINISHED
+                    ? ExecutionState.FINISHED  // 全部完成才算finished
                     : ExecutionState.RUNNING;
         } else {
             // all else collapses under created

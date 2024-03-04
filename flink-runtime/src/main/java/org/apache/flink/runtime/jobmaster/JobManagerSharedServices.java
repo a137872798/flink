@@ -50,6 +50,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * Utility class which holds all auxiliary shared services used by the {@link JobMaster}.
  * Consequently, the {@link JobMaster} should never shut these services down.
+ * 提供一些共享服务
  */
 public class JobManagerSharedServices {
 
@@ -59,10 +60,19 @@ public class JobManagerSharedServices {
 
     private final ExecutorService ioExecutor;
 
+    /**
+     * 获取类加载器
+     */
     private final LibraryCacheManager libraryCacheManager;
 
+    /**
+     * 洗牌对象
+     */
     private final ShuffleMaster<?> shuffleMaster;
 
+    /**
+     * 使用该对象可以写入数据
+     */
     @Nonnull private final BlobWriter blobWriter;
 
     public JobManagerSharedServices(
@@ -137,6 +147,14 @@ public class JobManagerSharedServices {
     //  Creating the components from a configuration
     // ------------------------------------------------------------------------
 
+    /**
+     * 描述如何初始化该对象
+     * @param config
+     * @param blobServer
+     * @param fatalErrorHandler
+     * @return
+     * @throws Exception
+     */
     public static JobManagerSharedServices fromConfiguration(
             Configuration config, BlobServer blobServer, FatalErrorHandler fatalErrorHandler)
             throws Exception {

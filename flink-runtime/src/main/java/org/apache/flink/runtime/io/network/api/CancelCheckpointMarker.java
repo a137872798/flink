@@ -28,6 +28,8 @@ import java.io.IOException;
  * The CancelCheckpointMarker travels through the data streams, similar to the {@link
  * CheckpointBarrier}, but signals that a certain checkpoint should be canceled. Any in-progress
  * alignment for that checkpoint needs to be canceled and regular processing should be resumed.
+ *
+ * 表示一个取消checkpoint的事件
  */
 public class CancelCheckpointMarker extends RuntimeEvent {
 
@@ -45,6 +47,8 @@ public class CancelCheckpointMarker extends RuntimeEvent {
     // ------------------------------------------------------------------------
     // These known and common event go through special code paths, rather than
     // through generic serialization.
+
+    // 该对象无法从其他对象读取/写入其他对象
 
     @Override
     public void write(DataOutputView out) throws IOException {

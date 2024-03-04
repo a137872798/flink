@@ -28,9 +28,14 @@ import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-/** Initial state of the {@link AdaptiveScheduler}. */
+/** Initial state of the {@link AdaptiveScheduler}.
+ * 表示刚被创建
+ * */
 class Created implements State {
 
+    /**
+     * 上下文决定了本对象可以转变的状态
+     */
     private final Context context;
 
     private final Logger logger;
@@ -40,6 +45,9 @@ class Created implements State {
         this.logger = logger;
     }
 
+    /**
+     * 进入结束状态
+     */
     @Override
     public void cancel() {
         context.goToFinished(context.getArchivedExecutionGraph(JobStatus.CANCELED, null));
@@ -50,11 +58,19 @@ class Created implements State {
         context.goToFinished(context.getArchivedExecutionGraph(JobStatus.SUSPENDED, cause));
     }
 
+    /**
+     * 因为是刚创建
+     * @return
+     */
     @Override
     public JobStatus getJobStatus() {
         return JobStatus.INITIALIZING;
     }
 
+    /**
+     * 基于当前状态获得归档图
+     * @return
+     */
     @Override
     public ArchivedExecutionGraph getJob() {
         return context.getArchivedExecutionGraph(getJobStatus(), null);
@@ -71,12 +87,16 @@ class Created implements State {
         return logger;
     }
 
-    /** Starts the scheduling by going into the {@link WaitingForResources} state. */
+    /** Starts the scheduling by going into the {@link WaitingForResources} state.
+     * 创建后就要开始调度了  然后就会等待资源
+     * */
     void startScheduling() {
         context.goToWaitingForResources(null);
     }
 
-    /** Context of the {@link Created} state. */
+    /** Context of the {@link Created} state.
+     *
+     * */
     interface Context extends StateTransitions.ToFinished, StateTransitions.ToWaitingForResources {
 
         /**
@@ -86,6 +106,7 @@ class Created implements State {
          * @param cause cause represents the failure cause for the {@link ArchivedExecutionGraph};
          *     {@code null} if there is no failure cause
          * @return the created {@link ArchivedExecutionGraph}
+         * 获取归档的执行图
          */
         ArchivedExecutionGraph getArchivedExecutionGraph(
                 JobStatus jobStatus, @Nullable Throwable cause);

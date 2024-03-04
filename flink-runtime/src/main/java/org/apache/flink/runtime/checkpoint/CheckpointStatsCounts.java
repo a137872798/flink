@@ -25,7 +25,9 @@ import java.io.Serializable;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
 
-/** Counts of checkpoints. */
+/** Counts of checkpoints.
+ * 维护检查点级别的一些计数值
+ * */
 public class CheckpointStatsCounts implements Serializable {
     private static final Logger LOG = LoggerFactory.getLogger(CheckpointStatsCounts.class);
 
@@ -79,6 +81,8 @@ public class CheckpointStatsCounts implements Serializable {
         this.numCompletedCheckpoints = numCompletedCheckpoints;
         this.numFailedCheckpoints = numFailedCheckpoints;
     }
+
+    // 开放读取/增加 计数值的api
 
     /**
      * Returns the number of restored checkpoints.
@@ -175,6 +179,7 @@ public class CheckpointStatsCounts implements Serializable {
      * Creates a snapshot of the current state.
      *
      * @return Snapshot of the current state.
+     * 产生一个快照
      */
     CheckpointStatsCounts createSnapshot() {
         return new CheckpointStatsCounts(

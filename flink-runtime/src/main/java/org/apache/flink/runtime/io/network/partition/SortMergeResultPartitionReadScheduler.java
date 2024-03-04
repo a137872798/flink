@@ -59,6 +59,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * consuming the corresponding {@link SortMergeResultPartition}. It always tries to read shuffle
  * data in order of file offset, which maximums the sequential read so can improve the blocking
  * shuffle performance.
+ * 这是一个调度器对象 用于读取分区数据
  */
 class SortMergeResultPartitionReadScheduler implements Runnable, BufferRecycler {
 
@@ -160,11 +161,15 @@ class SortMergeResultPartitionReadScheduler implements Runnable, BufferRecycler 
         BufferReaderWriterUtil.configureByteBuffer(indexEntryBufferRead);
     }
 
+    /**
+     * 当创建reader后 执行该方法
+     */
     @Override
     public synchronized void run() {
         Set<SortMergeSubpartitionReader> finishedReaders = new HashSet<>();
         Queue<MemorySegment> buffers;
         try {
+            // 申请内存块
             buffers = allocateBuffers();
         } catch (Throwable throwable) {
             // fail all pending subpartition readers immediately if any exception occurs
@@ -177,9 +182,12 @@ class SortMergeResultPartitionReadScheduler implements Runnable, BufferRecycler 
         int numBuffersAllocated = buffers.size();
 
         ArrayList<SortMergeSubpartitionReader> unfinishedReaders = new ArrayList<>();
+
+        // 找到一个需要借用buffer的reader对象
         SortMergeSubpartitionReader subpartitionReader = getNextReader();
         while (subpartitionReader != null) {
             try {
+                // 表示数据读取完了
                 if (!subpartitionReader.readBuffers(buffers, this)) {
                     // there is no resource to release for finished readers currently
                     finishedReaders.add(subpartitionReader);
@@ -197,6 +205,7 @@ class SortMergeResultPartitionReadScheduler implements Runnable, BufferRecycler 
 
             subpartitionReader = getNextReader();
             if (subpartitionReader == null && !unfinishedReaders.isEmpty()) {
+                // 循环读取
                 returnUnfinishedReaders(unfinishedReaders);
                 subpartitionReader = getNextReader();
             }
@@ -209,6 +218,11 @@ class SortMergeResultPartitionReadScheduler implements Runnable, BufferRecycler 
         removeFinishedAndFailedReaders(numBuffersRead, finishedReaders);
     }
 
+    /**
+     * 分配内存块
+     * @return
+     * @throws Exception
+     */
     @VisibleForTesting
     Queue<MemorySegment> allocateBuffers() throws Exception {
         long timeoutTime = getBufferRequestTimeoutTime();
@@ -241,6 +255,10 @@ class SortMergeResultPartitionReadScheduler implements Runnable, BufferRecycler 
                         TaskManagerOptions.NETWORK_BATCH_SHUFFLE_READ_MEMORY.key()));
     }
 
+    /**
+     * 获取申请buffer的超时时间
+     * @return
+     */
     private long getBufferRequestTimeoutTime() {
         return bufferPool.getLastBufferOperationTimestamp() + bufferRequestTimeout.toMillis();
     }
@@ -275,19 +293,27 @@ class SortMergeResultPartitionReadScheduler implements Runnable, BufferRecycler 
         }
     }
 
+    /**
+     * 移动某些reader
+     * @param numBuffersRead
+     * @param finishedReaders
+     */
     private void removeFinishedAndFailedReaders(
             int numBuffersRead, Set<SortMergeSubpartitionReader> finishedReaders) {
         synchronized (lock) {
+            // 表示这些处理完了
             for (SortMergeSubpartitionReader reader : finishedReaders) {
                 allReaders.remove(reader);
             }
             finishedReaders.clear();
 
+            // 移除掉失败的reader
             for (SortMergeSubpartitionReader reader : failedReaders) {
                 allReaders.remove(reader);
             }
             failedReaders.clear();
 
+            // 表示所有reader都处理完了
             if (allReaders.isEmpty()) {
                 bufferPool.unregisterRequester(this);
                 closeFileChannels();
@@ -319,6 +345,10 @@ class SortMergeResultPartitionReadScheduler implements Runnable, BufferRecycler 
         }
     }
 
+    /**
+     * 获取下个reader对象
+     * @return
+     */
     @Nullable
     private SortMergeSubpartitionReader getNextReader() {
         synchronized (lock) {
@@ -339,6 +369,14 @@ class SortMergeResultPartitionReadScheduler implements Runnable, BufferRecycler 
         }
     }
 
+    /**
+     * 该方法是入口 当尝试获取某个子分区的reader对象时  会调用该方法
+     * @param availabilityListener
+     * @param targetSubpartition
+     * @param resultFile    存储数据的文件
+     * @return
+     * @throws IOException
+     */
     SortMergeSubpartitionReader createSubpartitionReader(
             BufferAvailabilityListener availabilityListener,
             int targetSubpartition,
@@ -347,10 +385,13 @@ class SortMergeResultPartitionReadScheduler implements Runnable, BufferRecycler 
         synchronized (lock) {
             checkState(!isReleased, "Partition is already released.");
 
+            // 产生reader对象
             PartitionedFileReader fileReader = createFileReader(resultFile, targetSubpartition);
+            // 包装reader对象
             SortMergeSubpartitionReader subpartitionReader =
                     new SortMergeSubpartitionReader(availabilityListener, fileReader);
             if (allReaders.isEmpty()) {
+                // 表示该对象会使用内存块
                 bufferPool.registerRequester(this);
             }
             allReaders.add(subpartitionReader);
@@ -364,6 +405,10 @@ class SortMergeResultPartitionReadScheduler implements Runnable, BufferRecycler 
         }
     }
 
+    /**
+     * 当reader被释放时 移动到failedReaders中
+     * @param subpartitionReader
+     */
     private void releaseSubpartitionReader(SortMergeSubpartitionReader subpartitionReader) {
         synchronized (lock) {
             if (allReaders.contains(subpartitionReader)) {
@@ -372,6 +417,13 @@ class SortMergeResultPartitionReadScheduler implements Runnable, BufferRecycler 
         }
     }
 
+    /**
+     * 产生reader对象
+     * @param resultFile
+     * @param targetSubpartition
+     * @return
+     * @throws IOException
+     */
     @GuardedBy("lock")
     private PartitionedFileReader createFileReader(
             PartitionedFile resultFile, int targetSubpartition) throws IOException {
@@ -381,6 +433,8 @@ class SortMergeResultPartitionReadScheduler implements Runnable, BufferRecycler 
             if (allReaders.isEmpty()) {
                 openFileChannels(resultFile);
             }
+
+            // 初始化reader对象
             PartitionedFileReader partitionedFileReader =
                     new PartitionedFileReader(
                             resultFile,
@@ -389,6 +443,8 @@ class SortMergeResultPartitionReadScheduler implements Runnable, BufferRecycler 
                             indexFileChannel,
                             headerBuf,
                             indexEntryBufferRead);
+
+            // 读取region索引数据
             partitionedFileReader.initRegionIndex(indexEntryBufferInit);
             return partitionedFileReader;
         } catch (Throwable throwable) {
@@ -427,6 +483,9 @@ class SortMergeResultPartitionReadScheduler implements Runnable, BufferRecycler 
         }
     }
 
+    /**
+     * 可能会触发read
+     */
     @GuardedBy("lock")
     private void mayTriggerReading() {
         assert Thread.holdsLock(lock);
@@ -459,6 +518,7 @@ class SortMergeResultPartitionReadScheduler implements Runnable, BufferRecycler 
     /**
      * Releases this read scheduler and returns a {@link CompletableFuture} which will be completed
      * when all resources are released.
+     * 当关联的分区对象触发release时  会触发该方法
      */
     CompletableFuture<?> release() {
         List<SortMergeSubpartitionReader> pendingReaders;

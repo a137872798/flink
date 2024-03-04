@@ -24,6 +24,7 @@ import java.io.Serializable;
  * Fenced {@link RpcGateway}. This gateway allows to have access to the associated fencing token.
  *
  * @param <F> type of the fencing token
+ *           表示需要通过token才能访问
  */
 public interface FencedRpcGateway<F extends Serializable> extends RpcGateway {
 

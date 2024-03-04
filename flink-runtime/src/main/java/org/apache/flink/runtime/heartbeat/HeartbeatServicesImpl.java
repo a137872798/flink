@@ -26,7 +26,9 @@ import org.slf4j.Logger;
 
 import static org.apache.flink.configuration.HeartbeatManagerOptions.FAILED_RPC_DETECTION_DISABLED;
 
-/** A default {@link HeartbeatServices} implementation. */
+/** A default {@link HeartbeatServices} implementation.
+ * 这个就是创建组件用的
+ * */
 public final class HeartbeatServicesImpl implements HeartbeatServices {
 
     /** Heartbeat interval for the created services. */

@@ -34,13 +34,20 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * Deployment descriptor for a result partition.
  *
  * @see ResultPartition
+ * 描述结果的分区
  */
 public class ResultPartitionDeploymentDescriptor implements Serializable {
 
     private static final long serialVersionUID = 6343547936086963705L;
 
+    /**
+     * 描述某个数据集在某个分区的描述信息
+     */
     private final PartitionDescriptor partitionDescriptor;
 
+    /**
+     * 洗牌信息
+     */
     private final ShuffleDescriptor shuffleDescriptor;
 
     private final int maxParallelism;

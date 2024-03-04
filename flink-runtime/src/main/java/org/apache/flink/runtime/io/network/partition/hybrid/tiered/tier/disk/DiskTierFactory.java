@@ -43,7 +43,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import static org.apache.flink.runtime.io.network.partition.hybrid.tiered.file.ProducerMergedPartitionFile.DATA_FILE_SUFFIX;
 import static org.apache.flink.runtime.io.network.partition.hybrid.tiered.file.ProducerMergedPartitionFile.INDEX_FILE_SUFFIX;
 
-/** The implementation of {@link TierFactory} for disk tier. */
+/** The implementation of {@link TierFactory} for disk tier.
+ * 工厂用于创建3种探针
+ * */
 public class DiskTierFactory implements TierFactory {
 
     private final int numBytesPerSegment;
@@ -73,6 +75,11 @@ public class DiskTierFactory implements TierFactory {
         this.numRetainedInMemoryRegionsMax = numRetainedInMemoryRegionsMax;
     }
 
+    /**
+     * 本地的都不需要master
+     * @param resourceRegistry
+     * @return
+     */
     @Override
     public TierMasterAgent createMasterAgent(TieredStorageResourceRegistry resourceRegistry) {
         return NoOpMasterAgent.INSTANCE;
@@ -92,6 +99,8 @@ public class DiskTierFactory implements TierFactory {
             int maxRequestedBuffers,
             Duration bufferRequestTimeout,
             int maxBufferReadAhead) {
+
+        // 存储文件索引数据
         ProducerMergedPartitionFileIndex partitionFileIndex =
                 new ProducerMergedPartitionFileIndex(
                         isBroadcastOnly ? 1 : numSubpartitions,
@@ -99,9 +108,13 @@ public class DiskTierFactory implements TierFactory {
                         regionGroupSizeInBytes,
                         numRetainedInMemoryRegionsMax);
         Path dataFilePath = Paths.get(dataFileBasePath + DATA_FILE_SUFFIX);
+
+        // 该对象用于写入文件 同时将相关信息加入索引
         ProducerMergedPartitionFileWriter partitionFileWriter =
                 ProducerMergedPartitionFile.createPartitionFileWriter(
                         dataFilePath, partitionFileIndex);
+
+        // 该对象用于读取数据
         ProducerMergedPartitionFileReader partitionFileReader =
                 ProducerMergedPartitionFile.createPartitionFileReader(
                         dataFilePath, partitionFileIndex);

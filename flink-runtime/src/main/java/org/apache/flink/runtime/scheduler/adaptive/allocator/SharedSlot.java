@@ -48,18 +48,31 @@ import java.util.Map;
  * {@link #release(Throwable)} is called without all logical slots having been returned. The runtime
  * relies on this also triggering the release of all logical slots. This will not trigger the {@code
  * externalReleaseCallback}.
+ * 表示一个被共享的slot
  */
 class SharedSlot implements SlotOwner, PhysicalSlot.Payload {
     private static final Logger LOG = LoggerFactory.getLogger(SharedSlot.class);
 
     private final SlotRequestId physicalSlotRequestId;
 
+    /**
+     * slot的实体
+     */
     private final PhysicalSlot physicalSlot;
 
+    /**
+     * 当本对象被释放时触发的回调
+     */
     private final Runnable externalReleaseCallback;
 
+    /**
+     * 表示每个请求得到的slot
+     */
     private final Map<SlotRequestId, LogicalSlot> allocatedLogicalSlots;
 
+    /**
+     * 表示slot是否会被长期占用
+     */
     private final boolean slotWillBeOccupiedIndefinitely;
 
     private State state;
@@ -86,6 +99,7 @@ class SharedSlot implements SlotOwner, PhysicalSlot.Payload {
      * Registers an allocation request for a logical slot.
      *
      * @return the logical slot
+     * 产生一个逻辑slot
      */
     public LogicalSlot allocateLogicalSlot() {
         LOG.debug("Allocating logical slot from shared slot ({})", physicalSlotRequestId);
@@ -97,13 +111,17 @@ class SharedSlot implements SlotOwner, PhysicalSlot.Payload {
                         new SlotRequestId(),
                         physicalSlot,
                         Locality.UNKNOWN,
-                        this,
+                        this,  // 自身作为逻辑slot的拥有者  在逻辑slot被归还时会触发方法
                         slotWillBeOccupiedIndefinitely);
 
         allocatedLogicalSlots.put(slot.getSlotRequestId(), slot);
         return slot;
     }
 
+    /**
+     * 表示某个逻辑slot归还了
+     * @param logicalSlot to return
+     */
     @Override
     public void returnLogicalSlot(LogicalSlot logicalSlot) {
         LOG.debug("Returning logical slot to shared slot ({})", physicalSlotRequestId);
@@ -111,6 +129,8 @@ class SharedSlot implements SlotOwner, PhysicalSlot.Payload {
                 state != State.RELEASED, "The shared slot has already been released.");
 
         Preconditions.checkState(!logicalSlot.isAlive(), "Returned logic slot must not be alive.");
+
+        // 这里已经从 allocatedLogicalSlots 移除了
         Preconditions.checkState(
                 allocatedLogicalSlots.remove(logicalSlot.getSlotRequestId()) != null,
                 "Trying to remove a logical slot request which has been either already removed or never created.");
@@ -118,12 +138,18 @@ class SharedSlot implements SlotOwner, PhysicalSlot.Payload {
     }
 
     private void tryReleaseExternally() {
+
+        // 表示之前分配的逻辑slot此时都已经归还了  触发外部的释放钩子
         if (state == State.ALLOCATED && allocatedLogicalSlots.isEmpty()) {
             LOG.debug("Release shared slot externally ({})", physicalSlotRequestId);
             externalReleaseCallback.run();
         }
     }
 
+    /**
+     * 声明释放该对象的所有slot
+     * @param cause of the payload release
+     */
     @Override
     public void release(Throwable cause) {
         LOG.debug("Release shared slot ({})", physicalSlotRequestId);

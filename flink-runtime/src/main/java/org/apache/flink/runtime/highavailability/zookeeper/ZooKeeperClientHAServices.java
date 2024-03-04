@@ -29,6 +29,9 @@ import javax.annotation.Nonnull;
 /** ZooKeeper based implementation for {@link ClientHighAvailabilityServices}. */
 public class ZooKeeperClientHAServices implements ClientHighAvailabilityServices {
 
+    /**
+     * 该对象包含错误处理器 和ZK client
+     */
     private final CuratorFrameworkWithUnhandledErrorListener curatorFrameworkWrapper;
 
     private final Configuration configuration;

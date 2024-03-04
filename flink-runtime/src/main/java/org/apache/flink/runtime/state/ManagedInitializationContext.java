@@ -32,6 +32,7 @@ import java.util.OptionalLong;
  *
  * <p>For the purpose of initialization, the context signals if the state is empty (new operator) or
  * was restored from a previous execution of this operator.
+ * 该上下文包含了状态存储对象
  */
 public interface ManagedInitializationContext {
 
@@ -43,6 +44,7 @@ public interface ManagedInitializationContext {
     /**
      * Returns id of the restored checkpoint, if state was restored from the snapshot of a previous
      * execution.
+     * 表示从哪个检查点恢复的
      */
     OptionalLong getRestoredCheckpointId();
 

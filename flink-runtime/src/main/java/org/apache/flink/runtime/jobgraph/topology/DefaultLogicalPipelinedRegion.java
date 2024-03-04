@@ -28,9 +28,15 @@ import java.util.stream.Collectors;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Set of {@link LogicalVertex} that are connected through pipelined {@link LogicalResult}. */
+/** Set of {@link LogicalVertex} that are connected through pipelined {@link LogicalResult}.
+ * 表示在逻辑层面的
+ * */
 public class DefaultLogicalPipelinedRegion implements LogicalPipelinedRegion {
 
+    /**
+     * 涉及的流水线中每个顶点
+     * 每个顶点又提供获取product和consumer的api  还有获取input的api
+     */
     private final Map<JobVertexID, LogicalVertex> vertexById;
 
     public DefaultLogicalPipelinedRegion(final Set<? extends LogicalVertex> logicalVertices) {

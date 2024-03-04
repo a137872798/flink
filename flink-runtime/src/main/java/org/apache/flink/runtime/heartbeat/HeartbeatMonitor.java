@@ -27,6 +27,7 @@ import org.apache.flink.util.concurrent.ScheduledExecutor;
  * specified heartbeat timeout interval. Each heartbeat signal resets this timer.
  *
  * @param <O> Type of the payload being sent to the associated heartbeat target
+ *           该对象监控HeartbeatTarget
  */
 public interface HeartbeatMonitor<O> {
 

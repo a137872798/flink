@@ -33,6 +33,7 @@ import java.util.Optional;
  * of state, like list or map.
  *
  * @param <T> type of state
+ *           状态快照转换对象
  */
 @FunctionalInterface
 @NotThreadSafe
@@ -42,12 +43,14 @@ public interface StateSnapshotTransformer<T> {
      *
      * @param value non-serialized form of value
      * @return value to snapshot or null which means the entry is not included
+     * 尝试对状态值进行过滤和转换
      */
     @Nullable
     T filterOrTransform(@Nullable T value);
 
     /**
      * Collection state specific transformer which says how to transform entries of the collection.
+     * 针对集合类型的状态 对内部属性进行过滤和转换
      */
     interface CollectionStateSnapshotTransformer<T> extends StateSnapshotTransformer<T> {
         enum TransformStrategy {
@@ -63,6 +66,10 @@ public interface StateSnapshotTransformer<T> {
             STOP_ON_FIRST_INCLUDED
         }
 
+        /**
+         * 默认不跳过数据
+         * @return
+         */
         default TransformStrategy getFilterStrategy() {
             return TransformStrategy.TRANSFORM_ALL;
         }
@@ -72,6 +79,8 @@ public interface StateSnapshotTransformer<T> {
      * This factory creates state transformers depending on the form of values to transform.
      *
      * <p>If there is no transforming needed, the factory methods return {@code Optional.empty()}.
+     *
+     * 应该是在生成快照时  对数据进行过滤和转换
      */
     interface StateSnapshotTransformFactory<T> {
         StateSnapshotTransformFactory<?> NO_TRANSFORM = createNoTransform();
@@ -81,6 +90,11 @@ public interface StateSnapshotTransformer<T> {
             return (StateSnapshotTransformFactory<T>) NO_TRANSFORM;
         }
 
+        /**
+         * 总是返回空
+         * @param <T>
+         * @return
+         */
         static <T> StateSnapshotTransformFactory<T> createNoTransform() {
             return new StateSnapshotTransformFactory<T>() {
                 @Override
@@ -94,6 +108,8 @@ public interface StateSnapshotTransformer<T> {
                 }
             };
         }
+
+        // 工厂本身可以生成转化成序列化/实体的state对象
 
         Optional<StateSnapshotTransformer<T>> createForDeserializedState();
 

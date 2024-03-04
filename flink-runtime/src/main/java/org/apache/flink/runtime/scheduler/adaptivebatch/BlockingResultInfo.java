@@ -37,6 +37,7 @@ public interface BlockingResultInfo extends IntermediateResultInfo {
      * subpartitions.
      *
      * @return the num of bytes produced by the producer
+     * 产生了多少数据
      */
     long getNumBytesProduced();
 
@@ -47,6 +48,7 @@ public interface BlockingResultInfo extends IntermediateResultInfo {
      * @param partitionIndexRange range of the index of the consumed partition.
      * @param subpartitionIndexRange range of the index of the consumed subpartition.
      * @return aggregated bytes according to the index ranges.
+     * 通过2个range对象锁定范围  并返回范围内的字节数
      */
     long getNumBytesProduced(IndexRange partitionIndexRange, IndexRange subpartitionIndexRange);
 
@@ -55,6 +57,7 @@ public interface BlockingResultInfo extends IntermediateResultInfo {
      *
      * @param partitionIndex the intermediate result partition index
      * @param partitionBytes the {@link ResultPartitionBytes} of the partition
+     *                       设置某个分区下每个子分区的字节数
      */
     void recordPartitionInfo(int partitionIndex, ResultPartitionBytes partitionBytes);
 

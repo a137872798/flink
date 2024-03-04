@@ -27,16 +27,21 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** Compressor for {@link Buffer}. */
+/** Compressor for {@link Buffer}.
+ * 该对象用于对数据压缩
+ * */
 public class BufferCompressor {
 
     /** The backing block compressor for data compression. */
     private final BlockCompressor blockCompressor;
 
-    /** The intermediate buffer for the compressed data. */
+    /** The intermediate buffer for the compressed data.
+     * 存储压缩数据的容器
+     * */
     private final NetworkBuffer internalBuffer;
 
-    /** The backup array of intermediate buffer. */
+    /** The backup array of intermediate buffer.
+     * */
     private final byte[] internalBufferArray;
 
     public BufferCompressor(int bufferSize, String factoryName) {
@@ -65,6 +70,7 @@ public class BufferCompressor {
      */
     public Buffer compressToIntermediateBuffer(Buffer buffer) {
         int compressedLen;
+        // compress 会自动将数据存入到internalBuffer中
         if ((compressedLen = compress(buffer)) == 0) {
             return buffer;
         }
@@ -99,6 +105,7 @@ public class BufferCompressor {
     /**
      * Compresses the given {@link Buffer} into the intermediate buffer and returns the compressed
      * data size.
+     * 对buffer数据进行压缩
      */
     private int compress(Buffer buffer) {
         checkArgument(buffer != null, "The input buffer must not be null.");

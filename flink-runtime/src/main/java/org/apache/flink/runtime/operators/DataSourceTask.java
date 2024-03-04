@@ -65,9 +65,12 @@ public class DataSourceTask<OT> extends AbstractInvokable {
 
     private static final Logger LOG = LoggerFactory.getLogger(DataSourceTask.class);
 
+    /**
+     * 最终写入对象  表示数据在处理完后会进入这些对象
+     */
     private List<RecordWriter<?>> eventualOutputs;
 
-    // Output collector
+    // Output collector  用于采集数据
     private Collector<OT> output;
 
     // InputFormat instance
@@ -80,6 +83,7 @@ public class DataSourceTask<OT> extends AbstractInvokable {
     private TaskConfig config;
 
     // tasks chained to this data source
+    // 原始数据将会通过一组链式驱动处理 并最终汇入output
     private ArrayList<ChainedDriver<?, ?>> chainedTasks;
 
     // cancel flag
@@ -94,16 +98,23 @@ public class DataSourceTask<OT> extends AbstractInvokable {
         super(environment);
     }
 
+    /**
+     * 执行任务
+     * @throws Exception
+     */
     @Override
     public void invoke() throws Exception {
         // --------------------------------------------------------------------
         // Initialize
         // --------------------------------------------------------------------
+
+        // 初始化inputFormat对象
         initInputFormat();
 
         LOG.debug(getLogString("Start registering input and output"));
 
         try {
+            // 初始化输出对象
             initOutputs(getEnvironment().getUserCodeClassLoader());
         } catch (Exception ex) {
             throw new RuntimeException(
@@ -121,6 +132,7 @@ public class DataSourceTask<OT> extends AbstractInvokable {
 
         RuntimeContext ctx = createRuntimeContext();
 
+        // TODO 统计相关先忽略
         final Counter numRecordsOut;
         {
             Counter tmpNumRecordsOut;
@@ -141,6 +153,7 @@ public class DataSourceTask<OT> extends AbstractInvokable {
 
         Counter completedSplitsCounter = ctx.getMetricGroup().counter("numSplitsProcessed");
 
+        // 对format进行配置
         if (RichInputFormat.class.isAssignableFrom(this.format.getClass())) {
             ((RichInputFormat) this.format).setRuntimeContext(ctx);
             LOG.debug(getLogString("Rich Source detected. Initializing runtime context."));
@@ -161,9 +174,11 @@ public class DataSourceTask<OT> extends AbstractInvokable {
 
         try {
             // start all chained tasks
+            // 调用open
             BatchTask.openChainedTasks(this.chainedTasks, this);
 
             // get input splits to read
+            // 迭代可以产生被拆分后的输入源
             final Iterator<InputSplit> splitIterator = getInputSplits();
 
             // for each assigned input split
@@ -176,11 +191,13 @@ public class DataSourceTask<OT> extends AbstractInvokable {
                 final InputFormat<OT, InputSplit> format = this.format;
 
                 // open input format
+                // 使用format打开输入流  不同的format有不同的解读方式
                 format.open(split);
 
                 LOG.debug(getLogString("Starting to read input from split " + split.toString()));
 
                 try {
+                    // 提供计数功能
                     final Collector<OT> output =
                             new CountingCollector<>(this.output, numRecordsOut);
 
@@ -191,7 +208,9 @@ public class DataSourceTask<OT> extends AbstractInvokable {
                         while (!this.taskCanceled && !format.reachedEnd()) {
 
                             OT returned;
+                            // 不断读取对象并下发
                             if ((returned = format.nextRecord(reuse)) != null) {
+                                // output内应该已经包含了处理逻辑了
                                 output.collect(returned);
                             }
                         }
@@ -218,6 +237,7 @@ public class DataSourceTask<OT> extends AbstractInvokable {
             } // end for all input splits
 
             // close all chained tasks letting them report failure
+            // 此时已经处理完了 调用close
             BatchTask.closeChainedTasks(this.chainedTasks, this);
 
             // close the output collector
@@ -262,6 +282,7 @@ public class DataSourceTask<OT> extends AbstractInvokable {
 
     @Override
     public void cancel() throws Exception {
+        // 从外部关闭任务
         this.taskCanceled = true;
         LOG.debug(getLogString("Cancelling data source operator"));
     }
@@ -271,6 +292,7 @@ public class DataSourceTask<OT> extends AbstractInvokable {
      *
      * @throws RuntimeException Throws if instance of InputFormat implementation can not be
      *     obtained.
+     *     对inputFormat进行初始化
      */
     private void initInputFormat() {
         ClassLoader userCodeClassLoader = getUserCodeClassLoader();
@@ -279,9 +301,12 @@ public class DataSourceTask<OT> extends AbstractInvokable {
         this.config = new TaskConfig(taskConf);
 
         final Pair<OperatorID, InputFormat<OT, InputSplit>> operatorIdAndInputFormat;
+
+        // 该对象就是存储一个输入输出格式的容器
         InputOutputFormatContainer formatContainer =
                 new InputOutputFormatContainer(config, userCodeClassLoader);
         try {
+            // 表示期望内部只有一个输入格式
             operatorIdAndInputFormat = formatContainer.getUniqueInputFormat();
             this.format = operatorIdAndInputFormat.getValue();
 
@@ -306,6 +331,7 @@ public class DataSourceTask<OT> extends AbstractInvokable {
         // user code
         try {
             thread.setContextClassLoader(userCodeClassLoader);
+            // 进行配置
             this.format.configure(formatContainer.getParameters(operatorIdAndInputFormat.getKey()));
         } catch (Throwable t) {
             throw new RuntimeException(
@@ -321,6 +347,7 @@ public class DataSourceTask<OT> extends AbstractInvokable {
     /**
      * Creates a writer for each output. Creates an OutputCollector which forwards its input to all
      * writers. The output collector applies the configured shipping strategy.
+     * 初始化输出对象
      */
     private void initOutputs(UserCodeClassLoader cl) throws Exception {
         this.chainedTasks = new ArrayList<ChainedDriver<?, ?>>();
@@ -366,12 +393,19 @@ public class DataSourceTask<OT> extends AbstractInvokable {
         return BatchTask.constructLogString(message, taskName, this);
     }
 
+    /**
+     * 可以获取多个 inputSplit对象
+     * @return
+     */
     private Iterator<InputSplit> getInputSplits() {
 
         final InputSplitProvider provider = getEnvironment().getInputSplitProvider();
 
         return new Iterator<InputSplit>() {
 
+            /**
+             * 代表已经被拆分后的input
+             */
             private InputSplit nextSplit;
 
             private boolean exhausted;
@@ -420,12 +454,17 @@ public class DataSourceTask<OT> extends AbstractInvokable {
         };
     }
 
+    /**
+     * 初始化运行上下文
+     * @return
+     */
     public DistributedRuntimeUDFContext createRuntimeContext() {
         Environment env = getEnvironment();
 
         String sourceName = getEnvironment().getTaskInfo().getTaskName().split("->")[0].trim();
         sourceName = sourceName.startsWith("CHAIN") ? sourceName.substring(6) : sourceName;
 
+        // 大部分信息是从env中获取的
         return new DistributedRuntimeUDFContext(
                 env.getTaskInfo(),
                 env.getUserCodeClassLoader(),
@@ -434,6 +473,6 @@ public class DataSourceTask<OT> extends AbstractInvokable {
                 env.getAccumulatorRegistry().getUserMap(),
                 getEnvironment().getMetricGroup().getOrAddOperator(sourceName),
                 env.getExternalResourceInfoProvider(),
-                env.getJobID());
+                env.getJobID());   // 多个task由一个job产生
     }
 }

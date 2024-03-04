@@ -36,10 +36,14 @@ import java.util.Iterator;
  * @param <K> type of key
  * @param <N> type of namespace
  * @param <S> type of state
+ *
+ *           stateMap的快照对象
  */
 public abstract class StateMapSnapshot<K, N, S, T extends StateMap<K, N, S>> {
 
-    /** The {@link StateMap} from which this snapshot was created. */
+    /** The {@link StateMap} from which this snapshot was created.
+     * 就是 StateMap
+     * */
     protected final T owningStateMap;
 
     public StateMapSnapshot(T stateMap) {
@@ -54,6 +58,14 @@ public abstract class StateMapSnapshot<K, N, S, T extends StateMap<K, N, S>> {
     /** Release the snapshot. */
     public void release() {}
 
+    /**
+     * 以迭代器形式展开map
+     * @param keySerializer
+     * @param namespaceSerializer
+     * @param stateSerializer
+     * @param stateSnapshotTransformer
+     * @return
+     */
     public abstract Iterator<StateEntry<K, N, S>> getIterator(
             @Nonnull TypeSerializer<K> keySerializer,
             @Nonnull TypeSerializer<N> namespaceSerializer,
@@ -70,6 +82,7 @@ public abstract class StateMapSnapshot<K, N, S, T extends StateMap<K, N, S>> {
      * @param dov the output.
      * @param stateSnapshotTransformer state transformer, and can be null.
      * @throws IOException on write-related problems.
+     * 将快照数据写入到output中
      */
     public abstract void writeState(
             TypeSerializer<K> keySerializer,

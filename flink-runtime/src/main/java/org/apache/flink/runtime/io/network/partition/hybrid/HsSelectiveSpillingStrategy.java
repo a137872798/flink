@@ -32,6 +32,7 @@ import static org.apache.flink.runtime.io.network.partition.hybrid.HsSpillingStr
 /**
  * A special implementation of {@link HsSpillingStrategy} that reduce disk writes as much as
  * possible.
+ * 表示有选择性的
  */
 public class HsSelectiveSpillingStrategy implements HsSpillingStrategy {
     private final float spillBufferRatio;
@@ -71,6 +72,7 @@ public class HsSelectiveSpillingStrategy implements HsSpillingStrategy {
     // score, the more likely the buffer will be consumed in the next time, and should be kept in
     // memory as much as possible. Select all buffers that need to be spilled according to the score
     // from high to low.
+    // 基于全局信息 产生决策对象
     @Override
     public Decision decideActionWithGlobalInfo(HsSpillingInfoProvider spillingInfoProvider) {
         if (spillingInfoProvider.getNumTotalRequestedBuffers()
@@ -81,18 +83,22 @@ public class HsSelectiveSpillingStrategy implements HsSpillingStrategy {
 
         int spillNum = (int) (spillingInfoProvider.getPoolSize() * spillBufferRatio);
 
+        // 维护每个子分区
         TreeMap<Integer, Deque<BufferIndexAndChannel>> subpartitionToBuffers = new TreeMap<>();
         for (int channel = 0; channel < spillingInfoProvider.getNumSubpartitions(); channel++) {
             subpartitionToBuffers.put(
                     channel,
+                    // 找到未 spill的数据
                     spillingInfoProvider.getBuffersInOrder(
                             channel,
                             SpillStatus.NOT_SPILL,
                             // selective spilling strategy does not support multiple consumer.
+                            // 这种模式不支持多消费者  此时使用默认消费者
                             ConsumeStatusWithId.fromStatusAndConsumerId(
                                     ConsumeStatus.NOT_CONSUMED, HsConsumerId.DEFAULT)));
         }
 
+        // 这里会考虑优先级
         TreeMap<Integer, List<BufferIndexAndChannel>> subpartitionToHighPriorityBuffers =
                 getBuffersByConsumptionPriorityInOrder(
                         // selective spilling strategy does not support multiple consumer.
@@ -115,6 +121,7 @@ public class HsSelectiveSpillingStrategy implements HsSpillingStrategy {
         for (int subpartitionId = 0;
                 subpartitionId < spillingInfoProvider.getNumSubpartitions();
                 subpartitionId++) {
+            // 当分区释放时  所有未spill的加入spill队列     所有buffer进入release队列
             builder.addBufferToSpill(
                             subpartitionId,
                             // get all not start spilling buffers.

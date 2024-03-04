@@ -54,6 +54,8 @@ import static org.apache.flink.util.Preconditions.checkState;
  * </ul>
  *
  * <p>Note: This class is not thread-safe.
+ *
+ * 上下文对象 包含一些信息
  */
 public class HsBufferContext {
     private final Buffer buffer;
@@ -65,8 +67,14 @@ public class HsBufferContext {
     // --------------------------
     private boolean released;
 
+    /**
+     * 是否已经开始倾倒
+     */
     private boolean spillStarted;
 
+    /**
+     * 维护已经消费了该buffer的消费者
+     */
     private final Set<HsConsumerId> consumed = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     @Nullable private CompletableFuture<Void> spilledFuture;
@@ -116,6 +124,7 @@ public class HsBufferContext {
      * @param spilledFuture completable future of this buffer's spilling operation.
      * @return false, if spilling of the buffer has been started before or the buffer has been
      *     released already; true, otherwise.
+     *     开始倾倒
      */
     public boolean startSpilling(CompletableFuture<Void> spilledFuture) {
         if (isReleased() || isSpillStarted()) {
@@ -125,11 +134,15 @@ public class HsBufferContext {
         this.spilledFuture = spilledFuture;
         // increase ref count when buffer is decided to spill.
         buffer.retainBuffer();
-        // decrease ref count when buffer spilling is finished.
+        // decrease ref count when buffer spilling is finished.  当结束时回收buffer
         spilledFuture.thenRun(buffer::recycleBuffer);
         return true;
     }
 
+    /**
+     * 增加一个消费者
+     * @param consumerId
+     */
     public void consumed(HsConsumerId consumerId) {
         checkState(!released, "Buffer is already released.");
         checkState(consumed.add(consumerId), "Consume buffer repeatedly is unexpected.");

@@ -33,13 +33,21 @@ import java.io.UTFDataFormatException;
  * memory page once the boundary is crossed.
  *
  * <p>The paging assumes that all memory segments are of the same size.
+ *
+ * 每一页对应一个MemorySegment   该输出流是将数据写入到MemorySegment中 写满后会自动切换到下一页(MemorySegment)
  */
 public abstract class AbstractPagedOutputView implements DataOutputView, MemorySegmentWritable {
 
     private MemorySegment currentSegment; // the current memory segment to write to
 
+    /**
+     * 每个内存块的大小
+     */
     protected final int segmentSize; // the size of the memory segments
 
+    /**
+     * 开头的部分是不能写入的
+     */
     protected final int
             headerLength; // the number of bytes to skip at the beginning of each segment
 
@@ -94,6 +102,8 @@ public abstract class AbstractPagedOutputView implements DataOutputView, MemoryS
      * @param positionInCurrent The position in the segment, one after the last valid byte.
      * @return The next memory segment.
      * @throws IOException
+     *
+     * 切换到下个内存块
      */
     protected abstract MemorySegment nextSegment(MemorySegment current, int positionInCurrent)
             throws IOException;
@@ -151,6 +161,7 @@ public abstract class AbstractPagedOutputView implements DataOutputView, MemoryS
      *
      * @param seg The memory segment to write the next bytes to.
      * @param position The position to start writing the next bytes to.
+     *                 更替内存块和偏移量
      */
     protected void seekOutput(MemorySegment seg, int position) {
         this.currentSegment = seg;

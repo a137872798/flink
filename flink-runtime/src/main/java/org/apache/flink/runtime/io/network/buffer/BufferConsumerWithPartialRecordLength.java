@@ -49,6 +49,10 @@ import static org.apache.flink.util.Preconditions.checkState;
 @NotThreadSafe
 public class BufferConsumerWithPartialRecordLength {
     private final BufferConsumer bufferConsumer;
+
+    /**
+     * 表示残留的部分数据的长度    cleanupPartialRecord() 可以直接跳过这块数据
+     */
     private final int partialRecordLength;
 
     public BufferConsumerWithPartialRecordLength(

@@ -44,6 +44,9 @@ import java.util.function.Function;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
+/**
+ * 基于netty搭建的服务端
+ */
 class NettyServer {
 
     private static final ThreadFactoryBuilder THREAD_FACTORY_BUILDER =
@@ -53,12 +56,24 @@ class NettyServer {
 
     private static final Logger LOG = LoggerFactory.getLogger(NettyServer.class);
 
+    /**
+     * 提供需要的配置
+     */
     private final NettyConfig config;
 
+    /**
+     * 服务端引导程序
+     */
     private ServerBootstrap bootstrap;
 
+    /**
+     * 用于关闭服务端连接
+     */
     private ChannelFuture bindFuture;
 
+    /**
+     * 本地监听地址
+     */
     private InetSocketAddress localAddress;
 
     NettyServer(NettyConfig config) {
@@ -207,6 +222,9 @@ class NettyServer {
         return THREAD_FACTORY_BUILDER.setNameFormat(name + " Thread %d").build();
     }
 
+    /**
+     * 在服务器绑定成功后  添加channel
+     */
     @VisibleForTesting
     static class ServerChannelInitializer extends ChannelInitializer<SocketChannel> {
         private final NettyProtocol protocol;
@@ -221,10 +239,12 @@ class NettyServer {
         @Override
         public void initChannel(SocketChannel channel) throws Exception {
             if (sslHandlerFactory != null) {
+                // 这里就是追加一个 ssl 消息解码器
                 channel.pipeline()
                         .addLast("ssl", sslHandlerFactory.createNettySSLHandler(channel.alloc()));
             }
 
+            // 追加一些handlers
             channel.pipeline().addLast(protocol.getServerChannelHandlers());
         }
     }

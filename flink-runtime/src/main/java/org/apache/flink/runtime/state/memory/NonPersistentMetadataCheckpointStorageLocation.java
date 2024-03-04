@@ -42,6 +42,11 @@ public class NonPersistentMetadataCheckpointStorageLocation extends MemCheckpoin
         super(maxStateSize);
     }
 
+    /**
+     * 提供用于写入元数据信息的输出流
+     * @return
+     * @throws IOException
+     */
     @Override
     public CheckpointMetadataOutputStream createMetadataOutputStream() throws IOException {
         return new MetadataOutputStream();
@@ -79,6 +84,10 @@ public class NonPersistentMetadataCheckpointStorageLocation extends MemCheckpoin
             return EXTERNAL_POINTER;
         }
 
+        /**
+         * 获取存储元数据信息的handle对象
+         * @return
+         */
         @Override
         public StreamStateHandle getMetadataHandle() {
             return metaDataHandle;

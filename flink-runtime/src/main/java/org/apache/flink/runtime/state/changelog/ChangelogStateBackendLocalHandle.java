@@ -30,9 +30,13 @@ import java.util.List;
  * State handle for local copies of {@link ChangelogStateHandleStreamImpl}. Consists of a
  * remoteHandle that maintains the mapping of local handle and remote handle, like
  * sharedStateHandleIDs in {@link org.apache.flink.runtime.state.IncrementalLocalKeyedStateHandle}.
+ *
+ * 只维护本地相关的状态 和 changelog
  */
 public class ChangelogStateBackendLocalHandle implements ChangelogStateBackendHandle {
     private static final long serialVersionUID = 1L;
+
+    // 本地的数据应该是要推送到remote的
     private final List<KeyedStateHandle> localMaterialized;
     private final List<ChangelogStateHandle> localNonMaterialized;
     private final ChangelogStateBackendHandleImpl remoteHandle;
@@ -79,6 +83,11 @@ public class ChangelogStateBackendLocalHandle implements ChangelogStateBackendHa
         return remoteHandle.getCheckpointId();
     }
 
+    /**
+     * 取remote的状态 注册到SharedStateRegistry 上
+     * @param stateRegistry The registry where shared states are registered.
+     * @param checkpointID
+     */
     @Override
     public void registerSharedStates(SharedStateRegistry stateRegistry, long checkpointID) {
         remoteHandle.registerSharedStates(stateRegistry, checkpointID);

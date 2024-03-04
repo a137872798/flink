@@ -49,7 +49,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-/** Configuration class which stores all relevant parameters required to set up the Pact tasks. */
+/** Configuration class which stores all relevant parameters required to set up the Pact tasks.
+ * 包含task相关的各种参数
+ * */
 public class TaskConfig implements Serializable {
 
     private static final long serialVersionUID = -2498884325640066272L;

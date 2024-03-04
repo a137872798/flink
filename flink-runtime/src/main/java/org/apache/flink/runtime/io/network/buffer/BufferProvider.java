@@ -28,6 +28,7 @@ import javax.annotation.Nullable;
  *
  * <p>The data producing side (result partition writers) request buffers in a synchronous fashion,
  * whereas the input side requests asynchronously.
+ * 通过该对象产生buffer
  */
 public interface BufferProvider extends AvailabilityProvider {
 
@@ -35,6 +36,7 @@ public interface BufferProvider extends AvailabilityProvider {
      * Returns a {@link Buffer} instance from the buffer provider, if one is available.
      *
      * @return {@code null} if no buffer is available or the buffer provider has been destroyed.
+     * 请求一个buffer
      */
     @Nullable
     Buffer requestBuffer();
@@ -44,6 +46,7 @@ public interface BufferProvider extends AvailabilityProvider {
      * #requestBufferBuilder(int)} with unknown target channel.
      *
      * @return {@code null} if no buffer is available or the buffer provider has been destroyed.
+     * 请求一个builder
      */
     @Nullable
     BufferBuilder requestBufferBuilder();
@@ -53,6 +56,7 @@ public interface BufferProvider extends AvailabilityProvider {
      *
      * @param targetChannel to which the request will be accounted to.
      * @return {@code null} if no buffer is available or the buffer provider has been destroyed.
+     * 针对某个channel请求buffer   InputGate下有多个channel
      */
     @Nullable
     BufferBuilder requestBufferBuilder(int targetChannel);
@@ -63,6 +67,7 @@ public interface BufferProvider extends AvailabilityProvider {
      *
      * <p>If there is no buffer available, the call will block until one becomes available again or
      * the buffer provider has been destroyed.
+     * 以阻塞形式等待buffer
      */
     BufferBuilder requestBufferBuilderBlocking() throws InterruptedException;
 
@@ -81,10 +86,13 @@ public interface BufferProvider extends AvailabilityProvider {
      *
      * <p>The operation fails with return value <code>false</code>, when there is a buffer available
      * or the buffer provider has been destroyed.
+     * 设置buffer监听器 这样在buffer可用时会触发回调
      */
     boolean addBufferListener(BufferListener listener);
 
-    /** Returns whether the buffer provider has been destroyed. */
+    /** Returns whether the buffer provider has been destroyed.
+     * 查看该provider是否已经被销毁
+     * */
     boolean isDestroyed();
 
     /**

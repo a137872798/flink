@@ -85,7 +85,9 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** The speculative scheduler. */
+/** The speculative scheduler.
+ * 表示投机性的调度器
+ * */
 public class SpeculativeScheduler extends AdaptiveBatchScheduler
         implements SlowTaskDetectorListener {
 
@@ -93,8 +95,14 @@ public class SpeculativeScheduler extends AdaptiveBatchScheduler
 
     private final Duration blockSlowNodeDuration;
 
+    /**
+     * 当发现阻塞节点时进行通知
+     */
     private final BlocklistOperations blocklistOperations;
 
+    /**
+     * 该对象会定时监测  发现慢任务 并通知本对象
+     */
     private final SlowTaskDetector slowTaskDetector;
 
     private long numSlowExecutionVertices;
@@ -178,6 +186,9 @@ public class SpeculativeScheduler extends AdaptiveBatchScheduler
         this.numEffectiveSpeculativeExecutionsCounter = new SimpleCounter();
     }
 
+    /**
+     * 在调度开始前 启动慢任务检测
+     */
     @Override
     protected void startSchedulingInternal() {
         registerMetrics(jobManagerJobMetricGroup);
@@ -199,6 +210,11 @@ public class SpeculativeScheduler extends AdaptiveBatchScheduler
         return super.closeAsync();
     }
 
+    /**
+     * 通过id查询执行顶点
+     * @param executionVertexId
+     * @return
+     */
     @Override
     public SpeculativeExecutionVertex getExecutionVertex(ExecutionVertexID executionVertexId) {
         return (SpeculativeExecutionVertex) super.getExecutionVertex(executionVertexId);
@@ -211,16 +227,27 @@ public class SpeculativeScheduler extends AdaptiveBatchScheduler
         }
 
         // cancel all un-terminated executions because the execution vertex has finished
+        // 任务已经结束了 停止分配i
         FutureUtils.assertNoException(cancelPendingExecutions(execution.getVertex().getID()));
 
         super.onTaskFinished(execution, ioMetrics);
     }
 
+    /**
+     * 判断是否是原始顶点
+     * @param execution
+     * @return
+     */
     private static boolean isOriginalAttempt(final Execution execution) {
         return ((SpeculativeExecutionVertex) execution.getVertex())
                 .isOriginalAttempt(execution.getAttemptNumber());
     }
 
+    /**
+     * 停止分配任务
+     * @param executionVertexId
+     * @return
+     */
     private CompletableFuture<?> cancelPendingExecutions(
             final ExecutionVertexID executionVertexId) {
         final List<Execution> pendingExecutions =
@@ -242,8 +269,10 @@ public class SpeculativeScheduler extends AdaptiveBatchScheduler
         final CompletableFuture<?> future =
                 FutureUtils.combineAll(
                         pendingExecutions.stream()
+                                // 取消任务
                                 .map(this::cancelExecution)
                                 .collect(Collectors.toList()));
+        // 取消分配
         cancelAllPendingSlotRequestsForVertex(executionVertexId);
         return future;
     }
@@ -255,11 +284,17 @@ public class SpeculativeScheduler extends AdaptiveBatchScheduler
 
         // when an execution fails, remove it from current executions to make room for future
         // speculative executions
+        // 记录错误信息
         executionVertex.archiveFailedExecution(execution.getAttemptId());
 
         super.onTaskFailed(execution);
     }
 
+    /**
+     * 处理任务失败
+     * @param failedExecution
+     * @param error
+     */
     @Override
     protected void handleTaskFailure(
             final Execution failedExecution, @Nullable final Throwable error) {
@@ -271,6 +306,7 @@ public class SpeculativeScheduler extends AdaptiveBatchScheduler
         // an execution vertex failover to recover
         if (!isExecutionVertexPossibleToFinish(executionVertex)
                 || ExceptionUtils.findThrowable(error, PartitionException.class).isPresent()) {
+            // 无法转换成finish  触发失败钩子
             super.handleTaskFailure(failedExecution, error);
         } else {
             // this is just a local failure and the execution vertex will not be fully restarted
@@ -278,16 +314,26 @@ public class SpeculativeScheduler extends AdaptiveBatchScheduler
         }
     }
 
+    /**
+     * 处理失败
+     * @param failedExecution
+     * @param error
+     */
     private void handleLocalExecutionAttemptFailure(
             final Execution failedExecution, @Nullable final Throwable error) {
+        // 先取消分配
         executionSlotAllocator.cancel(failedExecution.getAttemptId());
 
+        // 记录错误  还会将错误通知协调者
         final FailureHandlingResult failureHandlingResult =
                 recordTaskFailure(failedExecution, error);
+
+        // 记录错误信息
         if (failureHandlingResult.canRestart()) {
             archiveFromFailureHandlingResult(
                     createFailureHandlingResultSnapshot(failureHandlingResult));
         } else {
+            // 直接让job失败
             failJob(
                     error,
                     failureHandlingResult.getTimestamp(),
@@ -314,6 +360,10 @@ public class SpeculativeScheduler extends AdaptiveBatchScheduler
         return anyExecutionPossibleToFinish;
     }
 
+    /**
+     * 当准备重启execution时
+     * @param executionVertexId
+     */
     @Override
     protected void resetForNewExecution(final ExecutionVertexID executionVertexId) {
         final ExecutionVertex executionVertex = getExecutionVertex(executionVertexId);
@@ -325,12 +375,18 @@ public class SpeculativeScheduler extends AdaptiveBatchScheduler
         super.resetForNewExecution(executionVertexId);
     }
 
+    /**
+     * 当发现慢任务时
+     * @param slowTasks the map of execution vertices and their execution attempts which are
+     *     detected as slow.
+     */
     @Override
     public void notifySlowTasks(Map<ExecutionVertexID, Collection<ExecutionAttemptID>> slowTasks) {
         final long currentTimestamp = System.currentTimeMillis();
         numSlowExecutionVertices = slowTasks.size();
 
         // add slow nodes to blocklist before scheduling new speculative executions
+        // 新增阻塞节点
         blockSlowNodes(slowTasks, currentTimestamp);
 
         final List<Execution> newSpeculativeExecutions = new ArrayList<>();
@@ -339,11 +395,15 @@ public class SpeculativeScheduler extends AdaptiveBatchScheduler
             final SpeculativeExecutionVertex executionVertex =
                     getExecutionVertex(executionVertexId);
 
+            // 不支持并发就忽略
             if (!executionVertex.isSupportsConcurrentExecutionAttempts()) {
                 continue;
             }
 
+            // 支持并发  那么此时应该有多个执行中的execution
             final int currentConcurrentExecutions = executionVertex.getCurrentExecutions().size();
+
+            // 表示还可以调度这么多
             final int newSpeculativeExecutionsToDeploy =
                     maxConcurrentExecutions - currentConcurrentExecutions;
             if (newSpeculativeExecutionsToDeploy > 0) {
@@ -361,35 +421,51 @@ public class SpeculativeScheduler extends AdaptiveBatchScheduler
                                                         currentTimestamp))
                                 .collect(Collectors.toList());
 
+                // 通过协调者 安装子网关
                 setupSubtaskGatewayForAttempts(executionVertex, attempts);
                 verticesToDeploy.add(executionVertexId);
                 newSpeculativeExecutions.addAll(attempts);
             }
         }
 
+        // 为这组execution分配slot 以及调度
         executionDeployer.allocateSlotsAndDeploy(
                 newSpeculativeExecutions,
+                // 增加相关的版本号
                 executionVertexVersioner.getExecutionVertexVersions(verticesToDeploy));
     }
 
+    /**
+     * 当这些execution 发现执行比较慢时  就会被标记成阻塞节点
+     * @param slowTasks
+     * @param currentTimestamp
+     */
     private void blockSlowNodes(
             Map<ExecutionVertexID, Collection<ExecutionAttemptID>> slowTasks,
             long currentTimestamp) {
         if (!blockSlowNodeDuration.isZero()) {
+            // 表示多久脱离阻塞
             final long blockedEndTimestamp = currentTimestamp + blockSlowNodeDuration.toMillis();
             final Collection<BlockedNode> nodesToBlock =
                     getSlowNodeIds(slowTasks).stream()
                             .map(
+                                    //
                                     nodeId ->
                                             new BlockedNode(
                                                     nodeId,
                                                     "Node is detected to be slow.",
                                                     blockedEndTimestamp))
                             .collect(Collectors.toList());
+            // 通知新增了这些阻塞节点
             blocklistOperations.addNewBlockedNodes(nodesToBlock);
         }
     }
 
+    /**
+     * 找到这些execution所在的节点
+     * @param slowTasks
+     * @return
+     */
     private Set<String> getSlowNodeIds(
             Map<ExecutionVertexID, Collection<ExecutionAttemptID>> slowTasks) {
         final Set<ExecutionAttemptID> slowExecutions =
@@ -410,6 +486,11 @@ public class SpeculativeScheduler extends AdaptiveBatchScheduler
                 .collect(Collectors.toSet());
     }
 
+    /**
+     * 尝试调度这些execution
+     * @param executionVertex
+     * @param attempts
+     */
     private void setupSubtaskGatewayForAttempts(
             final SpeculativeExecutionVertex executionVertex,
             final Collection<Execution> attempts) {
@@ -422,6 +503,7 @@ public class SpeculativeScheduler extends AdaptiveBatchScheduler
                 .getOperatorCoordinators()
                 .forEach(
                         operatorCoordinator ->
+                                // 为他们安装子任务网关
                                 operatorCoordinator.setupSubtaskGatewayForAttempts(
                                         executionVertex.getParallelSubtaskIndex(), attemptNumbers));
     }

@@ -43,7 +43,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.RunnableFuture;
 
-/** Default implementation of OperatorStateStore that provides the ability to make snapshots. */
+/** Default implementation of OperatorStateStore that provides the ability to make snapshots.
+ * */
 @Internal
 public class DefaultOperatorStateBackend implements OperatorStateBackend {
 
@@ -52,10 +53,14 @@ public class DefaultOperatorStateBackend implements OperatorStateBackend {
     /** The default namespace for state in cases where no state name is provided */
     public static final String DEFAULT_OPERATOR_STATE_NAME = "_default_";
 
-    /** Map for all registered operator states. Maps state name -> state */
+    /** Map for all registered operator states. Maps state name -> state
+     * 这是个状态后端 key对应 stateName  value 对应一个List类型的state
+     * */
     private final Map<String, PartitionableListState<?>> registeredOperatorStates;
 
-    /** Map for all registered operator broadcast states. Maps state name -> state */
+    /** Map for all registered operator broadcast states. Maps state name -> state
+     * key:stateName value:broadcast类型的state    broadcastState内部就是一个map
+     * */
     private final Map<String, BackendWritableBroadcastState<?, ?>> registeredBroadcastStates;
 
     /** CloseableRegistry to participate in the tasks lifecycle. */
@@ -67,6 +72,8 @@ public class DefaultOperatorStateBackend implements OperatorStateBackend {
 
     /** The execution configuration. */
     private final ExecutionConfig executionConfig;
+
+    // 下面维护的是被访问过的state
 
     /**
      * Cache of already accessed states.
@@ -83,6 +90,9 @@ public class DefaultOperatorStateBackend implements OperatorStateBackend {
 
     private final Map<String, BackendWritableBroadcastState<?, ?>> accessedBroadcastStatesByName;
 
+    /**
+     * 该对象内部包含了生成快照的逻辑
+     */
     private final SnapshotStrategyRunner<OperatorStateHandle, ?> snapshotStrategyRunner;
 
     public DefaultOperatorStateBackend(
@@ -132,6 +142,15 @@ public class DefaultOperatorStateBackend implements OperatorStateBackend {
     //  State access methods
     // -------------------------------------------------------------------------------------------
 
+    /**
+     * 根据描述信息 从map中查找
+     * @param stateDescriptor The descriptor for this state, providing a name, a serializer for the
+     *     keys and one for the values.
+     * @param <K>
+     * @param <V>
+     * @return
+     * @throws StateMigrationException
+     */
     @SuppressWarnings("unchecked")
     @Override
     public <K, V> BroadcastState<K, V> getBroadcastState(
@@ -140,6 +159,7 @@ public class DefaultOperatorStateBackend implements OperatorStateBackend {
         Preconditions.checkNotNull(stateDescriptor);
         String name = Preconditions.checkNotNull(stateDescriptor.getName());
 
+        // 找到广播状态
         BackendWritableBroadcastState<K, V> previous =
                 (BackendWritableBroadcastState<K, V>) accessedBroadcastStatesByName.get(name);
 
@@ -152,6 +172,7 @@ public class DefaultOperatorStateBackend implements OperatorStateBackend {
             return previous;
         }
 
+        // 被动创建
         stateDescriptor.initializeSerializerUnlessSet(getExecutionConfig());
         TypeSerializer<K> broadcastStateKeySerializer =
                 Preconditions.checkNotNull(stateDescriptor.getKeySerializer());
@@ -173,6 +194,7 @@ public class DefaultOperatorStateBackend implements OperatorStateBackend {
         } else {
             // has restored state; check compatibility of new state access
 
+            // 表示状态已存在
             checkStateNameAndMode(
                     broadcastState.getStateMetaInfo().getName(),
                     name,
@@ -205,6 +227,8 @@ public class DefaultOperatorStateBackend implements OperatorStateBackend {
         return broadcastState;
     }
 
+    // 不同mode 对应不同状态
+
     @Override
     public <S> ListState<S> getListState(ListStateDescriptor<S> stateDescriptor) throws Exception {
         return getListState(stateDescriptor, OperatorStateHandle.Mode.SPLIT_DISTRIBUTE);
@@ -231,6 +255,14 @@ public class DefaultOperatorStateBackend implements OperatorStateBackend {
                 checkpointId, timestamp, streamFactory, checkpointOptions);
     }
 
+    /**
+     * 根据不同模式 获取不同的listState   逻辑跟广播是类似的
+     * @param stateDescriptor
+     * @param mode
+     * @param <S>
+     * @return
+     * @throws StateMigrationException
+     */
     private <S> ListState<S> getListState(
             ListStateDescriptor<S> stateDescriptor, OperatorStateHandle.Mode mode)
             throws StateMigrationException {

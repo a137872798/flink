@@ -28,6 +28,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * Either type for {@link Buffer} or {@link AbstractEvent} instances tagged with the channel index,
  * from which they were received.
+ * 表示内部存储的是 buffer 或者event
  */
 public class BufferOrEvent {
 

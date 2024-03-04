@@ -20,7 +20,9 @@ package org.apache.flink.runtime.io.network.buffer;
 
 import org.apache.flink.core.memory.MemorySegment;
 
-/** Interface for recycling {@link MemorySegment}s. */
+/** Interface for recycling {@link MemorySegment}s.
+ * 该对象可以回收内存块
+ * */
 public interface BufferRecycler {
 
     /**
@@ -30,7 +32,9 @@ public interface BufferRecycler {
      */
     void recycle(MemorySegment memorySegment);
 
-    /** The buffer recycler does nothing for recycled segment. */
+    /** The buffer recycler does nothing for recycled segment.
+     * 虚假的回收器  表示不会回收任何东西
+     * */
     final class DummyBufferRecycler implements BufferRecycler {
 
         public static final BufferRecycler INSTANCE = new DummyBufferRecycler();

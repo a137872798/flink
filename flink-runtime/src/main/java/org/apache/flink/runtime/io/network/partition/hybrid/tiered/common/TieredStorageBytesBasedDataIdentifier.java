@@ -25,7 +25,9 @@ import java.util.Arrays;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
 
-/** The bytes based unique identification for the Tiered Storage. */
+/** The bytes based unique identification for the Tiered Storage.
+ * 相当于是ID
+ * */
 public abstract class TieredStorageBytesBasedDataIdentifier
         implements TieredStorageDataIdentifier, Serializable {
 

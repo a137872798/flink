@@ -126,47 +126,95 @@ import java.util.stream.StreamSupport;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Base class which can be used to implement {@link SchedulerNG}. */
+/** Base class which can be used to implement {@link SchedulerNG}.
+ * 这个是调度器的基础
+ * */
 public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling {
 
     private final Logger log;
 
+    /**
+     * 对应的job图 里面有一些基础信息
+     */
     private final JobGraph jobGraph;
 
+    /**
+     * 在执行阶段才使用的执行图
+     */
     private final ExecutionGraph executionGraph;
 
+    /**
+     * 拓扑图对象 可以通过该对象访问顶点，流水线，结果集等信息
+     */
     private final SchedulingTopology schedulingTopology;
 
+    /**
+     * 使用顶点Id可以找到对应state存储的位置  也就是TMLocation
+     */
     protected final StateLocationRetriever stateLocationRetriever;
 
+    /**
+     * 可以查询子任务消费的数据 和产生消费数据的子任务
+     */
     protected final InputsLocationsRetriever inputsLocationsRetriever;
 
+    /**
+     * 存储完成的检查点信息
+     */
     private final CompletedCheckpointStore completedCheckpointStore;
 
+    /**
+     * 清理检查点
+     */
     private final CheckpointsCleaner checkpointsCleaner;
 
     private final CheckpointIDCounter checkpointIdCounter;
 
+    /**
+     * TODO
+     */
     protected final JobManagerJobMetricGroup jobManagerJobMetricGroup;
 
+    /**
+     * 该对象会记录各子任务的版本号
+     */
     protected final ExecutionVertexVersioner executionVertexVersioner;
 
+    /**
+     * 该对象暴露了一些与 kvState相关的接口  虽然是通过执行图实现的
+     */
     private final KvStateHandler kvStateHandler;
 
+    /**
+     * 也是将执行图的一些能力以组件形式暴露出来
+     */
     private final ExecutionGraphHandler executionGraphHandler;
 
+    /**
+     * 该对象维护一组协调者
+     */
     protected final OperatorCoordinatorHandler operatorCoordinatorHandler;
 
     private final ComponentMainThreadExecutor mainThreadExecutor;
 
+    /**
+     * 记录错误信息的容器
+     */
     private final BoundedFIFOQueue<RootExceptionHistoryEntry> exceptionHistory;
 
+    /**
+     * 通过工厂创建执行图
+     */
     private final ExecutionGraphFactory executionGraphFactory;
 
+    // TODO 统计相关的先忽略
     private final MetricOptions.JobStatusMetricsSettings jobStatusMetricsSettings;
 
     private final DeploymentStateTimeMetrics deploymentStateTimeMetrics;
 
+    /**
+     * 监听子任务处理完数据
+     */
     private final VertexEndOfDataListener vertexEndOfDataListener;
 
     public SchedulerBase(
@@ -194,6 +242,8 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         this.mainThreadExecutor = mainThreadExecutor;
 
         this.checkpointsCleaner = checkpointsCleaner;
+
+        // 根据参数创建 CheckpointStore
         this.completedCheckpointStore =
                 SchedulerUtils.createCompletedCheckpointStoreIfCheckpointingIsEnabled(
                         jobGraph,
@@ -201,6 +251,7 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
                         checkNotNull(checkpointRecoveryFactory),
                         ioExecutor,
                         log);
+        // 计数器
         this.checkpointIdCounter =
                 SchedulerUtils.createCheckpointIDCounterIfCheckpointingIsEnabled(
                         jobGraph, checkNotNull(checkpointRecoveryFactory));
@@ -210,6 +261,7 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         this.deploymentStateTimeMetrics =
                 new DeploymentStateTimeMetrics(jobGraph.getJobType(), jobStatusMetricsSettings);
 
+        // 创建执行图
         this.executionGraph =
                 createAndRestoreExecutionGraph(
                         completedCheckpointStore,
@@ -220,15 +272,20 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
                         jobStatusListener,
                         vertexParallelismStore);
 
+        // 获取执行图的拓扑信息
         this.schedulingTopology = executionGraph.getSchedulingTopology();
 
         stateLocationRetriever =
                 executionVertexId ->
                         getExecutionVertex(executionVertexId).getPreferredLocationBasedOnState();
+
+        // 借助执行图提供检索能力
         inputsLocationsRetriever =
                 new ExecutionGraphToInputsLocationsRetrieverAdapter(executionGraph);
 
         this.kvStateHandler = new KvStateHandler(executionGraph);
+
+        // 这些组件都要借用执行图的能力
         this.executionGraphHandler =
                 new ExecutionGraphHandler(executionGraph, log, ioExecutor, this.mainThreadExecutor);
 
@@ -243,6 +300,10 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         this.vertexEndOfDataListener = new VertexEndOfDataListener(executionGraph);
     }
 
+    /**
+     *
+     * @param jobStatus
+     */
     private void shutDownCheckpointServices(JobStatus jobStatus) {
         Exception exception = null;
 
@@ -263,7 +324,13 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         }
     }
 
+    /**
+     *
+     * @param parallelism
+     * @return
+     */
     private static int normalizeParallelism(int parallelism) {
+        // 采用默认并行度就是1
         if (parallelism == ExecutionConfig.PARALLELISM_DEFAULT) {
             return 1;
         }
@@ -275,12 +342,20 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
      *
      * @param vertex the vertex to compute a default max parallelism for
      * @return the computed max parallelism
+     * 计算最大并行度
      */
     public static int getDefaultMaxParallelism(JobVertex vertex) {
+        // 这个并行度其实计算出来非常大
         return KeyGroupRangeAssignment.computeDefaultMaxParallelism(
                 normalizeParallelism(vertex.getParallelism()));
     }
 
+    /**
+     * 计算并行度
+     * @param vertices
+     * @param defaultMaxParallelismFunc 通过该函数可以得到各顶点的默认最大并行度
+     * @return
+     */
     public static VertexParallelismStore computeVertexParallelismStore(
             Iterable<JobVertex> vertices, Function<JobVertex, Integer> defaultMaxParallelismFunc) {
         return computeVertexParallelismStore(
@@ -297,6 +372,7 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
      *     is specified on a given vertex
      * @param normalizeParallelismFunc a function for normalizing vertex parallelism
      * @return the computed parallelism store
+     * 基于并行度 填充store
      */
     public static VertexParallelismStore computeVertexParallelismStore(
             Iterable<JobVertex> vertices,
@@ -305,18 +381,21 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         DefaultVertexParallelismStore store = new DefaultVertexParallelismStore();
 
         for (JobVertex vertex : vertices) {
+            // 先标准化并行度
             int parallelism = normalizeParallelismFunc.apply(vertex.getParallelism());
 
             int maxParallelism = vertex.getMaxParallelism();
             final boolean autoConfigured;
             // if no max parallelism was configured by the user, we calculate and set a default
             if (maxParallelism == JobVertex.MAX_PARALLELISM_DEFAULT) {
+                // 计算最大并行度
                 maxParallelism = defaultMaxParallelismFunc.apply(vertex);
                 autoConfigured = true;
             } else {
                 autoConfigured = false;
             }
 
+            // 根据这些信息填充store
             VertexParallelismInformation parallelismInfo =
                     new DefaultVertexParallelismInfo(
                             parallelism,
@@ -352,11 +431,24 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
      *
      * @param jobGraph the job graph to retrieve vertices from
      * @return the computed parallelism store
+     * 基于图信息存储并行度
      */
     public static VertexParallelismStore computeVertexParallelismStore(JobGraph jobGraph) {
         return computeVertexParallelismStore(jobGraph.getVertices());
     }
 
+    /**
+     * 创建执行图
+     * @param completedCheckpointStore
+     * @param checkpointsCleaner
+     * @param checkpointIdCounter
+     * @param initializationTimestamp
+     * @param mainThreadExecutor
+     * @param jobStatusListener
+     * @param vertexParallelismStore
+     * @return
+     * @throws Exception
+     */
     private ExecutionGraph createAndRestoreExecutionGraph(
             CompletedCheckpointStore completedCheckpointStore,
             CheckpointsCleaner checkpointsCleaner,
@@ -367,6 +459,7 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
             VertexParallelismStore vertexParallelismStore)
             throws Exception {
 
+        // 通过工厂创建
         final ExecutionGraph newExecutionGraph =
                 executionGraphFactory.createAndRestoreExecutionGraph(
                         jobGraph,
@@ -383,6 +476,7 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
                         log);
 
         newExecutionGraph.setInternalTaskFailuresListener(
+                // 该对象在感知到失败时 会更新execution的状态
                 new UpdateSchedulerNgOnInternalFailuresListener(this));
         newExecutionGraph.registerJobStatusListener(jobStatusListener);
         newExecutionGraph.start(mainThreadExecutor);
@@ -390,6 +484,10 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         return newExecutionGraph;
     }
 
+    /**
+     * 为这些子任务准备新的 execution
+     * @param vertices
+     */
     protected void resetForNewExecutions(final Collection<ExecutionVertexID> vertices) {
         vertices.stream().forEach(this::resetForNewExecution);
     }
@@ -398,20 +496,31 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         getExecutionVertex(executionVertexId).resetForNewExecution();
     }
 
+    /**
+     * 将相关子任务设置成未完成
+     * @param vertices
+     * @param isGlobalRecovery
+     * @throws Exception
+     */
     protected void restoreState(
             final Set<ExecutionVertexID> vertices, final boolean isGlobalRecovery)
             throws Exception {
+        // 将相关的子任务重置成false
         vertexEndOfDataListener.restoreVertices(vertices);
 
+        // 这个应该是类似于没有开启检查点功能 那么恢复数据就变成了重置数据
         final CheckpointCoordinator checkpointCoordinator =
                 executionGraph.getCheckpointCoordinator();
 
+        // 协调者不存在
         if (checkpointCoordinator == null) {
             // batch failover case - we only need to notify the OperatorCoordinators,
             // not do any actual state restore
             if (isGlobalRecovery) {
+                // 数据恢复为空
                 notifyCoordinatorsOfEmptyGlobalRestore();
             } else {
+                // 将本次相关的子任务数据清空
                 notifyCoordinatorsOfSubtaskRestore(
                         getInvolvedExecutionJobVerticesAndSubtasks(vertices),
                         OperatorCoordinator.NO_CHECKPOINT);
@@ -424,19 +533,24 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         // abort pending checkpoints to
         // i) enable new checkpoint triggering without waiting for last checkpoint expired.
         // ii) ensure the EXACTLY_ONCE semantics if needed.
+
+        // 禁止当前的检查点
         checkpointCoordinator.abortPendingCheckpoints(
                 new CheckpointException(CheckpointFailureReason.JOB_FAILOVER_REGION));
 
         if (isGlobalRecovery) {
+            // 找到相关的task
             final Set<ExecutionJobVertex> jobVerticesToRestore =
                     getInvolvedExecutionJobVertices(vertices);
 
+            // 恢复到最近的检查点
             checkpointCoordinator.restoreLatestCheckpointedStateToAll(jobVerticesToRestore, true);
 
         } else {
             final Map<ExecutionJobVertex, IntArrayList> subtasksToRestore =
                     getInvolvedExecutionJobVerticesAndSubtasks(vertices);
 
+            // 这里恢复task
             final OptionalLong restoredCheckpointId =
                     checkpointCoordinator.restoreLatestCheckpointedStateToSubtasks(
                             subtasksToRestore.keySet());
@@ -454,6 +568,11 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         }
     }
 
+    /**
+     * 将某些子分区恢复到某个检查点状态 如果 checkpointId是特殊值(比如empty)  则清空数据
+     * @param restoredSubtasks
+     * @param checkpointId
+     */
     private void notifyCoordinatorsOfSubtaskRestore(
             final Map<ExecutionJobVertex, IntArrayList> restoredSubtasks, final long checkpointId) {
 
@@ -462,6 +581,7 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
             final ExecutionJobVertex jobVertex = vertexSubtasks.getKey();
             final IntArrayList subtasks = vertexSubtasks.getValue();
 
+            // 如果没有关联的协调者  无法处理
             final Collection<OperatorCoordinatorHolder> coordinators =
                     jobVertex.getOperatorCoordinators();
             if (coordinators.isEmpty()) {
@@ -478,6 +598,10 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         }
     }
 
+    /**
+     * 通知所有协调者将数据恢复到空的状态  因为检查点为空
+     * @throws Exception
+     */
     private void notifyCoordinatorsOfEmptyGlobalRestore() throws Exception {
         for (final ExecutionJobVertex ejv : getExecutionGraph().getAllVertices().values()) {
             if (!ejv.isInitialized()) {
@@ -489,6 +613,11 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         }
     }
 
+    /**
+     * 转换成task级别
+     * @param executionVertices
+     * @return
+     */
     private Set<ExecutionJobVertex> getInvolvedExecutionJobVertices(
             final Set<ExecutionVertexID> executionVertices) {
 
@@ -500,6 +629,11 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         return tasks;
     }
 
+    /**
+     * 以task为key value是出现的各子任务
+     * @param executionVertices
+     * @return
+     */
     private Map<ExecutionJobVertex, IntArrayList> getInvolvedExecutionJobVerticesAndSubtasks(
             final Set<ExecutionVertexID> executionVertices) {
 
@@ -516,6 +650,10 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         return result;
     }
 
+    /**
+     * 切换到调度状态
+     * @param verticesToDeploy
+     */
     protected void transitionToScheduled(final List<ExecutionVertexID> verticesToDeploy) {
         verticesToDeploy.forEach(
                 executionVertexId ->
@@ -534,11 +672,21 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         return mainThreadExecutor;
     }
 
+    /**
+     * 表示任务失败
+     * @param cause
+     * @param timestamp
+     * @param failureLabels
+     */
     protected void failJob(
             Throwable cause, long timestamp, CompletableFuture<Map<String, String>> failureLabels) {
+        // 更新所有子任务的版本
         incrementVersionsOfAllVertices();
+        // 取消当前的slot请求
         cancelAllPendingSlotRequestsInternal();
+        // 通知执行图 job失败
         executionGraph.failJob(cause, timestamp);
+        // 记录一个错误信息
         getJobTerminationFuture().thenRun(() -> archiveGlobalFailure(cause, failureLabels));
     }
 
@@ -546,6 +694,10 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         return schedulingTopology;
     }
 
+    /**
+     * 返回一个检测分区是否可用的对象
+     * @return
+     */
     protected final ResultPartitionAvailabilityChecker getResultPartitionAvailabilityChecker() {
         return executionGraph.getResultPartitionAvailabilityChecker();
     }
@@ -554,6 +706,11 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         executionGraph.transitionToRunning();
     }
 
+    /**
+     * 从图中找到子任务
+     * @param executionVertexId
+     * @return
+     */
     public ExecutionVertex getExecutionVertex(final ExecutionVertexID executionVertexId) {
         return executionGraph
                 .getAllVertices()
@@ -571,11 +728,19 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
 
     protected abstract long getNumberOfRestarts();
 
+    /**
+     * 表示在分区数据结束时 是否需要标记
+     * @return
+     */
     protected MarkPartitionFinishedStrategy getMarkPartitionFinishedStrategy() {
         // blocking partition always need mark finished.
         return ResultPartitionType::isBlockingOrBlockingPersistentResultPartition;
     }
 
+    /**
+     * 更新所有子任务的版本
+     * @return
+     */
     private Map<ExecutionVertexID, ExecutionVertexVersion> incrementVersionsOfAllVertices() {
         return executionVertexVersioner.recordVertexModifications(
                 IterableUtils.toStream(schedulingTopology.getVertices())
@@ -585,6 +750,11 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
 
     protected abstract void cancelAllPendingSlotRequestsInternal();
 
+    /**
+     * 切换到某个状态
+     * @param current
+     * @param newState
+     */
     protected void transitionExecutionGraphState(
             final JobStatus current, final JobStatus newState) {
         executionGraph.transitionState(current, newState);
@@ -610,9 +780,13 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
     // SchedulerNG
     // ------------------------------------------------------------------------
 
+    /**
+     * 开始调度
+     */
     @Override
     public final void startScheduling() {
         mainThreadExecutor.assertRunningInMainThread();
+        // TODO
         registerJobMetrics(
                 jobManagerJobMetricGroup,
                 executionGraph,
@@ -621,6 +795,8 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
                 executionGraph::registerJobStatusListener,
                 executionGraph.getStatusTimestamp(JobStatus.INITIALIZING),
                 jobStatusMetricsSettings);
+
+        // 启动所有协调者
         operatorCoordinatorHandler.startAllOperatorCoordinators();
         startSchedulingInternal();
     }
@@ -664,9 +840,12 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
 
         FutureUtils.assertNoException(checkpointServicesShutdownFuture);
 
+        // 增加版本号
         incrementVersionsOfAllVertices();
+        // 取消slot请求
         cancelAllPendingSlotRequestsInternal();
         executionGraph.suspend(cause);
+        // 丢弃所有协调者
         operatorCoordinatorHandler.disposeAllOperatorCoordinators();
         return checkpointServicesShutdownFuture;
     }
@@ -687,6 +866,7 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
 
     protected final void archiveGlobalFailure(
             Throwable failure, CompletableFuture<Map<String, String>> failureLabels) {
+        // 记录一个错误信息
         archiveGlobalFailure(
                 failure,
                 executionGraph.getStatusTimestamp(JobStatus.FAILED),
@@ -707,6 +887,10 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         log.debug("Archive global failure.", failure);
     }
 
+    /**
+     * 处理异常信息
+     * @param failureHandlingResult
+     */
     protected final void archiveFromFailureHandlingResult(
             FailureHandlingResultSnapshot failureHandlingResult) {
         if (failureHandlingResult.getRootCauseExecution().isPresent()) {
@@ -745,6 +929,11 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         return false;
     }
 
+    /**
+     * 在更新完成后触发
+     * @param execution
+     * @param taskExecutionState
+     */
     private void onTaskExecutionStateUpdate(
             final Execution execution, final TaskExecutionStateTransition taskExecutionState) {
 
@@ -766,10 +955,18 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         }
     }
 
+    // 不同状态触发不同钩子
     protected abstract void onTaskFinished(final Execution execution, final IOMetrics ioMetrics);
 
     protected abstract void onTaskFailed(final Execution execution);
 
+    /**
+     * 委托给executionGraphHandler
+     * @param vertexID
+     * @param executionAttempt
+     * @return
+     * @throws IOException
+     */
     @Override
     public SerializedInputSplit requestNextInputSplit(
             JobVertexID vertexID, ExecutionAttemptID executionAttempt) throws IOException {
@@ -817,6 +1014,8 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         mainThreadExecutor.assertRunningInMainThread();
         return JobDetails.createDetailsForJob(executionGraph);
     }
+
+    // 下面几个都是委托
 
     @Override
     public KvStateLocation requestKvStateLocation(final JobID jobId, final String registrationName)
@@ -875,6 +1074,8 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
 
         final CheckpointCoordinator checkpointCoordinator =
                 executionGraph.getCheckpointCoordinator();
+
+        // 检查前置条件
         StopWithSavepointTerminationManager.checkSavepointActionPreconditions(
                 checkpointCoordinator, targetDirectory, getJobId(), log);
 
@@ -985,6 +1186,13 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         executionGraphHandler.reportCheckpointMetrics(attemptId, id, metrics);
     }
 
+    /**
+     * 表示为了保存点而停止
+     * @param targetDirectory
+     * @param terminate
+     * @param formatType
+     * @return
+     */
     @Override
     public CompletableFuture<String> stopWithSavepoint(
             @Nullable final String targetDirectory,
@@ -1004,8 +1212,10 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
         // to have only the data of the synchronous savepoint committed.
         // in case of failure, and if the job restarts, the coordinator
         // will be restarted by the CheckpointCoordinatorDeActivator.
+        // 停止检查点
         stopCheckpointScheduler();
 
+        // 这里对应所有子任务
         final CompletableFuture<Collection<ExecutionState>> executionTerminationsFuture =
                 getCombinedExecutionTerminationFuture();
 
@@ -1018,6 +1228,7 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
                         new StopWithSavepointTerminationHandlerImpl(
                                 jobGraph.getJobID(), this, log));
 
+        // 开始产生保存点
         return stopWithSavepointTerminationManager.stopWithSavepoint(
                 savepointFuture, executionTerminationsFuture, mainThreadExecutor);
     }
@@ -1071,6 +1282,10 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
                 operator, request);
     }
 
+    /**
+     * 表示某个execution 的数据处理完了
+     * @param executionAttemptID The execution attempt id.
+     */
     @Override
     public void notifyEndOfData(ExecutionAttemptID executionAttemptID) {
         if (jobGraph.getJobType() == JobType.STREAMING
@@ -1080,6 +1295,7 @@ public abstract class SchedulerBase implements SchedulerNG, CheckpointScheduling
                         .isEnableCheckpointsAfterTasksFinish()) {
             vertexEndOfDataListener.recordTaskEndOfData(executionAttemptID);
             if (vertexEndOfDataListener.areAllTasksEndOfData()) {
+                // 数据都处理完后 触发检查点
                 triggerCheckpoint(CheckpointType.CONFIGURED);
             }
         }

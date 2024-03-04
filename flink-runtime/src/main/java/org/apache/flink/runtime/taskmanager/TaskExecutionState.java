@@ -33,18 +33,30 @@ import java.io.Serializable;
  * or core Java exception, but may be an exception from the user code. As such, it cannot be
  * deserialized without a special class loader. For that reason, the class keeps the actual
  * exception field transient and deserialized it lazily, with the appropriate class loader.
+ * 表示在 TaskExecutor上运行的某个 Execution此时的状态
  */
 public class TaskExecutionState implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 通过id标识这个 execution
+     */
     private final ExecutionAttemptID executionId;
 
+    /**
+     * 表示execution此时的状态
+     */
     private final ExecutionState executionState;
 
+    /**
+     * 对应一个被序列化的异常
+     */
     private final SerializedThrowable throwable;
 
-    /** Serialized user-defined accumulators */
+    /** Serialized user-defined accumulators
+     * 表示此时产生的累加值
+     * */
     private final AccumulatorSnapshot accumulators;
 
     private final IOMetrics ioMetrics;

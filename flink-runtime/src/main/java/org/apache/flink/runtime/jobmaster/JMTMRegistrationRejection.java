@@ -23,6 +23,7 @@ import org.apache.flink.runtime.registration.RegistrationResponse;
 /**
  * Message indicating a registration rejection from the {@link JobMaster} for the {@link
  * org.apache.flink.runtime.taskexecutor.TaskExecutor}.
+ * 表示注册被拒绝了
  */
 public class JMTMRegistrationRejection extends RegistrationResponse.Rejection {
     private static final long serialVersionUID = -5763721635090700901L;

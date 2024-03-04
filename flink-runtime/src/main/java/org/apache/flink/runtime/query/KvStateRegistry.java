@@ -37,14 +37,19 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <p>KvState is registered when it is created/restored and unregistered when the owning operator
  * stops running.
+ * 该对象管理被注册的状态 同时通知监听器
  */
 public class KvStateRegistry {
 
-    /** All registered KvState instances. */
+    /** All registered KvState instances.
+     * 通过id 关联 KvState
+     * */
     private final ConcurrentHashMap<KvStateID, KvStateEntry<?, ?, ?>> registeredKvStates =
             new ConcurrentHashMap<>(4);
 
-    /** Registry listeners to be notified on registration/unregistration. */
+    /** Registry listeners to be notified on registration/unregistration.
+     * 监听某个Job KvState的变化 并触发监听器
+     * */
     private final ConcurrentHashMap<JobID, KvStateRegistryListener> listeners =
             new ConcurrentHashMap<>(4);
 
@@ -81,21 +86,26 @@ public class KvStateRegistry {
      * @param registrationName Name under which the KvState is registered
      * @param kvState KvState instance to be registered
      * @return Assigned KvStateID
+     *
+     * 注册某个kvState
      */
     public KvStateID registerKvState(
             JobID jobId,
             JobVertexID jobVertexId,
-            KeyGroupRange keyGroupRange,
-            String registrationName,
-            InternalKvState<?, ?, ?> kvState,
+            KeyGroupRange keyGroupRange, // 该state的key的范围
+            String registrationName, // 注册时使用的名字
+            InternalKvState<?, ?, ?> kvState,  // kvState
             ClassLoader userClassLoader) {
 
         KvStateID kvStateId = new KvStateID();
 
         if (registeredKvStates.putIfAbsent(kvStateId, new KvStateEntry<>(kvState, userClassLoader))
                 == null) {
+
+            // 首次注册
             final KvStateRegistryListener listener = getKvStateRegistryListener(jobId);
 
+            // 通知注册了
             if (listener != null) {
                 listener.notifyKvStateRegistered(
                         jobId, jobVertexId, keyGroupRange, registrationName, kvStateId);
@@ -118,6 +128,8 @@ public class KvStateRegistry {
      * @param jobId JobId the KvState instance belongs to
      * @param kvStateId KvStateID to identify the KvState instance
      * @param keyGroupRange Key group range the KvState instance belongs to
+     *
+     *                      注销某个kvState
      */
     public void unregisterKvState(
             JobID jobId,
@@ -159,6 +171,8 @@ public class KvStateRegistry {
      * @param jobId JobID of the task
      * @param jobVertexId JobVertexID of the task
      * @return A {@link TaskKvStateRegistry} facade for the task
+     *
+     * 创建某个job下task相关的 TaskKvStateRegistry
      */
     public TaskKvStateRegistry createTaskRegistry(JobID jobId, JobVertexID jobVertexId) {
         return new TaskKvStateRegistry(this, jobId, jobVertexId);
@@ -171,6 +185,7 @@ public class KvStateRegistry {
     private KvStateRegistryListener getKvStateRegistryListener(JobID jobId) {
         // first check whether we are running the legacy code which registers
         // a single listener under HighAvailabilityServices.DEFAULT_JOB_ID
+        // 兼容性代码
         KvStateRegistryListener listener = listeners.get(HighAvailabilityServices.DEFAULT_JOB_ID);
 
         if (listener == null) {

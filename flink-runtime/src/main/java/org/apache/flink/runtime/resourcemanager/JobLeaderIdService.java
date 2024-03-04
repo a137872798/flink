@@ -29,13 +29,14 @@ import java.util.concurrent.CompletableFuture;
  * manager responsible for the job). The leader id will be exposed as a future via the {@link
  * #getLeaderId(JobID)}. The future will only be completed with an exception in case the service
  * will be stopped.
+ * 在集群中存在多个 JobMaster  通过该对象可以找到leader节点
  */
 public interface JobLeaderIdService {
 
     /**
      * Start the service with the given job leader actions.
      *
-     * @param initialJobLeaderIdActions to use for job leader id actions
+     * @param initialJobLeaderIdActions to use for job leader id actions   该对象包含一些钩子 可以通知到外部对象
      * @throws Exception which is thrown when clearing up old state
      */
     void start(JobLeaderIdActions initialJobLeaderIdActions) throws Exception;
@@ -51,6 +52,7 @@ public interface JobLeaderIdService {
      * Stop and clear the currently registered job leader id listeners.
      *
      * @throws Exception which is thrown in case a retrieval service cannot be stopped properly
+     * 清理掉当前的监听器
      */
     void clear() throws Exception;
 
@@ -59,6 +61,7 @@ public interface JobLeaderIdService {
      *
      * @param jobId identifying the job to monitor
      * @throws Exception if the job could not be added to the service
+     * 多监控一个job
      */
     void addJob(JobID jobId) throws Exception;
 
@@ -84,6 +87,7 @@ public interface JobLeaderIdService {
      * @param jobId jobId specifying for which job to retrieve the {@link JobMasterId}
      * @return Future with the current leader's {@link JobMasterId}
      * @throws Exception if retrieving the {@link JobMasterId} cannot be started
+     * 获取该job 对应的 jobMaster leader
      */
     CompletableFuture<JobMasterId> getLeaderId(JobID jobId) throws Exception;
 

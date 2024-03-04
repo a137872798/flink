@@ -91,6 +91,7 @@ public class NoOpDriver<T> implements Driver<AbstractRichFunction, T> {
         if (objectReuseEnabled) {
             T record = this.taskContext.<T>getInputSerializer(0).getSerializer().createInstance();
 
+            // 直接下发 不需要其他操作
             while (this.running && ((record = input.next(record)) != null)) {
                 numRecordsIn.inc();
                 output.collect(record);

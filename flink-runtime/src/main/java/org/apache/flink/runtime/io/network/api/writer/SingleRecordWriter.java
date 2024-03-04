@@ -27,7 +27,9 @@ import java.util.concurrent.CompletableFuture;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** The specific delegate implementation for the single output case. */
+/** The specific delegate implementation for the single output case.
+ * 内部只有单个对象
+ * */
 public class SingleRecordWriter<T extends IOReadableWritable> implements RecordWriterDelegate<T> {
 
     private final RecordWriter<T> recordWriter;

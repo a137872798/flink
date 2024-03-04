@@ -51,12 +51,22 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** Writes channel state for multiple subtasks of the same checkpoint. */
+/** Writes channel state for multiple subtasks of the same checkpoint.
+ * checkpoint 简单理解就是某一时间点数据的快照
+ * savepoint 大体上跟checkpoint一致 但是随时可以恢复数据
+ * */
 @NotThreadSafe
 class ChannelStateCheckpointWriter {
     private static final Logger LOG = LoggerFactory.getLogger(ChannelStateCheckpointWriter.class);
 
+    /**
+     * 对应的持久层
+     */
     private final DataOutputStream dataStream;
+
+    /**
+     * 该对象在写入完成后 会返回一个句柄  用于读取之前的数据
+     */
     private final CheckpointStateOutputStream checkpointStream;
 
     /**
@@ -65,15 +75,39 @@ class ChannelStateCheckpointWriter {
      */
     private Throwable throwable;
 
+    /**
+     * 该对象用于将状态序列化
+     */
     private final ChannelStateSerializer serializer;
+    /**
+     * 每当声明一个检查点时 要产生一个writer对象  该writer就是为了完成本次检查点任务的
+     */
     private final long checkpointId;
+
+    /**
+     * 当完成时执行的后置函数
+     */
     private final RunnableWithException onComplete;
 
     // Subtasks that have not yet register writer result.
+    // 看来检查点针对的维度是 task  然后task根据并行度会生成多个subtask 一个检查点完成意味着下面所有的subtask都完成
+    // 表示在检查点开始前检测到的子任务数量
     private final Set<SubtaskID> subtasksToRegister;
 
+    /**
+     * 记录每个检查点 当前所处的状态
+     */
     private final Map<SubtaskID, ChannelStatePendingResult> pendingResults = new HashMap<>();
 
+    /**
+     *
+     * @param subtasks
+     * @param checkpointId
+     * @param streamFactory  目前简单来看也就是创建2个输出流 一个使用内存作为存储容器  一个使用文件作为存储容器
+     * @param serializer
+     * @param onComplete
+     * @throws Exception
+     */
     ChannelStateCheckpointWriter(
             Set<SubtaskID> subtasks,
             long checkpointId,
@@ -114,9 +148,16 @@ class ChannelStateCheckpointWriter {
         this.serializer = checkNotNull(serializer);
         this.dataStream = checkNotNull(dataStream);
         this.onComplete = checkNotNull(onComplete);
+
+        // 初始化时就会先写入头部信息
         runWithChecks(() -> serializer.writeHeader(dataStream));
     }
 
+    /**
+     * 设置result对象
+     * @param subtaskID
+     * @param result
+     */
     void registerSubtaskResult(
             SubtaskID subtaskID, ChannelStateWriter.ChannelStateWriteResult result) {
         // The writer shouldn't register any subtask after writer has exception or is done,
@@ -133,25 +174,42 @@ class ChannelStateCheckpointWriter {
         pendingResults.put(subtaskID, pendingResult);
     }
 
+    /**
+     * 忽略某个子任务
+     * @param subtaskID
+     * @throws Exception
+     */
     void releaseSubtask(SubtaskID subtaskID) throws Exception {
         if (subtasksToRegister.remove(subtaskID)) {
             // If all checkpoint of other subtasks of this writer are completed, and
             // writer is waiting for the last subtask. After the last subtask is finished,
             // the writer should be completed.
+            // 尝试获得结果  (只有subtasksToRegister为空时才起作用)
             tryFinishResult();
         }
     }
 
+    /**
+     * 写入某个子任务的数据  也就是产生检查点数据的过程
+     * @param jobVertexID
+     * @param subtaskIndex
+     * @param info
+     * @param buffer
+     */
     void writeInput(
             JobVertexID jobVertexID, int subtaskIndex, InputChannelInfo info, Buffer buffer) {
         try {
             if (isDone()) {
                 return;
             }
+
+            // 找到对应的result对象
             ChannelStatePendingResult pendingResult =
                     getChannelStatePendingResult(jobVertexID, subtaskIndex);
+
+            // 写入数据 并将信息保存在 pendingResult.getInputChannelOffsets()
             write(
-                    pendingResult.getInputChannelOffsets(),
+                    pendingResult.getInputChannelOffsets(),  // 这里记录着各元数据的偏移量位置
                     info,
                     buffer,
                     !pendingResult.isAllInputsReceived(),
@@ -161,6 +219,12 @@ class ChannelStateCheckpointWriter {
         }
     }
 
+    /**
+     * @param jobVertexID
+     * @param subtaskIndex
+     * @param info  作为key 检索存储offset/size的容器
+     * @param buffer
+     */
     void writeOutput(
             JobVertexID jobVertexID, int subtaskIndex, ResultSubpartitionInfo info, Buffer buffer) {
         try {
@@ -180,6 +244,15 @@ class ChannelStateCheckpointWriter {
         }
     }
 
+    /**
+     * 进行数据写入
+     * @param offsets
+     * @param key
+     * @param buffer
+     * @param precondition
+     * @param action
+     * @param <K>
+     */
     private <K> void write(
             Map<K, StateContentMetaInfo> offsets,
             K key,
@@ -190,16 +263,25 @@ class ChannelStateCheckpointWriter {
                 () -> {
                     checkState(precondition);
                     long offset = checkpointStream.getPos();
+                    // TODO 忽略日志
                     try (AutoCloseable ignored = NetworkActionsLogger.measureIO(action, buffer)) {
+                        // 写入buffer数据
                         serializer.writeData(dataStream, buffer);
                     }
                     long size = checkpointStream.getPos() - offset;
+                    // 每写入一次数据 记录offset，size
                     offsets.computeIfAbsent(key, unused -> new StateContentMetaInfo())
                             .withDataAdded(offset, size);
                     NetworkActionsLogger.tracePersist(action, buffer, key, checkpointId);
                 });
     }
 
+    /**
+     * 表示某个subtask的输入已经写完了
+     * @param jobVertexID
+     * @param subtaskIndex
+     * @throws Exception
+     */
     void completeInput(JobVertexID jobVertexID, int subtaskIndex) throws Exception {
         if (isDone()) {
             return;
@@ -226,6 +308,7 @@ class ChannelStateCheckpointWriter {
                 continue;
             }
             // Some subtasks did not receive all buffers
+            // 只要有一个result的input/output 没有全部收到 还不能结束
             return;
         }
 
@@ -237,14 +320,21 @@ class ChannelStateCheckpointWriter {
         }
     }
 
+    /**
+     * 在检查点完成时触发
+     * @throws IOException
+     */
     private void finishWriteAndResult() throws IOException {
         StreamStateHandle stateHandle = null;
+        // 表示没有数据写入 直接关闭
         if (checkpointStream.getPos() == serializer.getHeaderLength()) {
             dataStream.close();
         } else {
+            // 刷盘 并返回handle 借助handle可以再读取数据流
             dataStream.flush();
             stateHandle = checkpointStream.closeAndGetHandle();
         }
+        // 触发每个result的回调
         for (ChannelStatePendingResult result : pendingResults.values()) {
             result.finishResult(stateHandle);
         }
@@ -283,6 +373,7 @@ class ChannelStateCheckpointWriter {
     /**
      * The throwable is just used for specific subtask that triggered the failure. Other subtasks
      * should fail by {@link CHANNEL_STATE_SHARED_STREAM_EXCEPTION}.
+     * 通知执行失败
      */
     public void fail(JobVertexID jobVertexID, int subtaskIndex, Throwable throwable) {
         if (isDone()) {
@@ -334,7 +425,9 @@ class ChannelStateCheckpointWriter {
     }
 }
 
-/** A identification for subtask. */
+/** A identification for subtask.
+ * 能够标识唯一一个子任务
+ * */
 class SubtaskID {
 
     private final JobVertexID jobVertexID;

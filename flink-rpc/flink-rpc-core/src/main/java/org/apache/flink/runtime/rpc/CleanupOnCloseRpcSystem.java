@@ -31,10 +31,15 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 
-/** An {@link RpcSystem} wrapper that cleans up resources after the RPC system has been closed. */
+/** An {@link RpcSystem} wrapper that cleans up resources after the RPC system has been closed.
+ * 使用代理模式
+ * */
 public class CleanupOnCloseRpcSystem implements RpcSystem {
     private static final Logger LOG = LoggerFactory.getLogger(CleanupOnCloseRpcSystem.class);
 
+    /**
+     * 代理对象
+     */
     private final RpcSystem rpcSystem;
     private final SubmoduleClassLoader pluginLoader;
     @Nullable private final Path tempDirectory;
@@ -57,12 +62,15 @@ public class CleanupOnCloseRpcSystem implements RpcSystem {
         }
         if (tempDirectory != null) {
             try {
+                // 关闭时删除临时目录的数据
                 FileUtils.deleteFileOrDirectory(tempDirectory.toFile());
             } catch (Exception e) {
                 LOG.warn("Could not delete temporary rpc system file {}.", tempDirectory, e);
             }
         }
     }
+
+    // 都是委托
 
     @Override
     public RpcServiceBuilder localServiceBuilder(Configuration config) {

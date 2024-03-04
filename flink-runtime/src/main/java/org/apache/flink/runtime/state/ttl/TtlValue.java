@@ -29,6 +29,7 @@ import static org.apache.flink.util.Preconditions.checkArgument;
  * tools.
  *
  * @param <T> Type of the user value of state with TTL
+ *           为value 追加了一个最后访问时间的属性
  */
 public class TtlValue<T> implements Serializable {
     private static final long serialVersionUID = 5221129704201125020L;

@@ -21,7 +21,9 @@ package org.apache.flink.runtime.jobmanager;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.runtime.util.ZooKeeperUtils;
 
-/** Singleton {@link JobGraphStoreUtil} implementation for ZooKeeper. */
+/** Singleton {@link JobGraphStoreUtil} implementation for ZooKeeper.
+ * 就是将id和zk的路径相互转换
+ * */
 public enum ZooKeeperJobGraphStoreUtil implements JobGraphStoreUtil {
     INSTANCE;
 

@@ -23,6 +23,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * This class describe the inputs(partitions and subpartitions that belong to the same intermediate
  * result) information of an execution vertex.
+ * 表示某个子任务输入的数据范围
  */
 public class ExecutionVertexInputInfo {
     private final int subtaskIndex;

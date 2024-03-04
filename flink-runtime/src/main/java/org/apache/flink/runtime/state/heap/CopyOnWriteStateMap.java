@@ -104,6 +104,8 @@ import static org.apache.flink.util.CollectionUtil.MAX_ARRAY_SIZE;
  * @param <K> type of key.
  * @param <N> type of namespace.
  * @param <S> type of value.
+ *
+ *           StateMap 只是开放出一些基本api  由该对象实现核心逻辑
  */
 public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
 
@@ -148,12 +150,15 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
     private static final StateMapEntry<?, ?, ?> ITERATOR_BOOTSTRAP_ENTRY =
             new StateMapEntry<>(new Object(), new Object(), new Object(), 0, null, 0, 0);
 
-    /** Maintains an ordered set of version ids that are still in use by unreleased snapshots. */
+    /** Maintains an ordered set of version ids that are still in use by unreleased snapshots.
+     * 这里使用红黑树存储版本
+     * */
     private final TreeSet<Integer> snapshotVersions;
 
     /**
      * This is the primary entry array (hash directory) of the state map. If no incremental rehash
      * is ongoing, this is the only used table.
+     * map的主体  也就是数组+链表
      */
     private StateMapEntry<K, N, S>[] primaryTable;
 
@@ -161,6 +166,7 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
      * We maintain a secondary entry array while performing an incremental rehash. The purpose is to
      * slowly migrate entries from the primary table to this resized table array. When all entries
      * are migrated, this becomes the new primary table.
+     * 在rehash时借助的临时数据结构
      */
     private StateMapEntry<K, N, S>[] incrementalRehashTable;
 
@@ -170,18 +176,23 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
     /** The current number of mappings in the rehash table. */
     private int incrementalRehashTableSize;
 
-    /** The next index for a step of incremental rehashing in the primary table. */
+    /** The next index for a step of incremental rehashing in the primary table.
+     * 表示rehash时 现在处理到第几个槽
+     * */
     private int rehashIndex;
 
     /** The current version of this map. Used for copy-on-write mechanics. */
     private int stateMapVersion;
 
-    /** The highest version of this map that is still required by any unreleased snapshot. */
+    /** The highest version of this map that is still required by any unreleased snapshot.
+     * 表示此时最大的快照版本
+     * */
     private int highestRequiredSnapshotVersion;
 
     /**
      * The last namespace that was actually inserted. This is a small optimization to reduce
      * duplicate namespace objects.
+     * 最近使用的命名空间
      */
     private N lastNamespace;
 
@@ -247,6 +258,8 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
         } else {
             capacity = MathUtils.roundUpToPowerOfTwo(capacity);
         }
+
+        // 根据容量初始化map
         primaryTable = makeTable(capacity);
     }
 
@@ -264,29 +277,46 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
         return primaryTableSize + incrementalRehashTableSize;
     }
 
+    /**
+     * 检索元素
+     * @param key the key. Not null.
+     * @param namespace the namespace. Not null.
+     * @return
+     */
     @Override
     public S get(K key, N namespace) {
 
+        // 按照特殊规则计算出hash
         final int hash = computeHashForOperationAndDoIncrementalRehash(key, namespace);
         final int requiredVersion = highestRequiredSnapshotVersion;
+
+        // 根据下标与 rehashIndex的关系 确认从哪个数组查询
         final StateMapEntry<K, N, S>[] tab = selectActiveTable(hash);
+        // 确认读取的下标
         int index = hash & (tab.length - 1);
 
+        // 然后就是遍历链表了
         for (StateMapEntry<K, N, S> e = tab[index]; e != null; e = e.next) {
             final K eKey = e.key;
             final N eNamespace = e.namespace;
+            // 要求3个均相同
             if ((e.hash == hash && key.equals(eKey) && namespace.equals(eNamespace))) {
 
                 // copy-on-write check for state
                 if (e.stateVersion < requiredVersion) {
                     // copy-on-write check for entry
+                    // 表示该entry在上次产生快照之前就存在了  所以版本落后于当前快照版本
                     if (e.entryVersion < requiredVersion) {
                         e = handleChainedEntryCopyOnWrite(tab, hash & (tab.length - 1), e);
                     }
+
+                    // 在处理完后同步entry的最新版本
                     e.stateVersion = stateMapVersion;
+                    // 跨版本的情况 state就要使用深拷贝
                     e.state = getStateSerializer().copy(e.state);
                 }
 
+                // 不需要考虑版本时  直接返回状态
                 return e.state;
             }
         }
@@ -294,6 +324,12 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
         return null;
     }
 
+    /**
+     * 判断是否存在元素
+     * @param key the key in the composite key to search for. Not null.
+     * @param namespace the namespace in the composite key to search for. Not null.
+     * @return
+     */
     @Override
     public boolean containsKey(K key, N namespace) {
         final int hash = computeHashForOperationAndDoIncrementalRehash(key, namespace);
@@ -313,17 +349,22 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
 
     @Override
     public void put(K key, N namespace, S value) {
+        // putEntry 更新entryVersion
         final StateMapEntry<K, N, S> e = putEntry(key, namespace);
 
+        // 此时entry 已经安插到数组中了  之后设置value
         e.state = value;
+        // 这里更新 stateVersion
         e.stateVersion = stateMapVersion;
     }
 
     @Override
     public S putAndGetOld(K key, N namespace, S state) {
+        // entry存在则返回  否则产生新entry
         final StateMapEntry<K, N, S> e = putEntry(key, namespace);
 
         // copy-on-write check for state
+        // 无论version怎样 实际上都是使用e.state 区别是是否深拷贝
         S oldState =
                 (e.stateVersion < highestRequiredSnapshotVersion)
                         ? getStateSerializer().copy(e.state)
@@ -335,6 +376,11 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
         return oldState;
     }
 
+    /**
+     * 从数组中移除某个元素
+     * @param key the key of the mapping to remove. Not null.
+     * @param namespace the namespace of the mapping to remove. Not null.
+     */
     @Override
     public void remove(K key, N namespace) {
         removeEntry(key, namespace);
@@ -343,17 +389,24 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
     @Override
     public S removeAndGetOld(K key, N namespace) {
 
+        // 得到被移除的entry
         final StateMapEntry<K, N, S> e = removeEntry(key, namespace);
 
         return e != null
                 ?
                 // copy-on-write check for state
+                // 同样根据version的关系 判断是否要深拷贝state
                 (e.stateVersion < highestRequiredSnapshotVersion
                         ? getStateSerializer().copy(e.state)
                         : e.state)
                 : null;
     }
 
+    /**
+     * 找到ns匹配的所有key
+     * @param namespace
+     * @return
+     */
     @Override
     public Stream<K> getKeys(N namespace) {
         return StreamSupport.stream(spliterator(), false)
@@ -361,6 +414,15 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
                 .map(StateEntry::getKey);
     }
 
+    /**
+     * 找到entry 并使用转换函数
+     * @param key the key. Not null.
+     * @param namespace the namespace. Not null.
+     * @param value the value to use in transforming the state. Can be null.
+     * @param transformation the transformation function.
+     * @param <T>
+     * @throws Exception
+     */
     @Override
     public <T> void transform(
             K key, N namespace, T value, StateTransformationFunction<S, T> transformation)
@@ -381,14 +443,20 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
     // Private implementation details of the API methods
     // ---------------------------------------------------------------
 
-    /** Helper method that is the basis for operations that add mappings. */
+    /** Helper method that is the basis for operations that add mappings.
+     * 产生entry 并放置到合适的位置
+     * */
     private StateMapEntry<K, N, S> putEntry(K key, N namespace) {
 
         final int hash = computeHashForOperationAndDoIncrementalRehash(key, namespace);
+        // 确认要处理的数组
         final StateMapEntry<K, N, S>[] tab = selectActiveTable(hash);
         int index = hash & (tab.length - 1);
 
+        // 在确认下标后 找到entry
         for (StateMapEntry<K, N, S> e = tab[index]; e != null; e = e.next) {
+
+            // 表示已经存在 复用该entry
             if (e.hash == hash && key.equals(e.key) && namespace.equals(e.namespace)) {
 
                 // copy-on-write check for entry
@@ -401,26 +469,36 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
         }
 
         ++modCount;
+        // 需要扩容
         if (size() > threshold) {
+            // 这里会增大threshold
             doubleCapacity();
         }
 
+        // 将entry 插入数组
         return addNewStateMapEntry(tab, key, namespace, hash);
     }
 
-    /** Helper method that is the basis for operations that remove mappings. */
+    /** Helper method that is the basis for operations that remove mappings.
+     * 从map中移除某个entry
+     * */
     private StateMapEntry<K, N, S> removeEntry(K key, N namespace) {
 
         final int hash = computeHashForOperationAndDoIncrementalRehash(key, namespace);
         final StateMapEntry<K, N, S>[] tab = selectActiveTable(hash);
         int index = hash & (tab.length - 1);
 
+        // 从表中找到元素
         for (StateMapEntry<K, N, S> e = tab[index], prev = null; e != null; prev = e, e = e.next) {
+
+            // 表示存在
             if (e.hash == hash && key.equals(e.key) && namespace.equals(e.namespace)) {
+                // 表示是第一个元素  这样就会将数组槽置null
                 if (prev == null) {
                     tab[index] = e.next;
                 } else {
                     // copy-on-write check for entry
+                    // 每当version不同时 就会触发特殊的方法
                     if (prev.entryVersion < highestRequiredSnapshotVersion) {
                         prev = handleChainedEntryCopyOnWrite(tab, index, prev);
                     }
@@ -441,6 +519,10 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
     // Iteration
     // ------------------------------------------------------------------------------------------------------
 
+    /**
+     * 生成迭代器遍历元素
+     * @return
+     */
     @Nonnull
     @Override
     public Iterator<StateEntry<K, N, S>> iterator() {
@@ -450,7 +532,9 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
     // Private utility functions for StateMap management
     // -------------------------------------------------------------
 
-    /** @see #releaseSnapshot(StateMapSnapshot) */
+    /** @see #releaseSnapshot(StateMapSnapshot)
+     * 内部存储的状态都有一个版本 这里是移除掉指定版本的状态  使用的是一个惰性删除
+     * */
     @VisibleForTesting
     void releaseSnapshot(int snapshotVersion) {
         // we guard against concurrent modifications of highestRequiredSnapshotVersion between
@@ -460,6 +544,7 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
             Preconditions.checkState(
                     snapshotVersions.remove(snapshotVersion),
                     "Attempt to release unknown snapshot version");
+            // 更新最大的快照版本
             highestRequiredSnapshotVersion =
                     snapshotVersions.isEmpty() ? 0 : snapshotVersions.last();
         }
@@ -468,6 +553,7 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
     /**
      * Creates (combined) copy of the table arrays for a snapshot. This method must be called by the
      * same Thread that does modifications to the {@link CopyOnWriteStateMap}.
+     * 针对当前状态产生一个快照
      */
     @VisibleForTesting
     @SuppressWarnings("unchecked")
@@ -488,7 +574,9 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
                         "Version count overflow in CopyOnWriteStateMap. Enforcing restart.");
             }
 
+            // 更新当前最大的快照版本
             highestRequiredSnapshotVersion = stateMapVersion;
+            // snapshotVersions中维护所有存活的快照版本
             snapshotVersions.add(highestRequiredSnapshotVersion);
         }
 
@@ -505,6 +593,7 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
         // the rehashing algorithm may changed in the future), we do this check for all the case.
         final int totalMapIndexSize = rehashIndex + table.length;
         final int copiedArraySize = Math.max(totalMapIndexSize, size());
+        // 产生数组存储所有数据
         final StateMapEntry<K, N, S>[] copy = new StateMapEntry[copiedArraySize];
 
         if (isRehashing()) {
@@ -527,12 +616,17 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
                     localRehashIndex);
         } else {
             // we only need to copy the primary table
+            // 不考虑rehash 直接拷贝主数组即可
             System.arraycopy(table, 0, copy, 0, table.length);
         }
 
         return copy;
     }
 
+    /**
+     * 获取当前最新的快照版本
+     * @return
+     */
     int getStateMapVersion() {
         return stateMapVersion;
     }
@@ -541,10 +635,12 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
      * Allocate a table of the given capacity and set the threshold accordingly.
      *
      * @param newCapacity must be a power of two
+     *                    根据容量创建hash桶
      */
     private StateMapEntry<K, N, S>[] makeTable(int newCapacity) {
 
         if (newCapacity < MAXIMUM_CAPACITY) {
+            // 增大下次扩容的阈值
             threshold = (newCapacity >> 1) + (newCapacity >> 2); // 3/4 capacity
         } else {
             if (size() > MAX_ARRAY_SIZE) {
@@ -568,11 +664,14 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
         return newMap;
     }
 
-    /** Creates and inserts a new {@link StateMapEntry}. */
+    /** Creates and inserts a new {@link StateMapEntry}.
+     *
+     * */
     private StateMapEntry<K, N, S> addNewStateMapEntry(
             StateMapEntry<K, N, S>[] table, K key, N namespace, int hash) {
 
         // small optimization that aims to avoid holding references on duplicate namespace objects
+        // 记录上次使用的namespace
         if (namespace.equals(lastNamespace)) {
             namespace = lastNamespace;
         } else {
@@ -582,6 +681,7 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
         int index = hash & (table.length - 1);
         StateMapEntry<K, N, S> newEntry =
                 new StateMapEntry<>(
+                        // table[index] 会自动变成下一个节点  本entry变成链表首部
                         key, namespace, null, hash, table[index], stateMapVersion, stateMapVersion);
         table[index] = newEntry;
 
@@ -601,6 +701,7 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
      *     code.
      */
     private StateMapEntry<K, N, S>[] selectActiveTable(int hashCode) {
+        // 根据是否超过了此时搬运的下标 选择访问的数组
         return (hashCode & (primaryTable.length - 1)) >= rehashIndex
                 ? primaryTable
                 : incrementalRehashTable;
@@ -610,6 +711,7 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
      * Doubles the capacity of the hash table. Existing entries are placed in the correct bucket on
      * the enlarged table. If the current capacity is, MAXIMUM_CAPACITY, this method is a no-op.
      * Returns the table, which will be new unless we were already at MAXIMUM_CAPACITY.
+     * 需要对容器进行扩容
      */
     private void doubleCapacity() {
 
@@ -625,10 +727,13 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
             return;
         }
 
+        // 构建rehash数组
         incrementalRehashTable = makeTable(oldCapacity * 2);
     }
 
-    /** Returns true, if an incremental rehash is in progress. */
+    /** Returns true, if an incremental rehash is in progress.
+     * 表示此时正在进行rehash
+     * */
     @VisibleForTesting
     boolean isRehashing() {
         // if we rehash, the secondary table is not empty
@@ -638,6 +743,7 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
     /**
      * Computes the hash for the composite of key and namespace and performs some steps of
      * incremental rehash if incremental rehashing is in progress.
+     * 每个核心操作前 都会检查当前是否处于数据迁移阶段 并尝试进行部分迁移
      */
     private int computeHashForOperationAndDoIncrementalRehash(K key, N namespace) {
 
@@ -645,10 +751,13 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
             incrementalRehash();
         }
 
+        // 同时参考namespace 和 key  计算一个hash值
         return compositeHash(key, namespace);
     }
 
-    /** Runs a number of steps for incremental rehashing. */
+    /** Runs a number of steps for incremental rehashing.
+     * 协助搬运
+     * */
     @SuppressWarnings("unchecked")
     private void incrementalRehash() {
 
@@ -658,28 +767,37 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
         int oldCapacity = oldMap.length;
         int newMask = newMap.length - 1;
         int requiredVersion = highestRequiredSnapshotVersion;
+
+        // 表示此时已经搬运到的下标
         int rhIdx = rehashIndex;
         int transferred = 0;
 
         // we migrate a certain minimum amount of entries from the old to the new table
+        // 每个线程协助搬运一定数量的entry
         while (transferred < MIN_TRANSFERRED_PER_INCREMENTAL_REHASH) {
 
+            // 旧的数组从rehash下标开始读取
             StateMapEntry<K, N, S> e = oldMap[rhIdx];
 
             while (e != null) {
                 // copy-on-write check for entry
+                // 顺便更新版本号
                 if (e.entryVersion < requiredVersion) {
                     e = new StateMapEntry<>(e, stateMapVersion);
                 }
                 StateMapEntry<K, N, S> n = e.next;
+                // 按照新的掩码计算下标
                 int pos = e.hash & newMask;
+                // 这时此时挂在该槽的元素  因为不一定为空的
                 e.next = newMap[pos];
                 newMap[pos] = e;
                 e = n;
                 ++transferred;
             }
 
+            // 此时该槽所有元素都已经被搬空了
             oldMap[rhIdx] = null;
+            // 表示迁移结束 了
             if (++rhIdx == oldCapacity) {
                 // here, the rehash is complete and we release resources and reset fields
                 primaryTable = newMap;
@@ -700,16 +818,22 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
     /**
      * Perform copy-on-write for entry chains. We iterate the (hopefully and probably) still cached
      * chain, replace all links up to the 'untilEntry', which we actually wanted to modify.
+     *
+     * 每当检测到目标entry的快照版本 低于当前最大快照版本时 触发该方法
+     * 注意更新的都是 entryVersion
      */
     private StateMapEntry<K, N, S> handleChainedEntryCopyOnWrite(
             StateMapEntry<K, N, S>[] tab, int mapIdx, StateMapEntry<K, N, S> untilEntry) {
 
+        // 最新的快照版本
         final int required = highestRequiredSnapshotVersion;
 
+        // 对应槽的第一个entry
         StateMapEntry<K, N, S> current = tab[mapIdx];
         StateMapEntry<K, N, S> copy;
 
         if (current.entryVersion < required) {
+            // 简单来说就是仅更新version
             copy = new StateMapEntry<>(current, stateMapVersion);
             tab[mapIdx] = copy;
         } else {
@@ -718,6 +842,7 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
         }
 
         // we iterate the chain up to 'until entry'
+        // 随着链下来 将每个快照版本都更新
         while (current != untilEntry) {
 
             // advance current
@@ -754,6 +879,7 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
      * Users should call {@link #releaseSnapshot(StateMapSnapshot)} after using the returned object.
      *
      * @return a snapshot from this {@link CopyOnWriteStateMap}, for checkpointing.
+     * 基于当前数据 产生快照
      */
     @Nonnull
     @Override
@@ -768,6 +894,7 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
      *
      * @param snapshotToRelease the snapshot to release, which was previously created by this state
      *     map.
+     *                          释放某个版本的快照
      */
     @Override
     public void releaseSnapshot(
@@ -780,6 +907,7 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
                 copyOnWriteStateMapSnapshot.isOwner(this),
                 "Cannot release snapshot which is owned by a different state map.");
 
+        // 只需要版本号
         releaseSnapshot(copyOnWriteStateMapSnapshot.getSnapshotVersion());
     }
 
@@ -810,9 +938,13 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
      * @param <K> type of key.
      * @param <N> type of namespace.
      * @param <S> type of state.
+     *
+     *           map中每个实体
      */
     @VisibleForTesting
     protected static class StateMapEntry<K, N, S> implements StateEntry<K, N, S> {
+
+        // 3个核心字段
 
         /** The key. Assumed to be immumap and not null. */
         @Nonnull final K key;
@@ -829,6 +961,7 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
         /**
          * Link to another {@link StateMapEntry}. This is used to resolve collisions in the {@link
          * CopyOnWriteStateMap} through chaining.
+         * 形成链表
          */
         @Nullable StateMapEntry<K, N, S> next;
 
@@ -875,6 +1008,11 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
             this.stateVersion = stateVersion;
         }
 
+        /**
+         * 更新state 同时还要更新version
+         * @param value
+         * @param mapVersion
+         */
         public final void setState(@Nullable S value, int mapVersion) {
             // naturally, we can update the state version every time we replace the old state with a
             // different object
@@ -942,15 +1080,28 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
     // StateEntryIterator
     // ---------------------------------------------------------------------------------------------
 
+    /**
+     * 产生访问者对象
+     * @param recommendedMaxNumberOfReturnedRecords
+     * @return
+     */
     @Override
     public InternalKvState.StateIncrementalVisitor<K, N, S> getStateIncrementalVisitor(
             int recommendedMaxNumberOfReturnedRecords) {
         return new StateIncrementalVisitorImpl(recommendedMaxNumberOfReturnedRecords);
     }
 
-    /** Iterator over state entry chains in a {@link CopyOnWriteStateMap}. */
+    /** Iterator over state entry chains in a {@link CopyOnWriteStateMap}.
+     * */
     class StateEntryChainIterator implements Iterator<StateMapEntry<K, N, S>> {
+
+        /**
+         * 表示此时在读取的数组   默认从主表开始
+         */
         StateMapEntry<K, N, S>[] activeTable;
+        /**
+         * 表示数组的下标
+         */
         private int nextMapPosition;
         private final int maxTraversedMapPositions;
 
@@ -958,6 +1109,10 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
             this(Integer.MAX_VALUE);
         }
 
+        /**
+         *
+         * @param maxTraversedMapPositions  表示默认查看多少条记录
+         */
         StateEntryChainIterator(int maxTraversedMapPositions) {
             this.maxTraversedMapPositions = maxTraversedMapPositions;
             this.activeTable = primaryTable;
@@ -979,20 +1134,25 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
                 // iteration is done over primary and rehash table
                 // or primary was swapped with rehash when rehash is done
                 next = nextActiveMapPosition();
-                if (next != null
-                        || nextMapPosition < activeTable.length
-                        || activeTable == incrementalRehashTable
-                        || activeTable != primaryTable) {
+                if (next != null  // 不为空返回
+                        || nextMapPosition < activeTable.length  // 为空 但是还没遍历完整个数组 那么允许返回这个null
+                        || activeTable == incrementalRehashTable  // activeTable == incrementalRehashTable 这个意思应该是此时还处于迁移阶段 此时允许返回null
+                        || activeTable != primaryTable) { // 无论怎么样都至少会返回null的
                     return next;
                 } else {
-                    // switch to rehash (empty if no rehash)
+                    // switch to rehash (empty if no rehash)  切换到迁移数组
                     activeTable = incrementalRehashTable;
                     nextMapPosition = 0;
                 }
             }
         }
 
+        /**
+         * 找到下个entry
+         * @return
+         */
         private StateMapEntry<K, N, S> nextActiveMapPosition() {
+            // 根据当前的激活表
             StateMapEntry<K, N, S>[] tab = activeTable;
             int traversedPositions = 0;
             while (nextMapPosition < tab.length && traversedPositions < maxTraversedMapPositions) {
@@ -1009,17 +1169,24 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
     /**
      * Iterator over state entries in a {@link CopyOnWriteStateMap} which does not tolerate
      * concurrent modifications.
+     * 对应的迭代器
      */
     class StateEntryIterator implements Iterator<StateEntry<K, N, S>> {
 
+        /**
+         * 该迭代器用于迭代链表
+         */
         private final StateEntryChainIterator chainIterator;
         private StateMapEntry<K, N, S> nextEntry;
         private final int expectedModCount;
 
         StateEntryIterator() {
             this.chainIterator = new StateEntryChainIterator();
+            // 用于判断是否并发了
             this.expectedModCount = modCount;
+            // 一开始是一个空实体
             this.nextEntry = getBootstrapEntry();
+            // 产生迭代器
             advanceIterator();
         }
 
@@ -1041,6 +1208,7 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
 
         StateMapEntry<K, N, S> advanceIterator() {
             StateMapEntry<K, N, S> entryToReturn = nextEntry;
+            // 一开始的空对象 next为null     .next代表每次获取链表的下个元素
             StateMapEntry<K, N, S> next = nextEntry.next;
             if (next == null) {
                 next = chainIterator.next();
@@ -1050,7 +1218,9 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
         }
     }
 
-    /** Incremental visitor over state entries in a {@link CopyOnWriteStateMap}. */
+    /** Incremental visitor over state entries in a {@link CopyOnWriteStateMap}.
+     * 产生访问者对象 也是借助迭代器
+     * */
     class StateIncrementalVisitorImpl implements InternalKvState.StateIncrementalVisitor<K, N, S> {
 
         private final StateEntryChainIterator chainIterator;
@@ -1072,6 +1242,8 @@ public class CopyOnWriteStateMap<K, N, S> extends StateMap<K, N, S> {
             }
 
             chainToReturn.clear();
+
+            // 把一个槽下面的所有元素读取出来
             for (StateMapEntry<K, N, S> nextEntry = chainIterator.next();
                     nextEntry != null;
                     nextEntry = nextEntry.next) {

@@ -34,7 +34,9 @@ import java.util.Set;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Information about the parallelism of job vertices. */
+/** Information about the parallelism of job vertices.
+ * 描述job需要的资源
+ * */
 public class JobResourceRequirements implements Serializable {
 
     private static final long serialVersionUID = 1L;
@@ -57,6 +59,7 @@ public class JobResourceRequirements implements Serializable {
      * @param jobGraph job graph to write requirements to
      * @param jobResourceRequirements resource requirements to write
      * @throws IOException in case we're not able to serialize requirements into the configuration
+     * 将需要的信息写入config中
      */
     public static void writeToJobGraph(
             JobGraph jobGraph, JobResourceRequirements jobResourceRequirements) throws IOException {
@@ -72,6 +75,8 @@ public class JobResourceRequirements implements Serializable {
      *
      * @param jobGraph job graph to read requirements from
      * @throws IOException in case we're not able to deserialize requirements from the configuration
+     *
+     * 从图相关的配置项中还原出job需要的资源信息
      */
     public static Optional<JobResourceRequirements> readFromJobGraph(JobGraph jobGraph)
             throws IOException {
@@ -105,20 +110,27 @@ public class JobResourceRequirements implements Serializable {
      * @param maxParallelismPerVertex allows us to look up maximum possible parallelism for a job
      *     vertex
      * @return a list of validation errors
+     * 对资源进行有效性验证
      */
     public static List<String> validate(
             JobResourceRequirements jobResourceRequirements,
-            Map<JobVertexID, Integer> maxParallelismPerVertex) {
+            Map<JobVertexID, Integer> maxParallelismPerVertex) {  // 描述每个顶点的最大并行度
         final List<String> errors = new ArrayList<>();
         final Set<JobVertexID> missingJobVertexIds =
                 new HashSet<>(maxParallelismPerVertex.keySet());
+
+        // 遍历本次被检查的所有顶点
         for (JobVertexID jobVertexId : jobResourceRequirements.getJobVertices()) {
             missingJobVertexIds.remove(jobVertexId);
             final Optional<Integer> maybeMaxParallelism =
                     Optional.ofNullable(maxParallelismPerVertex.get(jobVertexId));
             if (maybeMaxParallelism.isPresent()) {
+
+                // 获取该顶点的限制值
                 final JobVertexResourceRequirements.Parallelism requestedParallelism =
                         jobResourceRequirements.getParallelism(jobVertexId);
+
+                // 检查并行度是否在范围内
                 int lowerBound =
                         requestedParallelism.getLowerBound() == -1
                                 ? 1
@@ -148,11 +160,14 @@ public class JobResourceRequirements implements Serializable {
                                     upperBound, jobVertexId, maybeMaxParallelism.get()));
                 }
             } else {
+                // 为空 就添加错误信息
                 errors.add(
                         String.format(
                                 "Job vertex [%s] was not found in the JobGraph.", jobVertexId));
             }
         }
+
+        // 某些顶点没有限制信息
         for (JobVertexID jobVertexId : missingJobVertexIds) {
             errors.add(
                     String.format(
@@ -172,6 +187,9 @@ public class JobResourceRequirements implements Serializable {
 
     public static final class Builder {
 
+        /**
+         * 每个顶点与对应的资源限制对象   主要是限制并行度
+         */
         private final Map<JobVertexID, JobVertexResourceRequirements> vertexResources =
                 new HashMap<>();
 

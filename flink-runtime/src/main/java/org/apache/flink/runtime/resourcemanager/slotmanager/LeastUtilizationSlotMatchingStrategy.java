@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 /**
  * {@link SlotMatchingStrategy} which picks a matching slot from a TaskExecutor with the least
  * utilization.
+ * 优先选择使用率最小的slot
  */
 public enum LeastUtilizationSlotMatchingStrategy implements SlotMatchingStrategy {
     INSTANCE;
@@ -41,6 +42,8 @@ public enum LeastUtilizationSlotMatchingStrategy implements SlotMatchingStrategy
             ResourceProfile requestedProfile,
             Collection<T> freeSlots,
             Function<InstanceID, Integer> numberRegisteredSlotsLookup) {
+
+        // 按照 TaskExecutor 实例来分组
         final Map<InstanceID, Integer> numSlotsPerTaskExecutor =
                 freeSlots.stream()
                         .collect(
@@ -49,8 +52,10 @@ public enum LeastUtilizationSlotMatchingStrategy implements SlotMatchingStrategy
                                         Collectors.reducing(0, i -> 1, Integer::sum)));
 
         return freeSlots.stream()
+                // 首先资源要匹配
                 .filter(taskManagerSlot -> taskManagerSlot.isMatchingRequirement(requestedProfile))
                 .min(
+                        // 优先返回利用率低的实例相关的slot
                         Comparator.comparingDouble(
                                 taskManagerSlot ->
                                         calculateUtilization(
@@ -59,10 +64,18 @@ public enum LeastUtilizationSlotMatchingStrategy implements SlotMatchingStrategy
                                                 numSlotsPerTaskExecutor)));
     }
 
+    /**
+     * 计算实例上slot利用率
+     * @param instanceId   当前实例id
+     * @param numberRegisteredSlotsLookup
+     * @param numSlotsPerTaskExecutor
+     * @return
+     */
     private static double calculateUtilization(
             InstanceID instanceId,
             Function<? super InstanceID, Integer> numberRegisteredSlotsLookup,
             Map<InstanceID, Integer> numSlotsPerTaskExecutor) {
+        // 找到该实例上注册的slot数量
         final int numberRegisteredSlots = numberRegisteredSlotsLookup.apply(instanceId);
 
         Preconditions.checkArgument(
@@ -77,6 +90,7 @@ public enum LeastUtilizationSlotMatchingStrategy implements SlotMatchingStrategy
                 "The TaskExecutor %s has fewer registered slots than free slots.",
                 instanceId);
 
+        // 剩的越多 free的越多 利用率越低
         return (double) (numberRegisteredSlots - numberFreeSlots) / numberRegisteredSlots;
     }
 }

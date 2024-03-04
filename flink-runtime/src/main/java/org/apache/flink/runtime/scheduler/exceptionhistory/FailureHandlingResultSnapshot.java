@@ -40,6 +40,7 @@ import java.util.stream.Collectors;
 /**
  * {@code FailureHandlingResultSnapshot} creates a snapshot of a {@link FailureHandlingResult}
  * providing the actual {@link Execution Executions}.
+ * 记录失败结果
  */
 public class FailureHandlingResultSnapshot {
 

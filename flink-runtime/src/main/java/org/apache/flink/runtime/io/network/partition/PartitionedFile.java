@@ -39,8 +39,11 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * contains index entries of all subpartitions. Each index entry is a (long, integer) value tuple of
  * which the long value represents the file offset of the target subpartition and the integer value
  * is the number of buffers.
+ * 分区数据文件  表示内部的数据是按照子分区划分的
  */
 public class PartitionedFile {
+
+    // 分为索引文件和数据文件
 
     public static final String DATA_FILE_SUFFIX = ".shuffle.data";
 
@@ -73,7 +76,9 @@ public class PartitionedFile {
     /** Total number of buffers in the data file. */
     private final long numBuffers;
 
-    /** Used to accelerate index data access. */
+    /** Used to accelerate index data access.
+     * 缓存索引数据
+     * */
     @Nullable private final ByteBuffer indexEntryCache;
 
     public PartitionedFile(
@@ -117,6 +122,7 @@ public class PartitionedFile {
     /**
      * Returns the index entry offset of the target region and subpartition in the index file. Both
      * region index and subpartition index start from 0.
+     * 计算偏移量
      */
     private long getIndexEntryOffset(int region, int subpartition) {
         checkArgument(region >= 0 && region < getNumRegions(), "Illegal target region.");
@@ -136,13 +142,16 @@ public class PartitionedFile {
         checkArgument(target.capacity() == INDEX_ENTRY_SIZE, "Illegal target buffer size.");
 
         target.clear();
+        // 计算索引数据偏移量
         long indexEntryOffset = getIndexEntryOffset(region, subpartition);
         if (indexEntryCache != null) {
+            // 一共16字节  要这样存放吗?
             for (int i = 0; i < INDEX_ENTRY_SIZE; ++i) {
                 target.put(indexEntryCache.get((int) indexEntryOffset + i));
             }
         } else {
             synchronized (indexFilePath) {
+                // 定位并读取索引文件的数据
                 indexFile.position(indexEntryOffset);
                 BufferReaderWriterUtil.readByteBufferFully(indexFile, target);
             }

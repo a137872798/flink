@@ -29,9 +29,16 @@ import java.util.List;
  * making it effectively a data input stream. The view reads it data in blocks from the underlying
  * channel. The view can only read data that has been written by a {@link ChannelWriterOutputView},
  * due to block formatting.
+ *
+ * AbstractPagedInputView 就是基于MemorySegment来读取数据 并且还可以切换MemorySegment
+ * 每个MemorySegment被当成一个page
  */
 public abstract class AbstractChannelReaderInputView extends AbstractPagedInputView {
 
+    /**
+     *
+     * @param headerLength  每个新的页开头的部分需要被跳过
+     */
     public AbstractChannelReaderInputView(int headerLength) {
         super(headerLength);
     }
@@ -41,9 +48,13 @@ public abstract class AbstractChannelReaderInputView extends AbstractPagedInputV
      *
      * @return A list containing all memory segments originally supplied to this view.
      * @throws IOException Thrown, if the underlying reader could not be properly closed.
+     *
+     * 关闭读取对象 并返回所有内存页
      */
     public abstract List<MemorySegment> close() throws IOException;
 
-    /** Get the underlying channel. */
+    /** Get the underlying channel.
+     * 获取关联该输入流的文件channel
+     * */
     public abstract FileIOChannel getChannel();
 }

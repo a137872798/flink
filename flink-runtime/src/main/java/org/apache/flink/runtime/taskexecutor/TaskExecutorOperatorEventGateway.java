@@ -30,6 +30,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * The gateway through which the {@link OperatorCoordinator} can send an event to an Operator on the
  * Task Manager side.
+ * OperatorCoordinator 通过网关对象与TM交互
  */
 public interface TaskExecutorOperatorEventGateway {
 
@@ -44,6 +45,7 @@ public interface TaskExecutorOperatorEventGateway {
      * within the implementation. These cases are up to the task and event sender to handle (for
      * example with an explicit response message upon success, or by triggering failure/recovery
      * upon exception).
+     *
      */
     CompletableFuture<Acknowledge> sendOperatorEventToTask(
             ExecutionAttemptID task, OperatorID operator, SerializedValue<OperatorEvent> evt);

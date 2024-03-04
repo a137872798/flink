@@ -30,11 +30,28 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/** Default implements of {@link FreeSlotInfoTracker}. */
+/** Default implements of {@link FreeSlotInfoTracker}.
+ * 表示free-slot的追踪对象
+ * */
 public class DefaultFreeSlotInfoTracker implements FreeSlotInfoTracker {
+
+    /**
+     * 此时空闲的slot
+     */
     private final Set<AllocationID> freeSlots;
+    /**
+     * 这是一个查询函数  通过id查询slot
+     */
     private final Function<AllocationID, SlotInfo> slotInfoLookup;
+
+    /**
+     * 通过id查询空闲的slot
+     */
     private final Function<AllocationID, AllocatedSlotPool.FreeSlotInfo> freeSlotInfoLookup;
+
+    /**
+     * 表示该资源相关的slot的使用率  (占用多少slot 总计多少slot)
+     */
     private final Function<ResourceID, Double> taskExecutorUtilizationLookup;
 
     public DefaultFreeSlotInfoTracker(
@@ -48,6 +65,10 @@ public class DefaultFreeSlotInfoTracker implements FreeSlotInfoTracker {
         this.taskExecutorUtilizationLookup = taskExecutorUtilizationLookup;
     }
 
+    /**
+     * 获取当前可用的slot  就是返回 freeSlots
+     * @return
+     */
     @Override
     public Set<AllocationID> getAvailableSlots() {
         return Collections.unmodifiableSet(freeSlots);
@@ -71,6 +92,7 @@ public class DefaultFreeSlotInfoTracker implements FreeSlotInfoTracker {
     @Override
     public double getTaskExecutorUtilization(SlotInfo slotInfo) {
         ResourceID resourceId = slotInfo.getTaskManagerLocation().getResourceID();
+        // 通过函数和资源id查询利用率
         return taskExecutorUtilizationLookup.apply(resourceId);
     }
 

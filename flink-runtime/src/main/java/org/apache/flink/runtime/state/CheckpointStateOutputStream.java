@@ -38,6 +38,8 @@ import java.io.OutputStream;
  *
  * <p>Note: This is an abstract class and not an interface because {@link OutputStream} is an
  * abstract class.
+ *
+ * 表示该检查点输出的状态可以以流的形式读取
  */
 @Internal
 public abstract class CheckpointStateOutputStream extends FSDataOutputStream {
@@ -52,6 +54,8 @@ public abstract class CheckpointStateOutputStream extends FSDataOutputStream {
      * @return A state handle that can create an input stream producing the data written to this
      *     stream.
      * @throws IOException Thrown, if the stream cannot be closed.
+     *
+     * 写入数据后 在关闭时会返回一个输入流 用于读取之前写入的数据(状态)
      */
     @Nullable
     public abstract StreamStateHandle closeAndGetHandle() throws IOException;

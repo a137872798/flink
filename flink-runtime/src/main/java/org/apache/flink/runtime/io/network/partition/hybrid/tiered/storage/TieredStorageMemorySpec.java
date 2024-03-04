@@ -21,6 +21,7 @@ package org.apache.flink.runtime.io.network.partition.hybrid.tiered.storage;
 /**
  * The memory specs for a memory owner, including the owner itself, the number of guaranteed buffers
  * of the memory owner, etc.
+ * 表示某个对象要求多少的buffer保障
  */
 public class TieredStorageMemorySpec {
 

@@ -35,7 +35,9 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
-/** The data client is used to fetch data from memory tier. */
+/** The data client is used to fetch data from memory tier.
+ * 消费payload队列中的数据
+ * */
 public class MemoryTierConsumerAgent implements TierConsumerAgent {
 
     private final Map<
@@ -74,6 +76,7 @@ public class MemoryTierConsumerAgent implements TierConsumerAgent {
             TieredStorageSubpartitionId subpartitionId,
             int segmentId) {
         try {
+            // 要等待外面设置channel才能读取的
             return nettyConnectionReaders
                     .get(partitionId)
                     .get(subpartitionId)

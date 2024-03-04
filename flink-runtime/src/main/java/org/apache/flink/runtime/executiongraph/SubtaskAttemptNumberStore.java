@@ -17,7 +17,9 @@
 
 package org.apache.flink.runtime.executiongraph;
 
-/** Contains the attempt number per subtask. */
+/** Contains the attempt number per subtask.
+ * 可以查看某个子任务的执行次数
+ * */
 public interface SubtaskAttemptNumberStore {
     /**
      * Returns the attempt number for the given subtask.

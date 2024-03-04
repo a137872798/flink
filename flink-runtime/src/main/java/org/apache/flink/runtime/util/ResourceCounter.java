@@ -33,6 +33,7 @@ import java.util.Set;
  *
  * <p>ResourceCounter contains a set of {@link ResourceProfile ResourceProfiles} and their
  * associated counts. The counts are always positive (> 0).
+ * 每个ResourceProfile 代表一份资源  可以将资源量化  也就是counter
  */
 public final class ResourceCounter {
 
@@ -48,6 +49,7 @@ public final class ResourceCounter {
      * @param resourceProfile resourceProfile for which to look up the count
      * @return number of resources with the given resourceProfile or {@code 0} if the resource
      *     profile does not exist
+     *     描述某个资源的数量
      */
     public int getResourceCount(ResourceProfile resourceProfile) {
         return resources.getOrDefault(resourceProfile, 0);
@@ -57,6 +59,7 @@ public final class ResourceCounter {
      * Computes the total number of resources in this counter.
      *
      * @return the total number of resources in this counter
+     * 返回总的资源数
      */
     public int getTotalResourceCount() {
         return resources.isEmpty() ? 0 : resources.values().stream().reduce(0, Integer::sum);
@@ -66,6 +69,7 @@ public final class ResourceCounter {
      * Computes the total resources in this counter.
      *
      * @return the total resources in this counter
+     * 返回资源的总和
      */
     public ResourceProfile getTotalResource() {
         return resources.entrySet().stream()
@@ -104,6 +108,7 @@ public final class ResourceCounter {
         final Map<ResourceProfile, Integer> newValues = new HashMap<>(resources);
         final int newValue = resources.getOrDefault(resourceProfile, 0) + increment;
 
+        // 更新资源数量
         updateNewValue(newValues, resourceProfile, newValue);
 
         return new ResourceCounter(newValues);
@@ -116,6 +121,7 @@ public final class ResourceCounter {
         for (Map.Entry<ResourceProfile, Integer> resourceIncrement : entries) {
             final ResourceProfile resourceProfile = resourceIncrement.getKey();
 
+            // 也是更新map
             final int newValue =
                     resources.getOrDefault(resourceProfile, 0) + resourceIncrement.getValue();
 
@@ -125,6 +131,12 @@ public final class ResourceCounter {
         return new ResourceCounter(newValues);
     }
 
+    /**
+     * 更新资源数量
+     * @param newResources
+     * @param resourceProfile
+     * @param newValue
+     */
     private void updateNewValue(
             Map<ResourceProfile, Integer> newResources,
             ResourceProfile resourceProfile,

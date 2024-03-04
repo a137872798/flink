@@ -21,6 +21,7 @@ package org.apache.flink.runtime.topology;
 /**
  * Base topology for all logical and execution topologies. A topology consists of {@link Vertex} and
  * {@link Result}.
+ * 表示job的拓扑结构   分为逻辑层面和执行层面  应该是有优化空间的
  */
 public interface BaseTopology<
         VID extends VertexID,
@@ -32,6 +33,7 @@ public interface BaseTopology<
      * Returns an iterable over all vertices, topologically sorted.
      *
      * @return topologically sorted iterable over all vertices
+     * 参与该拓扑的所有顶点
      */
     Iterable<? extends V> getVertices();
 }

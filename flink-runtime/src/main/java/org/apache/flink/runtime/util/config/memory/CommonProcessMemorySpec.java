@@ -57,7 +57,14 @@ import java.util.Objects;
 public class CommonProcessMemorySpec<FM extends FlinkMemory> implements ProcessMemorySpec {
     private static final long serialVersionUID = 1L;
 
+    /**
+     * 表示flink使用的大小
+     */
     private final FM flinkMemory;
+
+    /**
+     * 表示元空间和顶部的内存开销
+     */
     private final JvmMetaspaceAndOverhead jvmMetaspaceAndOverhead;
 
     protected CommonProcessMemorySpec(

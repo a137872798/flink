@@ -50,17 +50,24 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * #triggerCheckpointOnBarrier(CheckpointMetaData, CheckpointOptions, CheckpointMetricsBuilder)},
  * {@link #abortCheckpointOnBarrier(long, CheckpointException)} and {@link
  * #notifyCheckpointCompleteAsync(long)}.
+ *
+ * TaskInvokable 开放可以执行/恢复/取消任务的接口
+ * CheckpointableTask 给子任务添加了一些检查点相关的接口
+ * CoordinatedTask 表示可以将一些operatorEvent 分配给某个operator
  */
 public abstract class AbstractInvokable
         implements TaskInvokable, CheckpointableTask, CoordinatedTask {
 
-    /** The environment assigned to this invokable. */
+    /** The environment assigned to this invokable.
+     * 环境能够提供各种需要的组件
+     * */
     private final Environment environment;
 
     /**
      * Create an Invokable task and set its environment.
      *
      * @param environment The environment assigned to this invokable.
+     *                    传入环境 初始化任务执行器
      */
     public AbstractInvokable(Environment environment) {
         this.environment = checkNotNull(environment);
@@ -69,6 +76,8 @@ public abstract class AbstractInvokable
     // ------------------------------------------------------------------------
     //  Core methods
     // ------------------------------------------------------------------------
+
+    // 3个核心方法目前都是空实现
 
     @Override
     public abstract void invoke() throws Exception;
@@ -88,12 +97,15 @@ public abstract class AbstractInvokable
             Task.logTaskThreadStackTrace(toInterrupt, taskName, timeout, "interrupting");
         }
 
+        // 取消任务的同时尝试唤醒被阻塞的线程
         toInterrupt.interrupt();
     }
 
     // ------------------------------------------------------------------------
     //  Access to Environment and Configuration
     // ------------------------------------------------------------------------
+
+    // 很多配置项信息都是从环境中获取的
 
     /**
      * Returns the environment of this task.
@@ -161,6 +173,8 @@ public abstract class AbstractInvokable
     // ------------------------------------------------------------------------
     //  Checkpointing Methods
     // ------------------------------------------------------------------------
+
+    // 检查点相关的方法 目前都是unsupported
 
     @Override
     public CompletableFuture<Boolean> triggerCheckpointAsync(

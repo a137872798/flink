@@ -33,12 +33,23 @@ import javax.annotation.Nonnull;
  * This wrapper combines a HeapPriorityQueue with backend meta data.
  *
  * @param <T> type of the queue elements.
+ *           将一些组件包装起来
  */
 public class HeapPriorityQueueSnapshotRestoreWrapper<T extends HeapPriorityQueueElement>
         implements StateSnapshotRestore {
 
+    /**
+     * 优先队列 并关联一组基于keyGroup的hashMap
+     */
     @Nonnull private final HeapPriorityQueueSet<T> priorityQueue;
+    /**
+     * 提取key
+     */
     @Nonnull private final KeyExtractorFunction<T> keyExtractorFunction;
+
+    /**
+     * 表示使用优先队列存储状态时 的元数据信息
+     */
     @Nonnull private final RegisteredPriorityQueueStateBackendMetaInfo<T> metaInfo;
     @Nonnull private final KeyGroupRange localKeyGroupRange;
     @Nonnegative private final int totalKeyGroups;
@@ -71,6 +82,11 @@ public class HeapPriorityQueueSnapshotRestoreWrapper<T extends HeapPriorityQueue
                 totalKeyGroups);
     }
 
+    /**
+     * 返回用于读取快照的对象
+     * @param readVersionHint the required version of the state to read.
+     * @return
+     */
     @Nonnull
     @Override
     public StateSnapshotKeyGroupReader keyGroupReader(int readVersionHint) {
@@ -107,6 +123,7 @@ public class HeapPriorityQueueSnapshotRestoreWrapper<T extends HeapPriorityQueue
      * @param updatedSerializer updated serializer.
      * @param allowFutureMetadataUpdates whether allow metadata to update in the future or not.
      * @return the queue with the specified unique name.
+     * 更新元数据  产生新对象
      */
     public HeapPriorityQueueSnapshotRestoreWrapper<T> forUpdatedSerializer(
             @Nonnull TypeSerializer<T> updatedSerializer, boolean allowFutureMetadataUpdates) {

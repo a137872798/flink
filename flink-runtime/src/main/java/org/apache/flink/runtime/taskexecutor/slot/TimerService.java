@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
  * newly registered timeouts for the same key can be distinguished from older timeouts.
  *
  * @param <K> Type of the key
+ *           时间服务器
  */
 public interface TimerService<K> {
 
@@ -44,6 +45,7 @@ public interface TimerService<K> {
      * @param key for which to register the timeout
      * @param delay until the timeout
      * @param unit of the timeout delay
+     *             注册一个在一定延时后超时的对象
      */
     void registerTimeout(K key, long delay, TimeUnit unit);
 

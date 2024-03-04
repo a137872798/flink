@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
  * time.
  *
  * @param <T> The type of object in this {@code Future}.
+ *           表示一个已经完成的future
  */
 public class DoneFuture<T> implements RunnableFuture<T> {
 

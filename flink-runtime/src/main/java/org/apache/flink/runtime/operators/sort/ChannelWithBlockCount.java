@@ -20,6 +20,9 @@ package org.apache.flink.runtime.operators.sort;
 
 import org.apache.flink.runtime.io.disk.iomanager.FileIOChannel;
 
+/**
+ * 记录文件 以及内部的数据块数量
+ */
 final class ChannelWithBlockCount {
 
     private final FileIOChannel.ID channel;

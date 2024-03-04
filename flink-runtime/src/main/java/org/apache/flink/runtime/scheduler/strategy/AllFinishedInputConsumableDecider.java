@@ -25,25 +25,40 @@ import java.util.function.Function;
 /**
  * {@link AllFinishedInputConsumableDecider} is a special {@link InputConsumableDecider}. The input
  * is considered to be consumable only when all producer partitions are finished.
+ * 只有当所有生产者分区都完成时  才能进行消费
  */
 public class AllFinishedInputConsumableDecider implements InputConsumableDecider {
 
+    /**
+     * 当executionVertex内所有消费者组的数据都处理完后 才能交由下面的顶点处理(处理新产生的数据)
+     */
     @Override
     public boolean isInputConsumable(
             SchedulingExecutionVertex executionVertex,
             Set<ExecutionVertexID> verticesToDeploy,
             Map<ConsumedPartitionGroup, Boolean> consumableStatusCache) {
+
+        // 遍历这个顶点要消费的数据
         for (ConsumedPartitionGroup consumedPartitionGroup :
                 executionVertex.getConsumedPartitionGroups()) {
 
             if (!consumableStatusCache.computeIfAbsent(
                     consumedPartitionGroup, this::isConsumableBasedOnFinishedProducers)) {
+                // 有一个未完成就返回false
                 return false;
             }
         }
+
+        // 全部都完成返回true
         return true;
     }
 
+    /**
+     * 判断某个分区组是否已经全部处理完
+     * @param consumedPartitionGroup to be determined whether it is consumable.
+     *
+     * @return
+     */
     @Override
     public boolean isConsumableBasedOnFinishedProducers(
             final ConsumedPartitionGroup consumedPartitionGroup) {
@@ -61,6 +76,7 @@ public class AllFinishedInputConsumableDecider implements InputConsumableDecider
         public InputConsumableDecider createInstance(
                 SchedulingTopology schedulingTopology,
                 Function<ExecutionVertexID, Boolean> scheduledVertexRetriever) {
+            // 因为要求所有中间集都被消耗完 所以在初始化时其实不需要其他参数
             return new AllFinishedInputConsumableDecider();
         }
     }

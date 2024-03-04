@@ -51,8 +51,15 @@ public class CrossDriver<T1, T2, OT> implements Driver<CrossFunction<T1, T2, OT>
 
     private MemoryManager memManager;
 
+
+    /**
+     * 该对象的特点就是先将迭代器的数据写入output 之后再利用readView读取output的数据
+     */
     private SpillingResettableMutableObjectIterator<?> spillIter;
 
+    /**
+     * 这个对象也是先写入 之后再读取   并且当没有可用segment时  可以通过nextBlock回收segment
+     */
     private BlockResettableMutableObjectIterator<?> blockIter;
 
     private int memPagesForBlockSide;
@@ -98,6 +105,7 @@ public class CrossDriver<T1, T2, OT> implements Driver<CrossFunction<T1, T2, OT>
         final TaskConfig config = this.taskContext.getTaskConfig();
         final DriverStrategy ls = config.getDriverStrategy();
 
+        // 根据策略设置参数
         switch (ls) {
             case NESTEDLOOP_BLOCKED_OUTER_FIRST:
                 this.blocked = true;

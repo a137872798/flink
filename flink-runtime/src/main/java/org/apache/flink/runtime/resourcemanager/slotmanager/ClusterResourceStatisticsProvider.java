@@ -21,22 +21,34 @@ package org.apache.flink.runtime.resourcemanager.slotmanager;
 import org.apache.flink.runtime.clusterframework.types.ResourceProfile;
 import org.apache.flink.runtime.instance.InstanceID;
 
-/** Provides statistics of cluster resources. */
+/** Provides statistics of cluster resources.
+ * 获取集群资源的统计信息
+ * */
 public interface ClusterResourceStatisticsProvider {
 
-    /** Get total number of registered slots. */
+    /** Get total number of registered slots.
+     * 获取当前注册的slot总数
+     * */
     int getNumberRegisteredSlots();
 
-    /** Get number of registered slots from the TaskManager with the given instance id. */
+    /** Get number of registered slots from the TaskManager with the given instance id.
+     * 查看分配到某个TaskManager上的slot数量
+     * */
     int getNumberRegisteredSlotsOf(InstanceID instanceId);
 
-    /** Get total number of free slots. */
+    /** Get total number of free slots.
+     * 获取总的空闲slot数量
+     * */
     int getNumberFreeSlots();
 
-    /** Get number of free slots from the TaskManager with the given instance id. */
+    /** Get number of free slots from the TaskManager with the given instance id.
+     * 获取某个TaskManager的空闲slot数量
+     * */
     int getNumberFreeSlotsOf(InstanceID instanceId);
 
-    /** Get profile of total registered resources. */
+    /** Get profile of total registered resources.
+     * 获取此时注册的总资源
+     * */
     ResourceProfile getRegisteredResource();
 
     /** Get profile of registered resources from the TaskManager with the given instance id. */

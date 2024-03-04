@@ -24,6 +24,7 @@ import java.io.IOException;
 /**
  * Executes {@link ChannelStateWriteRequest}s potentially asynchronously. An exception thrown during
  * the execution should be re-thrown on any next call.
+ * 可以理解为发起检查点相关请求的门面对象
  */
 interface ChannelStateWriteRequestExecutor {
 

@@ -42,8 +42,14 @@ public class CoGroupWithSolutionSetFirstDriver<IT1, IT2, OT>
 
     private TaskContext<CoGroupFunction<IT1, IT2, OT>, OT> taskContext;
 
+    /**
+     * 也是hash表 解决hash冲突的方式不同
+     */
     private CompactingHashTable<IT1> hashTable;
 
+    /**
+     * 简单理解为一个hash表 利用comparator判断是否相等
+     */
     private JoinHashMap<IT1> objectMap;
 
     private TypeSerializer<IT2> probeSideSerializer;
@@ -112,9 +118,13 @@ public class CoGroupWithSolutionSetFirstDriver<IT1, IT2, OT>
         if (taskContext instanceof AbstractIterativeTask) {
             AbstractIterativeTask<?, ?> iterativeTaskContext =
                     (AbstractIterativeTask<?, ?>) taskContext;
+
+            // 一个唯一标识符
             String identifier = iterativeTaskContext.brokerKey();
 
+            // 获取标识对应的元素
             Object table = SolutionSetBroker.instance().get(identifier);
+            // 可能使用2种不同的hash表   其实区别不大  build的含义是一样的
             if (table instanceof CompactingHashTable) {
                 this.hashTable = (CompactingHashTable<IT1>) table;
                 solutionSetSerializer = this.hashTable.getBuildSideSerializer();
@@ -162,16 +172,23 @@ public class CoGroupWithSolutionSetFirstDriver<IT1, IT2, OT>
         // that brings the initial in-memory partitions into memory
     }
 
+    /**
+     * 这里开始处理数据
+     * @throws Exception
+     */
     @Override
     public void run() throws Exception {
 
         final CoGroupFunction<IT1, IT2, OT> coGroupStub = taskContext.getStub();
         final Collector<OT> collector = taskContext.getOutputCollector();
 
+        // SingleElementIterator 将一个元素包装成迭代器
         final SingleElementIterator<IT1> siIter = new SingleElementIterator<IT1>();
         final Iterable<IT1> emptySolutionSide = Collections.emptySet();
 
         if (objectReuseEnabled) {
+
+            // 用于探测的数据
             final ReusingKeyGroupedIterator<IT2> probeSideInput =
                     new ReusingKeyGroupedIterator<IT2>(
                             taskContext.<IT2>getInput(0), probeSideSerializer, probeSideComparator);
@@ -185,9 +202,11 @@ public class CoGroupWithSolutionSetFirstDriver<IT1, IT2, OT>
                 while (this.running && probeSideInput.nextKey()) {
                     IT2 current = probeSideInput.getCurrent();
 
+                    // 找到匹配记录
                     IT1 matchedRecord = prober.getMatchFor(current, buildSideRecord);
                     if (matchedRecord != null) {
                         siIter.set(matchedRecord);
+                        // 简单来看就是将hash匹配上的数据进行 coGroup
                         coGroupStub.coGroup(siIter, probeSideInput.getValues(), collector);
                     } else {
                         coGroupStub.coGroup(

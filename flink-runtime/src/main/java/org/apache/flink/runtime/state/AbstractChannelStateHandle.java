@@ -34,6 +34,8 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  *
  * @param <Info> type of channel info (e.g. {@link
  *     org.apache.flink.runtime.checkpoint.channel.InputChannelInfo InputChannelInfo}).
+ *
+ *              表示一个管道状态   也是代理模式
  */
 @Internal
 public abstract class AbstractChannelStateHandle<Info> implements StateObject {
@@ -41,16 +43,21 @@ public abstract class AbstractChannelStateHandle<Info> implements StateObject {
     private static final long serialVersionUID = 1L;
 
     private final Info info;
+    /**
+     * 这里维护了状态数据
+     */
     private final StreamStateHandle delegate;
     /**
      * Start offsets in a {@link org.apache.flink.core.fs.FSDataInputStream stream} {@link
      * StreamStateHandle#openInputStream obtained} from {@link #delegate}.
+     * 这组偏移量用于从StreamStateHandle 读取状态
      */
     private final List<Long> offsets;
 
     private final long size;
 
-    /** The original subtask index before rescaling recovery. */
+    /** The original subtask index before rescaling recovery.
+     * */
     private final int subtaskIndex;
 
     AbstractChannelStateHandle(
@@ -66,6 +73,11 @@ public abstract class AbstractChannelStateHandle<Info> implements StateObject {
         this.size = size;
     }
 
+    /**
+     * 对一组对象进行解包装
+     * @param collections
+     * @return
+     */
     public static Set<StreamStateHandle> collectUniqueDelegates(
             Collection<? extends AbstractChannelStateHandle<?>>... collections) {
         Set<StreamStateHandle> result = new HashSet<>();

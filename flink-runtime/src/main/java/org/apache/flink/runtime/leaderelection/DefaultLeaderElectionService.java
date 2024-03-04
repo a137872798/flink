@@ -46,6 +46,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * leader information to various storage.
  *
  * <p>{@code DefaultLeaderElectionService} handles a single {@link LeaderContender}.
+ * 该服务会作为监听器设置到驱动中 用于监听主从关系的变化
  */
 public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentService
         implements LeaderElectionService, LeaderElectionDriver.Listener, AutoCloseable {
@@ -56,8 +57,14 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
     private static final String LEADER_REVOCATION_EVENT_LOG_NAME = "Leader Revocation";
     private final Object lock = new Object();
 
+    /**
+     * 通过该对象产生ZK驱动
+     */
     private final LeaderElectionDriverFactory leaderElectionDriverFactory;
 
+    /**
+     * 维护所有注册的组件
+     */
     @GuardedBy("lock")
     private final Map<String, LeaderContender> leaderContenderRegistry = new HashMap<>();
 
@@ -67,6 +74,7 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
      * indicates that this service isn't the leader right now (i.e. {@link
      * #onGrantLeadership(UUID)}) wasn't called, yet (independently of what {@code
      * leaderElectionDriver#hasLeadership()} returns).
+     * 当本对象成为leader时 才会设置
      */
     @GuardedBy("lock")
     @Nullable
@@ -77,6 +85,7 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
      * semantic difference between an entry with an empty {@code LeaderInformation} and no entry
      * being present at all here. Both mean that no confirmed {@code LeaderInformation} is available
      * for the corresponding {@code componentId}.
+     * 维护组件信息
      */
     @GuardedBy("lock")
     private LeaderInformationRegister confirmedLeaderInformation;
@@ -145,6 +154,11 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
         this.running = true;
     }
 
+    /**
+     * 将一个组件包装成 LeaderElection 这样就可以在特定的时期触发 LeaderElection 的相应方法
+     * @param componentId a unique identifier that refers to the stored leader information that the
+     * @return
+     */
     @Override
     public LeaderElection createLeaderElection(String componentId) {
         synchronized (lock) {
@@ -175,6 +189,12 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
                 leaderElectionDriver);
     }
 
+    /**
+     * 注册一个组件
+     * @param componentId
+     * @param contender
+     * @throws Exception
+     */
     @Override
     protected void register(String componentId, LeaderContender contender) throws Exception {
         checkNotNull(componentId, "componentId must not be null.");
@@ -199,17 +219,24 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
                     componentId,
                     leaderElectionDriver);
 
+            // 必须等本对象先成为leader  否则不做处理
             if (issuedLeaderSessionID != null) {
                 // notifying the LeaderContender shouldn't happen in the contender's main thread
                 runInLeaderEventThread(
                         LEADER_ACQUISITION_EVENT_LOG_NAME,
                         () ->
+                                // 因为此时还是leader 可以立即触发相关钩子
                                 notifyLeaderContenderOfLeadership(
                                         componentId, issuedLeaderSessionID));
             }
         }
     }
 
+    /**
+     * 移除某个组件
+     * @param componentId
+     * @throws Exception
+     */
     @Override
     protected final void remove(String componentId) throws Exception {
         AutoCloseable driverToClose = null;
@@ -240,6 +267,7 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
                         componentId);
 
                 if (leaderElectionDriver.hasLeadership()) {
+                    // 删除该组件相关的信息
                     leaderElectionDriver.deleteLeaderInformation(componentId);
                     LOG.debug(
                             "Leader information is cleaned up while deregistering the contender for component '{}' from the service.",
@@ -255,6 +283,7 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
                         componentId);
             }
 
+            // 如果此时没有注册组件 就不需要驱动了
             if (leaderContenderRegistry.isEmpty()) {
                 driverToClose = deregisterDriver();
             }
@@ -268,6 +297,7 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
     /**
      * Returns the driver as an {@link AutoCloseable} for the sake of closing the driver outside of
      * the lock.
+     * 注销驱动
      */
     @GuardedBy("lock")
     private AutoCloseable deregisterDriver() {
@@ -312,6 +342,12 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
         }
     }
 
+    /**
+     * 判断当前是否为leader
+     * @param componentId
+     * @param leaderSessionID
+     * @param leaderAddress
+     */
     @Override
     protected void confirmLeadership(
             String componentId, UUID leaderSessionID, String leaderAddress) {
@@ -340,6 +376,7 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
                                 confirmedLeaderInformation,
                                 componentId,
                                 newConfirmedLeaderInformation);
+                // 发布消息
                 leaderElectionDriver.publishLeaderInformation(
                         componentId, newConfirmedLeaderInformation);
             } else {
@@ -360,6 +397,12 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
         }
     }
 
+    /**
+     * 判断当前是否为leader
+     * @param componentId
+     * @param leaderSessionId
+     * @return
+     */
     @Override
     protected boolean hasLeadership(String componentId, UUID leaderSessionId) {
         synchronized (lock) {
@@ -396,6 +439,10 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
         }
     }
 
+    /**
+     * 本节点成为了leader
+     * @param newLeaderSessionId
+     */
     @GuardedBy("lock")
     private void onGrantLeadershipInternal(UUID newLeaderSessionId) {
         Preconditions.checkNotNull(newLeaderSessionId);
@@ -404,16 +451,23 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
                 issuedLeaderSessionID == null,
                 "The leadership should have been granted while not having the leadership acquired.");
 
+        // 设置id
         issuedLeaderSessionID = newLeaderSessionId;
 
         leaderContenderRegistry
                 .keySet()
                 .forEach(
                         componentId ->
+                                // 将之前预存的所有组件注册上去
                                 notifyLeaderContenderOfLeadership(
                                         componentId, issuedLeaderSessionID));
     }
 
+    /**
+     * 告知组件 此时已成为leader
+     * @param componentId
+     * @param sessionID
+     */
     @GuardedBy("lock")
     private void notifyLeaderContenderOfLeadership(String componentId, UUID sessionID) {
         if (!leaderContenderRegistry.containsKey(componentId)) {
@@ -422,6 +476,7 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
                     sessionID,
                     leaderElectionDriver);
             return;
+            // 确保此时本对象还是leader
         } else if (!sessionID.equals(issuedLeaderSessionID)) {
             LOG.debug(
                     "An out-dated leadership-acquired event with session ID {} was triggered. The current leader session ID is {}. The event will be ignored.",
@@ -442,6 +497,9 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
         leaderContenderRegistry.get(componentId).grantLeadership(issuedLeaderSessionID);
     }
 
+    /**
+     * 本对象不再是leader
+     */
     @GuardedBy("lock")
     private void onRevokeLeadershipInternal() {
         Preconditions.checkState(
@@ -460,6 +518,11 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
         issuedLeaderSessionID = null;
     }
 
+    /**
+     * 通知对象此时不再是leader
+     * @param componentId
+     * @param leaderContender
+     */
     @GuardedBy("lock")
     private void notifyLeaderContenderOfLeadershipLoss(
             String componentId, LeaderContender leaderContender) {
@@ -479,11 +542,19 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
                             confirmedLeaderInformation.forComponentIdOrEmpty(componentId)));
         }
 
+        // 清除注册消息
         confirmedLeaderInformation =
                 LeaderInformationRegister.clear(confirmedLeaderInformation, componentId);
+        // 触发钩子
         leaderContender.revokeLeadership();
     }
 
+    /**
+     * 表示leader发布的信息变化了
+     * @param componentId
+     * @param externallyChangedLeaderInformation
+     * @param confirmedLeaderInformation
+     */
     @GuardedBy("lock")
     private void notifyLeaderInformationChangeInternal(
             String componentId,
@@ -495,6 +566,7 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
             return;
         }
 
+        // 信息一致不需要处理
         if (confirmedLeaderInformation.equals(externallyChangedLeaderInformation)) {
             LOG.trace(
                     "LeaderInformation change event received but changed LeaderInformation actually matches the locally confirmed one: {}",
@@ -521,6 +593,7 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
                     LeaderElectionUtils.convertToString(externallyChangedLeaderInformation));
         }
 
+        // 将当前维护的信息写入
         leaderElectionDriver.publishLeaderInformation(componentId, confirmedLeaderInformation);
     }
 
@@ -580,6 +653,10 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
         }
     }
 
+    /**
+     * 当本对象成为leader时触发
+     * @param leaderSessionID
+     */
     @Override
     public void onGrantLeadership(UUID leaderSessionID) {
         runInLeaderEventThread(
@@ -592,12 +669,18 @@ public class DefaultLeaderElectionService extends DefaultLeaderElection.ParentSe
         runInLeaderEventThread(LEADER_REVOCATION_EVENT_LOG_NAME, this::onRevokeLeadershipInternal);
     }
 
+    /**
+     * 表示leader下写入的信息变化了
+     * @param componentId identifying the component whose leader information has changed
+     * @param leaderInformation new leader information   这是此时leader上携带的组件id和信息
+     */
     @Override
     public void onLeaderInformationChange(String componentId, LeaderInformation leaderInformation) {
         synchronized (lock) {
             notifyLeaderInformationChangeInternal(
                     componentId,
                     leaderInformation,
+                    // 这是此时维护的信息  要以该信息为准
                     confirmedLeaderInformation.forComponentIdOrEmpty(componentId));
         }
     }

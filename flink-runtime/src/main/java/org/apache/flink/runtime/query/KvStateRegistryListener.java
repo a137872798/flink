@@ -27,6 +27,7 @@ import org.apache.flink.runtime.state.KeyGroupRange;
  * A listener for a {@link KvStateRegistry}.
  *
  * <p>The registry calls these methods when KvState instances are registered and unregistered.
+ * 监听有无新的 kvState被注册
  */
 public interface KvStateRegistryListener {
 

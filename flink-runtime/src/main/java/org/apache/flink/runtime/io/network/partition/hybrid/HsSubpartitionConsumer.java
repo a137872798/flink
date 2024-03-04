@@ -34,7 +34,10 @@ import java.util.Queue;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** The read view of HsResultPartition, data can be read from memory or disk. */
+/** The read view of HsResultPartition, data can be read from memory or disk.
+ * ResultSubpartitionView 暴露获取数据的api
+ * HsSubpartitionConsumerInternalOperations 则是暴露可以对consumer发起的操作  比如通知消费者有数据可用  或者获取当前消费偏移量
+ * */
 public class HsSubpartitionConsumer
         implements ResultSubpartitionView, HsSubpartitionConsumerInternalOperations {
     private final BufferAvailabilityListener availabilityListener;
@@ -47,6 +50,9 @@ public class HsSubpartitionConsumer
     @GuardedBy("lock")
     private boolean needNotify = true;
 
+    /**
+     * 缓存下个数据的类型
+     */
     @Nullable
     @GuardedBy("lock")
     private Buffer.DataType cachedNextDataType = null;
@@ -58,11 +64,17 @@ public class HsSubpartitionConsumer
     @GuardedBy("lock")
     private boolean isReleased = false;
 
+    /**
+     * 对应的是磁盘数据视图
+     */
     @Nullable
     @GuardedBy("lock")
     // diskDataView can be null only before initialization.
     private HsDataView diskDataView;
 
+    /**
+     * 对应内存数据视图
+     */
     @Nullable
     @GuardedBy("lock")
     // memoryDataView can be null only before initialization.
@@ -72,6 +84,12 @@ public class HsSubpartitionConsumer
         this.availabilityListener = availabilityListener;
     }
 
+
+    /**
+     * 获取下个数据
+     * 简单来看就是从2个view中获取了下条buffer
+     * @return
+     */
     @Nullable
     @Override
     public BufferAndBacklog getNextBuffer() {
@@ -81,12 +99,16 @@ public class HsSubpartitionConsumer
                 checkNotNull(diskDataView, "disk data view must be not null.");
                 checkNotNull(memoryDataView, "memory data view must be not null.");
 
+                // 先从磁盘加载数据
                 Optional<BufferAndBacklog> bufferToConsume = tryReadFromDisk(buffersToRecycle);
                 if (!bufferToConsume.isPresent()) {
+                    // 否则从内存加载数据
                     bufferToConsume =
                             memoryDataView.consumeBuffer(
                                     lastConsumedBufferIndex + 1, buffersToRecycle);
                 }
+
+                // 更新本地变量
                 updateConsumingStatus(bufferToConsume);
                 return bufferToConsume.map(this::handleBacklog).orElse(null);
             }
@@ -109,6 +131,7 @@ public class HsSubpartitionConsumer
             if (isReleased) {
                 return;
             }
+            // 可以看到只有 needNotify 为true时 才能触发通知
             if (needNotify) {
                 notifyDownStream = true;
                 needNotify = false;
@@ -131,6 +154,7 @@ public class HsSubpartitionConsumer
             }
 
             int backlog = getSubpartitionBacklog();
+            // 此时没数据 那么当下次有数据时就需要通知了
             if (backlog == 0) {
                 needNotify = true;
             }
@@ -231,21 +255,33 @@ public class HsSubpartitionConsumer
         return Math.max(memoryDataView.getBacklog(), diskDataView.getBacklog());
     }
 
+    /**
+     * 处理 backlog相关的
+     * @param bufferToConsume
+     * @return
+     */
     private BufferAndBacklog handleBacklog(BufferAndBacklog bufferToConsume) {
         return bufferToConsume.buffersInBacklog() == 0
                 ? new BufferAndBacklog(
                         bufferToConsume.buffer(),
-                        getSubpartitionBacklog(),
+                        getSubpartitionBacklog(),  // 获取囤积数量
                         bufferToConsume.getNextDataType(),
                         bufferToConsume.getSequenceNumber())
                 : bufferToConsume;
     }
 
+    /**
+     * 尝试从磁盘读取数据
+     * @param buffersToRecycle
+     * @return
+     * @throws Throwable
+     */
     @GuardedBy("lock")
     private Optional<BufferAndBacklog> tryReadFromDisk(Queue<Buffer> buffersToRecycle)
             throws Throwable {
         final int nextBufferIndexToConsume = lastConsumedBufferIndex + 1;
         return checkNotNull(diskDataView)
+                // 读取数据
                 .consumeBuffer(nextBufferIndexToConsume, buffersToRecycle)
                 .map(
                         bufferAndBacklog -> {
@@ -253,16 +289,22 @@ public class HsSubpartitionConsumer
                                 return new BufferAndBacklog(
                                         bufferAndBacklog.buffer(),
                                         bufferAndBacklog.buffersInBacklog(),
+                                        // 磁盘没有类型时  使用内存的
                                         checkNotNull(memoryDataView)
                                                 .peekNextToConsumeDataType(
                                                         nextBufferIndexToConsume + 1,
                                                         buffersToRecycle),
                                         bufferAndBacklog.getSequenceNumber());
                             }
+                            // 本来是直接返回的
                             return bufferAndBacklog;
                         });
     }
 
+    /**
+     * 使用本次加载到的buffer数据 更新消费者状态
+     * @param bufferAndBacklog
+     */
     @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
     @GuardedBy("lock")
     private void updateConsumingStatus(Optional<BufferAndBacklog> bufferAndBacklog) {
@@ -276,6 +318,7 @@ public class HsSubpartitionConsumer
         // update need-notify
         boolean dataAvailable =
                 bufferAndBacklog.map(BufferAndBacklog::isDataAvailable).orElse(false);
+        // 当类型是NONE时 表明没有数据了  那么当有数据时才需要通知
         needNotify = !dataAvailable;
         // update cached next data type
         cachedNextDataType = bufferAndBacklog.map(BufferAndBacklog::getNextDataType).orElse(null);

@@ -19,15 +19,20 @@ package org.apache.flink.runtime.state;
 
 import org.apache.flink.annotation.VisibleForTesting;
 
-/** A keyed state backend interface for internal testing purpose. */
+/** A keyed state backend interface for internal testing purpose.
+ * 表示可用于内部测试
+ * */
 @VisibleForTesting
 public interface TestableKeyedStateBackend<K> extends KeyedStateBackend<K> {
-    /** Returns the total number of state entries across all keys/namespaces. */
+    /** Returns the total number of state entries across all keys/namespaces.
+     * 返回状态总数   囊括所有keys和namespaces
+     * */
     int numKeyValueStateEntries();
     /**
      * @return delegated {@link KeyedStateBackend} if this backends delegates its
      *     responisibilities..
      * @param recursive true if the call should be recursive
+     *                  返回最内层的状态后端
      */
     default KeyedStateBackend<K> getDelegatedKeyedStateBackend(boolean recursive) {
         return this;

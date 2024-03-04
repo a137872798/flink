@@ -38,11 +38,16 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * An implementation of the {@link SubtaskAccess} interface that uses the ExecutionGraph's classes,
  * specifically {@link Execution} and {@link ExecutionJobVertex} to access tasks.
+ * 提供子任务信息
  */
 final class ExecutionSubtaskAccess implements SubtaskAccess {
 
     private final Execution taskExecution;
     private final OperatorID operator;
+
+    /**
+     * 追踪未完成的future
+     */
     private final IncompleteFuturesTracker futuresTracker;
 
     ExecutionSubtaskAccess(Execution taskExecution, OperatorID operator) {
@@ -55,6 +60,7 @@ final class ExecutionSubtaskAccess implements SubtaskAccess {
         // without this, the futures would only fail after the RPC system hits the ask-timeout.
         taskExecution
                 .getTerminalStateFuture()
+                // 当任务结束时  就抛出一个异常
                 .thenAccept(
                         (state) ->
                                 futuresTracker.failAllFutures(
@@ -71,6 +77,8 @@ final class ExecutionSubtaskAccess implements SubtaskAccess {
             return result;
         };
     }
+
+    // 有关子任务的信息 都是从 taskExecution获取的
 
     @Override
     public int getSubtaskIndex() {
@@ -105,6 +113,9 @@ final class ExecutionSubtaskAccess implements SubtaskAccess {
 
     // ------------------------------------------------------------------------
 
+    /**
+     * 传入index 即可获取子任务
+     */
     static final class ExecutionJobVertexSubtaskAccess implements SubtaskAccessFactory {
 
         private final ExecutionJobVertex ejv;

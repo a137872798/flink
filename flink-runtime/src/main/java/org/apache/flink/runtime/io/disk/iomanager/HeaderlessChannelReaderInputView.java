@@ -32,6 +32,8 @@ import static org.apache.flink.util.Preconditions.checkArgument;
  * {@link ChannelReaderInputView}, but does not expect a header for each block, giving a direct
  * stream abstraction over sequence of written blocks. It therefore requires specification of the
  * number of blocks and the number of bytes in the last block.
+ *
+ * 表示数据块没有头部吧
  */
 public class HeaderlessChannelReaderInputView extends ChannelReaderInputView {
 
@@ -106,6 +108,7 @@ public class HeaderlessChannelReaderInputView extends ChannelReaderInputView {
         // send a request first. if we have only a single segment, this same segment will be the one
         // obtained in
         // the next lines
+        // 发送请求读取下个数据块
         if (current != null) {
             sendReadRequest(current);
         }
@@ -115,6 +118,8 @@ public class HeaderlessChannelReaderInputView extends ChannelReaderInputView {
 
         // get the next segment
         this.numBlocksRemaining--;
+
+        // 这后面省去了读取header的部分
         return this.reader.getNextReturnedBlock();
     }
 

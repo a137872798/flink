@@ -31,6 +31,10 @@ import java.util.stream.Stream;
  * A keyed state backend provides methods for managing keyed state.
  *
  * @param <K> The key by which state is keyed.
+ *
+ *           KeyedStateFactory 表示可以产生状态  从状态后端来看 产生应该就是读取吧?
+ *           PriorityQueueSetFactory 产生优先队列
+ *
  */
 public interface KeyedStateBackend<K>
         extends KeyedStateFactory, PriorityQueueSetFactory, Disposable {
@@ -39,13 +43,18 @@ public interface KeyedStateBackend<K>
      * Sets the current key that is used for partitioned state.
      *
      * @param newKey The new current key.
+     *               设置当前key
      */
     void setCurrentKey(K newKey);
 
-    /** @return Current key. */
+    /** @return Current key.
+     * 获取当前key
+     * */
     K getCurrentKey();
 
-    /** @return Serializer of the key. */
+    /** @return Serializer of the key.
+     * 获取key的序列化对象
+     * */
     TypeSerializer<K> getKeySerializer();
 
     /**
@@ -59,6 +68,8 @@ public interface KeyedStateBackend<K>
      * @param function the function to be applied to the keyed state.
      * @param <N> The type of the namespace.
      * @param <S> The type of the state.
+     *
+     *           将函数作用在某state在该命名空间的所有key上
      */
     <N, S extends State, T> void applyToAllKeys(
             final N namespace,
@@ -72,6 +83,8 @@ public interface KeyedStateBackend<K>
      *     during iterating over it keys are not supported.
      * @param state State variable for which existing keys will be returned.
      * @param namespace Namespace for which existing keys will be returned.
+     *
+     *                  获取某个状态在某个命名空间下所有key
      */
     <N> Stream<K> getKeys(String state, N namespace);
 
@@ -81,6 +94,7 @@ public interface KeyedStateBackend<K>
      *     guarantees about the returned tupes. Two records with the same key or namespace may not
      *     be returned near each other in the stream.
      * @param state State variable for which existing keys will be returned.
+     *              获取某个状态相关的所有命名空间 和 keys
      */
     <N> Stream<Tuple2<K, N>> getKeysAndNamespaces(String state);
 
@@ -95,6 +109,8 @@ public interface KeyedStateBackend<K>
      * @return A new key/value state backed by this backend.
      * @throws Exception Exceptions may occur during initialization of the state and should be
      *     forwarded.
+     *
+     *     创建/获取状态
      */
     <N, S extends State, T> S getOrCreateKeyedState(
             TypeSerializer<N> namespaceSerializer, StateDescriptor<S, T> stateDescriptor)
@@ -127,6 +143,8 @@ public interface KeyedStateBackend<K>
     /**
      * State backend will call {@link KeySelectionListener#keySelected} when key context is switched
      * if supported.
+     *
+     * KeySelectionListener 会监听key的切换
      */
     void registerKeySelectionListener(KeySelectionListener<K> listener);
 
@@ -151,6 +169,8 @@ public interface KeyedStateBackend<K>
      * that on JVM heap if configuring HEAP as the time-service factory.
      *
      * @return returns ture if safe to reuse the key-values from the state-backend.
+     *
+     * 默认情况下  重用状态被认为是不安全的
      */
     default boolean isSafeToReuseKVState() {
         return false;

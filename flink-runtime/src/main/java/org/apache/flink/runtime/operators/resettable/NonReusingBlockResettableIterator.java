@@ -34,6 +34,7 @@ import java.util.NoSuchElementException;
 /**
  * Implementation of an iterator that fetches a block of data into main memory and offers resettable
  * access to the data in that block.
+ * 没有复用对象
  */
 public class NonReusingBlockResettableIterator<T> extends AbstractBlockResettableIterator<T>
         implements ResettableIterator<T> {
@@ -77,6 +78,11 @@ public class NonReusingBlockResettableIterator<T> extends AbstractBlockResettabl
 
     // ------------------------------------------------------------------------
 
+    /**
+     * 设置了input后 开启下一个block 并继续从input读取数据 以及将数据写入output
+     * @param input
+     * @throws IOException
+     */
     public void reopen(Iterator<T> input) throws IOException {
         this.input = input;
 
@@ -86,26 +92,36 @@ public class NonReusingBlockResettableIterator<T> extends AbstractBlockResettabl
         nextBlock();
     }
 
+    /**
+     * 判断是否还有下一个元素
+     * @return
+     */
     @Override
     public boolean hasNext() {
         try {
+            // 表示还没有读取任何数据
             if (this.nextElement == null) {
                 if (this.readPhase) {
                     // read phase, get next element from buffer
+                    // 已经在读取阶段了  数据已经从input到本对象了
                     T tmp = getNextRecord();
                     if (tmp != null) {
+                        // 预备好下个元素
                         this.nextElement = tmp;
                         return true;
                     } else {
                         return false;
                     }
                 } else {
+                    // 还在写入阶段  需要访问迭代器
                     if (this.input.hasNext()) {
                         final T next = this.input.next();
+                        // 写入成功的数据还开放接口
                         if (writeNextRecord(next)) {
                             this.nextElement = next;
                             return true;
                         } else {
+                            // 没内存了  使用 leftOverElement 暂存
                             this.leftOverElement = next;
                             return false;
                         }
@@ -141,12 +157,21 @@ public class NonReusingBlockResettableIterator<T> extends AbstractBlockResettabl
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * 精髓就在这里 可以重新读取数据
+     */
     public void reset() {
         // a reset always goes to the read phase
         this.readPhase = true;
         super.reset();
     }
 
+
+    /**
+     * 切换到下个block
+     * @return
+     * @throws IOException
+     */
     @Override
     public boolean nextBlock() throws IOException {
         // check the state
@@ -155,6 +180,7 @@ public class NonReusingBlockResettableIterator<T> extends AbstractBlockResettabl
         }
 
         // check whether more blocks are available
+        // 此时input的数据已经读完了 无法切换到下一个block  (没数据就失去了切换的意义)
         if (this.noMoreBlocks) {
             return false;
         }
@@ -174,6 +200,7 @@ public class NonReusingBlockResettableIterator<T> extends AbstractBlockResettabl
         }
 
         // write the leftover record
+        // 如果有残留数据 直接写入
         if (!writeNextRecord(next)) {
             throw new IOException(
                     "BlockResettableIterator could not serialize record into fresh memory block: "
@@ -197,6 +224,9 @@ public class NonReusingBlockResettableIterator<T> extends AbstractBlockResettabl
         return !this.noMoreBlocks;
     }
 
+    /**
+     * 切换成读取模式 并释放内存块
+     */
     public void close() {
         // suggest that we are in the read phase. because nothing is in the current block,
         // read requests will fail

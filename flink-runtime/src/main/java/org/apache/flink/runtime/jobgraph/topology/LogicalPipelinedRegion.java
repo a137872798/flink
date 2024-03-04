@@ -24,6 +24,8 @@ import org.apache.flink.runtime.jobgraph.JobVertex;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.topology.PipelinedRegion;
 
-/** Pipelined region on logical level, i.e., {@link JobVertex} level. */
+/** Pipelined region on logical level, i.e., {@link JobVertex} level.
+ * 逻辑层面的流水线
+ * */
 public interface LogicalPipelinedRegion
         extends PipelinedRegion<JobVertexID, IntermediateDataSetID, LogicalVertex, LogicalResult> {}

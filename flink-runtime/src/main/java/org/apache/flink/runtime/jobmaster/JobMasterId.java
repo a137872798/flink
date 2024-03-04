@@ -24,7 +24,9 @@ import javax.annotation.Nullable;
 
 import java.util.UUID;
 
-/** The {@link JobMaster} fencing token. */
+/** The {@link JobMaster} fencing token.
+ * 用于标记 JobMaster
+ * */
 public class JobMasterId extends AbstractID {
 
     private static final long serialVersionUID = -933276753644003754L;

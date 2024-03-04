@@ -83,7 +83,10 @@ public class HsMemoryDataSpiller implements AutoCloseable {
         return spilledFuture;
     }
 
-    /** Called in single-threaded ioExecutor. Order is guaranteed. */
+    /**
+     * Called in single-threaded ioExecutor. Order is guaranteed.
+     * @param spilledFuture 倾倒完成后 需要设置future
+     * */
     private void spill(
             List<BufferWithIdentity> toWrite,
             CompletableFuture<List<SpilledBuffer>> spilledFuture) {
@@ -95,6 +98,7 @@ public class HsMemoryDataSpiller implements AutoCloseable {
             // complete spill future when buffers are written to disk successfully.
             // note that the ownership of these buffers is transferred to the MemoryDataManager,
             // which controls data's life cycle.
+            // 为future设置结果
             spilledFuture.complete(spilledBuffers);
         } catch (IOException exception) {
             // if spilling is failed, throw exception directly to uncaughtExceptionHandler.
@@ -108,6 +112,7 @@ public class HsMemoryDataSpiller implements AutoCloseable {
      * @param toWrite for create {@link SpilledBuffer}.
      * @param spilledBuffers receive the created {@link SpilledBuffer} by this method.
      * @return total bytes(header size + buffer size) of all buffers to write.
+     * 将buffer转换成被倾倒的buffer
      */
     private long createSpilledBuffersAndGetTotalBytes(
             List<BufferWithIdentity> toWrite, List<SpilledBuffer> spilledBuffers) {
@@ -125,7 +130,9 @@ public class HsMemoryDataSpiller implements AutoCloseable {
         return expectedBytes;
     }
 
-    /** Write all buffers to disk. */
+    /** Write all buffers to disk.
+     * 将数据写入磁盘
+     * */
     private void writeBuffers(List<BufferWithIdentity> bufferWithIdentities, long expectedBytes)
             throws IOException {
         if (bufferWithIdentities.isEmpty()) {

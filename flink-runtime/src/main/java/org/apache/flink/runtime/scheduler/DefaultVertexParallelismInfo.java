@@ -26,11 +26,17 @@ import org.apache.flink.util.Preconditions;
 import java.util.Optional;
 import java.util.function.Function;
 
-/** A {@link VertexParallelismInformation} implementation that provides common validation. */
+/** A {@link VertexParallelismInformation} implementation that provides common validation.
+ * 描述顶点的并行度信息
+ * */
 public class DefaultVertexParallelismInfo implements VertexParallelismInformation {
     private final int minParallelism;
     private int parallelism;
     private int maxParallelism;
+
+    /**
+     * 判断能否修改最大并行度
+     */
     private final Function<Integer, Optional<String>> rescaleMaxValidator;
 
     /**
@@ -116,11 +122,17 @@ public class DefaultVertexParallelismInfo implements VertexParallelismInformatio
         this.parallelism = parallelism;
     }
 
+
+    /**
+     * 设置最大并行度
+     * @param maxParallelism the parallelism for the vertex
+     */
     @Override
     public void setMaxParallelism(int maxParallelism) {
         maxParallelism = normalizeAndCheckMaxParallelism(maxParallelism);
 
         Optional<String> validationResult = rescaleMaxValidator.apply(maxParallelism);
+        // 表示不允许 并返回错误信息
         if (validationResult.isPresent()) {
             throw new IllegalArgumentException(
                     String.format(

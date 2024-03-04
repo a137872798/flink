@@ -21,11 +21,22 @@ package org.apache.flink.runtime.executiongraph;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
+/**
+ * 该对象可以遍历整个graph的所有顶点
+ * @param <EV>
+ * @param <EJV>
+ */
 class AllVerticesIterator<EV extends AccessExecutionVertex, EJV extends AccessExecutionJobVertex>
         implements Iterator<EV> {
 
+    /**
+     * 每次遍历得到一个job
+     */
     private final Iterator<EJV> jobVertices;
 
+    /**
+     * 每个job下的多个subtask
+     */
     private EV[] currVertices;
 
     private int currPos;
@@ -43,6 +54,7 @@ class AllVerticesIterator<EV extends AccessExecutionVertex, EJV extends AccessEx
                 } else {
                     currVertices = null;
                 }
+                // 当前job下的subtask读取完了  就换成下一个job
             } else if (jobVertices.hasNext()) {
                 currVertices = (EV[]) jobVertices.next().getTaskVertices();
                 currPos = 0;

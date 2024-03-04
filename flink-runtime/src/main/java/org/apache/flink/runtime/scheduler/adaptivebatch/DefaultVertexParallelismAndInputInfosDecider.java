@@ -58,6 +58,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  *
  * <p>2. For other cases, evenly distribute subpartitions to downstream subtasks, make different
  * downstream subtasks consume roughly the same number of subpartitions.
+ * 该对象用于描述顶点的并行度和输入数据信息
  */
 public class DefaultVertexParallelismAndInputInfosDecider
         implements VertexParallelismAndInputInfosDecider {
@@ -75,8 +76,11 @@ public class DefaultVertexParallelismAndInputInfosDecider
      */
     private static final int MAX_NUM_SUBPARTITIONS_PER_TASK_CONSUME = 32768;
 
+    // 全局并行度
     private final int globalMaxParallelism;
     private final int globalMinParallelism;
+
+    // 每个任务的数据量
     private final long dataVolumePerTask;
     private final int globalDefaultSourceParallelism;
 
@@ -101,10 +105,21 @@ public class DefaultVertexParallelismAndInputInfosDecider
         this.globalDefaultSourceParallelism = globalDefaultSourceParallelism;
     }
 
+    /**
+     * @param jobVertexId The job vertex id  对标一个task
+     * @param consumedResults The information of consumed blocking results   该对象记录了范围内的字节数
+     * @param vertexInitialParallelism The initial parallelism of the job vertex. If it's a positive
+     *     number, it will be respected. If it's not set(equals to {@link
+     *     ExecutionConfig#PARALLELISM_DEFAULT}), a parallelism will be automatically decided for
+     *     the vertex.
+     * @param vertexMaxParallelism The max parallelism of the job vertex.
+     * @return
+     * 表示上游产生的数据在交给该task时 应当如何分配 使得task下各subtask消费的数据尽可能均匀
+     */
     @Override
     public ParallelismAndInputInfos decideParallelismAndInputInfosForVertex(
             JobVertexID jobVertexId,
-            List<BlockingResultInfo> consumedResults,
+            List<BlockingResultInfo> consumedResults,  // 该对象记录分区的数据量
             int vertexInitialParallelism,
             int vertexMaxParallelism) {
         checkArgument(
@@ -117,12 +132,17 @@ public class DefaultVertexParallelismAndInputInfosDecider
             int parallelism =
                     vertexInitialParallelism > 0
                             ? vertexInitialParallelism
+                            // 计算并行度
                             : computeSourceParallelism(jobVertexId, vertexMaxParallelism);
+            // 因为是空数据  这里的计算很潦草
             return new ParallelismAndInputInfos(parallelism, Collections.emptyMap());
         } else {
+
+            //
             int minParallelism = globalMinParallelism;
             int maxParallelism = globalMaxParallelism;
 
+            // 调整默认并行度
             if (vertexInitialParallelism == ExecutionConfig.PARALLELISM_DEFAULT
                     && vertexMaxParallelism < minParallelism) {
                 LOG.info(
@@ -132,6 +152,7 @@ public class DefaultVertexParallelismAndInputInfosDecider
                         minParallelism,
                         vertexMaxParallelism,
                         jobVertexId);
+
                 minParallelism = vertexMaxParallelism;
             }
             if (vertexInitialParallelism == ExecutionConfig.PARALLELISM_DEFAULT
@@ -148,8 +169,9 @@ public class DefaultVertexParallelismAndInputInfosDecider
             checkState(maxParallelism >= minParallelism);
 
             if (vertexInitialParallelism == ExecutionConfig.PARALLELISM_DEFAULT
-                    && areAllInputsAllToAll(consumedResults)
+                    && areAllInputsAllToAll(consumedResults)  // 非广播且都是allToAll
                     && !areAllInputsBroadcast(consumedResults)) {
+                // 表示按照数据量来划分
                 return decideParallelismAndEvenlyDistributeData(
                         jobVertexId,
                         consumedResults,
@@ -157,6 +179,7 @@ public class DefaultVertexParallelismAndInputInfosDecider
                         minParallelism,
                         maxParallelism);
             } else {
+                // 其他情况  或者 decideParallelismAndEvenlyDistributeData无法计算出合适的并行度
                 return decideParallelismAndEvenlyDistributeSubpartitions(
                         jobVertexId,
                         consumedResults,
@@ -167,6 +190,12 @@ public class DefaultVertexParallelismAndInputInfosDecider
         }
     }
 
+    /**
+     * 计算并行度
+     * @param jobVertexId
+     * @param maxParallelism
+     * @return
+     */
     private int computeSourceParallelism(JobVertexID jobVertexId, int maxParallelism) {
         if (globalDefaultSourceParallelism > maxParallelism) {
             LOG.info(
@@ -182,6 +211,11 @@ public class DefaultVertexParallelismAndInputInfosDecider
         }
     }
 
+    /**
+     * 表示所有都是  alltoall
+     * @param consumedResults
+     * @return
+     */
     private static boolean areAllInputsAllToAll(List<BlockingResultInfo> consumedResults) {
         return consumedResults.stream().noneMatch(BlockingResultInfo::isPointwise);
     }
@@ -201,25 +235,36 @@ public class DefaultVertexParallelismAndInputInfosDecider
      * @param minParallelism the min parallelism
      * @param maxParallelism the max parallelism
      * @return the parallelism and vertex input infos
+     * 均匀拆分子分区
      */
     private ParallelismAndInputInfos decideParallelismAndEvenlyDistributeSubpartitions(
             JobVertexID jobVertexId,
             List<BlockingResultInfo> consumedResults,
-            int initialParallelism,
+            int initialParallelism,  // 此时顶点的并行度
             int minParallelism,
             int maxParallelism) {
         checkArgument(!consumedResults.isEmpty());
         int parallelism =
-                initialParallelism > 0
+                initialParallelism > 0  // 并行度有效直接使用
                         ? initialParallelism
+                        // 按照数据量计算并行度
                         : decideParallelism(
                                 jobVertexId, consumedResults, minParallelism, maxParallelism);
         return new ParallelismAndInputInfos(
                 parallelism,
+                // 根据指定的并行度 计算task的数据消费   这里是理想的每个子分区数据均匀的情况 如果出现数据倾斜 那么每个子任务的负载其实不一样
                 VertexInputInfoComputationUtils.computeVertexInputInfos(
                         parallelism, consumedResults, true));
     }
 
+    /**
+     * 计算并行度
+     * @param jobVertexId
+     * @param consumedResults
+     * @param minParallelism
+     * @param maxParallelism
+     * @return
+     */
     int decideParallelism(
             JobVertexID jobVertexId,
             List<BlockingResultInfo> consumedResults,
@@ -235,10 +280,12 @@ public class DefaultVertexParallelismAndInputInfosDecider
             return minParallelism;
         }
 
+        // 产生的总数据量
         long totalBytes =
                 nonBroadcastResults.stream()
                         .mapToLong(BlockingResultInfo::getNumBytesProduced)
                         .sum();
+        // 除以limit 直接得到并行度
         int parallelism = (int) Math.ceil((double) totalBytes / dataVolumePerTask);
         int minParallelismLimitedByMaxSubpartitions =
                 (int)
@@ -253,6 +300,7 @@ public class DefaultVertexParallelismAndInputInfosDecider
                 jobVertexId,
                 parallelism);
 
+        // 超范围直接修改
         if (parallelism < minParallelism) {
             LOG.info(
                     "The initially decided parallelism {} is smaller than the minimum parallelism {}. "
@@ -282,11 +330,12 @@ public class DefaultVertexParallelismAndInputInfosDecider
      * of data.
      *
      * @param jobVertexId The job vertex id
-     * @param consumedResults The information of consumed blocking results
+     * @param consumedResults The information of consumed blocking results  这里记录了各分区的数据量
      * @param initialParallelism The initial parallelism of the job vertex
      * @param minParallelism the min parallelism
      * @param maxParallelism the max parallelism
      * @return the parallelism and vertex input infos
+     * 均匀的分配数据
      */
     private ParallelismAndInputInfos decideParallelismAndEvenlyDistributeData(
             JobVertexID jobVertexId,
@@ -294,19 +343,30 @@ public class DefaultVertexParallelismAndInputInfosDecider
             int initialParallelism,
             int minParallelism,
             int maxParallelism) {
+
+        // 看来这里期望一开始并行度还没有设定
         checkArgument(initialParallelism == ExecutionConfig.PARALLELISM_DEFAULT);
         checkArgument(!consumedResults.isEmpty());
         consumedResults.forEach(resultInfo -> checkState(!resultInfo.isPointwise()));
 
         // Considering that the sizes of broadcast results are usually very small, we compute the
         // parallelism and input infos only based on sizes of non-broadcast results
+
+        // 过滤掉广播类型
         final List<BlockingResultInfo> nonBroadcastResults =
                 getNonBroadcastResultInfos(consumedResults);
+
+        // 获取子分区数
         int subpartitionNum = checkAndGetSubpartitionNum(nonBroadcastResults);
 
+        // 按子分区分组
         long[] bytesBySubpartition = new long[subpartitionNum];
         Arrays.fill(bytesBySubpartition, 0L);
+
+        // 这里再是将多个 BlockingResultInfo 信息进行累加
         for (BlockingResultInfo resultInfo : nonBroadcastResults) {
+
+            // 按照 AllToAll 规则获得聚合后的结果
             List<Long> subpartitionBytes =
                     ((AllToAllBlockingResultInfo) resultInfo).getAggregatedSubpartitionBytes();
             for (int i = 0; i < subpartitionNum; ++i) {
@@ -314,14 +374,21 @@ public class DefaultVertexParallelismAndInputInfosDecider
             }
         }
 
+        // 获取最大的分区数   虽然这些分区的子分区数一样 但是分区数有多有少
         int maxNumPartitions = getMaxNumPartitions(nonBroadcastResults);
+
+        // 这个是子分区的跨度  一个range不能超过这个数
+        // MAX_NUM_SUBPARTITIONS_PER_TASK_CONSUME 表示一个task最多消费多少子分区
         int maxRangeSize = MAX_NUM_SUBPARTITIONS_PER_TASK_CONSUME / maxNumPartitions;
         // compute subpartition ranges
         List<IndexRange> subpartitionRanges =
                 computeSubpartitionRanges(bytesBySubpartition, dataVolumePerTask, maxRangeSize);
 
         // if the parallelism is not legal, adjust to a legal parallelism
+        // subpartitionRanges 就成了并行度
         if (!isLegalParallelism(subpartitionRanges.size(), minParallelism, maxParallelism)) {
+
+            // 并行度不合法时需要调整
             Optional<List<IndexRange>> adjustedSubpartitionRanges =
                     adjustToClosestLegalParallelism(
                             dataVolumePerTask,
@@ -334,6 +401,8 @@ public class DefaultVertexParallelismAndInputInfosDecider
                             limit ->
                                     computeSubpartitionRanges(
                                             bytesBySubpartition, limit, maxRangeSize));
+
+            // 表示 无法计算出合适的并行度
             if (!adjustedSubpartitionRanges.isPresent()) {
                 // can't find any legal parallelism, fall back to evenly distribute subpartitions
                 LOG.info(
@@ -351,6 +420,7 @@ public class DefaultVertexParallelismAndInputInfosDecider
         }
 
         checkState(isLegalParallelism(subpartitionRanges.size(), minParallelism, maxParallelism));
+        // 合法的情况下这就是结果了
         return createParallelismAndInputInfos(consumedResults, subpartitionRanges);
     }
 
@@ -359,7 +429,13 @@ public class DefaultVertexParallelismAndInputInfosDecider
         return parallelism >= minParallelism && parallelism <= maxParallelism;
     }
 
+    /**
+     * 获取子分区数量
+     * @param consumedResults
+     * @return
+     */
     private static int checkAndGetSubpartitionNum(List<BlockingResultInfo> consumedResults) {
+        // 每个分区的子分区数 应当一样
         final Set<Integer> subpartitionNumSet =
                 consumedResults.stream()
                         .flatMap(
@@ -377,18 +453,19 @@ public class DefaultVertexParallelismAndInputInfosDecider
      * Adjust the parallelism to the closest legal parallelism and return the computed subpartition
      * ranges.
      *
-     * @param currentDataVolumeLimit current data volume limit
-     * @param currentParallelism current parallelism
-     * @param minParallelism the min parallelism
-     * @param maxParallelism the max parallelism
-     * @param minLimit the minimum data volume limit
-     * @param maxLimit the maximum data volume limit
+     * @param currentDataVolumeLimit current data volume limit  当前每个并行值(task) 消费的字节数上限
+     * @param currentParallelism current parallelism   当前并行度  (此时并行度不合法)
+     * @param minParallelism the min parallelism   最小并行度
+     * @param maxParallelism the max parallelism   最大并行度
+     * @param minLimit the minimum data volume limit  单个分区消费的最小量
+     * @param maxLimit the maximum data volume limit  消费最大量
      * @param parallelismComputer a function to compute the parallelism according to the data volume
      *     limit
      * @param subpartitionRangesComputer a function to compute the subpartition ranges according to
      *     the data volume limit
      * @return the computed subpartition ranges or {@link Optional#empty()} if we can't find any
      *     legal parallelism
+     *     当并行度不合法时 要进行调整
      */
     private static Optional<List<IndexRange>> adjustToClosestLegalParallelism(
             long currentDataVolumeLimit,
@@ -400,12 +477,16 @@ public class DefaultVertexParallelismAndInputInfosDecider
             Function<Long, Integer> parallelismComputer,
             Function<Long, List<IndexRange>> subpartitionRangesComputer) {
         long adjustedDataVolumeLimit = currentDataVolumeLimit;
+
+        // 表示并行度太小
         if (currentParallelism < minParallelism) {
             // Current parallelism is smaller than the user-specified lower-limit of parallelism ,
             // we need to adjust it to the closest/minimum possible legal parallelism. That is, we
             // need to find the maximum legal dataVolumeLimit.
+            // 调整每个task的消费量  现在要降低
             adjustedDataVolumeLimit =
                     BisectionSearchUtils.findMaxLegalValue(
+                            // 按照最小的子分区数据量计算产生的并行度
                             value -> parallelismComputer.apply(value) >= minParallelism,
                             minLimit,
                             currentDataVolumeLimit);
@@ -414,8 +495,13 @@ public class DefaultVertexParallelismAndInputInfosDecider
             // lead to this parallelism may be a range, and we need to find the minimum value of
             // this range to make the data distribution as even as possible (the smaller the
             // dataVolumeLimit, the more even the distribution)
+
+            // 调整后得到了一个变大的并行度 但是还是尽可能小  换句话每个任务的消费量尽可能大
             final long minPossibleLegalParallelism =
                     parallelismComputer.apply(adjustedDataVolumeLimit);
+
+
+            // 计算出此时的数据消费量
             adjustedDataVolumeLimit =
                     BisectionSearchUtils.findMinLegalValue(
                             value ->
@@ -423,6 +509,7 @@ public class DefaultVertexParallelismAndInputInfosDecider
                             minLimit,
                             adjustedDataVolumeLimit);
 
+            // 计算出的并行度太多 往上调整消费量
         } else if (currentParallelism > maxParallelism) {
             // Current parallelism is larger than the user-specified upper-limit of parallelism ,
             // we need to adjust it to the closest/maximum possible legal parallelism. That is, we
@@ -434,31 +521,45 @@ public class DefaultVertexParallelismAndInputInfosDecider
                             maxLimit);
         }
 
+        // 得到调整后的并行度
         int adjustedParallelism = parallelismComputer.apply(adjustedDataVolumeLimit);
+        // 合法后产生结果
         if (isLegalParallelism(adjustedParallelism, minParallelism, maxParallelism)) {
+            // 基于新的limit 生成range
             return Optional.of(subpartitionRangesComputer.apply(adjustedDataVolumeLimit));
         } else {
             return Optional.empty();
         }
     }
 
+    /**
+     * 创建输入的并行信息
+     * @param consumedResults   这里记录了字节数
+     * @param subpartitionRanges  已经划分好每个子任务 消费的子分区范围   注意这里的子分区数据以及是将各个分区相同子分区数据合并后的结果了
+     * @return
+     */
     private static ParallelismAndInputInfos createParallelismAndInputInfos(
             List<BlockingResultInfo> consumedResults, List<IndexRange> subpartitionRanges) {
 
+        // 描述数据集会怎么拆分 用于被下游消费
         final Map<IntermediateDataSetID, JobVertexInputInfo> vertexInputInfos = new HashMap<>();
         consumedResults.forEach(
                 resultInfo -> {
+                    // 这个是分区数量
                     int sourceParallelism = resultInfo.getNumPartitions();
                     IndexRange partitionRange = new IndexRange(0, sourceParallelism - 1);
 
                     List<ExecutionVertexInputInfo> executionVertexInputInfos = new ArrayList<>();
                     for (int i = 0; i < subpartitionRanges.size(); ++i) {
                         IndexRange subpartitionRange;
+                        // 广播模式此时不应该考虑
                         if (resultInfo.isBroadcast()) {
                             subpartitionRange = new IndexRange(0, 0);
                         } else {
                             subpartitionRange = subpartitionRanges.get(i);
                         }
+
+                        // 表示消费了所有分区下 这些子分区的数据
                         ExecutionVertexInputInfo executionVertexInputInfo =
                                 new ExecutionVertexInputInfo(i, partitionRange, subpartitionRange);
                         executionVertexInputInfos.add(executionVertexInputInfo);
@@ -471,26 +572,44 @@ public class DefaultVertexParallelismAndInputInfosDecider
         return new ParallelismAndInputInfos(subpartitionRanges.size(), vertexInputInfos);
     }
 
+    /**
+     * 计算范围
+     * @param nums   每个子分区的字节数
+     * @param limit  range的字节量限制
+     * @param maxRangeSize  表示range不能横跨超过多少子分区
+     * @return
+     */
     private static List<IndexRange> computeSubpartitionRanges(
             long[] nums, long limit, int maxRangeSize) {
         List<IndexRange> subpartitionRanges = new ArrayList<>();
         long tmpSum = 0;
         int startIndex = 0;
         for (int i = 0; i < nums.length; ++i) {
+
+            // 得到某个子分区的字节数
             long num = nums[i];
             if (i == startIndex
                     || (tmpSum + num <= limit && (i - startIndex + 1) <= maxRangeSize)) {
                 tmpSum += num;
             } else {
+                // 计算出一个子分区下标范围
                 subpartitionRanges.add(new IndexRange(startIndex, i - 1));
                 startIndex = i;
                 tmpSum = num;
             }
         }
+        // 剩下的作为一个返回
         subpartitionRanges.add(new IndexRange(startIndex, nums.length - 1));
         return subpartitionRanges;
     }
 
+    /**
+     * 计算并行度
+     * @param nums
+     * @param limit
+     * @param maxRangeSize
+     * @return
+     */
     private static int computeParallelism(long[] nums, long limit, int maxRangeSize) {
         long tmpSum = 0;
         int startIndex = 0;
@@ -509,6 +628,11 @@ public class DefaultVertexParallelismAndInputInfosDecider
         return count;
     }
 
+    /**
+     * 获取最大分区数
+     * @param consumedResults
+     * @return
+     */
     private static int getMaxNumPartitions(List<BlockingResultInfo> consumedResults) {
         checkArgument(!consumedResults.isEmpty());
         return consumedResults.stream()
@@ -517,6 +641,11 @@ public class DefaultVertexParallelismAndInputInfosDecider
                 .getAsInt();
     }
 
+    /**
+     * 获取最大子分区数
+     * @param consumedResults
+     * @return
+     */
     private static int getMaxNumSubpartitions(List<BlockingResultInfo> consumedResults) {
         checkArgument(!consumedResults.isEmpty());
         return consumedResults.stream()

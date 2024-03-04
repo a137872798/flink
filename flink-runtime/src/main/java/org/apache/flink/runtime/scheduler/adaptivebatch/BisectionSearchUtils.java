@@ -40,6 +40,13 @@ class BisectionSearchUtils {
         return high + 1;
     }
 
+    /**
+     * 尽可能往上靠
+     * @param legalChecker
+     * @param low
+     * @param high
+     * @return
+     */
     public static long findMaxLegalValue(
             Function<Long, Boolean> legalChecker, long low, long high) {
         if (!legalChecker.apply(low)) {

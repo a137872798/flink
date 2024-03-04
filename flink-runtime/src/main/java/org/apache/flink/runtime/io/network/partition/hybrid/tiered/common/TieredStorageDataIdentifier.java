@@ -18,5 +18,7 @@
 
 package org.apache.flink.runtime.io.network.partition.hybrid.tiered.common;
 
-/** Identifier interface in the Tiered Storage. */
+/** Identifier interface in the Tiered Storage.
+ * 表示分层存储的唯一标识符
+ * */
 public interface TieredStorageDataIdentifier {}

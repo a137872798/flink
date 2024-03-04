@@ -110,6 +110,7 @@ public class TaskExecutorResourceUtils {
     /**
      * This must be consist with {@link
      * org.apache.flink.runtime.resourcemanager.slotmanager.SlotManagerUtils#generateDefaultSlotResourceProfile}.
+     * 将总资源 根据slot数量拆分
      */
     @VisibleForTesting
     public static ResourceProfile generateDefaultSlotResourceProfile(

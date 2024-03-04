@@ -29,6 +29,7 @@ import java.util.UUID;
  * The rpc is then only executed if the attached fencing token equals the endpoint's own token.
  *
  * @param <F> type of the fencing token
+ *           在 RpcEndpoint 基础上增加一个token
  */
 public abstract class FencedRpcEndpoint<F extends Serializable> extends RpcEndpoint {
 

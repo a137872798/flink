@@ -23,6 +23,7 @@ public interface SlotOwner {
 
     /**
      * Return the given slot to the slot owner.
+     * 将slot归还给它的拥有者
      *
      * @param logicalSlot to return
      */

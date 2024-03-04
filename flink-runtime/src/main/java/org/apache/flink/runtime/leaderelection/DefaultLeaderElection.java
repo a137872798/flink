@@ -25,9 +25,13 @@ import java.util.UUID;
 /**
  * {@code DefaultLeaderElection} implements the {@link LeaderElection} based on the {@link
  * ParentService}.
+ * 组件的包装对象
  */
 class DefaultLeaderElection implements LeaderElection {
 
+    /**
+     * 该对象提供了实际的能力
+     */
     private final ParentService parentService;
     private final String componentId;
 
@@ -67,12 +71,14 @@ class DefaultLeaderElection implements LeaderElection {
          * Registers the {@link LeaderContender} under the {@code componentId} with the underlying
          * {@code ParentService}. Leadership changes are starting to be reported to the {@code
          * LeaderContender}.
+         * 往上注册成员
          */
         abstract void register(String componentId, LeaderContender contender) throws Exception;
 
         /**
          * Removes the {@code LeaderContender} from the {@code ParentService} that is associated
          * with the {@code componentId}.
+         * 移除某个成员
          */
         abstract void remove(String componentId) throws Exception;
 
@@ -89,6 +95,8 @@ class DefaultLeaderElection implements LeaderElection {
          *
          * @return {@code true} if the service has leadership with the passed {@code
          *     leaderSessionID} acquired; {@code false} otherwise.
+         *     leaderSessionID 表示一期选举的结果  当发起新的选举时 leaderSessionID 会变化
+         *     判断在leaderSessionID对应的期内 该成员是否为leader
          */
         abstract boolean hasLeadership(String componentId, UUID leaderSessionID);
     }

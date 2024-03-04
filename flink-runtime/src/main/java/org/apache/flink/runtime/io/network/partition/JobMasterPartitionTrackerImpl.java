@@ -45,6 +45,7 @@ import static java.util.stream.Collectors.toList;
 
 /**
  * Utility for tracking partitions and issuing release calls to task executors and shuffle masters.
+ * 该对象基于ResourceID跟踪
  */
 public class JobMasterPartitionTrackerImpl
         extends AbstractPartitionTracker<ResourceID, ResultPartitionDeploymentDescriptor>
@@ -58,10 +59,24 @@ public class JobMasterPartitionTrackerImpl
 
     private final JobID jobId;
 
+    /**
+     * 洗牌对象
+     */
     private final ShuffleMaster<?> shuffleMaster;
 
+    /**
+     * 通过该对象可以找到对应的TM网关  用于访问 TM
+     */
     private final PartitionTrackerFactory.TaskExecutorGatewayLookup taskExecutorGatewayLookup;
+
+    /**
+     * 用于访问RM
+     */
     private ResourceManagerGateway resourceManagerGateway;
+
+    /**
+     * 每个中间结果集会关联多个分区      每个分区关联一个ShuffleDescriptor
+     */
     private final Map<IntermediateDataSetID, List<ShuffleDescriptor>>
             clusterPartitionShuffleDescriptors;
 
@@ -76,6 +91,11 @@ public class JobMasterPartitionTrackerImpl
         this.clusterPartitionShuffleDescriptors = new HashMap<>();
     }
 
+    /**
+     * 添加维护关系
+     * @param producingTaskExecutorId ID of task executor on which the partition is produced  产生该分区数据的生产者
+     * @param resultPartitionDeploymentDescriptor deployment descriptor of the partition   被产生的某个分区数据
+     */
     @Override
     public void startTrackingPartition(
             ResourceID producingTaskExecutorId,
@@ -84,10 +104,12 @@ public class JobMasterPartitionTrackerImpl
         Preconditions.checkNotNull(resultPartitionDeploymentDescriptor);
 
         // non-releaseByScheduler partitions don't require explicit partition release calls.
+        // 只针对该类型有效
         if (!resultPartitionDeploymentDescriptor.getPartitionType().isReleaseByScheduler()) {
             return;
         }
 
+        // 针对的分区id
         final ResultPartitionID resultPartitionId =
                 resultPartitionDeploymentDescriptor.getShuffleDescriptor().getResultPartitionID();
 
@@ -95,6 +117,12 @@ public class JobMasterPartitionTrackerImpl
                 producingTaskExecutorId, resultPartitionId, resultPartitionDeploymentDescriptor);
     }
 
+    /**
+     * 添加关联关系
+     * @param key
+     * @param resultPartitionId
+     * @param metaInfo
+     */
     @Override
     void startTrackingPartition(
             ResourceID key,
@@ -102,6 +130,8 @@ public class JobMasterPartitionTrackerImpl
             ResultPartitionDeploymentDescriptor metaInfo) {
         // A partition is registered into 'partitionTable' only when it occupies
         // resource on the corresponding TM;
+
+        // TODO 满足某个条件时 才加入到 partitionTable
         if (metaInfo.getShuffleDescriptor().storesLocalResourcesOn().isPresent()) {
             partitionTable.startTrackingPartitions(
                     key, Collections.singletonList(resultPartitionId));
@@ -109,15 +139,26 @@ public class JobMasterPartitionTrackerImpl
         partitionInfos.put(resultPartitionId, new PartitionInfo<>(key, metaInfo));
     }
 
+    /**
+     * 移除一组分区数据
+     * @param resultPartitionIds
+     * @param releaseOnShuffleMaster
+     */
     @Override
     public void stopTrackingAndReleasePartitions(
             Collection<ResultPartitionID> resultPartitionIds, boolean releaseOnShuffleMaster) {
         stopTrackingAndHandlePartitions(
                 resultPartitionIds,
-                (tmID, partitionDescs) ->
+                (tmID, partitionDescs) ->  // TM的id 被分配到该TM上的一组分区结果
                         internalReleasePartitions(tmID, partitionDescs, releaseOnShuffleMaster));
     }
 
+    /**
+     * 停止追踪这些分区  并进行推进
+     * @param resultPartitionIds ID of the partition containing both job partitions and cluster
+     *     partitions.
+     * @return
+     */
     @Override
     public CompletableFuture<Void> stopTrackingAndPromotePartitions(
             Collection<ResultPartitionID> resultPartitionIds) {
@@ -126,6 +167,7 @@ public class JobMasterPartitionTrackerImpl
                 resultPartitionIds,
                 (tmID, partitionDescs) ->
                         promoteFutures.add(
+                                // 在TM上推进
                                 internalPromotePartitionsOnTaskExecutor(tmID, partitionDescs)));
         return FutureUtils.completeAll(promoteFutures);
     }
@@ -140,6 +182,11 @@ public class JobMasterPartitionTrackerImpl
         this.resourceManagerGateway = resourceManagerGateway;
     }
 
+    /**
+     * 从RM上获取洗牌信息
+     * @param intermediateDataSetID
+     * @return
+     */
     @Override
     public List<ShuffleDescriptor> getClusterPartitionShuffleDescriptors(
             IntermediateDataSetID intermediateDataSetID) {
@@ -164,6 +211,11 @@ public class JobMasterPartitionTrackerImpl
         }
     }
 
+    /**
+     * 移除一组分区数据
+     * @param resultPartitionIds
+     * @param partitionHandler
+     */
     private void stopTrackingAndHandlePartitions(
             Collection<ResultPartitionID> resultPartitionIds,
             BiConsumer<ResourceID, Collection<ResultPartitionDeploymentDescriptor>>
@@ -172,6 +224,7 @@ public class JobMasterPartitionTrackerImpl
 
         // stop tracking partitions to handle and group them by task executor ID
         Map<ResourceID, List<ResultPartitionDeploymentDescriptor>> partitionsToReleaseByResourceId =
+                // 移除关联关系  并将分区按照TM分组
                 stopTrackingPartitions(resultPartitionIds).stream()
                         .collect(
                                 Collectors.groupingBy(
@@ -182,6 +235,12 @@ public class JobMasterPartitionTrackerImpl
         partitionsToReleaseByResourceId.forEach(partitionHandler);
     }
 
+    /**
+     * 释放分区信息
+     * @param potentialPartitionLocation  这组分区所在的TM
+     * @param partitionDeploymentDescriptors  这组分区信息
+     * @param releaseOnShuffleMaster
+     */
     private void internalReleasePartitions(
             ResourceID potentialPartitionLocation,
             Collection<ResultPartitionDeploymentDescriptor> partitionDeploymentDescriptors,
@@ -194,9 +253,17 @@ public class JobMasterPartitionTrackerImpl
         }
     }
 
+    /**
+     * 在TM上推进分区
+     * @param potentialPartitionLocation
+     * @param clusterPartitionDeploymentDescriptors
+     * @return
+     */
     private CompletableFuture<Acknowledge> internalPromotePartitionsOnTaskExecutor(
             ResourceID potentialPartitionLocation,
             Collection<ResultPartitionDeploymentDescriptor> clusterPartitionDeploymentDescriptors) {
+
+        // 找到待处理的分区
         final Set<ResultPartitionID> partitionsRequiringRpcPromoteCalls =
                 clusterPartitionDeploymentDescriptors.stream()
                         .filter(JobMasterPartitionTrackerImpl::isPartitionWithLocalResources)
@@ -215,12 +282,18 @@ public class JobMasterPartitionTrackerImpl
         return CompletableFuture.completedFuture(null);
     }
 
+    /**
+     * 释放分区信息
+     * @param potentialPartitionLocation
+     * @param partitionDeploymentDescriptors
+     */
     private void internalReleasePartitionsOnTaskExecutor(
             ResourceID potentialPartitionLocation,
             Collection<ResultPartitionDeploymentDescriptor> partitionDeploymentDescriptors) {
 
         final Set<ResultPartitionID> partitionsRequiringRpcReleaseCalls =
                 partitionDeploymentDescriptors.stream()
+                        // 表示这组分区有关联资源
                         .filter(JobMasterPartitionTrackerImpl::isPartitionWithLocalResources)
                         .map(JobMasterPartitionTrackerImpl::getResultPartitionId)
                         .collect(Collectors.toSet());
@@ -230,15 +303,20 @@ public class JobMasterPartitionTrackerImpl
                     .lookup(potentialPartitionLocation)
                     .ifPresent(
                             taskExecutorGateway ->
+                                    // 手动调用释放分区 确保释放资源
                                     taskExecutorGateway.releasePartitions(
                                             jobId, partitionsRequiringRpcReleaseCalls));
         }
     }
 
+    /**
+     * 处理一组分区
+     * @param partitionDeploymentDescriptors
+     */
     private void internalReleasePartitionsOnShuffleMaster(
             Stream<ResultPartitionDeploymentDescriptor> partitionDeploymentDescriptors) {
         partitionDeploymentDescriptors
-                .map(ResultPartitionDeploymentDescriptor::getShuffleDescriptor)
+                .map(ResultPartitionDeploymentDescriptor::getShuffleDescriptor)  // 获取洗牌信息 并释放外部资源
                 .forEach(shuffleMaster::releasePartitionExternally);
     }
 

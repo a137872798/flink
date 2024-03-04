@@ -28,12 +28,15 @@ import org.apache.flink.util.concurrent.FutureUtils;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
-/** Allows to store and remove job graphs. */
+/** Allows to store and remove job graphs.
+ * 该对象可以对job图进行修改   并且该对象具备job资源的清理能力
+ * */
 public interface JobGraphWriter extends LocallyCleanableResource, GloballyCleanableResource {
     /**
      * Adds the {@link JobGraph} instance.
      *
      * <p>If a job graph with the same {@link JobID} exists, it is replaced.
+     * 更新新的job图   job图中包含了一系列的顶点
      */
     void putJobGraph(JobGraph jobGraph) throws Exception;
 
@@ -43,6 +46,7 @@ public interface JobGraphWriter extends LocallyCleanableResource, GloballyCleana
      * @param jobId job the given requirements belong to
      * @param jobResourceRequirements requirements to persist
      * @throws Exception in case we're not able to persist the requirements for some reason
+     * 设置某个job中各个顶点需要的资源  主要是并行度
      */
     void putJobResourceRequirements(JobID jobId, JobResourceRequirements jobResourceRequirements)
             throws Exception;

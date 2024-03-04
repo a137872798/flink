@@ -25,19 +25,28 @@ import java.util.Collection;
  * <p>This interface deliberately does not have a method to start tracking partitions, so that
  * implementation are flexible in their definitions for this method (otherwise one would end up with
  * multiple methods, with one part likely being unused).
+ * 用于追踪分区链路
  */
 public interface PartitionTracker<K, M> {
 
-    /** Stops the tracking of all partitions for the given key. */
+    /** Stops the tracking of all partitions for the given key.
+     * 停止所有分区下有关某个key的数据
+     * */
     Collection<PartitionTrackerEntry<K, M>> stopTrackingPartitionsFor(K key);
 
-    /** Stops the tracking of the given partitions. */
+    /** Stops the tracking of the given partitions.
+     * 停止追踪某些分区数据
+     * */
     Collection<PartitionTrackerEntry<K, M>> stopTrackingPartitions(
             Collection<ResultPartitionID> resultPartitionIds);
 
-    /** Returns whether any partition is being tracked for the given key. */
+    /** Returns whether any partition is being tracked for the given key.
+     * 检查该key是否在某个分区上被追踪
+     * */
     boolean isTrackingPartitionsFor(K key);
 
-    /** Returns whether the given partition is being tracked. */
+    /** Returns whether the given partition is being tracked.
+     * 是否追踪了该分区
+     * */
     boolean isPartitionTracked(ResultPartitionID resultPartitionID);
 }

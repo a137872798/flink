@@ -61,6 +61,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * {@link PartitionedFile} in subpartition index order sequentially. Large records that can not be
  * appended to an empty {@link DataBuffer} will be spilled to the result {@link PartitionedFile}
  * separately.
+ * 存放分区数据的对象
  */
 @NotThreadSafe
 public class SortMergeResultPartition extends ResultPartition {
@@ -81,16 +82,22 @@ public class SortMergeResultPartition extends ResultPartition {
 
     private final Object lock = new Object();
 
-    /** {@link PartitionedFile} produced by this result partition. */
+    /** {@link PartitionedFile} produced by this result partition.
+     * 该文件按照分区存储数据
+     * */
     @GuardedBy("lock")
     private PartitionedFile resultFile;
 
     private boolean hasNotifiedEndOfUserRecords;
 
-    /** Size of network buffer and write buffer. */
+    /** Size of network buffer and write buffer.
+     * 表示单个buffer的大小
+     * */
     private final int networkBufferSize;
 
-    /** File writer for this result partition. */
+    /** File writer for this result partition.
+     * 通过该对象生成分区文件
+     * */
     @GuardedBy("lock")
     private PartitionedFileWriter fileWriter;
 
@@ -100,20 +107,26 @@ public class SortMergeResultPartition extends ResultPartition {
      */
     private final String resultFileBasePath;
 
-    /** Subpartition orders of coping data from {@link DataBuffer} and writing to file. */
+    /** Subpartition orders of coping data from {@link DataBuffer} and writing to file.
+     * 用于对子分区进行重排序
+     * */
     private final int[] subpartitionOrder;
 
     /**
      * A shared buffer pool to allocate buffers from when reading data from this result partition.
+     * 提供内存块的pool对象
      */
     private final BatchShuffleReadBufferPool readBufferPool;
 
     /**
      * Data read scheduler for this result partition which schedules data read of all subpartitions.
+     * 相关的调度器对象
      */
     private final SortMergeResultPartitionReadScheduler readScheduler;
 
-    /** All available network buffers can be used by this result partition for a data region. */
+    /** All available network buffers can be used by this result partition for a data region.
+     * 存放可用的内存块
+     * */
     private final LinkedList<MemorySegment> freeSegments = new LinkedList<>();
 
     /**
@@ -127,6 +140,8 @@ public class SortMergeResultPartition extends ResultPartition {
      * will be used.
      */
     private boolean useHashBuffer;
+
+    // 普通数据和广播数据分开存放
 
     /** {@link DataBuffer} for records sent by {@link #broadcastRecord(ByteBuffer)}. */
     private DataBuffer broadcastDataBuffer;
@@ -166,11 +181,18 @@ public class SortMergeResultPartition extends ResultPartition {
         // performance, when writing data to file, we use a random subpartition order to avoid
         // reading the output of all upstream tasks in the same order, which is better for data
         // input balance of the downstream tasks
+        // 打乱子分区顺序
         this.subpartitionOrder = getRandomSubpartitionOrder(numSubpartitions);
+
+        // 生成调度器对象
         this.readScheduler =
                 new SortMergeResultPartitionReadScheduler(readBufferPool, readIOExecutor, lock);
     }
 
+    /**
+     * 启动该分区时进行初始化
+     * @throws IOException
+     */
     @Override
     protected void setupInternal() throws IOException {
         synchronized (lock) {
@@ -179,6 +201,7 @@ public class SortMergeResultPartition extends ResultPartition {
             }
             try {
                 // allocate at most 4M heap memory for caching of index entries
+                // 初始化写对象
                 fileWriter =
                         new PartitionedFileWriter(numSubpartitions, 4194304, resultFileBasePath);
             } catch (Throwable throwable) {
@@ -196,6 +219,9 @@ public class SortMergeResultPartition extends ResultPartition {
         LOG.info("Sort-merge partition {} initialized.", getPartitionId());
     }
 
+    /**
+     * 进行清理工作
+     */
     @Override
     protected void releaseInternal() {
         synchronized (lock) {
@@ -218,6 +244,12 @@ public class SortMergeResultPartition extends ResultPartition {
                         });
     }
 
+    /**
+     * 往某个子分区添加一条数据
+     * @param record
+     * @param targetSubpartition
+     * @throws IOException
+     */
     @Override
     public void emitRecord(ByteBuffer record, int targetSubpartition) throws IOException {
         emit(record, targetSubpartition, DataType.DATA_BUFFER, false);
@@ -253,22 +285,36 @@ public class SortMergeResultPartition extends ResultPartition {
         emit(record, 0, dataType, true);
     }
 
+    /**
+     * 写入数据
+     * @param record
+     * @param targetSubpartition
+     * @param dataType
+     * @param isBroadcast
+     * @throws IOException
+     */
     private void emit(
             ByteBuffer record, int targetSubpartition, DataType dataType, boolean isBroadcast)
             throws IOException {
         checkInProduceState();
 
+        // 找到不同的buffer
         DataBuffer dataBuffer = isBroadcast ? getBroadcastDataBuffer() : getUnicastDataBuffer();
+
+        // 写入数据  append返回true 表示数据没有写完
         if (!dataBuffer.append(record, targetSubpartition, dataType)) {
             return;
         }
 
+        // 表示当前buffer空间不够  本次的record比较大 调用writeLargeRecord进行写入
         if (!dataBuffer.hasRemaining()) {
             dataBuffer.release();
+            // 将数据直接写入
             writeLargeRecord(record, targetSubpartition, dataType, isBroadcast);
             return;
         }
 
+        // buffer空间足够  处理buffer内的数据
         flushDataBuffer(dataBuffer, isBroadcast);
         dataBuffer.release();
         if (record.hasRemaining()) {
@@ -330,6 +376,10 @@ public class SortMergeResultPartition extends ResultPartition {
         }
     }
 
+    /**
+     * 申请内存块 存入到freeSegments中
+     * @throws IOException
+     */
     private void requestGuaranteedBuffers() throws IOException {
         int numRequiredBuffer = bufferPool.getNumberOfRequiredMemorySegments();
         if (numRequiredBuffer < 2) {
@@ -349,6 +399,10 @@ public class SortMergeResultPartition extends ResultPartition {
         }
     }
 
+    /**
+     * 初始化 networkBuffer
+     * @throws IOException
+     */
     private void requestNetworkBuffers() throws IOException {
         requestGuaranteedBuffers();
 
@@ -375,6 +429,12 @@ public class SortMergeResultPartition extends ResultPartition {
         numBuffersForSort = freeSegments.size() - numWriteBuffers;
     }
 
+    /**
+     * 数据刷盘
+     * @param dataBuffer
+     * @param isBroadcast
+     * @throws IOException
+     */
     private void flushDataBuffer(DataBuffer dataBuffer, boolean isBroadcast) throws IOException {
         if (dataBuffer == null || dataBuffer.isReleased() || !dataBuffer.hasRemaining()) {
             return;
@@ -382,10 +442,12 @@ public class SortMergeResultPartition extends ResultPartition {
         dataBuffer.finish();
 
         Queue<MemorySegment> segments = new ArrayDeque<>(freeSegments);
+
+        // 表示每当凑齐多少个buffer时  需要进行一次写入
         int numBuffersToWrite =
                 useHashBuffer
                         ? EXPECTED_WRITE_BATCH_SIZE
-                        : Math.min(EXPECTED_WRITE_BATCH_SIZE, segments.size());
+                        : Math.min(EXPECTED_WRITE_BATCH_SIZE, segments.size());  // 本次要写入的内存块数量
         List<BufferWithChannel> toWrite = new ArrayList<>(numBuffersToWrite);
 
         fileWriter.startNewRegion(isBroadcast);
@@ -397,6 +459,7 @@ public class SortMergeResultPartition extends ResultPartition {
 
             BufferWithChannel bufferWithChannel = dataBuffer.getNextBuffer(segments.poll());
             if (bufferWithChannel == null) {
+                // 没数据了 将buffer的数据通过writer写入
                 writeBuffers(toWrite);
                 break;
             }
@@ -424,6 +487,11 @@ public class SortMergeResultPartition extends ResultPartition {
         }
     }
 
+    /**
+     * 尝试压缩数据
+     * @param bufferWithChannel
+     * @return
+     */
     private BufferWithChannel compressBufferIfPossible(BufferWithChannel bufferWithChannel) {
         Buffer buffer = bufferWithChannel.getBuffer();
         if (!canBeCompressed(buffer)) {
@@ -447,34 +515,46 @@ public class SortMergeResultPartition extends ResultPartition {
 
     /**
      * Spills the large record into the target {@link PartitionedFile} as a separate data region.
+     * 直接写大数据
      */
     private void writeLargeRecord(
             ByteBuffer record, int targetSubpartition, DataType dataType, boolean isBroadcast)
             throws IOException {
         // a large record will be spilled to a separated data region
+        // 生成新的region
         fileWriter.startNewRegion(isBroadcast);
 
+        // 存放结果
         List<BufferWithChannel> toWrite = new ArrayList<>();
         Queue<MemorySegment> segments = new ArrayDeque<>(freeSegments);
 
+        // 直到写完record的数据
         while (record.hasRemaining()) {
+
+            // 此时没有空闲的内存块了   将囤积的内存块数据全部写入
             if (segments.isEmpty()) {
                 fileWriter.writeBuffers(toWrite);
                 toWrite.clear();
+                // 准备重新利用内存块
                 segments = new ArrayDeque<>(freeSegments);
             }
 
+            // 表示要拷贝多少数据
             int toCopy = Math.min(record.remaining(), networkBufferSize);
+            // 拉取空闲的内存块
             MemorySegment writeBuffer = checkNotNull(segments.poll());
             writeBuffer.put(0, record, toCopy);
 
+            // 包装成buffer
             NetworkBuffer buffer = new NetworkBuffer(writeBuffer, (buf) -> {}, dataType, toCopy);
             BufferWithChannel bufferWithChannel = new BufferWithChannel(buffer, targetSubpartition);
             updateStatistics(bufferWithChannel, isBroadcast);
             toWrite.add(compressBufferIfPossible(bufferWithChannel));
         }
 
+        // 最终写入数据
         fileWriter.writeBuffers(toWrite);
+        // 回收内存块
         releaseFreeBuffers();
     }
 
@@ -492,6 +572,10 @@ public class SortMergeResultPartition extends ResultPartition {
         }
     }
 
+    /**
+     * 往下游写入end数据
+     * @throws IOException
+     */
     @Override
     public void finish() throws IOException {
         broadcastEvent(EndOfPartitionEvent.INSTANCE, false);
@@ -528,6 +612,13 @@ public class SortMergeResultPartition extends ResultPartition {
         IOUtils.closeQuietly(fileWriter);
     }
 
+    /**
+     * 产生视图  用于读取数据
+     * @param subpartitionIndex
+     * @param availabilityListener
+     * @return
+     * @throws IOException
+     */
     @Override
     public ResultSubpartitionView createSubpartitionView(
             int subpartitionIndex, BufferAvailabilityListener availabilityListener)
@@ -572,6 +663,11 @@ public class SortMergeResultPartition extends ResultPartition {
         return 0;
     }
 
+    /**
+     * 产生一个随机顺序
+     * @param numSubpartitions
+     * @return
+     */
     private int[] getRandomSubpartitionOrder(int numSubpartitions) {
         int[] order = new int[numSubpartitions];
         Random random = new Random();

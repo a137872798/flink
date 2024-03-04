@@ -18,7 +18,9 @@
 
 package org.apache.flink.runtime.executiongraph.failover.flip1;
 
-/** Restart strategy which does not restart tasks when tasks fail. */
+/** Restart strategy which does not restart tasks when tasks fail.
+ * 表示不允许重启的策略
+ * */
 public enum NoRestartBackoffTimeStrategy implements RestartBackoffTimeStrategy {
     INSTANCE;
 

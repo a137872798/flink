@@ -35,15 +35,28 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** {@link CloseableIterator} of {@link Buffer buffers} over file content. */
+/** {@link CloseableIterator} of {@link Buffer buffers} over file content.
+ * CloseableIterator 提供了close方法 在关闭时会使用函数处理所有元素
+ * */
 @Internal
 public class FileBasedBufferIterator implements CloseableIterator<Buffer> {
 
+    /**
+     * 有引用计数的文件
+     */
     private final RefCountedFile file;
     private final FileInputStream stream;
+
+    /**
+     * 每次读取的量
+     */
     private final int bufferSize;
 
     private int offset;
+
+    /**
+     * 表示总计要读取多少字节
+     */
     private int bytesToRead;
 
     public FileBasedBufferIterator(RefCountedFile file, int bytesToRead, int bufferSize)

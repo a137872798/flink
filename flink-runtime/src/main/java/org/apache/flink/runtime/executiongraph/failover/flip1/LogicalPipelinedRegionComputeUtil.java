@@ -33,12 +33,19 @@ import static org.apache.flink.runtime.executiongraph.failover.flip1.PipelinedRe
 /** Utils for computing {@link LogicalPipelinedRegion}s. */
 public final class LogicalPipelinedRegionComputeUtil {
 
+    /**
+     * 将一组顶点转换成  n组流水线   内部的Set<LogicalVertex> 代表一个流水线
+     * @param topologicallySortedVertices
+     * @return
+     */
     public static Set<Set<LogicalVertex>> computePipelinedRegions(
             final Iterable<? extends LogicalVertex> topologicallySortedVertices) {
 
+        // 将有关联的顶点组合在一起
         final Map<LogicalVertex, Set<LogicalVertex>> vertexToRegion =
                 buildRawRegions(
                         topologicallySortedVertices,
+                        // 找到所有必须流水线消费的数据
                         LogicalPipelinedRegionComputeUtil::getMustBePipelinedConsumedResults);
 
         // Since LogicalTopology is a DAG, there is no need to do cycle detection nor to merge
@@ -48,6 +55,7 @@ public final class LogicalPipelinedRegionComputeUtil {
 
     private static Iterable<LogicalResult> getMustBePipelinedConsumedResults(LogicalVertex vertex) {
         List<LogicalResult> mustBePipelinedConsumedResults = new ArrayList<>();
+        // 找到本顶点消费的所有数据
         for (LogicalResult consumedResult : vertex.getConsumedResults()) {
             if (consumedResult.getResultType().mustBePipelinedConsumed()) {
                 mustBePipelinedConsumedResults.add(consumedResult);

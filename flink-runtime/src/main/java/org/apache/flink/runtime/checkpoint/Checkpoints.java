@@ -126,6 +126,17 @@ public class Checkpoints {
         }
     }
 
+    /**
+     * 基于已有的数据产生检查点
+     * @param jobId
+     * @param tasks
+     * @param location
+     * @param classLoader
+     * @param allowNonRestoredState
+     * @param checkpointProperties
+     * @return
+     * @throws IOException
+     */
     public static CompletedCheckpoint loadAndValidateCheckpoint(
             JobID jobId,
             Map<JobVertexID, ExecutionJobVertex> tasks,
@@ -140,6 +151,7 @@ public class Checkpoints {
         checkNotNull(location, "location");
         checkNotNull(classLoader, "classLoader");
 
+        // 获取数据流
         final StreamStateHandle metadataHandle = location.getMetadataHandle();
         final String checkpointPointer = location.getExternalPointer();
 
@@ -147,14 +159,17 @@ public class Checkpoints {
         final CheckpointMetadata checkpointMetadata;
         try (InputStream in = metadataHandle.openInputStream()) {
             DataInputStream dis = new DataInputStream(in);
+            // 加载元数据
             checkpointMetadata = loadCheckpointMetadata(dis, classLoader, checkpointPointer);
         }
 
         // generate mapping from operator to task
+        // 建立operatorId到task的索引
         Map<OperatorID, ExecutionJobVertex> operatorToJobVertexMapping = new HashMap<>();
         for (ExecutionJobVertex task : tasks.values()) {
             for (OperatorIDPair operatorIDPair : task.getOperatorIDs()) {
                 operatorToJobVertexMapping.put(operatorIDPair.getGeneratedOperatorID(), task);
+                // 自定义id 也要加入
                 operatorIDPair
                         .getUserDefinedOperatorID()
                         .ifPresent(id -> operatorToJobVertexMapping.put(id, task));
@@ -167,11 +182,13 @@ public class Checkpoints {
                         checkpointMetadata.getOperatorStates().size());
         for (OperatorState operatorState : checkpointMetadata.getOperatorStates()) {
 
+            // 找到相关的任务
             ExecutionJobVertex executionJobVertex =
                     operatorToJobVertexMapping.get(operatorState.getOperatorID());
 
             if (executionJobVertex != null) {
 
+                // 并行度要匹配  或者支持提升到该并行度
                 if (executionJobVertex.getMaxParallelism() == operatorState.getMaxParallelism()
                         || executionJobVertex.canRescaleMaxParallelism(
                                 operatorState.getMaxParallelism())) {
@@ -195,6 +212,7 @@ public class Checkpoints {
                 LOG.info(
                         "Skipping savepoint state for operator {}.", operatorState.getOperatorID());
             } else {
+                // 这里都是抛出异常了
                 if (operatorState.getCoordinatorState() != null) {
                     throwNonRestoredStateException(
                             checkpointPointer, operatorState.getOperatorID());
@@ -213,6 +231,7 @@ public class Checkpoints {
             }
         }
 
+        // 通过加载location的数据 生成元数据  在通过校验后  利用元数据还原出 HashMap<OperatorID, OperatorState>
         return new CompletedCheckpoint(
                 jobId,
                 checkpointMetadata.getCheckpointId(),

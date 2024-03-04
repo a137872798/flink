@@ -80,6 +80,7 @@ import static org.apache.flink.util.Preconditions.checkState;
  * <p>This resource manager actively requests and releases resources from/to the external resource
  * management frameworks. With different {@link ResourceManagerDriver} provided, this resource
  * manager can work with various frameworks.
+ * 资源管理器
  */
 public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
         extends ResourceManager<WorkerType> implements ResourceEventHandler<WorkerType> {
@@ -88,20 +89,32 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
 
     private final Duration startWorkerRetryInterval;
 
+    /**
+     * 通过该对象向外部申请资源  k8s/yarn
+     */
     private final ResourceManagerDriver<WorkerType> resourceManagerDriver;
 
-    /** All workers maintained by {@link ActiveResourceManager}. */
+    /** All workers maintained by {@link ActiveResourceManager}.
+     * 维护所有worker  key 是 TM id
+     * */
     private final Map<ResourceID, WorkerType> workerNodeMap;
 
-    /** Number of requested and not registered workers per worker resource spec. */
+    /** Number of requested and not registered workers per worker resource spec.
+     * 记录不同资源规格的worker数量  表示待分配的
+     * */
     private final WorkerCounter pendingWorkerCounter;
 
     /** Number of requested or registered recovered workers per worker resource spec. */
     private final WorkerCounter totalWorkerCounter;
 
-    /** Identifiers and worker resource spec of all allocated workers. */
+    /** Identifiers and worker resource spec of all allocated workers.
+     * 记录每个worker的资源规格
+     * */
     private final Map<ResourceID, WorkerResourceSpec> workerResourceSpecs;
 
+    /**
+     * 表示还在向外部申请的worker   (表示分配未结束)
+     */
     private final Map<CompletableFuture<WorkerType>, WorkerResourceSpec> unallocatedWorkerFutures;
 
     /** Identifiers of requested not registered workers. */
@@ -121,7 +134,8 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
      */
     private CompletableFuture<Void> startWorkerCoolDown;
 
-    /** The future indicates whether the rm is ready to serve. */
+    /** The future indicates whether the rm is ready to serve.
+     * */
     private final CompletableFuture<Void> readyToServeFuture;
 
     /** Timeout to wait for all the previous attempts workers to recover. */
@@ -190,6 +204,10 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
     //  ResourceManager
     // ------------------------------------------------------------------------
 
+    /**
+     * 初始化工作
+     * @throws ResourceManagerException
+     */
     @Override
     protected void initialize() throws ResourceManagerException {
         try {
@@ -203,6 +221,10 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
         }
     }
 
+    /**
+     * 当RM被关闭时  关闭驱动
+     * @throws ResourceManagerException
+     */
     @Override
     protected void terminate() throws ResourceManagerException {
         try {
@@ -212,6 +234,12 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
         }
     }
 
+    /**
+     * 注销应用 委托给驱动
+     * @param finalStatus The application status to report.
+     * @param optionalDiagnostics A diagnostics message or {@code null}.
+     * @throws ResourceManagerException
+     */
     @Override
     protected void internalDeregisterApplication(
             ApplicationStatus finalStatus, @Nullable String optionalDiagnostics)
@@ -223,11 +251,20 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
         }
     }
 
+    /**
+     * 通过TM id 查询 worker
+     * @param resourceID The worker resource id
+     * @return
+     */
     @Override
     protected Optional<WorkerType> getWorkerNodeIfAcceptRegistration(ResourceID resourceID) {
         return Optional.ofNullable(workerNodeMap.get(resourceID));
     }
 
+    /**
+     * 声明需要的资源
+     * @param resourceDeclarations
+     */
     @VisibleForTesting
     public void declareResourceNeeded(Collection<ResourceDeclaration> resourceDeclarations) {
         this.resourceDeclarations = Collections.unmodifiableCollection(resourceDeclarations);
@@ -236,14 +273,21 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
         checkResourceDeclarations();
     }
 
+    /**
+     * 表示新增了一个worker
+     * @param worker
+     * @param workerResourceSpec
+     */
     @Override
     protected void onWorkerRegistered(WorkerType worker, WorkerResourceSpec workerResourceSpec) {
         final ResourceID resourceId = worker.getResourceID();
         log.info("Worker {} is registered.", resourceId.getStringWithMetadata());
 
+        // 从等待注册的容器中移除
         tryRemovePreviousPendingRecoveryTaskManager(resourceId);
 
         if (!workerResourceSpecs.containsKey(worker.getResourceID())) {
+            // 记录该 worker (TM) 的资源
             workerResourceSpecs.put(worker.getResourceID(), workerResourceSpec);
             totalWorkerCounter.increaseAndGet(workerResourceSpec);
             log.info(
@@ -276,6 +320,10 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
     //  ResourceEventListener
     // ------------------------------------------------------------------------
 
+    /**
+     * 表示外部资源准备好了
+     * @param recoveredWorkers Collection of worker nodes, in the deployment specific type.
+     */
     @Override
     public void onPreviousAttemptWorkersRecovered(Collection<WorkerType> recoveredWorkers) {
         getMainThreadExecutor().assertRunningInMainThread();
@@ -292,6 +340,7 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
         if (recoveredWorkers.size() > 0 && !previousWorkerRecoverTimeout.isZero()) {
             scheduleRunAsync(
                     () -> {
+                        // 等待一定时间后 将该服务标记成可用状态
                         readyToServeFuture.complete(null);
                         log.info(
                                 "Timeout to wait recovery taskmanagers, recovery future is completed.");
@@ -303,6 +352,11 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
         }
     }
 
+    /**
+     * 由外部资源通知 worker终止了
+     * @param resourceId Identifier of the terminated worker.
+     * @param diagnostics Diagnostic message about the worker termination.
+     */
     @Override
     public void onWorkerTerminated(ResourceID resourceId, String diagnostics) {
         if (currentAttemptUnregisteredWorkers.contains(resourceId)) {
@@ -328,6 +382,9 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
     //  Internal
     // ------------------------------------------------------------------------
 
+    /**
+     * 当声明了需要的资源时 检查是否具备
+     */
     private void checkResourceDeclarations() {
         validateRunsInMainThread();
 
@@ -338,6 +395,7 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
             final int releaseOrRequestWorkerNumber =
                     totalWorkerCounter.getNum(workerResourceSpec) - declaredWorkerNumber;
 
+            // 表示资源多出来了 需要释放资源
             if (releaseOrRequestWorkerNumber > 0) {
                 log.info(
                         "need release {} workers, current worker number {}, declared worker number {}",
@@ -345,12 +403,13 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
                         totalWorkerCounter.getNum(workerResourceSpec),
                         declaredWorkerNumber);
 
-                // release unwanted workers.
+                // release unwanted workers.  表示还需要释放的worker
                 int remainingReleasingWorkerNumber =
                         releaseUnWantedResources(
                                 resourceDeclaration.getUnwantedWorkers(),
                                 releaseOrRequestWorkerNumber);
 
+                // 尝试从 还未分配完成的worker中去除
                 if (remainingReleasingWorkerNumber > 0) {
                     // release not allocated workers
                     remainingReleasingWorkerNumber =
@@ -358,15 +417,17 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
                                     workerResourceSpec, remainingReleasingWorkerNumber);
                 }
 
+                // 因为是当前声明的资源要求  所以多了就尝试释放已分配的
                 if (remainingReleasingWorkerNumber > 0) {
                     // release starting workers
                     remainingReleasingWorkerNumber =
                             releaseAllocatedWorkers(
-                                    currentAttemptUnregisteredWorkers,
+                                    currentAttemptUnregisteredWorkers,  // 先释放刚创建还未注册的worker
                                     workerResourceSpec,
                                     remainingReleasingWorkerNumber);
                 }
 
+                // 从已分配的中释放
                 if (remainingReleasingWorkerNumber > 0) {
                     // release registered workers
                     remainingReleasingWorkerNumber =
@@ -379,6 +440,8 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
                 checkState(
                         remainingReleasingWorkerNumber == 0,
                         "there are no more workers to release");
+
+                // 表示还需要申请
             } else if (releaseOrRequestWorkerNumber < 0) {
                 // In case of start worker failures, we should wait for an interval before
                 // trying to start new workers.
@@ -395,6 +458,7 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
                         requestNewWorker(workerResourceSpec);
                     }
                 } else {
+                    // 此时处于冷却状态 等待后触发 本方法
                     startWorkerCoolDown.thenRun(this::checkResourceDeclarations);
                 }
             } else {
@@ -406,6 +470,12 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
         }
     }
 
+    /**
+     * 计算需要释放多少worker
+     * @param unwantedWorkers  这是内部认定不需要的worker  一般就是长时间空闲的worker
+     * @param needReleaseWorkerNumber  这是需要释放的worker
+     * @return
+     */
     private int releaseUnWantedResources(
             Collection<InstanceID> unwantedWorkers, int needReleaseWorkerNumber) {
 
@@ -423,6 +493,12 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
         return needReleaseWorkerNumber;
     }
 
+    /**
+     * 尝试释放未分配的worker
+     * @param workerResourceSpec
+     * @param needReleaseWorkerNumber
+     * @return
+     */
     private int releaseUnallocatedWorkers(
             WorkerResourceSpec workerResourceSpec, int needReleaseWorkerNumber) {
         Set<CompletableFuture<WorkerType>> unallocatedWorkerFuturesShouldRelease =
@@ -441,6 +517,13 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
         return needReleaseWorkerNumber;
     }
 
+    /**
+     * 释放已分配的资源
+     * @param candidateWorkers
+     * @param workerResourceSpec
+     * @param needReleaseWorkerNumber
+     * @return
+     */
     private int releaseAllocatedWorkers(
             Collection<ResourceID> candidateWorkers,
             WorkerResourceSpec workerResourceSpec,
@@ -466,6 +549,12 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
         return needReleaseWorkerNumber;
     }
 
+    /**
+     * 释放某个worker
+     * @param instanceId
+     * @param cause
+     * @return
+     */
     private boolean releaseResource(InstanceID instanceId, Exception cause) {
         WorkerType worker = getWorkerByInstanceId(instanceId);
         if (worker != null) {
@@ -476,9 +565,17 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
         }
     }
 
+    /**
+     * 释放worker
+     * @param resourceID
+     * @param cause
+     * @return
+     */
     private boolean releaseResource(ResourceID resourceID, Exception cause) {
         if (workerNodeMap.containsKey(resourceID)) {
+            // 将worker资源归还 并且更新当前的worker情况
             internalStopWorker(resourceID);
+            // 通知上层关闭对应的 TM
             closeTaskManagerConnection(resourceID, cause);
             return true;
         }
@@ -490,12 +587,17 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
      *
      * @param workerResourceSpec workerResourceSpec specifies the size of the to be allocated
      *     resource
+     *                           请求一个新的worker
      */
     @VisibleForTesting
     public void requestNewWorker(WorkerResourceSpec workerResourceSpec) {
+
+        // 转换成 TM资源
         final TaskExecutorProcessSpec taskExecutorProcessSpec =
                 TaskExecutorProcessUtils.processSpecFromWorkerResourceSpec(
                         flinkConfig, workerResourceSpec);
+
+        // 记录待分配的worker
         final int pendingCount = pendingWorkerCounter.increaseAndGet(workerResourceSpec);
         totalWorkerCounter.increaseAndGet(workerResourceSpec);
 
@@ -504,19 +606,24 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
                 workerResourceSpec,
                 pendingCount);
 
+        // 通过外部资源 申请worker
         final CompletableFuture<WorkerType> requestResourceFuture =
                 resourceManagerDriver.requestResource(taskExecutorProcessSpec);
+        // 并先加入未分配容器
         unallocatedWorkerFutures.put(requestResourceFuture, workerResourceSpec);
 
         FutureUtils.assertNoException(
                 requestResourceFuture.handle(
                         (worker, exception) -> {
+                            // 分配好后 从unallocatedWorkerFutures移除
                             unallocatedWorkerFutures.remove(requestResourceFuture);
 
                             if (exception != null) {
                                 final int count =
                                         pendingWorkerCounter.decreaseAndGet(workerResourceSpec);
                                 totalWorkerCounter.decreaseAndGet(workerResourceSpec);
+
+                                // 本次分配被取消了  一般是认为不再需要这个worker了
                                 if (exception instanceof CancellationException) {
                                     log.info(
                                             "Requesting worker with resource spec {} canceled, current pending count: {}",
@@ -532,9 +639,11 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
                                     checkResourceDeclarations();
                                 }
                             } else {
+                                // 加入到有效的容器中
                                 final ResourceID resourceId = worker.getResourceID();
                                 workerNodeMap.put(resourceId, worker);
                                 workerResourceSpecs.put(resourceId, workerResourceSpec);
+                                // 添加一个等待注册的worker
                                 currentAttemptUnregisteredWorkers.add(resourceId);
                                 scheduleWorkerRegistrationTimeoutCheck(resourceId);
                                 log.info(
@@ -546,6 +655,10 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
                         }));
     }
 
+    /**
+     * 给予一个  worker注册的时间
+     * @param resourceId
+     */
     private void scheduleWorkerRegistrationTimeoutCheck(final ResourceID resourceId) {
         scheduleRunAsync(
                 () -> {
@@ -555,21 +668,29 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
                                 "Worker {} did not register in {}, will stop it and request a new one if needed.",
                                 resourceId,
                                 workerRegistrationTimeout);
+                        // 超时就清理该worker的数据
                         internalStopWorker(resourceId);
+                        // 因为worker发生变化 检查资源是否满足
                         checkResourceDeclarations();
                     }
                 },
                 workerRegistrationTimeout);
     }
 
+    /**
+     * 停止该worker
+     * @param resourceId
+     */
     private void internalStopWorker(final ResourceID resourceId) {
         log.info("Stopping worker {}.", resourceId.getStringWithMetadata());
 
         final WorkerType worker = workerNodeMap.get(resourceId);
         if (worker != null) {
+            // 将资源归还给外部
             resourceManagerDriver.releaseResource(worker);
         }
 
+        // 清算该worker相关的资源
         clearStateForWorker(resourceId);
     }
 
@@ -579,6 +700,7 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
      * @param resourceId Identifier of the worker
      * @return True if the worker is known and states are cleared; false if the worker is unknown
      *     (duplicate call to already cleared worker)
+     *     清理某个worker相关的信息
      */
     private boolean clearStateForWorker(ResourceID resourceId) {
         WorkerType worker = workerNodeMap.remove(resourceId);
@@ -588,6 +710,7 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
         }
 
         WorkerResourceSpec workerResourceSpec = workerResourceSpecs.remove(resourceId);
+        // 不需要等待处理该worker了
         tryRemovePreviousPendingRecoveryTaskManager(resourceId);
         if (workerResourceSpec != null) {
             totalWorkerCounter.decreaseAndGet(workerResourceSpec);
@@ -605,6 +728,7 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
     }
 
     private void recordWorkerFailureAndPauseWorkerCreationIfNeeded() {
+        // 失败比率超过阈值 需要暂停分配一段时间
         if (recordStartWorkerFailure()) {
             // if exceed failure rate try to slow down
             tryResetWorkerCreationCoolDown();
@@ -630,6 +754,9 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
         return false;
     }
 
+    /**
+     * 当worker分配失败时 先等待一段时间
+     */
     private void tryResetWorkerCreationCoolDown() {
         if (startWorkerCoolDown.isDone()) {
             log.info("Will not retry creating worker in {}.", startWorkerRetryInterval);
@@ -648,6 +775,10 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
         return new ResourceAllocatorImpl();
     }
 
+    /**
+     * 从待处理的容器中移除
+     * @param resourceID
+     */
     private void tryRemovePreviousPendingRecoveryTaskManager(ResourceID resourceID) {
         long sizeBeforeRemove = previousAttemptUnregisteredWorkers.size();
         if (previousAttemptUnregisteredWorkers.remove(resourceID)) {
@@ -664,7 +795,9 @@ public class ActiveResourceManager<WorkerType extends ResourceIDRetrievable>
         }
     }
 
-    /** Always execute on the current main thread executor. */
+    /** Always execute on the current main thread executor.
+     * 全部转发给主线程
+     * */
     private class GatewayMainThreadExecutor implements ScheduledExecutor {
 
         @Override

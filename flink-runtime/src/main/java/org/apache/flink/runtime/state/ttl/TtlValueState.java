@@ -31,6 +31,8 @@ import java.io.IOException;
  * @param <K> The type of key the state is associated to
  * @param <N> The type of the namespace
  * @param <T> Type of the user value of state with TTL
+ *
+ *           表示在Value类型的 state上 追加ttl检测逻辑
  */
 class TtlValueState<K, N, T>
         extends AbstractTtlState<K, N, T, TtlValue<T>, InternalValueState<K, N, TtlValue<T>>>
@@ -41,6 +43,7 @@ class TtlValueState<K, N, T>
 
     @Override
     public T value() throws IOException {
+        // 因为访问了value  执行access函数
         accessCallback.run();
         return getWithTtlCheckAndUpdate(original::value, original::update);
     }
@@ -51,6 +54,11 @@ class TtlValueState<K, N, T>
         original.update(wrapWithTs(value));
     }
 
+    /**
+     * 过期就返回null
+     * @param ttlValue
+     * @return
+     */
     @Nullable
     @Override
     public TtlValue<T> getUnexpiredOrNull(@Nonnull TtlValue<T> ttlValue) {

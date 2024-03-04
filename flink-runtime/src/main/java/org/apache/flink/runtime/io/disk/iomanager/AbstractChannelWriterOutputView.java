@@ -26,6 +26,7 @@ import java.io.IOException;
  * A {@link org.apache.flink.core.memory.DataOutputView} that is backed by a {@link FileIOChannel},
  * making it effectively a data output stream. The view writes it data in blocks to the underlying
  * channel.
+ * AbstractPagedOutputView提供了往内存块写入数据的api  并且可以切换内存块
  */
 public abstract class AbstractChannelWriterOutputView extends AbstractPagedOutputView {
 
@@ -33,17 +34,22 @@ public abstract class AbstractChannelWriterOutputView extends AbstractPagedOutpu
         super(segmentSize, headerLength);
     }
 
-    /** Get the underlying channel. */
+    /** Get the underlying channel.
+     * 获取输出流关联的文件channel
+     * */
     public abstract FileIOChannel getChannel();
 
     /**
      * Closes this OutputView, closing the underlying writer
      *
      * @return the number of bytes in last memory segment.
+     * 关闭输出对象
      */
     public abstract int close() throws IOException;
 
-    /** Gets the number of blocks used by this view. */
+    /** Gets the number of blocks used by this view.
+     * 查看该对象下有多少个内存块 
+     * */
     public abstract int getBlockCount();
 
     /** Get output bytes. */

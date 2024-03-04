@@ -35,15 +35,27 @@ import java.util.concurrent.LinkedBlockingQueue;
  */
 public class ChannelReaderInputView extends AbstractChannelReaderInputView {
 
+    /**
+     * 可以通过该管道读取数据
+     */
     protected final BlockChannelReader<MemorySegment>
             reader; // the block reader that reads memory segments
 
+    /**
+     * 表示还有多少请求未处理完
+     */
     protected int numRequestsRemaining; // the number of block requests remaining
 
     private final int numSegments; // the number of memory segment the view works with
 
+    /**
+     * 多出的内存块会进入该列表
+     */
     private final ArrayList<MemorySegment> freeMem; // memory gathered once the work is done
 
+    /**
+     * 表示已经读取到最后一个内存块了
+     */
     private boolean inLastBlock; // flag indicating whether the view is already in the last block
 
     private boolean closed; // flag indicating whether the reader is closed
@@ -143,16 +155,19 @@ public class ChannelReaderInputView extends AbstractChannelReaderInputView {
         this.numSegments = memory.size();
         this.freeMem = new ArrayList<MemorySegment>(this.numSegments);
 
+        // 一次性发送所有请求
         for (int i = 0; i < memory.size(); i++) {
             sendReadRequest(memory.get(i));
         }
 
+        // 表示需要等到第一个数据块读取完毕  现在强制触发advance
         if (waitForFirstBlock) {
             advance();
         }
     }
 
     public void waitForFirstBlock() throws IOException {
+        // 只有当还没有读取任何数据块时 才有效
         if (getCurrentSegment() == null) {
             advance();
         }
@@ -175,6 +190,8 @@ public class ChannelReaderInputView extends AbstractChannelReaderInputView {
         }
         this.closed = true;
 
+        // 要关闭该对象  准备回收利用这些内存块
+
         // re-collect all memory segments
         ArrayList<MemorySegment> list = this.freeMem;
         final MemorySegment current = getCurrentSegment();
@@ -184,10 +201,14 @@ public class ChannelReaderInputView extends AbstractChannelReaderInputView {
         clear();
 
         // close the writer and gather all segments
+        // 这些是剩下为读取的数据
         final LinkedBlockingQueue<MemorySegment> queue = this.reader.getReturnQueue();
         this.reader.close();
 
+        // 表示还有数据未读取完
         while (list.size() < this.numSegments) {
+
+            // 等到所有数据读取完   并加入到list中
             final MemorySegment m = queue.poll();
             if (m == null) {
                 // we get null if the queue is empty. that should not be the case if the reader was
@@ -221,6 +242,8 @@ public class ChannelReaderInputView extends AbstractChannelReaderInputView {
      * @throws EOFException Thrown, if no further segments are available.
      * @throws IOException Thrown, if an I/O error occurred while reading
      * @see AbstractPagedInputView#nextSegment(org.apache.flink.core.memory.MemorySegment)
+     *
+     * 切换到下个内存块
      */
     @Override
     protected MemorySegment nextSegment(MemorySegment current) throws IOException {
@@ -232,11 +255,13 @@ public class ChannelReaderInputView extends AbstractChannelReaderInputView {
         // send a request first. if we have only a single segment, this same segment will be the one
         // obtained in
         // the next lines
+        // 重复利用该内存块 读取下一个数据块  如果一开始预设的块数已经到了 会自动进入freeList
         if (current != null) {
             sendReadRequest(current);
         }
 
         // get the next segment
+        // 阻塞等待结果
         final MemorySegment seg = this.reader.getNextReturnedBlock();
 
         // check the header
@@ -245,6 +270,7 @@ public class ChannelReaderInputView extends AbstractChannelReaderInputView {
                     "The current block does not belong to a ChannelWriterOutputView / "
                             + "ChannelReaderInputView: Wrong magic number.");
         }
+        // 读取到了最后一个数据块的标记
         if ((seg.getShort(ChannelWriterOutputView.HEADER_FLAGS_OFFSET)
                         & ChannelWriterOutputView.FLAG_LAST_BLOCK)
                 != 0) {
@@ -267,6 +293,8 @@ public class ChannelReaderInputView extends AbstractChannelReaderInputView {
      *
      * @param seg The segment to use for the read request.
      * @throws IOException Thrown, if the reader is in error.
+     *
+     * 通过管道发送读取请求  完成后会将数据读取到seg中
      */
     protected void sendReadRequest(MemorySegment seg) throws IOException {
         if (this.numRequestsRemaining != 0) {

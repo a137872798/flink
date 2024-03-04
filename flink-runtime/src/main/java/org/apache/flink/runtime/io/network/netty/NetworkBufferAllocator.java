@@ -32,8 +32,14 @@ import javax.annotation.Nullable;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** An allocator used for requesting buffers in the client side netty handlers. */
+/** An allocator used for requesting buffers in the client side netty handlers.
+ * 该对象通过 NetworkClientHandler内的channel来申请内存
+ * */
 class NetworkBufferAllocator {
+
+    /**
+     * 该对象包含了数据块的处理逻辑
+     */
     private final NetworkClientHandler networkClientHandler;
 
     NetworkBufferAllocator(NetworkClientHandler networkClientHandler) {

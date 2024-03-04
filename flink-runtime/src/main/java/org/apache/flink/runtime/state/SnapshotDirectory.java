@@ -36,6 +36,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * whether or not a snapshot was already completed. For a completed snapshot, the ownership for
  * cleanup is transferred to the created directory state handle. For incomplete snapshots, calling
  * {@link #cleanup()} will delete the underlying directory resource.
+ *
+ * 表示一个目录的快照
  */
 public abstract class SnapshotDirectory {
 

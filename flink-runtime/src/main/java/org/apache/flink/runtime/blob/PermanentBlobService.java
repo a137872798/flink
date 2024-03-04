@@ -32,6 +32,8 @@ import java.io.IOException;
  * JAR files or (parts of) an off-loaded {@link
  * org.apache.flink.runtime.deployment.TaskDeploymentDescriptor} or files in the {@link
  * org.apache.flink.api.common.cache.DistributedCache}.
+ *
+ * 可以获取/插入 持久化blob
  */
 public interface PermanentBlobService extends Closeable {
 

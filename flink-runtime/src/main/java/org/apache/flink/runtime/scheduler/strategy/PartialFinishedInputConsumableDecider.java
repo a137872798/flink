@@ -30,8 +30,11 @@ import java.util.function.Function;
  *   <li>for hybrid input: when partial producer partitions are finished.
  *   <li>for blocking input: when all producer partitions are finished.
  * </ul>
+ *
+ * 表示部分结束即可
  */
 public class PartialFinishedInputConsumableDecider implements InputConsumableDecider {
+    // 表示至少有一个中间数据集被消费完即可
     public static final int NUM_FINISHED_PARTITIONS_AS_CONSUMABLE = 1;
 
     @Override
@@ -56,8 +59,10 @@ public class PartialFinishedInputConsumableDecider implements InputConsumableDec
         if (consumedPartitionGroup
                 .getResultPartitionType()
                 .isBlockingOrBlockingPersistentResultPartition()) {
+            // 阻塞模式下 还是要求数据都被消费完
             return consumedPartitionGroup.getNumberOfUnfinishedPartitions() == 0;
         } else {
+            // 要求完成数量超过一个配置值 即可
             int numFinishedPartitions =
                     consumedPartitionGroup.size()
                             - consumedPartitionGroup.getNumberOfUnfinishedPartitions();

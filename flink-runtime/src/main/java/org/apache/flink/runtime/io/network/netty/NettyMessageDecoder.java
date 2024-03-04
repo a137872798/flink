@@ -23,21 +23,33 @@ import org.apache.flink.shaded.netty4.io.netty.channel.ChannelHandlerContext;
 
 import javax.annotation.Nullable;
 
-/** Base class of decoders for specified netty messages. */
+/** Base class of decoders for specified netty messages.
+ * netty的消息解码器
+ * */
 abstract class NettyMessageDecoder implements AutoCloseable {
 
-    /** ID of the message under decoding. */
+    /** ID of the message under decoding.
+     * 当前消息的id
+     * */
     protected int msgId;
 
-    /** Length of the message under decoding. */
+    /** Length of the message under decoding.
+     * 消息体长度
+     * */
     protected int messageLength;
 
     /** The result of decoding one {@link ByteBuf}. */
     static class DecodingResult {
         static final DecodingResult NOT_FINISHED = new DecodingResult(false, null);
 
+        /**
+         * 本次是否解析到完整数据
+         */
         private final boolean finished;
 
+        /**
+         * 解码后得到消息
+         */
         @Nullable private final NettyMessage message;
 
         private DecodingResult(boolean finished, @Nullable NettyMessage message) {
@@ -63,6 +75,7 @@ abstract class NettyMessageDecoder implements AutoCloseable {
      * Notifies that the underlying channel becomes active.
      *
      * @param ctx The context for the callback.
+     *            当某个连接生效时触发
      */
     abstract void onChannelActive(ChannelHandlerContext ctx);
 
@@ -71,6 +84,7 @@ abstract class NettyMessageDecoder implements AutoCloseable {
      *
      * @param msgId The type of the message to be decoded.
      * @param messageLength The length of the message to be decoded.
+     *                      解析头部成功时触发   早于onChannelRead
      */
     void onNewMessageReceived(int msgId, int messageLength) {
         this.msgId = msgId;
@@ -82,6 +96,7 @@ abstract class NettyMessageDecoder implements AutoCloseable {
      *
      * @param data The data received.
      * @return The result of decoding received data.
+     * 读取到数据时
      */
     abstract DecodingResult onChannelRead(ByteBuf data) throws Exception;
 }

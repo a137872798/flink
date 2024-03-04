@@ -65,6 +65,13 @@ public class DefaultJobMasterServiceProcessFactory implements JobMasterServicePr
         return jobId;
     }
 
+    /**
+     * 在初始化DefaultJobMasterServiceProcess时 如果失败会消化异常 并产生一个执行图
+     * @param jobStatus jobStatus which the {@link ArchivedExecutionGraph} should have
+     * @param cause cause which the {@link ArchivedExecutionGraph} should be initialized with; null
+     *     iff no failure cause
+     * @return
+     */
     @Override
     public ArchivedExecutionGraph createArchivedExecutionGraph(
             JobStatus jobStatus, @Nullable Throwable cause) {

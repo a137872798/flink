@@ -23,11 +23,19 @@ import org.apache.flink.runtime.taskexecutor.ExecutionDeploymentReport;
 
 import java.util.Map;
 
-/** Component for reconciling the deployment state of executions. */
+/** Component for reconciling the deployment state of executions.
+ * 用于协调execution的部署状态
+ * */
 public interface ExecutionDeploymentReconciler {
 
     /** Factory for {@link ExecutionDeploymentReconciler}. */
     interface Factory {
+
+        /**
+         * 借助handler对象 产生协调器
+         * @param reconciliationHandler
+         * @return
+         */
         ExecutionDeploymentReconciler create(
                 ExecutionDeploymentReconciliationHandler reconciliationHandler);
     }
@@ -36,9 +44,9 @@ public interface ExecutionDeploymentReconciler {
      * Reconciles the deployment states between all reported/expected executions for the given task
      * executor.
      *
-     * @param taskExecutorHost hosting task executor
-     * @param executionDeploymentReport task executor report for deployed executions
-     * @param expectedDeployedExecutionIds map of expected executions and their current deployment
+     * @param taskExecutorHost hosting task executor   用于标记任务执行器的
+     * @param executionDeploymentReport task executor report for deployed executions   报告中就是包含一组 ExecutionAttemptID
+     * @param expectedDeployedExecutionIds map of expected executions and their current deployment  表示这组execution部署的状态
      *     status
      */
     void reconcileExecutionDeployments(

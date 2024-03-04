@@ -22,7 +22,9 @@ import java.io.Serializable;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Summary over <strong>all</strong> completed checkpoints. */
+/** Summary over <strong>all</strong> completed checkpoints.
+ * 维护有关完成的检查点的各项指标值
+ * */
 public class CompletedCheckpointStatsSummary implements Serializable {
 
     private static final long serialVersionUID = 5784360461635814038L;

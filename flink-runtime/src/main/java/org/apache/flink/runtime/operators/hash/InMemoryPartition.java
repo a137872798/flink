@@ -35,6 +35,8 @@ import java.util.List;
  * In-memory partition with overflow buckets for {@link CompactingHashTable}
  *
  * @param <T> record type
+ *           这个对象是辅助CompactingHashTable使用的
+ *           在内存中存储分区数据
  */
 public class InMemoryPartition<T> {
 
@@ -60,6 +62,9 @@ public class InMemoryPartition<T> {
 
     private final ArrayList<MemorySegment> partitionPages;
 
+    /**
+     * 通过该对象提供内存块
+     */
     private final ListMemorySegmentSource availableMemory;
 
     private WriteView writeView;
@@ -84,10 +89,10 @@ public class InMemoryPartition<T> {
     /**
      * Creates a new partition, in memory, with one buffer.
      *
-     * @param serializer Serializer for T.
-     * @param partitionNumber The number of the partition.
-     * @param memSource memory pool
-     * @param pageSize segment size in bytes
+     * @param serializer Serializer for T.  通过该对象序列化要存储的数据
+     * @param partitionNumber The number of the partition.  每个分区有一个编号
+     * @param memSource memory pool  通过该对象提供内存块
+     * @param pageSize segment size in bytes   单个segment的大小
      * @param pageSizeInBits
      */
     public InMemoryPartition(
@@ -101,20 +106,24 @@ public class InMemoryPartition<T> {
         this.nextOverflowBucket = 0;
 
         this.serializer = serializer;
+        // 表示每个分区使用了多少数据页
         this.partitionPages = new ArrayList<MemorySegment>(64);
         this.availableMemory = memSource;
 
         this.partitionNumber = partitionNumber;
 
         // add the first segment
+        // 初始化时 先设置一页
         this.partitionPages.add(memSource.nextSegment());
         // empty partitions have no garbage
+        // 此时没数据 假设已经压缩过了
         this.compacted = true;
 
         this.pageSize = pageSize;
 
         this.pageSizeInBits = pageSizeInBits;
 
+        // 2个视图分别用于读写page中的数据
         this.writeView = new WriteView(this.partitionPages, memSource, pageSize, pageSizeInBits);
         this.readView = new ReadView(this.partitionPages, pageSize, pageSizeInBits);
     }
@@ -139,7 +148,9 @@ public class InMemoryPartition<T> {
         this.partitionNumber = number;
     }
 
-    /** @return number of segments owned by partition */
+    /** @return number of segments owned by partition
+     * 该分区总计有多少page
+     * */
     public int getBlockCount() {
         return this.partitionPages.size();
     }
@@ -148,6 +159,7 @@ public class InMemoryPartition<T> {
      * number of records in partition including garbage
      *
      * @return number record count
+     * 一个page中有多条记录  这里返回总记录数
      */
     public long getRecordCount() {
         return this.recordCounter;
@@ -164,6 +176,9 @@ public class InMemoryPartition<T> {
         this.readView.setReadPosition(0L);
     }
 
+    /**
+     * 更新视图
+     */
     public void pushDownPages() {
         this.writeView =
                 new WriteView(this.partitionPages, availableMemory, pageSize, pageSizeInBits);
@@ -174,6 +189,7 @@ public class InMemoryPartition<T> {
      * resets overflow bucket counters and returns freed memory and should only be used for resizing
      *
      * @return freed memory segments
+     * 重置溢出的bucket
      */
     public ArrayList<MemorySegment> resetOverflowBuckets() {
         this.numOverflowSegments = 0;
@@ -187,6 +203,7 @@ public class InMemoryPartition<T> {
             }
         }
         this.overflowSegments = new MemorySegment[2];
+        // 将旧数据取出
         return result;
     }
 
@@ -214,10 +231,12 @@ public class InMemoryPartition<T> {
      * @param record The object to be written to the partition.
      * @return A pointer to the object in the partition.
      * @throws IOException Thrown when the write failed.
+     * 添加一条记录
      */
     public final long appendRecord(T record) throws IOException {
         long pointer = this.writeView.getCurrentPointer();
         try {
+            // 借助序列化对象写入output  同时返回原位置
             this.serializer.serialize(record, this.writeView);
             this.recordCounter++;
             return pointer;
@@ -234,6 +253,13 @@ public class InMemoryPartition<T> {
         }
     }
 
+    /**
+     * 先通过指针定位 后读取数据
+     * @param pointer
+     * @param reuse
+     * @return
+     * @throws IOException
+     */
     public T readRecordAt(long pointer, T reuse) throws IOException {
         this.readView.setReadPosition(pointer);
         return this.serializer.deserialize(reuse, this.readView);
@@ -266,6 +292,7 @@ public class InMemoryPartition<T> {
      * releases all of the partition's segments (pages and overflow buckets)
      *
      * @param target memory pool to release segments to
+     *               将现有数据加入target后返回
      */
     public void clearAllMemory(List<MemorySegment> target) {
         // return the overflow segments
@@ -285,6 +312,7 @@ public class InMemoryPartition<T> {
      * still succeed
      *
      * @param numberOfSegments allocation count
+     *                         申请直到pool中有足够的segment
      */
     public void allocateSegments(int numberOfSegments) {
         while (getBlockCount() < numberOfSegments) {
@@ -306,18 +334,33 @@ public class InMemoryPartition<T> {
 
     // ============================================================================================
 
+    /**
+     * 借助该对象写入数据
+     */
     private static final class WriteView extends AbstractPagedOutputView {
 
+        /**
+         * 存储内存块的列表
+         */
         private final ArrayList<MemorySegment> pages;
 
+        /**
+         * 通过该对象继续申请数据
+         */
         private final MemorySegmentSource memSource;
 
         private final int sizeBits;
 
         private final int sizeMask;
 
+        /**
+         * 当前segment
+         */
         private int currentPageNumber;
 
+        /**
+         * 对segment做一层偏移  可以得到不同的segment
+         */
         private int segmentNumberOffset;
 
         private WriteView(
@@ -343,33 +386,51 @@ public class InMemoryPartition<T> {
             }
             this.pages.add(next);
 
+            // 切换了page  所以推进 currentPageNumber
             this.currentPageNumber++;
             return next;
         }
 
+        /**
+         * 获取总偏移量  而不是单个segment上的偏移量
+         * @return
+         */
         private long getCurrentPointer() {
             return (((long) this.currentPageNumber) << this.sizeBits)
                     + getCurrentPositionInSegment();
         }
 
+        /**
+         * 跳跃到指定位置
+         * @param pointer
+         * @return
+         */
         private int resetTo(long pointer) {
             final int pageNum = (int) (pointer >>> this.sizeBits);
             final int offset = (int) (pointer & this.sizeMask);
 
             this.currentPageNumber = pageNum;
 
+            // 通过segmentNumberOffset 修正访问的segment
             int posInArray = pageNum - this.segmentNumberOffset;
             seekOutput(this.pages.get(posInArray), offset);
 
             return posInArray;
         }
 
+        /**
+         * 设置偏移量
+         * @param offset
+         */
         @SuppressWarnings("unused")
         public void setSegmentNumberOffset(int offset) {
             this.segmentNumberOffset = offset;
         }
     }
 
+    /**
+     * 该对象提供访问数据的接口
+     */
     private static final class ReadView extends AbstractPagedInputView
             implements SeekableDataInputView {
 
@@ -381,6 +442,9 @@ public class InMemoryPartition<T> {
 
         private int currentSegmentIndex;
 
+        /**
+         * 用于修正segment
+         */
         private int segmentNumberOffset;
 
         public ReadView(ArrayList<MemorySegment> segments, int segmentSize, int segmentSizeBits) {
@@ -405,13 +469,23 @@ public class InMemoryPartition<T> {
             }
         }
 
+        /**
+         * 返回一个segment的大小
+         * @param segment The segment to determine the limit for.
+         * @return
+         */
         @Override
         protected int getLimitForSegment(MemorySegment segment) {
             return this.segmentSizeMask + 1;
         }
 
+        /**
+         * 设置读指针
+         * @param position The new read position.
+         */
         @Override
         public void setReadPosition(long position) {
+            // 通过offset修正后 计算出正确的下标
             final int bufferNum =
                     ((int) (position >>> this.segmentSizeBits)) - this.segmentNumberOffset;
             final int offset = (int) (position & this.segmentSizeMask);

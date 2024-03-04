@@ -28,6 +28,7 @@ import javax.annotation.Nonnull;
  * The default {@link InternalKeyContext} implementation.
  *
  * @param <K> Type of the key.
+ *           记录当前在使用的key 以及key在keyGroup的下标
  */
 public class InternalKeyContextImpl<K> implements InternalKeyContext<K> {
     /** Range of key-groups for which this backend is responsible. */

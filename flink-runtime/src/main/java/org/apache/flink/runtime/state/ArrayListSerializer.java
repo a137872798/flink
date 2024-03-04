@@ -25,11 +25,18 @@ import org.apache.flink.core.memory.DataOutputView;
 import java.io.IOException;
 import java.util.ArrayList;
 
+/**
+ * 是一个序列化对象 并且内部是一个list
+ * @param <T>
+ */
 @SuppressWarnings("ForLoopReplaceableByForEach")
 public final class ArrayListSerializer<T> extends TypeSerializer<ArrayList<T>> {
 
     private static final long serialVersionUID = 1119562170939152304L;
 
+    /**
+     * 对应list内部元素的序列化对象
+     */
     private final TypeSerializer<T> elementSerializer;
 
     public ArrayListSerializer(TypeSerializer<T> elementSerializer) {

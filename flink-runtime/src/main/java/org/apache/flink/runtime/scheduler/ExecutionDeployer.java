@@ -31,15 +31,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-/** This deployer is responsible for deploying executions. */
+/** This deployer is responsible for deploying executions.
+ * 该对象用于部署execution
+ * */
 public interface ExecutionDeployer {
 
     /**
      * Allocate slots and deploy executions.
      *
-     * @param executionsToDeploy executions to deploy
+     * @param executionsToDeploy executions to deploy  待部署的Execution
      * @param requiredVersionByVertex required versions of the execution vertices. If the actual
-     *     version does not match, the deployment of the execution will be rejected.
+     *     version does not match, the deployment of the execution will be rejected.  这些Execution的版本
      */
     void allocateSlotsAndDeploy(
             final List<Execution> executionsToDeploy,

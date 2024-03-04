@@ -36,29 +36,32 @@ import org.apache.flink.util.SerializedValue;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
-/** Task manager gateway interface to communicate with the task manager. */
+/** Task manager gateway interface to communicate with the task manager.
+ * 其他模块用于与TM交互
+ * */
 public interface TaskManagerGateway extends TaskExecutorOperatorEventGateway {
 
     /**
      * Return the address of the task manager with which the gateway is associated.
      *
      * @return Address of the task manager with which this gateway is associated.
+     * 获取taskManager的地址
      */
     String getAddress();
 
     /**
      * Submit a task to the task manager.
      *
-     * @param tdd describing the task to submit
+     * @param tdd describing the task to submit  传入一个部署信息  提交任务
      * @param timeout of the submit operation
-     * @return Future acknowledge of the successful operation
+     * @return Future acknowledge of the successful operationA
      */
     CompletableFuture<Acknowledge> submitTask(TaskDeploymentDescriptor tdd, Time timeout);
 
     /**
      * Cancel the given task.
      *
-     * @param executionAttemptID identifying the task
+     * @param executionAttemptID identifying the task  指定要取消的任务
      * @param timeout of the submit operation
      * @return Future acknowledge if the task is successfully canceled
      */
@@ -71,6 +74,7 @@ public interface TaskManagerGateway extends TaskExecutorOperatorEventGateway {
      * @param partitionInfos telling where the partition can be retrieved from
      * @param timeout of the submit operation
      * @return Future acknowledge if the partitions have been successfully updated
+     * 更新某个任务的分区
      */
     CompletableFuture<Acknowledge> updatePartitions(
             ExecutionAttemptID executionAttemptID,
@@ -94,6 +98,7 @@ public interface TaskManagerGateway extends TaskExecutorOperatorEventGateway {
      * @param completedCheckpointId of the completed checkpoint
      * @param completedTimestamp of the completed checkpoint
      * @param lastSubsumedCheckpointId of the last subsumed checkpoint id,
+     *                                 检查点完成时触发
      */
     void notifyCheckpointOnComplete(
             ExecutionAttemptID executionAttemptID,
@@ -110,6 +115,7 @@ public interface TaskManagerGateway extends TaskExecutorOperatorEventGateway {
      * @param checkpointId of the subsumed checkpoint
      * @param latestCompletedCheckpointId of the latest completed checkpoint
      * @param timestamp of the subsumed checkpoint
+     *                  检查点被终止时触发
      */
     void notifyCheckpointAborted(
             ExecutionAttemptID executionAttemptID,
@@ -127,6 +133,7 @@ public interface TaskManagerGateway extends TaskExecutorOperatorEventGateway {
      * @param timestamp of the checkpoint to trigger
      * @param checkpointOptions of the checkpoint to trigger
      * @return Future acknowledge which is returned once the checkpoint has been triggered
+     * 触发检查点时执行
      */
     CompletableFuture<Acknowledge> triggerCheckpoint(
             ExecutionAttemptID executionAttemptID,
@@ -142,10 +149,19 @@ public interface TaskManagerGateway extends TaskExecutorOperatorEventGateway {
      * @param cause of the freeing operation
      * @param timeout for the operation
      * @return Future acknowledge which is returned once the slot has been freed
+     *
+     * 释放掉某个slot
      */
     CompletableFuture<Acknowledge> freeSlot(
             final AllocationID allocationId, final Throwable cause, @RpcTimeout final Time timeout);
 
+    /**
+     * 将某些事件发送给某个operator
+     * @param task
+     * @param operator
+     * @param evt
+     * @return
+     */
     @Override
     CompletableFuture<Acknowledge> sendOperatorEventToTask(
             ExecutionAttemptID task, OperatorID operator, SerializedValue<OperatorEvent> evt);

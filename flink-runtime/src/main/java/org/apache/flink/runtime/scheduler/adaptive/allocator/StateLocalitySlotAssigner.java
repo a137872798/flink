@@ -49,6 +49,9 @@ import static org.apache.flink.util.Preconditions.checkState;
 @Internal
 public class StateLocalitySlotAssigner implements SlotAssigner {
 
+    /**
+     * 记录分数
+     */
     private static class AllocationScore implements Comparable<AllocationScore> {
 
         private final String groupId;
@@ -74,6 +77,11 @@ public class StateLocalitySlotAssigner implements SlotAssigner {
             return score;
         }
 
+        /**
+         * 比较的时候会考虑分数
+         * @param other
+         * @return
+         */
         @Override
         public int compareTo(StateLocalitySlotAssigner.AllocationScore other) {
             int result = Long.compare(score, other.score);
@@ -88,6 +96,14 @@ public class StateLocalitySlotAssigner implements SlotAssigner {
         }
     }
 
+    /**
+     * 分配slot
+     * @param jobInformation
+     * @param freeSlots  表示此时还空闲的slot
+     * @param vertexParallelism    该job下各顶点的并行度
+     * @param previousAllocations
+     * @return
+     */
     @Override
     public Collection<SlotAssignment> assignSlots(
             JobInformation jobInformation,
@@ -100,30 +116,42 @@ public class StateLocalitySlotAssigner implements SlotAssigner {
                 freeSlots.size(),
                 jobInformation.getSlotSharingGroups().size());
 
+        // 将共享资源组按照subtaskIndex划分
         final List<ExecutionSlotSharingGroup> allGroups = new ArrayList<>();
+
+        // 也是获取共享组
         for (SlotSharingGroup slotSharingGroup : jobInformation.getSlotSharingGroups()) {
             allGroups.addAll(createExecutionSlotSharingGroups(vertexParallelism, slotSharingGroup));
         }
+
+        // 得到每个顶点的并行度
         final Map<JobVertexID, Integer> parallelism = getParallelism(allGroups);
+
+        // 这里计算出了各group的得分
         final PriorityQueue<AllocationScore> scores =
                 calculateScores(jobInformation, previousAllocations, allGroups, parallelism);
 
+        // 转换成map
         final Map<String, ExecutionSlotSharingGroup> groupsById =
                 allGroups.stream().collect(toMap(ExecutionSlotSharingGroup::getId, identity()));
         final Map<AllocationID, SlotInfo> slotsById =
                 freeSlots.stream().collect(toMap(SlotInfo::getAllocationId, identity()));
+
         AllocationScore score;
         final Collection<SlotAssignment> assignments = new ArrayList<>();
         while ((score = scores.poll()) != null) {
+            // 表示之前已经被分配过了
             if (slotsById.containsKey(score.getAllocationId())
                     && groupsById.containsKey(score.getGroupId())) {
                 assignments.add(
                         new SlotAssignment(
+                                // remove是为了避免重复分配
                                 slotsById.remove(score.getAllocationId()),
                                 groupsById.remove(score.getGroupId())));
             }
         }
         // Distribute the remaining slots with no score
+        // 剩余的就分配给剩下的group
         Iterator<? extends SlotInfo> remainingSlots = slotsById.values().iterator();
         for (ExecutionSlotSharingGroup group : groupsById.values()) {
             checkState(
@@ -138,6 +166,14 @@ public class StateLocalitySlotAssigner implements SlotAssigner {
         return assignments;
     }
 
+    /**
+     * 计算得分
+     * @param jobInformation
+     * @param previousAllocations
+     * @param allGroups
+     * @param parallelism
+     * @return
+     */
     @Nonnull
     private PriorityQueue<AllocationScore> calculateScores(
             JobInformation jobInformation,
@@ -154,10 +190,16 @@ public class StateLocalitySlotAssigner implements SlotAssigner {
         return scores;
     }
 
+    /**
+     * 获取每个顶点的并行度
+     * @param groups
+     * @return
+     */
     private static Map<JobVertexID, Integer> getParallelism(
             List<ExecutionSlotSharingGroup> groups) {
         final Map<JobVertexID, Integer> parallelism = new HashMap<>();
         for (ExecutionSlotSharingGroup group : groups) {
+            // 在上面的分配中看到每个group内部的 ExecutionVertexID的subtask应该是一样的
             for (ExecutionVertexID evi : group.getContainedExecutionVertices()) {
                 parallelism.merge(evi.getJobVertexId(), 1, Integer::sum);
             }
@@ -165,23 +207,39 @@ public class StateLocalitySlotAssigner implements SlotAssigner {
         return parallelism;
     }
 
+    /**
+     * 计算得分
+     * @param group
+     * @param parallelism
+     * @param jobInformation
+     * @param previousAllocations
+     * @return
+     */
     public Collection<AllocationScore> calculateScore(
             ExecutionSlotSharingGroup group,
             Map<JobVertexID, Integer> parallelism,
             JobInformation jobInformation,
             JobAllocationsInformation previousAllocations) {
         final Map<AllocationID, Long> score = new HashMap<>();
+
+        // 计算每个组的得分  此时组内每个顶点的subtaskIndex应当是一样的  只是顶点id不一样
         for (ExecutionVertexID evi : group.getContainedExecutionVertices()) {
+
+            // 转换成了范围
             final KeyGroupRange kgr =
                     KeyGroupRangeAssignment.computeKeyGroupRangeForOperatorIndex(
+                            // 最大并行度
                             jobInformation
                                     .getVertexInformation(evi.getJobVertexId())
                                     .getMaxParallelism(),
+                            // 当前并行度
                             parallelism.get(evi.getJobVertexId()),
+                            // 对应的子任务下标
                             evi.getSubtaskIndex());
             previousAllocations
                     .getAllocations(evi.getJobVertexId())
                     .forEach(
+                            // 表示此时分配给该顶点的各slot
                             allocation -> {
                                 long value =
                                         allocation
@@ -189,6 +247,7 @@ public class StateLocalitySlotAssigner implements SlotAssigner {
                                                 .getIntersection(kgr)
                                                 .getNumberOfKeyGroups();
                                 if (value > 0) {
+                                    // 简言之 keyGroupRange越大 得分越高
                                     score.merge(allocation.getAllocationID(), value, Long::sum);
                                 }
                             });

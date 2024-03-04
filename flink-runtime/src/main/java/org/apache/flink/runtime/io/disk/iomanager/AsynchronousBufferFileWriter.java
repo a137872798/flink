@@ -24,6 +24,9 @@ import org.apache.flink.util.ExceptionUtils;
 
 import java.io.IOException;
 
+/**
+ * 该对象可以注册监听器
+ */
 public class AsynchronousBufferFileWriter extends AsynchronousFileIOChannel<Buffer, WriteRequest>
         implements BufferFileWriter {
 
@@ -63,7 +66,9 @@ public class AsynchronousBufferFileWriter extends AsynchronousFileIOChannel<Buff
         return super.registerAllRequestsProcessedListener(listener);
     }
 
-    /** Recycles the buffer after the I/O request. */
+    /** Recycles the buffer after the I/O request.
+     * 使用完buffer后进行回收
+     * */
     private static class RecyclingCallback implements RequestDoneCallback<Buffer> {
 
         @Override

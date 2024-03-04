@@ -56,7 +56,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
-/** Default implementation of {@link TaskSlotTable}. */
+/** Default implementation of {@link TaskSlotTable}.
+ * 通过该对象来管理一组slot  并提供分配api
+ * */
 public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTable<T> {
 
     private static final Logger LOG = LoggerFactory.getLogger(TaskSlotTableImpl.class);
@@ -65,39 +67,61 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
      * Number of slots in static slot allocation. If slot is requested with an index, the requested
      * index must within the range of [0, numberSlots). When generating slot report, we should
      * always generate slots with index in [0, numberSlots) even the slot does not exist.
+     * 记录总数
      */
     private final int numberSlots;
 
-    /** Slot resource profile for static slot allocation. */
+    /** Slot resource profile for static slot allocation.
+     * 默认slot所持有的资源
+     * */
     private final ResourceProfile defaultSlotResourceProfile;
 
-    /** Page size for memory manager. */
+    /** Page size for memory manager.
+     * 表示内存管理器中一个page的大小
+     * */
     private final int memoryPageSize;
 
-    /** Timer service used to time out allocated slots. */
+    /** Timer service used to time out allocated slots.
+     * 通过该服务监控 slot是否在指定的时间内完成分配
+     * */
     private final TimerService<AllocationID> timerService;
 
-    /** The list of all task slots. */
+    /** The list of all task slots.
+     * 通过编号 检索 TaskSlot
+     * */
     private final Map<Integer, TaskSlot<T>> taskSlots;
 
-    /** Mapping from allocation id to task slot. */
+    /** Mapping from allocation id to task slot.
+     * 通过 AllocationID 检索 TaskSlot
+     * */
     private final Map<AllocationID, TaskSlot<T>> allocatedSlots;
 
-    /** Mapping from execution attempt id to task and task slot. */
+    /** Mapping from execution attempt id to task and task slot.
+     * 通过 Execution id  找到 Task 以及 TaskSlot
+     * */
     private final Map<ExecutionAttemptID, TaskSlotMapping<T>> taskSlotMappings;
 
-    /** Mapping from job id to allocated slots for a job. */
+    /** Mapping from job id to allocated slots for a job.
+     * 找到分配给该job的slot
+     * */
     private final Map<JobID, Set<AllocationID>> slotsPerJob;
 
-    /** Interface for slot actions, such as freeing them or timing them out. */
+    /** Interface for slot actions, such as freeing them or timing them out.
+     * 通过该对象可以释放slot  还可以处理slot的超时事件
+     * */
     @Nullable private SlotActions slotActions;
 
-    /** The table state. */
+    /** The table state.
+     * 描述表的状态
+     * */
     private volatile State state;
 
     /** Current index for dynamic slot, should always not less than numberSlots */
     private int dynamicSlotIndex;
 
+    /**
+     * 记录资源
+     */
     private final ResourceBudgetManager budgetManager;
 
     /** The closing future is completed when all slot are freed and state is closed. */
@@ -148,6 +172,10 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
         this.memoryVerificationExecutor = memoryVerificationExecutor;
     }
 
+    /**
+     * @param initialSlotActions to use for slot actions   为给对象设置可以操纵slot的组件
+     * @param mainThreadExecutor {@link ComponentMainThreadExecutor} to schedule internal calls to
+     */
     @Override
     public void start(
             SlotActions initialSlotActions, ComponentMainThreadExecutor mainThreadExecutor) {
@@ -173,6 +201,7 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
             final FlinkException cause = new FlinkException("Closing task slot table");
             CompletableFuture<Void> cleanupFuture =
                     FutureUtils.waitForAll(
+                            // 如果已经在运行状态了 就要先处理之前分配的slot
                                     new ArrayList<>(allocatedSlots.values())
                                             .stream()
                                                     .map(slot -> freeSlotInternal(slot, cause))
@@ -206,6 +235,7 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
 
     @Override
     public Set<AllocationID> getActiveTaskSlotAllocationIds() {
+        // 在迭代器初始化时  指定 state  能够过滤其他状态
         return createAllocationIdSet(new TaskSlotIterator(TaskSlotState.ACTIVE));
     }
 
@@ -227,10 +257,16 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
     // Slot report methods
     // ---------------------------------------------------------------------
 
+    /**
+     * 将该TM下的slot信息 做成报告
+     * @param resourceId 当前TM的id
+     * @return
+     */
     @Override
     public SlotReport createSlotReport(ResourceID resourceId) {
         List<SlotStatus> slotStatuses = new ArrayList<>();
 
+        // 这里是前面的部分
         for (int i = 0; i < numberSlots; i++) {
             SlotID slotId = new SlotID(resourceId, i);
             SlotStatus slotStatus;
@@ -251,6 +287,7 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
         }
 
         for (TaskSlot<T> taskSlot : allocatedSlots.values()) {
+            // 这里获取的是超过numberSlots的部分
             if (isDynamicIndex(taskSlot.getIndex())) {
                 SlotStatus slotStatus =
                         new SlotStatus(
@@ -278,6 +315,16 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
         return allocateSlot(index, jobId, allocationId, defaultSlotResourceProfile, slotTimeout);
     }
 
+    /**
+     * 将某个slot 分配给某个job
+     * @param requestedIndex
+     * @param jobId to allocate the task slot for
+     * @param allocationId identifying the allocation
+     * @param resourceProfile of the requested slot, used only for dynamic slot allocation and will
+     *     be ignored otherwise
+     * @param slotTimeout until the slot times out
+     * @return
+     */
     @Override
     public boolean allocateSlot(
             int requestedIndex,
@@ -297,9 +344,11 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
                         ? defaultSlotResourceProfile
                         : resourceProfile;
 
+        // 发现已经被分配过了
         TaskSlot<T> taskSlot = allocatedSlots.get(allocationId);
         if (taskSlot != null) {
             return isDuplicatedSlot(taskSlot, jobId, effectiveResourceProfile, index);
+            // 表示编号已被使用
         } else if (isIndexAlreadyTaken(index)) {
             LOG.info(
                     "The slot with index {} is already assigned to another allocation with id {}.",
@@ -308,6 +357,7 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
             return false;
         }
 
+        // 资源不够分配了
         if (!budgetManager.reserve(effectiveResourceProfile)) {
             LOG.info(
                     "Cannot allocate the requested resources. Trying to allocate {}, "
@@ -320,6 +370,7 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
         LOG.info(
                 "Allocated slot for {} with resources {}.", allocationId, effectiveResourceProfile);
 
+        // 现在将index job slot 信息包装起来
         taskSlot =
                 new TaskSlot<>(
                         index,
@@ -328,12 +379,15 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
                         jobId,
                         allocationId,
                         memoryVerificationExecutor);
+        // 加入分配过的容器
+
         taskSlots.put(index, taskSlot);
 
         // update the allocation id to task slot map
         allocatedSlots.put(allocationId, taskSlot);
 
         // register a timeout for this slot since it's in state allocated
+        // 将slot注册到超时对象上
         timerService.registerTimeout(allocationId, slotTimeout.getSize(), slotTimeout.getUnit());
 
         // add this slot to the set of job slots
@@ -341,6 +395,7 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
 
         if (slots == null) {
             slots = CollectionUtil.newHashSetWithExpectedSize(4);
+            // 更新job下的slot
             slotsPerJob.put(jobId, slots);
         }
 
@@ -371,6 +426,12 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
         return index >= numberSlots;
     }
 
+    /**
+     *
+     * @param allocationId to identify the task slot to mark as active
+     * @return
+     * @throws SlotNotFoundException
+     */
     @Override
     public boolean markSlotActive(AllocationID allocationId) throws SlotNotFoundException {
         checkRunning();
@@ -385,12 +446,13 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
     }
 
     private boolean markExistingSlotActive(TaskSlot<T> taskSlot) {
+        // 修改成活跃状态 也就是说不再属于某个job了
         if (taskSlot.markActive()) {
             // unregister a potential timeout
             LOG.info("Activate slot {}.", taskSlot.getAllocationId());
 
+            // 就可以取消它的定时任务了  也就是说期望某个slot在一定时间内被归还  否则就会触发超时错误
             timerService.unregisterTimeout(taskSlot.getAllocationId());
-
             return true;
         } else {
             return false;
@@ -405,8 +467,10 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
         TaskSlot<T> taskSlot = getTaskSlot(allocationId);
 
         if (taskSlot != null) {
+            // 标记成已分配
             if (taskSlot.markInactive()) {
                 // register a timeout to free the slot
+                // 开启定时任务
                 timerService.registerTimeout(
                         allocationId, slotTimeout.getSize(), slotTimeout.getUnit());
 
@@ -432,6 +496,12 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
         }
     }
 
+    /**
+     * 释放已分配的slot
+     * @param taskSlot
+     * @param cause
+     * @return
+     */
     private CompletableFuture<Void> freeSlotInternal(TaskSlot<T> taskSlot, Throwable cause) {
         AllocationID allocationId = taskSlot.getAllocationId();
 
@@ -445,7 +515,7 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
             // remove the allocation id to task slot mapping
             allocatedSlots.remove(allocationId);
 
-            // unregister a potential timeout
+            // unregister a potential timeout 取消超时任务 注意这不同于slot被归还 而是完全释放slot占有的资源 比如内存
             timerService.unregisterTimeout(allocationId);
 
             JobID jobId = taskSlot.getJobId();
@@ -465,11 +535,18 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
             }
 
             taskSlots.remove(taskSlot.getIndex());
+            // 归还内存
             budgetManager.release(taskSlot.getResourceProfile());
         }
         return taskSlot.closeAsync(cause);
     }
 
+    /**
+     * 检查是否为slot设定了超时任务
+     * @param allocationId to check against
+     * @param ticket of the timeout
+     * @return
+     */
     @Override
     public boolean isValidTimeout(AllocationID allocationId, UUID ticket) {
         checkStarted();
@@ -529,6 +606,13 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
     // Task methods
     // ---------------------------------------------------------------------
 
+    /**
+     * 添加一个task
+     * @param task to add to the task slot with the respective allocation id
+     * @return
+     * @throws SlotNotFoundException
+     * @throws SlotNotActiveException
+     */
     @Override
     public boolean addTask(T task) throws SlotNotFoundException, SlotNotActiveException {
         checkRunning();
@@ -538,6 +622,7 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
 
         if (taskSlot != null) {
             if (taskSlot.isActive(task.getJobID(), task.getAllocationId())) {
+                // 为slot 多绑定一个task 这种是共享slot的情况吧
                 if (taskSlot.add(task)) {
                     taskSlotMappings.put(
                             task.getExecutionId(), new TaskSlotMapping<>(task, taskSlot));
@@ -554,6 +639,11 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
         }
     }
 
+    /**
+     * 移除某个task
+     * @param executionAttemptID identifying the task to remove
+     * @return
+     */
     @Override
     public T removeTask(ExecutionAttemptID executionAttemptID) {
         checkStarted();
@@ -564,9 +654,11 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
             T task = taskSlotMapping.getTask();
             TaskSlot<T> taskSlot = taskSlotMapping.getTaskSlot();
 
+            // 表示该task不再依赖slot
             taskSlot.remove(task.getExecutionId());
 
             if (taskSlot.isReleasing() && taskSlot.isEmpty()) {
+                // 被释放后 且没有依赖它的 task  就释放slot
                 slotActions.freeSlot(taskSlot.getAllocationId());
             }
 
@@ -587,6 +679,11 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
         }
     }
 
+    /**
+     * 遍历job相关的task
+     * @param jobId identifying the job of the requested tasks
+     * @return
+     */
     @Override
     public Iterator<T> getTasks(JobID jobId) {
         return new PayloadIterator(jobId);
@@ -616,6 +713,11 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
     // TimeoutListener methods
     // ---------------------------------------------------------------------
 
+    /**
+     * 当 timeoutServices 通知本对象某个 slot 长时间未归还  再转发给 slotActions
+     * @param key identifying the timed out event
+     * @param ticket used to check whether the timeout is still valid
+     */
     @Override
     public void notifyTimeout(AllocationID key, UUID ticket) {
         checkStarted();
@@ -632,7 +734,6 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
     @Nullable
     private TaskSlot<T> getTaskSlot(AllocationID allocationId) {
         Preconditions.checkNotNull(allocationId);
-
         return allocatedSlots.get(allocationId);
     }
 
@@ -658,7 +759,9 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
     // Static utility classes
     // ---------------------------------------------------------------------
 
-    /** Mapping class between a {@link TaskSlotPayload} and a {@link TaskSlot}. */
+    /** Mapping class between a {@link TaskSlotPayload} and a {@link TaskSlot}.
+     * 将T 和 TaskSlot 关联起来 目前 T 就是 Task
+     * */
     private static final class TaskSlotMapping<T extends TaskSlotPayload> {
         private final T task;
         private final TaskSlot<T> taskSlot;
@@ -680,6 +783,7 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
     /**
      * Iterator over {@link TaskSlot} which fulfill a given state condition and belong to the given
      * job.
+     * 可以迭代TaskSlot
      */
     private final class TaskSlotIterator implements Iterator<TaskSlot<T>> {
         private final Iterator<AllocationID> allSlots;
@@ -696,6 +800,11 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
                     state);
         }
 
+        /**
+         * 可以指定获取某个job相关的slot
+         * @param jobId
+         * @param state
+         */
         private TaskSlotIterator(JobID jobId, TaskSlotState state) {
             this(
                     slotsPerJob.get(jobId) == null
@@ -704,6 +813,11 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
                     state);
         }
 
+        /**
+         * 手动指定 slot
+         * @param allocationIDIterator
+         * @param state
+         */
         private TaskSlotIterator(Iterator<AllocationID> allocationIDIterator, TaskSlotState state) {
             this.allSlots = Preconditions.checkNotNull(allocationIDIterator);
             this.state = Preconditions.checkNotNull(state);
@@ -717,6 +831,7 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
 
                 TaskSlot<T> taskSlot = getTaskSlot(tempSlot);
 
+                // 只会找到 state 匹配的 slot
                 if (taskSlot != null && taskSlot.getState() == state) {
                     currentSlot = taskSlot;
                 }
@@ -758,7 +873,9 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
         }
     }
 
-    /** Iterator over all {@link TaskSlotPayload} for a given job. */
+    /** Iterator over all {@link TaskSlotPayload} for a given job.
+     * 遍历T
+     * */
     private final class PayloadIterator implements Iterator<T> {
         private final Iterator<TaskSlot<T>> taskSlotIterator;
 
@@ -805,6 +922,9 @@ public class TaskSlotTableImpl<T extends TaskSlotPayload> implements TaskSlotTab
         }
     }
 
+    /**
+     * 描述表的状态
+     */
     private enum State {
         CREATED,
         RUNNING,

@@ -54,22 +54,30 @@ import static org.apache.flink.util.Preconditions.checkState;
  *
  * <p>Note that this class need not be thread-safe, because it should only be accessed from the main
  * thread.
+ *
+ * 基于排序的？
  */
 public class SortBufferAccumulator implements BufferAccumulator {
 
     /** The number of the subpartitions. */
     private final int numSubpartitions;
 
-    /** The total number of the buffers used by the {@link SortBufferAccumulator}. */
+    /** The total number of the buffers used by the {@link SortBufferAccumulator}.
+     * 表示需要使用多少buffer
+     * */
     private final int numBuffers;
 
-    /** The byte size of one single buffer. */
+    /** The byte size of one single buffer.
+     * 单个buffer的大小
+     * */
     private final int bufferSizeBytes;
 
     /** The empty buffers without storing data. */
     private final LinkedList<MemorySegment> freeSegments = new LinkedList<>();
 
-    /** The memory manager of the tiered storage. */
+    /** The memory manager of the tiered storage.
+     * 通过该对象申请内存
+     * */
     private final TieredStorageMemoryManager memoryManager;
 
     /**
@@ -77,6 +85,7 @@ public class SortBufferAccumulator implements BufferAccumulator {
      * transition from broadcast to non-broadcast (or vice versa), the buffer is flushed to ensure
      * data integrity. Note that this can be null before using it to store records, and this {@link
      * DataBuffer} will be released once flushed.
+     * 当前使用的buffer
      */
     @Nullable private DataBuffer currentDataBuffer;
 
@@ -90,6 +99,7 @@ public class SortBufferAccumulator implements BufferAccumulator {
      * The {@link SortBufferAccumulator}'s accumulated buffer flusher is not prepared during
      * construction, requiring the field to be initialized during setup. Therefore, it is necessary
      * to verify whether this field is null before using it.
+     * 包含聚合逻辑
      */
     @Nullable
     private BiConsumer<TieredStorageSubpartitionId, List<Buffer>> accumulatedBufferFlusher;
@@ -113,6 +123,14 @@ public class SortBufferAccumulator implements BufferAccumulator {
         this.accumulatedBufferFlusher = bufferFlusher;
     }
 
+    /**
+     * 处理收到的数据
+     * @param record the received record     表示收到的数据
+     * @param subpartitionId the subpartition id of the record  通过子分区定位到buffer
+     * @param dataType the data type of the record
+     * @param isBroadcast whether the record is a broadcast record
+     * @throws IOException
+     */
     @Override
     public void receive(
             ByteBuffer record,
@@ -121,7 +139,10 @@ public class SortBufferAccumulator implements BufferAccumulator {
             boolean isBroadcast)
             throws IOException {
         int targetSubpartition = subpartitionId.getSubpartitionId();
+        // 在广播和非广播之间切换
         switchCurrentDataBufferIfNeeded(isBroadcast);
+
+        // buffer没满时 返回false
         if (!checkNotNull(currentDataBuffer).append(record, targetSubpartition, dataType)) {
             return;
         }
@@ -129,12 +150,15 @@ public class SortBufferAccumulator implements BufferAccumulator {
         // The sort buffer is empty, but we failed to write the record into it, which indicates the
         // record is larger than the sort buffer can hold. So the record is written into multiple
         // buffers directly.
+
         if (!currentDataBuffer.hasRemaining()) {
             currentDataBuffer.release();
+            // 一次性写入
             writeLargeRecord(record, targetSubpartition, dataType);
             return;
         }
 
+        // 将剩余数据刷盘
         flushDataBuffer();
         checkState(record.hasRemaining(), "Empty record.");
         receive(record, subpartitionId, dataType, isBroadcast);
@@ -154,6 +178,7 @@ public class SortBufferAccumulator implements BufferAccumulator {
     // ------------------------------------------------------------------------
 
     private void switchCurrentDataBufferIfNeeded(boolean isBroadcast) {
+        // 表示当前正在使用broadcastBuffer
         if (isBroadcast == isBroadcastDataBuffer
                 && currentDataBuffer != null
                 && !currentDataBuffer.isReleased()
@@ -161,14 +186,22 @@ public class SortBufferAccumulator implements BufferAccumulator {
             return;
         }
         isBroadcastDataBuffer = isBroadcast;
+
+        // 将buffer之前囤积的数据刷盘
         flushCurrentDataBuffer();
+        // 申请一个新buffer
         currentDataBuffer = createNewDataBuffer();
     }
 
+    /**
+     * 申请新buffer
+     * @return
+     */
     private DataBuffer createNewDataBuffer() {
         requestBuffers();
 
         // Use the half of the buffers for writing, and the other half for reading
+        // 一半读一半写
         int numBuffersForSort = freeSegments.size() / 2;
         return new TieredStorageSortBuffer(
                 freeSegments,
@@ -178,6 +211,10 @@ public class SortBufferAccumulator implements BufferAccumulator {
                 numBuffersForSort);
     }
 
+
+    /**
+     * 维持一定数量的buffer
+     */
     private void requestBuffers() {
         while (freeSegments.size() < numBuffers) {
             Buffer buffer = requestBuffer();
@@ -188,6 +225,9 @@ public class SortBufferAccumulator implements BufferAccumulator {
         }
     }
 
+    /**
+     * 将数据刷盘
+     */
     private void flushDataBuffer() {
         if (currentDataBuffer == null
                 || currentDataBuffer.isReleased()
@@ -198,6 +238,7 @@ public class SortBufferAccumulator implements BufferAccumulator {
 
         do {
             MemorySegment freeSegment = getFreeSegment();
+            // 将buffer的数据移动到seg中
             BufferWithChannel bufferWithChannel = currentDataBuffer.getNextBuffer(freeSegment);
             if (bufferWithChannel == null) {
                 break;
@@ -216,6 +257,12 @@ public class SortBufferAccumulator implements BufferAccumulator {
         }
     }
 
+    /**
+     * 一次性写入全部数据
+     * @param record
+     * @param subpartitionId
+     * @param dataType
+     */
     private void writeLargeRecord(ByteBuffer record, int subpartitionId, Buffer.DataType dataType) {
 
         checkState(dataType != Buffer.DataType.EVENT_BUFFER);
@@ -224,6 +271,7 @@ public class SortBufferAccumulator implements BufferAccumulator {
             MemorySegment writeBuffer = requestBuffer().getMemorySegment();
             writeBuffer.put(0, record, toCopy);
 
+            // 每读取一个 触发一次flush
             flushBuffer(
                     new BufferWithChannel(
                             new NetworkBuffer(
@@ -249,6 +297,10 @@ public class SortBufferAccumulator implements BufferAccumulator {
                         Collections.singletonList(bufferWithChannel.getBuffer()));
     }
 
+    /**
+     * 申请buffer
+     * @return
+     */
     private Buffer requestBuffer() {
         BufferBuilder bufferBuilder = memoryManager.requestBufferBlocking(this);
         BufferConsumer bufferConsumer = bufferBuilder.createBufferConsumerFromBeginning();

@@ -40,12 +40,20 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Future;
 
-/** A standalone implementation of the {@link RuntimeContext}, created by runtime UDF operators. */
+/** A standalone implementation of the {@link RuntimeContext}, created by runtime UDF operators.
+ * 在用户的自定义函数中使用的上下文
+ * */
 public class DistributedRuntimeUDFContext extends AbstractRuntimeUDFContext {
 
+    /**
+     * 维护一组物化广播变量
+     */
     private final HashMap<String, BroadcastVariableMaterialization<?, ?>> broadcastVars =
             new HashMap<String, BroadcastVariableMaterialization<?, ?>>();
 
+    /**
+     * 外部资源信息
+     */
     private final ExternalResourceInfoProvider externalResourceInfoProvider;
 
     private final JobID jobID;
@@ -65,6 +73,11 @@ public class DistributedRuntimeUDFContext extends AbstractRuntimeUDFContext {
         this.jobID = jobID;
     }
 
+    /**
+     * 判断是否包含某物化广播变量
+     * @param name The name under which the broadcast variable is registered;
+     * @return
+     */
     @Override
     public boolean hasBroadcastVariable(String name) {
         return this.broadcastVars.containsKey(name);
@@ -80,6 +93,7 @@ public class DistributedRuntimeUDFContext extends AbstractRuntimeUDFContext {
                 (BroadcastVariableMaterialization<T, ?>) this.broadcastVars.get(name);
         if (variable != null) {
             try {
+                // 获取变量值
                 return variable.getVariable();
             } catch (InitializationTypeConflictException e) {
                 throw new RuntimeException(
@@ -105,6 +119,8 @@ public class DistributedRuntimeUDFContext extends AbstractRuntimeUDFContext {
         @SuppressWarnings("unchecked")
         BroadcastVariableMaterialization<T, C> variable =
                 (BroadcastVariableMaterialization<T, C>) this.broadcastVars.get(name);
+
+        // 通过initializer来修改内部的初始值
         if (variable != null) {
             return variable.getVariable(initializer);
         } else {

@@ -35,6 +35,7 @@ import java.util.Set;
  *   <li>{@code clean} - indicating that the cleanup of the corresponding job is performed and no
  *       further actions need to be applied.
  * </ul>
+ * 表示存储Job结果的仓库
  */
 @Internal
 public interface JobResultStore {
@@ -62,6 +63,7 @@ public interface JobResultStore {
      *     failed for IO reasons.
      * @throws NoSuchElementException if there is no corresponding {@code dirty} job present in the
      *     store for the given {@code JobID}.
+     *     标记job结果已经被清理了
      */
     void markResultAsClean(JobID jobId) throws IOException, NoSuchElementException;
 

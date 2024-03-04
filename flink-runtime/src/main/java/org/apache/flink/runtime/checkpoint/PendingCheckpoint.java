@@ -65,11 +65,15 @@ import static org.apache.flink.util.Preconditions.checkState;
  *
  * <p>Note that the pending checkpoint, as well as the successful checkpoint keep the state handles
  * always as serialized values, never as actual values.
+ *
+ * 表示处理中的检查点 只有当所有task都ack了 会变成CompletedCheckpoint
  */
 @NotThreadSafe
 public class PendingCheckpoint implements Checkpoint {
 
-    /** Result of the {@link PendingCheckpoint#acknowledgedTasks} method. */
+    /** Result of the {@link PendingCheckpoint#acknowledgedTasks} method.
+     * task的ack结果
+     * */
     public enum TaskAcknowledgeResult {
         SUCCESS, // successful acknowledge of the task
         DUPLICATE, // acknowledge message is a duplicate
@@ -84,25 +88,52 @@ public class PendingCheckpoint implements Checkpoint {
 
     private final Object lock = new Object();
 
+    /**
+     * 该检查点相关的job
+     */
     private final JobID jobId;
 
+    /**
+     * 本次检查点id
+     */
     private final long checkpointId;
 
+    /**
+     * 触发检查点的时间
+     */
     private final long checkpointTimestamp;
 
+    /**
+     * 维护每个算子此时的状态
+     * 一个检查点对应一个job  关联多个算子  每个算子有多个子任务
+     */
     private final Map<OperatorID, OperatorState> operatorStates;
 
+    /**
+     * 这里记录了各种状态的任务
+     */
     private final CheckpointPlan checkpointPlan;
 
+    /**
+     * 表示还没收到ack的task
+     */
     private final Map<ExecutionAttemptID, ExecutionVertex> notYetAcknowledgedTasks;
 
+    /**
+     * 还没收到ack的算子
+     */
     private final Set<OperatorID> notYetAcknowledgedOperatorCoordinators;
 
+    /**
+     * MasterState 表示由协调者封装的状态
+     */
     private final List<MasterState> masterStates;
 
     private final Set<String> notYetAcknowledgedMasterStates;
 
-    /** Set of acknowledged tasks. */
+    /** Set of acknowledged tasks.
+     * 已经收到响应的task
+     * */
     private final Set<ExecutionAttemptID> acknowledgedTasks;
 
     /** The checkpoint properties. */
@@ -111,14 +142,20 @@ public class PendingCheckpoint implements Checkpoint {
     /**
      * The promise to fulfill once the checkpoint has been completed. Note that it will be completed
      * only after the checkpoint is successfully added to CompletedCheckpointStore.
+     * 当检查点完成时  会变成CompletedCheckpoint
      */
     private final CompletableFuture<CompletedCheckpoint> onCompletionPromise;
 
+    /**
+     * 该对象包含统计数据
+     */
     @Nullable private final PendingCheckpointStats pendingCheckpointStats;
 
     private final CompletableFuture<Void> masterTriggerCompletionPromise;
 
-    /** Target storage location to persist the checkpoint metadata to. */
+    /** Target storage location to persist the checkpoint metadata to.
+     * 存储检查点的位置
+     * */
     @Nullable private CheckpointStorageLocation targetLocation;
 
     private int numAcknowledgedTasks;
@@ -129,6 +166,9 @@ public class PendingCheckpoint implements Checkpoint {
 
     private volatile ScheduledFuture<?> cancellerHandle;
 
+    /**
+     * 记录检查点失败的原因
+     */
     private CheckpointException failureCause;
 
     // --------------------------------------------------------------------------------------------
@@ -231,6 +271,10 @@ public class PendingCheckpoint implements Checkpoint {
         return masterStates;
     }
 
+    /**
+     * 表示相关成员的ack信息都已经收到了
+     * @return
+     */
     public boolean isFullyAcknowledged() {
         return areTasksFullyAcknowledged()
                 && areCoordinatorsFullyAcknowledged()
@@ -277,6 +321,7 @@ public class PendingCheckpoint implements Checkpoint {
      * exception if a handle has already been set.
      *
      * @return true, if the handle was set, false, if the checkpoint is already disposed;
+     * 通过该对象来感知是否被取消
      */
     public boolean setCancellerHandle(ScheduledFuture<?> cancellerHandle) {
         synchronized (lock) {
@@ -305,11 +350,20 @@ public class PendingCheckpoint implements Checkpoint {
      * Returns the completion future.
      *
      * @return A future to the completed checkpoint
+     * 用于等待检查点完成
      */
     public CompletableFuture<CompletedCheckpoint> getCompletionFuture() {
         return onCompletionPromise;
     }
 
+    /**
+     * 将检查点转换成完成状态
+     * @param checkpointsCleaner
+     * @param postCleanup
+     * @param executor
+     * @return
+     * @throws IOException
+     */
     public CompletedCheckpoint finalizeCheckpoint(
             CheckpointsCleaner checkpointsCleaner, Runnable postCleanup, Executor executor)
             throws IOException {
@@ -317,25 +371,30 @@ public class PendingCheckpoint implements Checkpoint {
         synchronized (lock) {
             checkState(!isDisposed(), "checkpoint is discarded");
             checkState(
-                    isFullyAcknowledged(),
+                    isFullyAcknowledged(),  // 确保所有ack信息都已经收到
                     "Pending checkpoint has not been fully acknowledged yet");
 
             // make sure we fulfill the promise with an exception if something fails
             try {
+                // 使用完成的task信息 填充operatorStates
                 checkpointPlan.fulfillFinishedTaskStatus(operatorStates);
 
                 // write out the metadata
+                // 产生元数据对象
                 final CheckpointMetadata savepoint =
                         new CheckpointMetadata(
                                 checkpointId, operatorStates.values(), masterStates, props);
                 final CompletedCheckpointStorageLocation finalizedLocation;
 
+                // 产生输出流
                 try (CheckpointMetadataOutputStream out =
                         targetLocation.createMetadataOutputStream()) {
+                    // 写入元数据信息
                     Checkpoints.storeCheckpointMetadata(savepoint, out);
                     finalizedLocation = out.closeAndFinalizeCheckpoint();
                 }
 
+                // 转换成已完成的检查点
                 CompletedCheckpoint completed =
                         new CompletedCheckpoint(
                                 jobId,
@@ -376,6 +435,7 @@ public class PendingCheckpoint implements Checkpoint {
      * @param operatorSubtaskStates of the acknowledged task
      * @param metrics Checkpoint metrics for the stats
      * @return TaskAcknowledgeResult of the operation
+     * 收到某个任务的ack
      */
     public TaskAcknowledgeResult acknowledgeTask(
             ExecutionAttemptID executionAttemptId,
@@ -391,23 +451,30 @@ public class PendingCheckpoint implements Checkpoint {
 
             if (vertex == null) {
                 if (acknowledgedTasks.contains(executionAttemptId)) {
+                    // 表示重复收到
                     return TaskAcknowledgeResult.DUPLICATE;
                 } else {
+                    // 未知情况
                     return TaskAcknowledgeResult.UNKNOWN;
                 }
             } else {
+                // 加入到确认ack的容器中
                 acknowledgedTasks.add(executionAttemptId);
             }
 
             long ackTimestamp = System.currentTimeMillis();
+            // 上面仅是有关ack的   这里如果states已经完成了任务  加入到plan的完成容器中
             if (operatorSubtaskStates != null && operatorSubtaskStates.isTaskDeployedAsFinished()) {
                 checkpointPlan.reportTaskFinishedOnRestore(vertex);
             } else {
+
                 List<OperatorIDPair> operatorIDs = vertex.getJobVertex().getOperatorIDs();
                 for (OperatorIDPair operatorID : operatorIDs) {
+                    // 找到本对象维护的任务信息   使用入参进行更新
                     updateOperatorState(vertex, operatorSubtaskStates, operatorID);
                 }
 
+                // 如果本次报告的对象下 有任务完成 则报告给plan
                 if (operatorSubtaskStates != null && operatorSubtaskStates.isTaskFinished()) {
                     checkpointPlan.reportTaskHasFinishedOperators(vertex);
                 }
@@ -423,6 +490,7 @@ public class PendingCheckpoint implements Checkpoint {
                 long checkpointStartDelayMillis =
                         metrics.getCheckpointStartDelayNanos() / 1_000_000;
 
+                // 更新统计数据
                 SubtaskStateStats subtaskStateStats =
                         new SubtaskStateStats(
                                 vertex.getParallelSubtaskIndex(),
@@ -457,13 +525,22 @@ public class PendingCheckpoint implements Checkpoint {
         }
     }
 
+    /**
+     * 更新某个状态
+     * @param vertex
+     * @param operatorSubtaskStates  本次ack时收到的快照数据
+     * @param operatorID
+     */
     private void updateOperatorState(
             ExecutionVertex vertex,
             TaskStateSnapshot operatorSubtaskStates,
             OperatorIDPair operatorID) {
+
+        // 这是本对象此时维护的数据
         OperatorState operatorState = operatorStates.get(operatorID.getGeneratedOperatorID());
 
         if (operatorState == null) {
+            // 先按照vertex信息 初始化一个对象
             operatorState =
                     new OperatorState(
                             operatorID.getGeneratedOperatorID(),
@@ -471,6 +548,7 @@ public class PendingCheckpoint implements Checkpoint {
                             vertex.getMaxParallelism());
             operatorStates.put(operatorID.getGeneratedOperatorID(), operatorState);
         }
+        // 从入参中找到对应的子任务状态
         OperatorSubtaskState operatorSubtaskState =
                 operatorSubtaskStates == null
                         ? null
@@ -478,10 +556,17 @@ public class PendingCheckpoint implements Checkpoint {
                                 operatorID.getGeneratedOperatorID());
 
         if (operatorSubtaskState != null) {
+            // 将状态更新到本对象维护的 operatorStates 中
             operatorState.putState(vertex.getParallelSubtaskIndex(), operatorSubtaskState);
         }
     }
 
+    /**
+     * 收到协调者的ack信息
+     * @param coordinatorInfo
+     * @param stateHandle
+     * @return
+     */
     public TaskAcknowledgeResult acknowledgeCoordinatorState(
             OperatorInfo coordinatorInfo, @Nullable ByteStreamStateHandle stateHandle) {
 
@@ -491,6 +576,8 @@ public class PendingCheckpoint implements Checkpoint {
             }
 
             final OperatorID operatorId = coordinatorInfo.operatorId();
+
+            // 获取对应的任务状态
             OperatorState operatorState = operatorStates.get(operatorId);
 
             // sanity check for better error reporting
@@ -500,6 +587,7 @@ public class PendingCheckpoint implements Checkpoint {
                         : TaskAcknowledgeResult.UNKNOWN;
             }
 
+            // 未创建则初始化state
             if (operatorState == null) {
                 operatorState =
                         new OperatorState(
@@ -509,6 +597,7 @@ public class PendingCheckpoint implements Checkpoint {
                 operatorStates.put(operatorId, operatorState);
             }
             if (stateHandle != null) {
+                // 设置协调者状态
                 operatorState.setCoordinatorState(stateHandle);
             }
 
@@ -522,6 +611,7 @@ public class PendingCheckpoint implements Checkpoint {
      *
      * @param identifier The identifier of the master state
      * @param state The state to acknowledge
+     *              masterState的ack比较简单  就是加入masterStates
      */
     public void acknowledgeMasterState(String identifier, @Nullable MasterState state) {
 
@@ -538,7 +628,10 @@ public class PendingCheckpoint implements Checkpoint {
     //  Cancellation
     // ------------------------------------------------------------------------
 
-    /** Aborts a checkpoint with reason and cause. */
+    /**
+     * Aborts a checkpoint with reason and cause.
+     * @param reason 表示检查点失败的原因
+     * */
     public void abort(
             CheckpointFailureReason reason,
             @Nullable Throwable cause,
@@ -552,6 +645,7 @@ public class PendingCheckpoint implements Checkpoint {
             masterTriggerCompletionPromise.completeExceptionally(failureCause);
             assertAbortSubsumedForced(reason);
         } finally {
+            // 此时丢弃数据
             dispose(true, checkpointsCleaner, postCleanup, executor);
         }
     }
@@ -565,6 +659,13 @@ public class PendingCheckpoint implements Checkpoint {
         }
     }
 
+    /**
+     *
+     * @param releaseState  表示是否要释放state
+     * @param checkpointsCleaner
+     * @param postCleanup
+     * @param executor
+     */
     private void dispose(
             boolean releaseState,
             CheckpointsCleaner checkpointsCleaner,
@@ -574,8 +675,10 @@ public class PendingCheckpoint implements Checkpoint {
         synchronized (lock) {
             try {
                 numAcknowledgedTasks = -1;
+                // 清理本检查点  (PendingCheckpoint)
                 checkpointsCleaner.cleanCheckpoint(this, releaseState, postCleanup, executor);
             } finally {
+                // 标记本对象已经被丢弃
                 disposed = true;
                 notYetAcknowledgedTasks.clear();
                 acknowledgedTasks.clear();
@@ -589,6 +692,9 @@ public class PendingCheckpoint implements Checkpoint {
         return new PendingCheckpointDiscardObject();
     }
 
+    /**
+     * cancel 会唤醒阻塞线程
+     */
     private void cancelCanceller() {
         try {
             final ScheduledFuture<?> canceller = this.cancellerHandle;
@@ -618,6 +724,7 @@ public class PendingCheckpoint implements Checkpoint {
     /**
      * Implementation of {@link org.apache.flink.runtime.checkpoint.Checkpoint.DiscardObject} for
      * {@link PendingCheckpoint}.
+     * 该对象提供了丢弃数据的api
      */
     public class PendingCheckpointDiscardObject implements DiscardObject {
         /**

@@ -45,22 +45,33 @@ import static org.apache.flink.runtime.checkpoint.SnapshotType.SharingFilesStrat
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** {@link SharedStateRegistry} implementation. */
+/** {@link SharedStateRegistry} implementation.
+ * 维护共享状态
+ * */
 @Internal
 public class SharedStateRegistryImpl implements SharedStateRegistry {
 
     private static final Logger LOG = LoggerFactory.getLogger(SharedStateRegistryImpl.class);
 
-    /** All registered state objects by an artificial key */
+    /** All registered state objects by an artificial key
+     * 维护 "共享状态"
+     * */
     private final Map<SharedStateRegistryKey, SharedStateEntry> registeredStates;
 
+    /**
+     * key是检查点  value表示对应文件的共享策略
+     */
     private final Map<Long, Optional<SharingFilesStrategy>> restoredCheckpointSharingStrategies =
             new HashMap<>();
 
-    /** This flag indicates whether or not the registry is open or if close() was called */
+    /** This flag indicates whether or not the registry is open or if close() was called
+     * 描述注册对象是否打开
+     * */
     private boolean open;
 
-    /** Executor for async state deletion */
+    /** Executor for async state deletion
+     * 异步执行状态的操作
+     * */
     private final Executor asyncDisposalExecutor;
 
     /** Checkpoint ID below which no state is discarded, inclusive. */
@@ -77,11 +88,20 @@ public class SharedStateRegistryImpl implements SharedStateRegistry {
         this.open = true;
     }
 
+    /**
+     * 注册一个共享状态
+     * @param registrationKey
+     * @param newHandle
+     * @param checkpointID which uses the state
+     * @param preventDiscardingCreatedCheckpoint as long as this state is still in use. The
+     *     "checkpoint that created the state" is recorded on the first state registration.
+     * @return
+     */
     @Override
     public StreamStateHandle registerReference(
             final SharedStateRegistryKey registrationKey,
             final StreamStateHandle newHandle,
-            final long checkpointID,
+            final long checkpointID,  // 产生该状态的检查点
             final boolean preventDiscardingCreatedCheckpoint) {
 
         checkNotNull(newHandle, "State handle should not be null.");
@@ -100,6 +120,8 @@ public class SharedStateRegistryImpl implements SharedStateRegistry {
 
                 LOG.trace(
                         "Registered new shared state {} under key {}.", newHandle, registrationKey);
+
+                // 包装产生entry 并存入map
                 entry = new SharedStateEntry(newHandle, checkpointID);
                 registeredStates.put(registrationKey, entry);
 
@@ -117,6 +139,7 @@ public class SharedStateRegistryImpl implements SharedStateRegistry {
                         "Duplicated registration under key {} with the new object: {}.",
                         registrationKey,
                         newHandle);
+                // 传入的是一个空对象  仅打印日志
             } else if (isPlaceholder(newHandle)) {
                 LOG.trace(
                         "Duplicated registration under key {} with a placeholder (normal case)",
@@ -128,6 +151,8 @@ public class SharedStateRegistryImpl implements SharedStateRegistry {
                         "the registered handle should equal to the previous one or is a placeholder, register key:{}, handle:{}",
                         registrationKey,
                         newHandle);
+
+                // 进行替换
                 if (entry.stateHandle instanceof EmptyDiscardStateObjectForRegister) {
                     // This situation means that newHandle is a StreamStateHandleWrapper registered
                     // by ChangelogStateBackendHandleImpl, keep the new one for discard the
@@ -145,8 +170,11 @@ public class SharedStateRegistryImpl implements SharedStateRegistry {
                     registrationKey,
                     entry.lastUsedCheckpointID,
                     checkpointID);
+
+            // 如果出现之后的检查点调用该方法  就要更新最后引用该共享状态的检查点id
             entry.advanceLastUsingCheckpointID(checkpointID);
 
+            // 表示要保护检查点不被删除
             if (preventDiscardingCreatedCheckpoint) {
                 entry.preventDiscardingCreatedCheckpoint();
             }
@@ -155,6 +183,11 @@ public class SharedStateRegistryImpl implements SharedStateRegistry {
         return entry.stateHandle;
     }
 
+    /**
+     * 返回该检查点关联的状态
+     * @param lowestCheckpointID which is still valid.
+     * @return
+     */
     @Override
     public Set<Long> unregisterUnusedState(long lowestCheckpointID) {
         Set<Long> checkpointInUse = new HashSet<>();
@@ -170,7 +203,10 @@ public class SharedStateRegistryImpl implements SharedStateRegistry {
             Iterator<SharedStateEntry> it = registeredStates.values().iterator();
             while (it.hasNext()) {
                 SharedStateEntry entry = it.next();
+
+                // 表示需要移除
                 if (entry.lastUsedCheckpointID < lowestCheckpointID) {
+                    // 超过highestNotClaimedCheckpointID 就代表还未丢弃state数据 需要执行delete
                     if (entry.createdByCheckpointID > highestNotClaimedCheckpointID) {
                         subsumed.add(entry.stateHandle);
                     }
@@ -209,9 +245,17 @@ public class SharedStateRegistryImpl implements SharedStateRegistry {
         }
     }
 
+    /**
+     * 在数据恢复后 首次进行注册
+     * @param checkpoint
+     * @param mode
+     */
     @Override
     public void registerAllAfterRestored(CompletedCheckpoint checkpoint, RestoreMode mode) {
+        // 将该检查点包含的所有state 注册进去
         registerAll(checkpoint.getOperatorStates().values(), checkpoint.getCheckpointID());
+
+        // 将检查点与相关的共享策略存入
         restoredCheckpointSharingStrategies.put(
                 checkpoint.getCheckpointID(),
                 checkpoint
@@ -223,6 +267,7 @@ public class SharedStateRegistryImpl implements SharedStateRegistry {
         // In CLAIM restore mode, the shared state of the initial checkpoints must be
         // discarded as soon as it becomes unused - so highestRetainCheckpointID is not updated.
         if (mode != RestoreMode.CLAIM) {
+            // 现在要更新 highestNotClaimedCheckpointID 表示低于该值的数据已经被丢弃了
             highestNotClaimedCheckpointID =
                     Math.max(highestNotClaimedCheckpointID, checkpoint.getCheckpointID());
         }
@@ -240,6 +285,10 @@ public class SharedStateRegistryImpl implements SharedStateRegistry {
         }
     }
 
+    /**
+     * 异步删除该状态
+     * @param streamStateHandle
+     */
     private void scheduleAsyncDelete(StreamStateHandle streamStateHandle) {
         // We do the small optimization to not issue discards for placeholders, which are NOPs.
         if (streamStateHandle != null && !isPlaceholder(streamStateHandle)) {
@@ -295,20 +344,31 @@ public class SharedStateRegistryImpl implements SharedStateRegistry {
             }
         }
     }
-    /** An entry in the registry, tracking the handle and the corresponding reference count. */
+    /** An entry in the registry, tracking the handle and the corresponding reference count.
+     * 包含需要维护的有效信息
+     * */
     private static final class SharedStateEntry {
 
         /**
          * Whether usage of this state should prevent deletion of the checkpoint that created this
          * state.
+         * 表示是否要放置创建该状态的检查点不被删除
          */
         private boolean preventDiscardingCreatedCheckpoint = false;
 
-        /** The shared state handle */
+        /** The shared state handle
+         * 对应共享状态
+         * */
         StreamStateHandle stateHandle;
 
+        /**
+         * 创建该状态的检查点Id
+         */
         private final long createdByCheckpointID;
 
+        /**
+         * 因为该状态是共享状态 是可以被其他检查点引用的   这里就记录最后一次使用的检查点id
+         */
         private long lastUsedCheckpointID;
 
         SharedStateEntry(StreamStateHandle value, long checkpointID) {
@@ -342,7 +402,9 @@ public class SharedStateRegistryImpl implements SharedStateRegistry {
         }
     }
 
-    /** An object with empty discardState for registering. */
+    /** An object with empty discardState for registering.
+     * 表示一个空对象
+     * */
     public static class EmptyDiscardStateObjectForRegister implements StreamStateHandle {
         private static final long serialVersionUID = 1L;
 
@@ -398,6 +460,11 @@ public class SharedStateRegistryImpl implements SharedStateRegistry {
         }
     }
 
+    /**
+     * 判断该检查点是否要被保护
+     * @param entry
+     * @return
+     */
     private boolean preventsDiscardingCreatedCheckpoint(SharedStateEntry entry) {
         // explicitly set by the backend, e.g. private state is reused
         if (entry.preventDiscardingCreatedCheckpoint

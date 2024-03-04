@@ -32,7 +32,9 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** {@link CheckpointStreamFactory} that produces streams that write to in-memory byte arrays. */
+/** {@link CheckpointStreamFactory} that produces streams that write to in-memory byte arrays.
+ * 产生存储检查点的字节流  一般来说是利用文件系统存储检查点的
+ * */
 public class MemCheckpointStreamFactory implements CheckpointStreamFactory {
 
     /** The maximal size that the snapshotted memory state may have. */
@@ -51,6 +53,7 @@ public class MemCheckpointStreamFactory implements CheckpointStreamFactory {
     @Override
     public CheckpointStateOutputStream createCheckpointStateOutputStream(
             CheckpointedStateScope scope) throws IOException {
+        // 产生一个输出流
         return new MemoryCheckpointOutputStream(maxStateSize);
     }
 
@@ -82,6 +85,9 @@ public class MemCheckpointStreamFactory implements CheckpointStreamFactory {
     /** A {@code CheckpointStateOutputStream} that writes into a byte array. */
     public static class MemoryCheckpointOutputStream extends CheckpointStateOutputStream {
 
+        /**
+         * 内含一个数组
+         */
         private final ByteArrayOutputStreamWithPos os = new ByteArrayOutputStreamWithPos();
 
         private final int maxSize;
@@ -130,6 +136,7 @@ public class MemCheckpointStreamFactory implements CheckpointStreamFactory {
             if (isEmpty) {
                 return null;
             }
+            // 将数组作为内部的输入流
             return new ByteStreamStateHandle(String.valueOf(UUID.randomUUID()), closeAndGetBytes());
         }
 

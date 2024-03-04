@@ -30,7 +30,9 @@ import java.util.Queue;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** {@link NettyPayloadManager} is used to contain all netty payloads from a storage tier. */
+/** {@link NettyPayloadManager} is used to contain all netty payloads from a storage tier.
+ * 使用该对象管理数据报文
+ * */
 public class NettyPayloadManager {
 
     private final Object lock = new Object();
@@ -40,6 +42,7 @@ public class NettyPayloadManager {
     /**
      * The queue contains a collection of numbers. Each number represents the number of buffers that
      * belongs to consecutive segment ids.
+     * 记录当前囤积了多少待发送数据
      */
     @GuardedBy("lock")
     private final Deque<Integer> backlogs = new LinkedList<>();
@@ -47,18 +50,24 @@ public class NettyPayloadManager {
     @GuardedBy("lock")
     private int lastSegmentId = -1;
 
+    /**
+     * 将报文添加到队列中
+     * @param nettyPayload
+     */
     public void add(NettyPayload nettyPayload) {
         synchronized (lock) {
             queue.add(nettyPayload);
             int segmentId = nettyPayload.getSegmentId();
             if (segmentId != -1 && segmentId != lastSegmentId) {
                 if (segmentId == 0 || segmentId != (lastSegmentId + 1)) {
+                    // 这里重新发送一个0
                     addNewBacklog();
                 }
                 lastSegmentId = segmentId;
             }
             Optional<Buffer> buffer = nettyPayload.getBuffer();
             if (buffer.isPresent() && buffer.get().isBuffer()) {
+                // 每当添加一个buffer时  更新backlog的值
                 addBacklog();
             }
         }
@@ -76,6 +85,7 @@ public class NettyPayloadManager {
             if (nettyPayload != null
                     && nettyPayload.getBuffer().isPresent()
                     && nettyPayload.getBuffer().get().isBuffer()) {
+                // 更新backlog
                 decreaseBacklog();
             }
             return nettyPayload;
@@ -97,6 +107,7 @@ public class NettyPayloadManager {
 
     @GuardedBy("lock")
     private void addNewBacklog() {
+        // 多发送了一个0
         backlogs.addLast(0);
     }
 
@@ -106,6 +117,7 @@ public class NettyPayloadManager {
         if (backlog == null) {
             backlogs.addLast(1);
         } else {
+            // 每次递增1
             backlogs.addLast(backlog + 1);
         }
     }

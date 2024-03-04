@@ -28,8 +28,12 @@ import java.util.Set;
 
 /** A bi-directional mapping between required and acquired resources. */
 class BiDirectionalResourceToRequirementMapping {
+
+    // 双向索引 维护需要的资源和提供的资源
+
     private final Map<ResourceProfile, ResourceCounter> requirementToFulfillingResources =
             new HashMap<>();
+
     private final Map<ResourceProfile, ResourceCounter> resourceToFulfilledRequirement =
             new HashMap<>();
 
@@ -42,6 +46,12 @@ class BiDirectionalResourceToRequirementMapping {
         internalIncrementCount(resourceToFulfilledRequirement, resource, requirement, increment);
     }
 
+    /**
+     * 逆操作
+     * @param requirement
+     * @param resource
+     * @param decrement
+     */
     public void decrementCount(
             ResourceProfile requirement, ResourceProfile resource, int decrement) {
         Preconditions.checkNotNull(requirement);
@@ -51,6 +61,13 @@ class BiDirectionalResourceToRequirementMapping {
         internalDecrementCount(resourceToFulfilledRequirement, resource, requirement, decrement);
     }
 
+    /**
+     *
+     * @param primaryMap
+     * @param primaryKey   一个是需要的资源 一个是提供的资源
+     * @param secondaryKey
+     * @param increment
+     */
     private static void internalIncrementCount(
             Map<ResourceProfile, ResourceCounter> primaryMap,
             ResourceProfile primaryKey,
@@ -59,6 +76,7 @@ class BiDirectionalResourceToRequirementMapping {
         primaryMap.compute(
                 primaryKey,
                 (resourceProfile, resourceCounter) -> {
+                    // 可以看到 key/value 存的是不同的资源
                     if (resourceCounter == null) {
                         return ResourceCounter.withResource(secondaryKey, increment);
                     } else {
@@ -67,6 +85,13 @@ class BiDirectionalResourceToRequirementMapping {
                 });
     }
 
+    /**
+     * 减少资源
+     * @param primaryMap
+     * @param primaryKey
+     * @param secondaryKey
+     * @param decrement
+     */
     private static void internalDecrementCount(
             Map<ResourceProfile, ResourceCounter> primaryMap,
             ResourceProfile primaryKey,

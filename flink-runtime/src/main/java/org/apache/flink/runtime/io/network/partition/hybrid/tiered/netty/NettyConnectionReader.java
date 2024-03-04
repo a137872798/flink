@@ -23,7 +23,9 @@ import org.apache.flink.runtime.io.network.partition.hybrid.tiered.tier.TierCons
 
 import java.util.Optional;
 
-/** {@link NettyConnectionReader} is used by {@link TierConsumerAgent} to read buffer from netty. */
+/** {@link NettyConnectionReader} is used by {@link TierConsumerAgent} to read buffer from netty.
+ *
+ * */
 public interface NettyConnectionReader {
     /**
      * Read a buffer from netty connection.
@@ -31,6 +33,7 @@ public interface NettyConnectionReader {
      * @param segmentId segment id indicates the id of segment.
      * @return {@link Optional#empty()} will be returned if there is no buffer sent from netty
      *     connection otherwise a buffer will be returned.
+     *     表示可以读取数据
      */
     Optional<Buffer> readBuffer(int segmentId);
 }

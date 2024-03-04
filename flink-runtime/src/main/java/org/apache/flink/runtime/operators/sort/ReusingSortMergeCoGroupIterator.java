@@ -135,6 +135,7 @@ public class ReusingSortMergeCoGroupIterator<T1, T2> implements CoGroupTaskItera
 
             if (0 == comp) {
                 // keys match
+                // 2个数据都取出来了 那么下次就可以分别再获取下个数据
                 this.firstReturn = this.iterator1.getValues();
                 this.secondReturn = this.iterator2.getValues();
                 this.matchStatus = MatchStatus.NONE_REMAINED;

@@ -25,9 +25,17 @@ import org.apache.flink.util.SerializedValue;
 
 /**
  * An task that is coordinated, i.e. contains operators coordinated by {@link OperatorCoordinator}.
+ * 可以将一些事件分配给某个operator
  */
 @Internal
 public interface CoordinatedTask {
+
+    /**
+     * 将事件投递给某个operator
+     * @param operator
+     * @param event
+     * @throws FlinkException
+     */
     void dispatchOperatorEvent(OperatorID operator, SerializedValue<OperatorEvent> event)
             throws FlinkException;
 }

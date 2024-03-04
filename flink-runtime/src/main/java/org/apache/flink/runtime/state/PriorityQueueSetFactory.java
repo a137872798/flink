@@ -23,7 +23,9 @@ import org.apache.flink.runtime.state.heap.HeapPriorityQueueElement;
 
 import javax.annotation.Nonnull;
 
-/** Factory for {@link KeyGroupedInternalPriorityQueue} instances. */
+/** Factory for {@link KeyGroupedInternalPriorityQueue} instances.
+ * 用于生成优先队列
+ * */
 public interface PriorityQueueSetFactory {
 
     /**
@@ -36,7 +38,9 @@ public interface PriorityQueueSetFactory {
      * @return the queue with the specified unique name.
      */
     @Nonnull
-    <T extends HeapPriorityQueueElement & PriorityComparable<? super T> & Keyed<?>>
+    <T extends HeapPriorityQueueElement & PriorityComparable<? super T> & Keyed<?>>  // 修饰队列元素
+
+    // 创建优先队列
             KeyGroupedInternalPriorityQueue<T> create(
                     @Nonnull String stateName,
                     @Nonnull TypeSerializer<T> byteOrderedElementSerializer);
@@ -50,6 +54,8 @@ public interface PriorityQueueSetFactory {
      * @param allowFutureMetadataUpdates whether allow metadata to update in the future or not.
      * @param <T> type of the stored elements.
      * @return the queue with the specified unique name.
+     *
+     * 也是创建优先队列  额外传入是否允许修改元数据的参数
      */
     default <T extends HeapPriorityQueueElement & PriorityComparable<? super T> & Keyed<?>>
             KeyGroupedInternalPriorityQueue<T> create(

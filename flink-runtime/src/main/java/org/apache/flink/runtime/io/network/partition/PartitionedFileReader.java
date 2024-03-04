@@ -35,7 +35,9 @@ import static org.apache.flink.runtime.io.network.partition.BufferReaderWriterUt
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Reader which can read all data of the target subpartition from a {@link PartitionedFile}. */
+/** Reader which can read all data of the target subpartition from a {@link PartitionedFile}.
+ * 读取存储分区数据的文件
+ * */
 class PartitionedFileReader {
 
     /** Used to read buffer headers from file channel. */
@@ -62,9 +64,21 @@ class PartitionedFileReader {
     /** Next file offset to be read. */
     private long nextOffsetToRead;
 
-    /** Number of remaining bytes in the current data region read. */
+    /** Number of remaining bytes in the current data region read.
+     * 当前region还剩余多少
+     * */
     private long currentRegionRemainingBytes;
 
+
+    /**
+     * 使用该对象读取某个子分区的数据
+     * @param partitionedFile
+     * @param targetSubpartition
+     * @param dataFileChannel
+     * @param indexFileChannel
+     * @param headerBuffer
+     * @param indexEntryBuffer
+     */
     PartitionedFileReader(
             PartitionedFile partitionedFile,
             int targetSubpartition,
@@ -84,11 +98,20 @@ class PartitionedFileReader {
         this.indexEntryBuf = indexEntryBuffer;
     }
 
+    /**
+     * 切换到下个region
+     * @param indexEntryBuf
+     * @throws IOException
+     */
     private void moveToNextReadableRegion(ByteBuffer indexEntryBuf) throws IOException {
+
+        // 还有region
         while (currentRegionRemainingBytes <= 0
                 && nextRegionToRead < partitionedFile.getNumRegions()) {
+            // 得到索引数据
             partitionedFile.getIndexEntry(
                     indexFileChannel, indexEntryBuf, nextRegionToRead, targetSubpartition);
+            // 一个是偏移量一个是长度
             nextOffsetToRead = indexEntryBuf.getLong();
             currentRegionRemainingBytes = indexEntryBuf.getLong();
             ++nextRegionToRead;
@@ -118,12 +141,14 @@ class PartitionedFileReader {
 
         BufferAndHeader partialBuffer = new BufferAndHeader(null, null);
         try {
+            // 还有seg未填充数据  且还有数据
             while (!freeSegments.isEmpty() && currentRegionRemainingBytes > 0) {
                 MemorySegment segment = freeSegments.poll();
                 int numBytes = (int) Math.min(segment.size(), currentRegionRemainingBytes);
                 ByteBuffer byteBuffer = segment.wrap(0, numBytes);
 
                 try {
+                    // 读取数据到buffer中   注意header数据和data是挨个写入的
                     BufferReaderWriterUtil.readByteBufferFully(dataFileChannel, byteBuffer);
                     byteBuffer.flip();
                     currentRegionRemainingBytes -= byteBuffer.remaining();
@@ -136,6 +161,7 @@ class PartitionedFileReader {
                 NetworkBuffer buffer = new NetworkBuffer(segment, recycler);
                 buffer.setSize(byteBuffer.remaining());
                 try {
+                    // 产生buffer并处理
                     partialBuffer = processBuffer(byteBuffer, buffer, partialBuffer, consumer);
                 } catch (Throwable throwable) {
                     partialBuffer = new BufferAndHeader(null, null);
@@ -145,6 +171,7 @@ class PartitionedFileReader {
                 }
             }
         } finally {
+            // 进行修正工作
             if (headerBuf.position() > 0) {
                 nextOffsetToRead -= headerBuf.position();
                 currentRegionRemainingBytes += headerBuf.position();
@@ -168,6 +195,11 @@ class PartitionedFileReader {
         return currentRegionRemainingBytes > 0;
     }
 
+    /**
+     *
+     * @param initIndexEntryBuffer
+     * @throws IOException
+     */
     void initRegionIndex(ByteBuffer initIndexEntryBuffer) throws IOException {
         moveToNextReadableRegion(initIndexEntryBuffer);
     }
@@ -177,6 +209,14 @@ class PartitionedFileReader {
         return nextOffsetToRead;
     }
 
+    /**
+     *
+     * @param byteBuffer  存储有效数据的buffer
+     * @param buffer
+     * @param partialBuffer  待填充的buffer
+     * @param consumer  支持传入一个消费者处理数据
+     * @return
+     */
     private BufferAndHeader processBuffer(
             ByteBuffer byteBuffer,
             Buffer buffer,
@@ -185,16 +225,19 @@ class PartitionedFileReader {
         BufferHeader header = partialBuffer.header;
         CompositeBuffer targetBuffer = partialBuffer.buffer;
         while (byteBuffer.hasRemaining()) {
+            // 先解析头部数据  返回null表示本次数据不足
             if (header == null && (header = parseBufferHeader(byteBuffer)) == null) {
                 break;
             }
 
+            // 这个是存储结果数据的buffer  表示之前已经存储了部分数据了
             if (targetBuffer != null) {
                 buffer.retainBuffer();
                 int position = byteBuffer.position() + targetBuffer.missingLength();
                 targetBuffer.addPartialBuffer(
                         buffer.readOnlySlice(byteBuffer.position(), targetBuffer.missingLength()));
                 byteBuffer.position(position);
+                // 表示还需要读取下个buffer的数据
             } else if (byteBuffer.remaining() < header.getLength()) {
                 if (byteBuffer.hasRemaining()) {
                     buffer.retainBuffer();
@@ -204,8 +247,10 @@ class PartitionedFileReader {
                 }
                 break;
             } else {
+                // 表示byteBuffer中有足够的数据
                 buffer.retainBuffer();
                 targetBuffer = new CompositeBuffer(header);
+                // 将剩下的数据作为一个部分加入到 compositeBuffer中
                 targetBuffer.addPartialBuffer(
                         buffer.readOnlySlice(byteBuffer.position(), header.getLength()));
                 byteBuffer.position(byteBuffer.position() + header.getLength());
@@ -218,8 +263,14 @@ class PartitionedFileReader {
         return new BufferAndHeader(targetBuffer, header);
     }
 
+    /**
+     * 解析头部数据
+     * @param buffer
+     * @return
+     */
     private BufferHeader parseBufferHeader(ByteBuffer buffer) {
         BufferHeader header = null;
+        // headerBuf的长度应该就是  HEADER_LENGTH
         if (headerBuf.position() > 0) {
             while (headerBuf.hasRemaining()) {
                 headerBuf.put(buffer.get());
@@ -230,8 +281,10 @@ class PartitionedFileReader {
         }
 
         if (header == null && buffer.remaining() < HEADER_LENGTH) {
+            // 此时数据不完整  先写入一部分
             headerBuf.put(buffer);
         } else if (header == null) {
+            // buffer的数据足够   直接解析buffer即可
             header = BufferReaderWriterUtil.parseBufferHeader(buffer);
         }
         return header;

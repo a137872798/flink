@@ -73,10 +73,14 @@ public abstract class RegisteredRpcConnection<
      */
     private final Executor executor;
 
-    /** The Registration of this RPC connection. */
+    /** The Registration of this RPC connection.
+     * 表示一个在一个rpc服务上注册的一个实体  比如将TM注册到JM上
+     * */
     private volatile RetryingRegistration<F, G, S, R> pendingRegistration;
 
-    /** The gateway to register, it's null until the registration is completed. */
+    /** The gateway to register, it's null until the registration is completed.
+     * 对应要注册的网关
+     * */
     private volatile G targetGateway;
 
     /** Flag indicating that the RPC connection is closed. */
@@ -105,6 +109,7 @@ public abstract class RegisteredRpcConnection<
         final RetryingRegistration<F, G, S, R> newRegistration = createNewRegistration();
 
         if (REGISTRATION_UPDATER.compareAndSet(this, null, newRegistration)) {
+            // 触发注册
             newRegistration.startRegistration();
         } else {
             // concurrent start operation
@@ -127,10 +132,12 @@ public abstract class RegisteredRpcConnection<
         } else {
             final RetryingRegistration<F, G, S, R> currentPendingRegistration = pendingRegistration;
 
+            // 先取消当前注册操作
             if (currentPendingRegistration != null) {
                 currentPendingRegistration.cancel();
             }
 
+            // 这是重新注册
             final RetryingRegistration<F, G, S, R> newRegistration = createNewRegistration();
 
             if (REGISTRATION_UPDATER.compareAndSet(
@@ -239,7 +246,12 @@ public abstract class RegisteredRpcConnection<
     //  Internal methods
     // ------------------------------------------------------------------------
 
+    /**
+     * 产生注册对象
+     * @return
+     */
     private RetryingRegistration<F, G, S, R> createNewRegistration() {
+        // 先产生注册对象
         RetryingRegistration<F, G, S, R> newRegistration = checkNotNull(generateRegistration());
 
         CompletableFuture<RetryingRegistration.RetryingRegistrationResult<G, S, R>> future =
@@ -259,9 +271,11 @@ public abstract class RegisteredRpcConnection<
                         } else {
                             // this future should only ever fail if there is a bug, not if the
                             // registration is declined
+                            // 处理注册失败
                             onRegistrationFailure(failure);
                         }
                     } else {
+                        // 触发不同钩子
                         if (result.isSuccess()) {
                             targetGateway = result.getGateway();
                             onRegistrationSuccess(result.getSuccess());

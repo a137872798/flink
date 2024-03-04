@@ -31,6 +31,8 @@ import java.util.List;
  *
  * <p>The co-location group is used to make sure that the i-th subtasks for iteration head and
  * iteration tail are scheduled on the same TaskManager.
+ *
+ * 表示一个位置组
  */
 public interface CoLocationGroup {
 
@@ -38,6 +40,7 @@ public interface CoLocationGroup {
      * Returns the unique identifier describing this co-location constraint as a group.
      *
      * @return The group's identifier.
+     * 获取相关id
      */
     AbstractID getId();
 
@@ -45,6 +48,7 @@ public interface CoLocationGroup {
      * Returns the IDs of the {@link JobVertex} instances participating in this group.
      *
      * @return The group's members represented by their {@link JobVertexID}s.
+     * 获取组内的顶点
      */
     List<JobVertexID> getVertexIds();
 
@@ -54,6 +58,8 @@ public interface CoLocationGroup {
      * @param subTaskIndex The index of the subtasks for which a {@code CoLocationConstraint} shall
      *     be returned.
      * @return The corresponding {@code CoLocationConstraint} instance.
+     * 每个subTask 对应一个顶点
+     * 这里也就是获取某个顶点的约束信息
      */
     CoLocationConstraint getLocationConstraint(final int subTaskIndex);
 }

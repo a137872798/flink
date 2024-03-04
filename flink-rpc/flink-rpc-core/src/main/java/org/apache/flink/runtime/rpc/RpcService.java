@@ -29,6 +29,7 @@ import java.util.concurrent.CompletableFuture;
  * Interface for rpc services. An rpc service is used to start and connect to a {@link RpcEndpoint}.
  * Connecting to a rpc server will return a {@link RpcGateway} which can be used to call remote
  * procedures.
+ * 通过该对象提供rpc能力
  */
 public interface RpcService extends AutoCloseableAsync {
 
@@ -71,6 +72,7 @@ public interface RpcService extends AutoCloseableAsync {
      * @param <C> Type of the rpc gateway to return
      * @return Future containing the rpc gateway or an {@link RpcConnectionException} if the
      *     connection attempt failed
+     *     与某个地址建立连接 得到一个网关对象    网关对象就是与某个服务交互的代理层
      */
     <C extends RpcGateway> CompletableFuture<C> connect(String address, Class<C> clazz);
 
@@ -86,6 +88,7 @@ public interface RpcService extends AutoCloseableAsync {
      * @param <C> Type of the rpc gateway to return
      * @return Future containing the fenced rpc gateway or an {@link RpcConnectionException} if the
      *     connection attempt failed
+     *     Fenced 表示需要token才能访问
      */
     <F extends Serializable, C extends FencedRpcGateway<F>> CompletableFuture<C> connect(
             String address, F fencingToken, Class<C> clazz);

@@ -29,10 +29,14 @@ import java.io.IOException;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** The reader (read view) of a BoundedBlockingSubpartition. */
+/** The reader (read view) of a BoundedBlockingSubpartition.
+ * 用于读取子分区的数据
+ * */
 final class BoundedBlockingSubpartitionReader implements ResultSubpartitionView {
 
-    /** The result subpartition that we read. */
+    /** The result subpartition that we read.
+     * 该reader对象针对的子分区
+     * */
     private final BoundedBlockingSubpartition parent;
 
     /**
@@ -40,24 +44,36 @@ final class BoundedBlockingSubpartitionReader implements ResultSubpartitionView 
      */
     private final BufferAvailabilityListener availabilityListener;
 
-    /** The next buffer (look ahead). Null once the data is depleted or reader is disposed. */
+    /** The next buffer (look ahead). Null once the data is depleted or reader is disposed.
+     * 下一组数据
+     * */
     @Nullable private Buffer nextBuffer;
 
     /**
      * The reader/decoder to the memory mapped region with the data we currently read from. Null
      * once the reader empty or disposed.
+     * BoundedData 会提供reader对象 用于读取数据
      */
     @Nullable private BoundedData.Reader dataReader;
 
-    /** The remaining number of data buffers (not events) in the result. */
+    /** The remaining number of data buffers (not events) in the result.
+     * 剩余多少data buffer
+     * */
     private int dataBufferBacklog;
 
-    /** Flag whether this reader is released. Atomic, to avoid double release. */
+    /** Flag whether this reader is released. Atomic, to avoid double release.
+     * 读取对象是否已经被释放
+     * */
     private boolean isReleased;
 
+    /**
+     * 为读取到的数据赋予序列号
+     */
     private int sequenceNumber;
 
-    /** Convenience constructor that takes a single buffer. */
+    /** Convenience constructor that takes a single buffer.
+     * @param numDataBuffers 对应的子分区写入了多 data buffer
+     * */
     BoundedBlockingSubpartitionReader(
             BoundedBlockingSubpartition parent,
             BoundedData data,
@@ -82,6 +98,7 @@ final class BoundedBlockingSubpartitionReader implements ResultSubpartitionView 
     public BufferAndBacklog getNextBuffer() throws IOException {
         final Buffer current = nextBuffer; // copy reference to stack
 
+        // 表示没数据了
         if (current == null) {
             // as per contract, we must return null when the reader is empty,
             // but also in case the reader is disposed (rather than throwing an exception)
@@ -92,7 +109,11 @@ final class BoundedBlockingSubpartitionReader implements ResultSubpartitionView 
         }
 
         assert dataReader != null;
+
+        // 更新nextBuffer
         nextBuffer = dataReader.nextBuffer();
+
+        // 同时还可以知道下条记录的类型
         Buffer.DataType nextDataType =
                 nextBuffer != null ? nextBuffer.getDataType() : Buffer.DataType.NONE;
 
@@ -106,6 +127,7 @@ final class BoundedBlockingSubpartitionReader implements ResultSubpartitionView 
      * <p>For the other types the {@link #nextBuffer} can not be ever set to null, so it is no need
      * to notify available via this method. But the implementation is also compatible with other
      * types even though called by mistake.
+     * 通知有新数据了
      */
     @Override
     public void notifyDataAvailable() {
@@ -121,12 +143,17 @@ final class BoundedBlockingSubpartitionReader implements ResultSubpartitionView 
             }
 
             // next buffer is null indicates the end of partition
+            // 通知又有数据了
             if (nextBuffer != null) {
                 availabilityListener.notifyDataAvailable();
             }
         }
     }
 
+    /**
+     * 释放本对象持有的全部资源   并且本reader将无法使用
+     * @throws IOException
+     */
     @Override
     public void releaseAllResources() throws IOException {
         // it is not a problem if this method executes multiple times

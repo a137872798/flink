@@ -20,7 +20,9 @@ package org.apache.flink.runtime.io.network.buffer;
 
 import java.io.IOException;
 
-/** A factory for buffer pools. */
+/** A factory for buffer pools.
+ * 该对象用于产生 BufferPool
+ * */
 public interface BufferPoolFactory {
 
     /**

@@ -23,7 +23,12 @@ import java.io.IOException;
 /** Interface for creating result partitions. */
 public interface ResultPartitionProvider {
 
-    /** Returns the requested intermediate result partition input view. */
+    /** Returns the requested intermediate result partition input view.
+     * 执行分区 + subIndex  就可以定位到一个子分区
+     * @param partitionId
+     * @param index
+     * @param availabilityListener
+     * */
     ResultSubpartitionView createSubpartitionView(
             ResultPartitionID partitionId,
             int index,

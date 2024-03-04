@@ -33,6 +33,7 @@ import java.io.IOException;
 /**
  * Implementation of an iterator that fetches a block of data into main memory and offers resettable
  * access to the data in that block.
+ * 实现了ResettableMutableObjectIterator  可以迭代元素 还可以重置
  */
 public class BlockResettableMutableObjectIterator<T> extends AbstractBlockResettableIterator<T>
         implements ResettableMutableObjectIterator<T> {
@@ -43,12 +44,21 @@ public class BlockResettableMutableObjectIterator<T> extends AbstractBlockResett
 
     private final MutableObjectIterator<T> input;
 
+    /**
+     * 默认是false 也就是一开始没有数据可读
+     */
     private boolean readPhase;
 
     private boolean leftOverReturned;
 
+    /**
+     * 表示buffer写满了
+     */
     private boolean fullWriteBuffer;
 
+    /**
+     * 表示input的数据已经被读完
+     */
     private boolean noMoreBlocks;
 
     private T leftOverRecord;
@@ -71,6 +81,12 @@ public class BlockResettableMutableObjectIterator<T> extends AbstractBlockResett
 
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 开始迭代数据
+     * @param target
+     * @return
+     * @throws IOException
+     */
     @Override
     public T next(T target) throws IOException {
         // check for the left over element
@@ -78,25 +94,33 @@ public class BlockResettableMutableObjectIterator<T> extends AbstractBlockResett
             return getNextRecord(target);
         } else {
             // writing phase. check for leftover first
+            // 默认一开始在写阶段
+            // leftOverReturned 为true 表示 leftOverRecord的数据已经被使用
             if (this.leftOverReturned) {
                 // get next record
+                // 从迭代器读取数据
                 if ((target = this.input.next(target)) != null) {
+                    // 并写入output中
                     if (writeNextRecord(target)) {
                         return target;
                     } else {
                         // did not fit into memory, keep as leftover
+                        // 写入失败 内存不够了  使用 leftOverRecord 暂存结果
                         this.leftOverRecord = this.serializer.copy(target, this.leftOverRecord);
                         this.leftOverReturned = false;
                         this.fullWriteBuffer = true;
                         return null;
                     }
                 } else {
+                    //
                     this.noMoreBlocks = true;
                     return null;
                 }
+                // 此时buffer还是满的状态
             } else if (this.fullWriteBuffer) {
                 return null;
             } else {
+                // 使用 leftOverRecord 的数据
                 this.leftOverReturned = true;
                 target = this.serializer.copy(this.leftOverRecord, target);
                 return target;
@@ -143,6 +167,11 @@ public class BlockResettableMutableObjectIterator<T> extends AbstractBlockResett
         super.reset();
     }
 
+    /**
+     * 切换到下一个
+     * @return
+     * @throws IOException
+     */
     @Override
     public boolean nextBlock() throws IOException {
         // check the state
@@ -151,11 +180,13 @@ public class BlockResettableMutableObjectIterator<T> extends AbstractBlockResett
         }
 
         // check whether more blocks are available
+        // noMoreBlocks  表示input已经没有数据了  不需要再切换block了
         if (this.noMoreBlocks) {
             return false;
         }
 
         // reset the views in the superclass
+        // 切换到下个block  要重新使用之前的segment
         super.nextBlock();
 
         // if there is no leftover record, get a record such that we guarantee to advance
@@ -163,6 +194,7 @@ public class BlockResettableMutableObjectIterator<T> extends AbstractBlockResett
             if ((this.leftOverRecord = this.input.next(this.leftOverRecord)) != null) {
                 this.leftOverReturned = false;
             } else {
+                // 此时没数据了
                 this.noMoreBlocks = true;
                 this.fullWriteBuffer = true;
                 this.readPhase = false;
@@ -176,6 +208,7 @@ public class BlockResettableMutableObjectIterator<T> extends AbstractBlockResett
                     "BlockResettableIterator could not serialize record into fresh memory block: "
                             + "Record is too large.");
         }
+        // 因为开启了一个新的block 并且处于数据填充阶段    目前就不适合读取了
         this.readPhase = false;
         this.fullWriteBuffer = false;
 
@@ -188,6 +221,7 @@ public class BlockResettableMutableObjectIterator<T> extends AbstractBlockResett
      * there will be more data (possibly in another block).
      *
      * @return True, if there will be more data, false otherwise.
+     * 表示还有数据没读取出来
      */
     public boolean hasFurtherInput() {
         return !this.noMoreBlocks;

@@ -54,7 +54,9 @@ import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 
-/** The {@link ResourceManager}'s RPC gateway interface. */
+/** The {@link ResourceManager}'s RPC gateway interface.
+ * 通过网关与ResourceManager通信
+ * */
 public interface ResourceManagerGateway
         extends FencedRpcGateway<ResourceManagerId>, ClusterPartitionManager, BlocklistListener {
 
@@ -67,6 +69,7 @@ public interface ResourceManagerGateway
      * @param jobId The Job ID of the JobMaster that registers
      * @param timeout Timeout for the future to complete
      * @return Future registration response
+     * 借助网关对象 将JobMaster注册上去   JobMaster需要为job申请资源
      */
     CompletableFuture<RegistrationResponse> registerJobMaster(
             JobMasterId jobMasterId,
@@ -81,6 +84,7 @@ public interface ResourceManagerGateway
      * @param jobMasterId id of the JobMaster
      * @param resourceRequirements resource requirements
      * @return The confirmation that the requirements have been processed
+     * 告知资源管理器 job的资源开销
      */
     CompletableFuture<Acknowledge> declareRequiredResources(
             JobMasterId jobMasterId,
@@ -93,6 +97,7 @@ public interface ResourceManagerGateway
      * @param taskExecutorRegistration the task executor registration.
      * @param timeout The timeout for the response.
      * @return The future to the response by the ResourceManager.
+     * 还需要往资源管理器上注册 TaskExecutor
      */
     CompletableFuture<RegistrationResponse> registerTaskExecutor(
             TaskExecutorRegistration taskExecutorRegistration, @RpcTimeout Time timeout);
@@ -105,6 +110,7 @@ public interface ResourceManagerGateway
      * @param timeout for the operation
      * @return Future which is completed with {@link Acknowledge} once the slot report has been
      *     received.
+     *     作为 TaskManager 将内部的slot状态以报告形式通知给 ResourceManager
      */
     CompletableFuture<Acknowledge> sendSlotReport(
             ResourceID taskManagerResourceId,
@@ -118,6 +124,7 @@ public interface ResourceManagerGateway
      * @param instanceId TaskExecutor's instance id
      * @param slotID The SlotID of the freed slot
      * @param oldAllocationId to which the slot has been allocated
+     *                        将某个slot修改成free
      */
     void notifySlotAvailable(InstanceID instanceId, SlotID slotID, AllocationID oldAllocationId);
 
@@ -127,6 +134,7 @@ public interface ResourceManagerGateway
      * @param finalStatus final status with which to deregister the Flink application
      * @param diagnostics additional information for the resource management system, can be {@code
      *     null}
+     *                    注销某个应用
      */
     CompletableFuture<Acknowledge> deregisterApplication(
             final ApplicationStatus finalStatus, @Nullable final String diagnostics);
@@ -135,6 +143,7 @@ public interface ResourceManagerGateway
      * Gets the currently registered number of TaskManagers.
      *
      * @return The future to the number of registered TaskManagers.
+     * 返回注册的 TM数量
      */
     CompletableFuture<Integer> getNumberOfRegisteredTaskManagers();
 
@@ -144,6 +153,7 @@ public interface ResourceManagerGateway
      * @param heartbeatOrigin unique id of the task manager
      * @param heartbeatPayload payload from the originating TaskManager
      * @return future which is completed exceptionally if the operation fails
+     * 作为 TM 发送心跳给 RM
      */
     CompletableFuture<Void> heartbeatFromTaskManager(
             final ResourceID heartbeatOrigin, final TaskExecutorHeartbeatPayload heartbeatPayload);
@@ -153,6 +163,7 @@ public interface ResourceManagerGateway
      *
      * @param heartbeatOrigin unique id of the job manager
      * @return future which is completed exceptionally if the operation fails
+     * 作为 JM 发送心跳包  因为JM 也会拥有网关对象
      */
     CompletableFuture<Void> heartbeatFromJobManager(final ResourceID heartbeatOrigin);
 
@@ -161,6 +172,7 @@ public interface ResourceManagerGateway
      *
      * @param resourceID identifying the TaskManager to disconnect
      * @param cause for the disconnection of the TaskManager
+     *              让RM断开与TM的连接
      */
     void disconnectTaskManager(ResourceID resourceID, Exception cause);
 
@@ -170,6 +182,7 @@ public interface ResourceManagerGateway
      * @param jobId JobID for which the JobManager was the leader
      * @param jobStatus status of the job at the time of disconnection
      * @param cause for the disconnection of the JobManager
+     *              作为JM 断开与RM的连接
      */
     void disconnectJobManager(JobID jobId, JobStatus jobStatus, Exception cause);
 
@@ -178,6 +191,7 @@ public interface ResourceManagerGateway
      *
      * @param timeout of the request
      * @return Future collection of TaskManager information
+     * 获取所有注册的TE信息
      */
     CompletableFuture<Collection<TaskManagerInfo>> requestTaskManagerInfo(@RpcTimeout Time timeout);
 
@@ -187,6 +201,7 @@ public interface ResourceManagerGateway
      * @param taskManagerId identifying the TaskExecutor for which to return information
      * @param timeout of the request
      * @return Future TaskManager information and its allocated slots
+     * 查询某个TM信息
      */
     CompletableFuture<TaskManagerInfoWithSlots> requestTaskManagerDetailsInfo(
             ResourceID taskManagerId, @RpcTimeout Time timeout);
@@ -197,6 +212,7 @@ public interface ResourceManagerGateway
      *
      * @param timeout of the request
      * @return Future containing the resource overview
+     * 获取资源的概述信息
      */
     CompletableFuture<ResourceOverview> requestResourceOverview(@RpcTimeout Time timeout);
 
@@ -219,6 +235,7 @@ public interface ResourceManagerGateway
      * @param timeout for the asynchronous operation
      * @return Future which is completed with the {@link TransientBlobKey} after uploading the file
      *     to the {@link BlobServer}.
+     *     将请求转发给TM 要求其将文件上传到 BlobServer
      */
     CompletableFuture<TransientBlobKey> requestTaskManagerFileUploadByType(
             ResourceID taskManagerId, FileType fileType, @RpcTimeout Time timeout);
@@ -242,6 +259,7 @@ public interface ResourceManagerGateway
      * @param taskManagerId identifying the {@link TaskExecutor} to get log list from
      * @param timeout for the asynchronous operation
      * @return Future which is completed with the historical log list
+     * 获取TM相关的日志
      */
     CompletableFuture<Collection<LogInfo>> requestTaskManagerLogList(
             ResourceID taskManagerId, @RpcTimeout Time timeout);
@@ -253,6 +271,7 @@ public interface ResourceManagerGateway
      *     dump from
      * @param timeout timeout of the asynchronous operation
      * @return Future containing the thread dump information
+     * 获取线程栈信息
      */
     CompletableFuture<ThreadDumpInfo> requestThreadDump(
             ResourceID taskManagerId, @RpcTimeout Time timeout);
@@ -262,6 +281,7 @@ public interface ResourceManagerGateway
      *
      * @param taskManagerId identifying the {@link TaskExecutor}.
      * @return Future containing the task executor gateway.
+     * 获取某个执行器的线程信息
      */
     CompletableFuture<TaskExecutorThreadInfoGateway> requestTaskExecutorThreadInfoGateway(
             ResourceID taskManagerId, @RpcTimeout Time timeout);

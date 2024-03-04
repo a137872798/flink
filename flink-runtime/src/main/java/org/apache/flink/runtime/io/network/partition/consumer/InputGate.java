@@ -74,28 +74,47 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * subpartitions -- one for each parallel reduce subtask. As shown in the Figure, each reduce task
  * will have an input gate attached to it. This will provide its input, which will consist of one
  * subpartition from each partition of the intermediate result.
+ *
+ * 可以从gate对象读取数据   gate下面有多个channel  每个channel对应一个子分区
  */
 public abstract class InputGate
         implements PullingAsyncDataInput<BufferOrEvent>, AutoCloseable, ChannelStateHolder {
 
+    // 分别代表普通数据和高优先级数据
     protected final AvailabilityHelper availabilityHelper = new AvailabilityHelper();
-
     protected final AvailabilityHelper priorityAvailabilityHelper = new AvailabilityHelper();
 
+
+    /**
+     * 设置一个写入channel状态的对象
+     * @param channelStateWriter
+     */
     @Override
     public void setChannelStateWriter(ChannelStateWriter channelStateWriter) {
         for (int index = 0, numChannels = getNumberOfInputChannels();
                 index < numChannels;
                 index++) {
+
+            // 获取每个相关的通道
             final InputChannel channel = getChannel(index);
+
+            // 为所有channel设置writer对象
             if (channel instanceof ChannelStateHolder) {
                 ((ChannelStateHolder) channel).setChannelStateWriter(channelStateWriter);
             }
         }
     }
 
+    /**
+     * 表示该gate提供了多少条访问通道
+     * @return
+     */
     public abstract int getNumberOfInputChannels();
 
+    /**
+     * 表示是否所有数据都消费完了
+     * @return
+     */
     public abstract boolean isFinished();
 
     /**
@@ -105,6 +124,7 @@ public abstract class InputGate
      * getting next one.
      *
      * @return {@code Optional.empty()} if {@link #isFinished()} returns true.
+     * 获取下个数据  可能按照一定算法选择某个channel并读取数据
      */
     public abstract Optional<BufferOrEvent> getNext() throws IOException, InterruptedException;
 
@@ -119,6 +139,11 @@ public abstract class InputGate
      */
     public abstract Optional<BufferOrEvent> pollNext() throws IOException, InterruptedException;
 
+    /**
+     * 往channel发送事件
+     * @param event
+     * @throws IOException
+     */
     public abstract void sendTaskEvent(TaskEvent event) throws IOException;
 
     /**
@@ -131,8 +156,18 @@ public abstract class InputGate
         return availabilityHelper.getAvailableFuture();
     }
 
+    /**
+     * 重新消费这条channel
+     * @param channelInfo
+     * @throws IOException
+     */
     public abstract void resumeConsumption(InputChannelInfo channelInfo) throws IOException;
 
+    /**
+     * 告知该channel 所有消息都处理完毕了
+     * @param channelInfo
+     * @throws IOException
+     */
     public abstract void acknowledgeAllRecordsProcessed(InputChannelInfo channelInfo)
             throws IOException;
 
@@ -149,6 +184,7 @@ public abstract class InputGate
     /**
      * Notifies when a priority event has been enqueued. If this future is queried from task thread,
      * it is guaranteed that a priority event is available and retrieved through {@link #getNext()}.
+     * 表示优先级事件是否可用
      */
     public CompletableFuture<?> getPriorityEventAvailableFuture() {
         return priorityAvailabilityHelper.getAvailableFuture();
@@ -183,7 +219,9 @@ public abstract class InputGate
         }
     }
 
-    /** Setup gate, potentially heavy-weight, blocking operation comparing to just creation. */
+    /** Setup gate, potentially heavy-weight, blocking operation comparing to just creation.
+     * 进行初始化操作
+     * */
     public abstract void setup() throws IOException;
 
     public abstract void requestPartitions() throws IOException;

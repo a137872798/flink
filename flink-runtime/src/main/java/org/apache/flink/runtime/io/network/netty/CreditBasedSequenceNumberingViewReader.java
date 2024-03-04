@@ -41,18 +41,31 @@ import static org.apache.flink.util.Preconditions.checkArgument;
  *
  * <p>It also keeps track of available buffers and notifies the outbound handler about
  * non-emptiness, similar to the {@link LocalInputChannel}.
+ * 每个对象对应一个子分区   也就是一个channel
  */
 class CreditBasedSequenceNumberingViewReader
         implements BufferAvailabilityListener, NetworkSequenceViewReader {
 
     private final Object requestLock = new Object();
 
+    /**
+     * 对应的channel
+     */
     private final InputChannelID receiverId;
 
+    /**
+     * 需要将本对象加入到队列中
+     */
     private final PartitionRequestQueue requestQueue;
 
+    /**
+     * 表示首次请求的数据量
+     */
     private final int initialCredit;
 
+    /**
+     * 本对象关联的子分区视图对象  通过它可以读取子分区数据
+     */
     private volatile ResultSubpartitionView subpartitionView;
 
     /**
@@ -77,6 +90,13 @@ class CreditBasedSequenceNumberingViewReader
         this.requestQueue = requestQueue;
     }
 
+    /**
+     * 收到请求创建子分区视图
+     * @param partitionProvider  通过该对象得到子分区视图
+     * @param resultPartitionId
+     * @param subPartitionIndex  对应的子分区编号
+     * @throws IOException
+     */
     @Override
     public void requestSubpartitionView(
             ResultPartitionProvider partitionProvider,
@@ -105,6 +125,8 @@ class CreditBasedSequenceNumberingViewReader
     public void addCredit(int creditDeltas) {
         numCreditsAvailable += creditDeltas;
     }
+
+    // 从远端接收到 请求后再转发给本地子分区
 
     @Override
     public void notifyRequiredSegmentId(int segmentId) {

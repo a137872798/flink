@@ -18,7 +18,9 @@
 
 package org.apache.flink.runtime.io.network.partition;
 
-/** Type of a result partition. */
+/** Type of a result partition.
+ * 表示一个分区结果
+ * */
 public enum ResultPartitionType {
 
     /**
@@ -120,8 +122,11 @@ public enum ResultPartitionType {
 
     /** ConsumingConstraint indicates when can the downstream consume the upstream. */
     private enum ConsumingConstraint {
-        /** Upstream must be finished before downstream consume. */
+        /** Upstream must be finished before downstream consume.
+         * 表示必须等待上游消费完毕 下游才可以消费本对象产生的数据
+         * */
         BLOCKING,
+        // 消费数据并产生数据的同时  数据也可以被下游消费
         /** Downstream can consume while upstream is running. */
         CAN_BE_PIPELINED,
         /** Downstream must consume while upstream is running. */

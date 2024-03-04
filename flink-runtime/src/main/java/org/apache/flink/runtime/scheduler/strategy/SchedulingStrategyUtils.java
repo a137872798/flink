@@ -37,6 +37,11 @@ class SchedulingStrategyUtils {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * @param topology  拓扑图
+     * @param regions  所有要调度的流水线
+     * @return
+     */
     static List<SchedulingPipelinedRegion> sortPipelinedRegionsInTopologicalOrder(
             final SchedulingTopology topology, final Set<SchedulingPipelinedRegion> regions) {
 

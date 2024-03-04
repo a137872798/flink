@@ -44,10 +44,19 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/** Default handler for the {@link OperatorCoordinator OperatorCoordinators}. */
+/** Default handler for the {@link OperatorCoordinator OperatorCoordinators}.
+ * 该对象可以管理一组协调者
+ * */
 public class DefaultOperatorCoordinatorHandler implements OperatorCoordinatorHandler {
+
+    /**
+     * 对标一个job
+     */
     private final ExecutionGraph executionGraph;
 
+    /**
+     * 维护协调者的容器
+     */
     private final Map<OperatorID, OperatorCoordinatorHolder> coordinatorMap;
 
     private final GlobalFailureHandler globalFailureHandler;
@@ -63,8 +72,8 @@ public class DefaultOperatorCoordinatorHandler implements OperatorCoordinatorHan
     private static Map<OperatorID, OperatorCoordinatorHolder> createCoordinatorMap(
             ExecutionGraph executionGraph) {
         return executionGraph.getAllVertices().values().stream()
-                .filter(ExecutionJobVertex::isInitialized)
-                .flatMap(v -> v.getOperatorCoordinators().stream())
+                .filter(ExecutionJobVertex::isInitialized)  // 找到已经初始化的顶点   顶点对标task
+                .flatMap(v -> v.getOperatorCoordinators().stream())  // 每个协调者应该是对应每个子任务的
                 .collect(
                         Collectors.toMap(
                                 OperatorCoordinatorHolder::operatorId, Function.identity()));
@@ -73,6 +82,7 @@ public class DefaultOperatorCoordinatorHandler implements OperatorCoordinatorHan
     @Override
     public void initializeOperatorCoordinators(ComponentMainThreadExecutor mainThreadExecutor) {
         for (OperatorCoordinatorHolder coordinatorHolder : coordinatorMap.values()) {
+            // 执行延迟初始化
             coordinatorHolder.lazyInitialize(globalFailureHandler, mainThreadExecutor);
         }
     }
@@ -87,6 +97,13 @@ public class DefaultOperatorCoordinatorHandler implements OperatorCoordinatorHan
         coordinatorMap.values().forEach(IOUtils::closeQuietly);
     }
 
+    /**
+     * 将某个事件推送给某个协调者
+     * @param taskExecutionId Execution attempt id of the originating task.
+     * @param operatorId OperatorId of the target OperatorCoordinator.
+     * @param evt
+     * @throws FlinkException
+     */
     @Override
     public void deliverOperatorEventToCoordinator(
             final ExecutionAttemptID taskExecutionId,
@@ -100,6 +117,7 @@ public class DefaultOperatorCoordinatorHandler implements OperatorCoordinatorHan
         // then we assume that the call from the TaskManager was valid, and any bubbling exception
         // needs to cause a job failure.
 
+        // 找到执行对象 需要确保状态正确
         final Execution exec = executionGraph.getRegisteredExecutions().get(taskExecutionId);
         if (exec == null
                 || exec.getState() != ExecutionState.RUNNING
@@ -118,6 +136,7 @@ public class DefaultOperatorCoordinatorHandler implements OperatorCoordinatorHan
         }
 
         try {
+            // 操作者推送事件
             coordinator.handleEventFromOperator(
                     exec.getParallelSubtaskIndex(), exec.getAttemptNumber(), evt);
         } catch (Throwable t) {
@@ -126,6 +145,13 @@ public class DefaultOperatorCoordinatorHandler implements OperatorCoordinatorHan
         }
     }
 
+    /**
+     * 转发请求
+     * @param operator Id of target operator.
+     * @param request request for the operator.
+     * @return
+     * @throws FlinkException
+     */
     @Override
     public CompletableFuture<CoordinationResponse> deliverCoordinationRequestToCoordinator(
             OperatorID operator, CoordinationRequest request) throws FlinkException {
@@ -139,6 +165,7 @@ public class DefaultOperatorCoordinatorHandler implements OperatorCoordinatorHan
         }
 
         final OperatorCoordinator coordinator = coordinatorHolder.coordinator();
+        // 只有该类型才能处理req
         if (coordinator instanceof CoordinationRequestHandler) {
             return ((CoordinationRequestHandler) coordinator).handleCoordinationRequest(request);
         } else {
@@ -147,6 +174,11 @@ public class DefaultOperatorCoordinatorHandler implements OperatorCoordinatorHan
         }
     }
 
+    /**
+     * 添加一个新的协调者
+     * @param coordinators the operator coordinator to be registered.
+     * @param mainThreadExecutor Executor for submitting work to the main thread.
+     */
     @Override
     public void registerAndStartNewCoordinators(
             Collection<OperatorCoordinatorHolder> coordinators,
@@ -154,11 +186,16 @@ public class DefaultOperatorCoordinatorHandler implements OperatorCoordinatorHan
 
         for (OperatorCoordinatorHolder coordinator : coordinators) {
             coordinatorMap.put(coordinator.operatorId(), coordinator);
+            // 添加的同时延迟初始化
             coordinator.lazyInitialize(globalFailureHandler, mainThreadExecutor);
         }
         startOperatorCoordinators(coordinators);
     }
 
+    /**
+     * 启动协调者
+     * @param coordinators
+     */
     private void startOperatorCoordinators(Collection<OperatorCoordinatorHolder> coordinators) {
         try {
             for (OperatorCoordinatorHolder coordinator : coordinators) {

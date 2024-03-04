@@ -41,7 +41,9 @@ import static org.apache.flink.configuration.TaskManagerOptions.TASK_OFF_HEAP_ME
 import static org.apache.flink.runtime.taskexecutor.TaskExecutorResourceUtils.calculateTotalFlinkMemoryFromComponents;
 import static org.apache.flink.runtime.taskexecutor.TaskExecutorResourceUtils.calculateTotalProcessMemoryFromComponents;
 
-/** TaskExecutorConfiguration collects the configuration of a TaskExecutor instance. */
+/** TaskExecutorConfiguration collects the configuration of a TaskExecutor instance.
+ * 描述执行器的内存配置
+ * */
 public class TaskExecutorMemoryConfiguration implements Serializable {
     public static final String FIELD_NAME_FRAMEWORK_HEAP = "frameworkHeap";
     public static final String FIELD_NAME_TASK_HEAP = "taskHeap";

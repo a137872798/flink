@@ -26,7 +26,9 @@ import org.slf4j.Logger;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
-/** State which describes a finished job execution. */
+/** State which describes a finished job execution.
+ * 表示任务结束
+ * */
 class Finished implements State {
 
     private final ArchivedExecutionGraph archivedExecutionGraph;

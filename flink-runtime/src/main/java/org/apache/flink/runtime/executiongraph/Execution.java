@@ -110,6 +110,9 @@ import static org.apache.flink.util.Preconditions.checkState;
  * therefore use atomic state updates and occasional double-checking to ensure that the state after
  * a completed call is as expected, and trigger correcting actions if it is not. Many actions are
  * also idempotent (like canceling).
+ *
+ * 表示一个执行对象 不像ArchivedExecution只是存储一些基础信息  该对象包含了执行逻辑
+ * LogicalSlot.Payload 表示本对象是一个负载对象 是一个逻辑层面的槽
  */
 public class Execution
         implements AccessExecution, Archiveable<ArchivedExecution>, LogicalSlot.Payload {
@@ -120,26 +123,37 @@ public class Execution
 
     // --------------------------------------------------------------------------------------------
 
-    /** The executor which is used to execute futures. */
+    /** The executor which is used to execute futures.
+     * 使用该执行器 执行任务
+     * */
     private final Executor executor;
 
-    /** The execution vertex whose task this execution executes. */
+    /** The execution vertex whose task this execution executes.
+     * 本次执行操作所属的子任务
+     * */
     private final ExecutionVertex vertex;
 
-    /** The unique ID marking the specific execution instant of the task. */
+    /** The unique ID marking the specific execution instant of the task.
+     * 本对象ID 内部还包含了次数 表示当前是第几次执行
+     * */
     private final ExecutionAttemptID attemptId;
 
     /**
      * The timestamps when state transitions occurred, indexed by {@link ExecutionState#ordinal()}.
+     * 进入不同状态的时间戳
      */
     private final long[] stateTimestamps;
 
     /**
      * The end timestamps when state transitions occurred, indexed by {@link
      * ExecutionState#ordinal()}.
+     * 脱离状态的时间戳
      */
     private final long[] stateEndTimestamps;
 
+    /**
+     * 发起rpc请求的超时时间
+     */
     private final Time rpcTimeout;
 
     private final Collection<PartitionInfo> partitionInfos;
@@ -149,6 +163,9 @@ public class Execution
 
     private final CompletableFuture<?> releaseFuture;
 
+    /**
+     * TaskManagerLocation 简单理解是一个位置信息
+     */
     private final CompletableFuture<TaskManagerLocation> taskManagerLocationFuture;
 
     /**
@@ -158,8 +175,14 @@ public class Execution
      */
     private final CompletableFuture<?> initializingOrRunningFuture;
 
+    /**
+     * 初始状态就是创建
+     */
     private volatile ExecutionState state = CREATED;
 
+    /**
+     * 通过该对象可以找到资源
+     */
     private LogicalSlot assignedResource;
 
     private Optional<ErrorInfo> failureCause =
@@ -167,6 +190,7 @@ public class Execution
 
     /**
      * Information to restore the task on recovery, such as checkpoint id and task state snapshot.
+     * 表示可以从store中进行数据恢复
      */
     @Nullable private JobManagerTaskRestore taskRestore;
 
@@ -181,11 +205,16 @@ public class Execution
      */
     private final Object accumulatorLock = new Object();
 
-    /* Continuously updated map of user-defined accumulators */
+    /* Continuously updated map of user-defined accumulators
+    * 执行该对象就是为了生成累加值
+    * */
     private Map<String, Accumulator<?, ?>> userAccumulators;
 
     private IOMetrics ioMetrics;
 
+    /**
+     * 表示执行后产生的数据的分区信息
+     */
     private Map<IntermediateResultPartitionID, ResultPartitionDeploymentDescriptor>
             producedPartitions;
 
@@ -259,6 +288,10 @@ public class Execution
         return assignedAllocationID;
     }
 
+    /**
+     * 获取TM的位置信息
+     * @return
+     */
     public CompletableFuture<TaskManagerLocation> getTaskManagerLocationFuture() {
         return taskManagerLocationFuture;
     }
@@ -278,6 +311,7 @@ public class Execution
      *
      * @param logicalSlot to assign to this execution
      * @return true if the slot could be assigned to the execution, otherwise false
+     * 将slot分配给该对象
      */
     public boolean tryAssignResource(final LogicalSlot logicalSlot) {
 
@@ -326,6 +360,10 @@ public class Execution
         return this.vertex.getNextInputSplit(host, getAttemptNumber());
     }
 
+    /**
+     * 获取该执行对象关联的TM位置
+     * @return
+     */
     @Override
     public TaskManagerLocation getAssignedResourceLocation() {
         // returns non-null only when a location is already assigned
@@ -423,6 +461,12 @@ public class Execution
     //  Actions
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 在部署的时候 当为execution选择slot后
+     * 需要用slot相关的TMLocation 触发该方法
+     * @param location
+     * @return
+     */
     public CompletableFuture<Void> registerProducedPartitions(TaskManagerLocation location) {
 
         assertRunningInJobMasterMainThread();
@@ -507,6 +551,7 @@ public class Execution
      * Deploys the execution to the previously assigned resource.
      *
      * @throws JobException if the execution cannot be deployed to the assigned resource
+     * 在执行job前 需要部署
      */
     public void deploy() throws JobException {
         assertRunningInJobMasterMainThread();
@@ -794,6 +839,7 @@ public class Execution
      * @param lastSubsumedCheckpointId of the last subsumed checkpoint, a value of {@link
      *     org.apache.flink.runtime.checkpoint.CheckpointStoreUtil#INVALID_CHECKPOINT_ID} means no
      *     checkpoint has been subsumed.
+     *                                 当检查点完成时触发的钩子
      */
     public void notifyCheckpointOnComplete(
             long completedCheckpointId, long completedTimestamp, long lastSubsumedCheckpointId) {
@@ -849,6 +895,7 @@ public class Execution
      * @param timestamp of the checkpoint to trigger
      * @param checkpointOptions of the checkpoint to trigger
      * @return Future acknowledge which is returned once the checkpoint has been triggered
+     * 由 CheckpointCoordinator调度  用于产生检查点
      */
     public CompletableFuture<Acknowledge> triggerCheckpoint(
             long checkpointId, long timestamp, CheckpointOptions checkpointOptions) {
@@ -862,6 +909,7 @@ public class Execution
      * @param timestamp of the checkpoint to trigger
      * @param checkpointOptions of the checkpoint to trigger
      * @return Future acknowledge which is returned once the checkpoint has been triggered
+     * 由 CheckpointCoordinator调度  用于产生检查点
      */
     public CompletableFuture<Acknowledge> triggerSynchronousSavepoint(
             long checkpointId, long timestamp, CheckpointOptions checkpointOptions) {
@@ -888,6 +936,7 @@ public class Execution
      * Sends the operator event to the Task on the Task Executor.
      *
      * @return True, of the message was sent, false is the task is currently not running.
+     * 产生并发送事件
      */
     public CompletableFuture<Acknowledge> sendOperatorEvent(
             OperatorID operatorId, SerializedValue<OperatorEvent> event) {
@@ -1414,6 +1463,10 @@ public class Execution
     //  Miscellaneous
     // --------------------------------------------------------------------------------------------
 
+    /**
+     * 切换状态
+     * @param targetState
+     */
     public void transitionState(ExecutionState targetState) {
         transitionState(state, targetState);
     }

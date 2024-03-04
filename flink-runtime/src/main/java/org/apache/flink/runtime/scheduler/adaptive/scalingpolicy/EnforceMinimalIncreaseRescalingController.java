@@ -26,6 +26,7 @@ import static org.apache.flink.configuration.JobManagerOptions.MIN_PARALLELISM_I
 /**
  * Simple scaling policy for a reactive mode. The user can configure a minimum cumulative
  * parallelism increase to allow a scale up.
+ * 控制是否伸缩的策略
  */
 public class EnforceMinimalIncreaseRescalingController implements RescalingController {
 
@@ -39,6 +40,7 @@ public class EnforceMinimalIncreaseRescalingController implements RescalingContr
     public boolean shouldRescale(
             VertexParallelism currentParallelism, VertexParallelism newParallelism) {
         for (JobVertexID vertex : currentParallelism.getVertices()) {
+            // 当并行变化量超过 minParallelismIncrease 才需要伸缩
             int parallelismChange =
                     newParallelism.getParallelism(vertex)
                             - currentParallelism.getParallelism(vertex);

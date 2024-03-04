@@ -26,11 +26,16 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
-/** Represents execution vertices that will run the same shared slot. */
+/** Represents execution vertices that will run the same shared slot.
+ * 表示一组Execution 共享同一个 slot
+ * */
 class ExecutionSlotSharingGroup {
 
     private final Set<ExecutionVertexID> executionVertexIds;
 
+    /**
+     * 对应slot的资源
+     */
     private ResourceProfile resourceProfile = ResourceProfile.UNKNOWN;
 
     ExecutionSlotSharingGroup() {

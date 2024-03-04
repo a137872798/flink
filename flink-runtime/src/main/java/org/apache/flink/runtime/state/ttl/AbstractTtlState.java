@@ -35,12 +35,20 @@ import javax.annotation.Nullable;
  * @param <SV> The type of values kept internally in state without TTL
  * @param <TTLSV> The type of values kept internally in state with TTL
  * @param <S> Type of originally wrapped state object
+ *
+ *           所有具备ttl能力的state的骨架类   根据value的类型 分化出不同的子类
  */
 abstract class AbstractTtlState<K, N, SV, TTLSV, S extends InternalKvState<K, N, TTLSV>>
         extends AbstractTtlDecorator<S> implements InternalKvState<K, N, SV> {
+
+    /**
+     * 表示针对userValue的序列化对象
+     */
     private final TypeSerializer<SV> valueSerializer;
 
-    /** This registered callback is to be called whenever state is accessed for read or write. */
+    /** This registered callback is to be called whenever state is accessed for read or write.
+     * 每当访问到数据时 执行的回调函数
+     * */
     final Runnable accessCallback;
 
     AbstractTtlState(TtlStateContext<S, SV> ttlStateContext) {
@@ -76,6 +84,17 @@ abstract class AbstractTtlState<K, N, SV, TTLSV, S extends InternalKvState<K, N,
         original.setCurrentNamespace(namespace);
     }
 
+    /**
+     * 这种api ttl不支持
+     * @param serializedKeyAndNamespace Serialized key and namespace
+     * @param safeKeySerializer A key serializer which is safe to be used even in multi-threaded
+     *     context
+     * @param safeNamespaceSerializer A namespace serializer which is safe to be used even in
+     *     multi-threaded context
+     * @param safeValueSerializer A value serializer which is safe to be used even in multi-threaded
+     *     context
+     * @return
+     */
     @Override
     public byte[] getSerializedValue(
             byte[] serializedKeyAndNamespace,
@@ -85,6 +104,9 @@ abstract class AbstractTtlState<K, N, SV, TTLSV, S extends InternalKvState<K, N,
         throw new FlinkRuntimeException("Queryable state is not currently supported with TTL.");
     }
 
+    /**
+     * 从外部调用clear时 会间接触发accessCallback
+     */
     @Override
     public void clear() {
         original.clear();

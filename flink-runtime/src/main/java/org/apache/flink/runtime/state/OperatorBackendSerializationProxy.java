@@ -37,6 +37,7 @@ import static org.apache.flink.runtime.state.metainfo.StateMetaInfoSnapshotReade
 /**
  * Serialization proxy for all meta data in operator state backends. In the future we might also
  * requiresMigration the actual state serialization logic here.
+ * 用于序列化数据
  */
 public class OperatorBackendSerializationProxy extends VersionedIOReadableWritable {
 
@@ -54,6 +55,7 @@ public class OperatorBackendSerializationProxy extends VersionedIOReadableWritab
         META_INFO_SNAPSHOT_FORMAT_VERSION_MAPPER.put(6, CURRENT_STATE_META_INFO_SNAPSHOT_VERSION);
     }
 
+    // 存储 listState/broadcastState类型元数据
     private List<StateMetaInfoSnapshot> operatorStateMetaInfoSnapshots;
     private List<StateMetaInfoSnapshot> broadcastStateMetaInfoSnapshots;
     private ClassLoader userCodeClassLoader;

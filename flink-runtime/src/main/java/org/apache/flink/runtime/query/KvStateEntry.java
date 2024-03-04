@@ -32,6 +32,8 @@ import java.util.concurrent.ConcurrentMap;
  * @param <K> The type of key the state is associated to
  * @param <N> The type of the namespace the state is associated to
  * @param <V> The type of values kept internally in state
+ *
+ *           将kv状态对象 与 类加载器关联起来
  */
 @Internal
 public class KvStateEntry<K, N, V> {
@@ -39,6 +41,9 @@ public class KvStateEntry<K, N, V> {
     private final InternalKvState<K, N, V> state;
     private final KvStateInfo<K, N, V> stateInfo;
 
+    /**
+     * 表示序列化对象是无状态的
+     */
     private final boolean areSerializersStateless;
 
     private final ConcurrentMap<Thread, KvStateInfo<K, N, V>> serializerCache;
@@ -54,6 +59,7 @@ public class KvStateEntry<K, N, V> {
                         state.getValueSerializer());
         this.serializerCache = new ConcurrentHashMap<>();
         this.userClassLoader = userClassLoader;
+
         this.areSerializersStateless = stateInfo.duplicate() == stateInfo;
     }
 
@@ -67,9 +73,9 @@ public class KvStateEntry<K, N, V> {
 
     public KvStateInfo<K, N, V> getInfoForCurrentThread() {
         return areSerializersStateless
-                ? stateInfo
+                ? stateInfo  // 因为无状态 可以复用
                 : serializerCache.computeIfAbsent(
-                        Thread.currentThread(), t -> stateInfo.duplicate());
+                        Thread.currentThread(), t -> stateInfo.duplicate());  // 否则每个线程维护一个副本
     }
 
     public void clear() {

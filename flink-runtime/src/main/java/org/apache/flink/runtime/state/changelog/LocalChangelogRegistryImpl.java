@@ -36,17 +36,23 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.stream.Collectors;
 
+/**
+ * 本地changelog 默认实现
+ */
 @Internal
 public class LocalChangelogRegistryImpl implements LocalChangelogRegistry {
     private static final Logger LOG = LoggerFactory.getLogger(LocalChangelogRegistry.class);
     /**
      * All registered handles. (PhysicalStateHandleID, (handle, checkpointID)) represents a handle
      * and the latest checkpoint that refer to this handle.
+     * 也是维护 StreamStateHandle 和 checkpointID 的映射关系
      */
     private final Map<PhysicalStateHandleID, Tuple2<StreamStateHandle, Long>>
             handleToLastUsedCheckpointID = new ConcurrentHashMap<>();
 
-    /** Executor for async state deletion. */
+    /** Executor for async state deletion.
+     * 通过执行器进行删除
+     * */
     private final Executor asyncDisposalExecutor;
 
     public LocalChangelogRegistryImpl(Executor ioExecutor) {
@@ -84,6 +90,10 @@ public class LocalChangelogRegistryImpl implements LocalChangelogRegistry {
         }
     }
 
+    /**
+     * 看来多个stateHandle 可能会对应同一个检查点
+     * @param checkpointID to abort
+     */
     public void prune(long checkpointID) {
         Set<StreamStateHandle> handles =
                 handleToLastUsedCheckpointID.values().stream()

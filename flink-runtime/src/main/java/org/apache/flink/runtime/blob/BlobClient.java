@@ -60,12 +60,16 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
 /**
  * The BLOB client can communicate with the BLOB server and either upload (PUT), download (GET), or
  * delete (DELETE) BLOBs.
+ *
+ * 表示用于连接 BlobServer的客户端
  */
 public final class BlobClient implements Closeable {
 
     private static final Logger LOG = LoggerFactory.getLogger(BlobClient.class);
 
-    /** The socket connection to the BLOB server. */
+    /** The socket connection to the BLOB server.
+     * 通过套接字连接
+     * */
     private final Socket socket;
 
     /**
@@ -75,6 +79,8 @@ public final class BlobClient implements Closeable {
      * @param clientConfig additional configuration like SSL parameters required to connect to the
      *     blob server
      * @throws IOException thrown if the connection to the BLOB server could not be established
+     *
+     * 本对象比较简单没有做池化之类的
      */
     public BlobClient(InetSocketAddress serverAddress, Configuration clientConfig)
             throws IOException {
@@ -94,6 +100,7 @@ public final class BlobClient implements Closeable {
             // Establish the socket using the hostname and port. This avoids a potential issue where
             // the
             // InetSocketAddress can cache a failure in hostname resolution forever.
+            // 通过套接字编程创建连接
             socket.connect(
                     new InetSocketAddress(serverAddress.getHostName(), serverAddress.getPort()),
                     clientConfig.getInteger(BlobServerOptions.CONNECT_TIMEOUT));
@@ -119,6 +126,8 @@ public final class BlobClient implements Closeable {
      * @param blobClientConfig client configuration for the connection
      * @param numFetchRetries number of retries before failing
      * @throws IOException if an I/O error occurs during the download
+     *
+     * 作为客户端从指定address下载数据
      */
     static void downloadFromBlobServer(
             @Nullable JobID jobId,
@@ -205,6 +214,7 @@ public final class BlobClient implements Closeable {
      * @return an input stream to read the retrieved data from
      * @throws FileNotFoundException if there is no such file;
      * @throws IOException if an I/O error occurs during the download
+     * 产生一个读取server目标blob的文件流
      */
     InputStream getInternal(@Nullable JobID jobId, BlobKey blobKey) throws IOException {
 
@@ -223,8 +233,10 @@ public final class BlobClient implements Closeable {
 
             // Send GET header
             sendGetHeader(os, jobId, blobKey);
+            // 阻塞接收响应结果
             receiveAndCheckGetResponse(is);
 
+            // 将结果包装成输入流
             return new BlobInputStream(is, blobKey, os);
         } catch (Throwable t) {
             BlobUtils.closeSilently(socket, LOG);
@@ -258,6 +270,7 @@ public final class BlobClient implements Closeable {
             outputStream.write(JOB_RELATED_CONTENT);
             outputStream.write(jobId.getBytes());
         }
+        // 把blob信息写入套接字
         blobKey.writeToOutputStream(outputStream);
     }
 
@@ -294,6 +307,8 @@ public final class BlobClient implements Closeable {
      * @param blobType whether the BLOB should become permanent or transient
      * @return the computed BLOB key of the uploaded BLOB
      * @throws IOException thrown if an I/O error occurs while uploading the data to the BLOB server
+     *
+     * 将一个blob数据推送到服务器
      */
     BlobKey putBuffer(
             @Nullable JobID jobId, byte[] value, int offset, int len, BlobKey.BlobType blobType)
@@ -315,6 +330,7 @@ public final class BlobClient implements Closeable {
                             + ".");
         }
 
+        // 通过套接字发送数据
         try (BlobOutputStream os = new BlobOutputStream(jobId, blobType, socket)) {
             os.write(value, offset, len);
             // Receive blob key and compare
@@ -333,6 +349,8 @@ public final class BlobClient implements Closeable {
      * @param blobType whether the BLOB should become permanent or transient
      * @return the computed BLOB key of the uploaded BLOB
      * @throws IOException thrown if an I/O error occurs while uploading the data to the BLOB server
+     *
+     * 从输出流中获取数据 推送到服务器
      */
     BlobKey putInputStream(
             @Nullable JobID jobId, InputStream inputStream, BlobKey.BlobType blobType)
@@ -367,6 +385,8 @@ public final class BlobClient implements Closeable {
      * @param jobId ID of the job this blob belongs to (or <tt>null</tt> if job-unrelated)
      * @param files List of files to upload
      * @throws IOException if the upload fails
+     *
+     * 提交一组本地文件
      */
     public static List<PermanentBlobKey> uploadFiles(
             InetSocketAddress serverAddress,

@@ -49,22 +49,30 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 
-/** An archived execution graph represents a serializable form of an {@link ExecutionGraph}. */
+/** An archived execution graph represents a serializable form of an {@link ExecutionGraph}.
+ * 表示整个job图
+ * */
 public class ArchivedExecutionGraph implements AccessExecutionGraph, Serializable {
 
     private static final long serialVersionUID = 7231383912742578428L;
     // --------------------------------------------------------------------------------------------
 
-    /** The ID of the job this graph has been built for. */
+    /** The ID of the job this graph has been built for.
+     * 关联的job  job下有多个顶点(构成了图)
+     * */
     private final JobID jobID;
 
     /** The name of the original job graph. */
     private final String jobName;
 
-    /** All job vertices that are part of this graph. */
+    /** All job vertices that are part of this graph.
+     * 内部各顶点   其中每个ArchivedExecutionJobVertex 根据并行度还会分为多个  ArchivedExecutionVertex
+     * */
     private final Map<JobVertexID, ArchivedExecutionJobVertex> tasks;
 
-    /** All vertices, in the order in which they were created. * */
+    /** All vertices, in the order in which they were created. *
+     * 关联的所有job顶点
+     * */
     private final List<ArchivedExecutionJobVertex> verticesInCreationOrder;
 
     /**
@@ -72,6 +80,7 @@ public class ArchivedExecutionGraph implements AccessExecutionGraph, Serializabl
      * execution graph transitioned into a certain state. The index into this array is the ordinal
      * of the enum value, i.e. the timestamp when the graph went into state "RUNNING" is at {@code
      * stateTimestamps[RUNNING.ordinal()]}.
+     * 进入不同状态的时间戳
      */
     private final long[] stateTimestamps;
 
@@ -94,6 +103,10 @@ public class ArchivedExecutionGraph implements AccessExecutionGraph, Serializabl
     private final StringifiedAccumulatorResult[] archivedUserAccumulators;
     private final ArchivedExecutionConfig archivedExecutionConfig;
     private final boolean isStoppable;
+
+    /**
+     * 该job产生的累加结果
+     */
     private final Map<String, SerializedValue<OptionalFailure<Object>>> serializedUserAccumulators;
 
     @Nullable private final CheckpointCoordinatorConfiguration jobCheckpointingConfiguration;
@@ -108,6 +121,27 @@ public class ArchivedExecutionGraph implements AccessExecutionGraph, Serializabl
 
     @Nullable private final String changelogStorageName;
 
+    /**
+     * 初始化时 各字段都是直接传入的
+     * @param jobID
+     * @param jobName
+     * @param tasks
+     * @param verticesInCreationOrder
+     * @param stateTimestamps
+     * @param state
+     * @param failureCause
+     * @param jsonPlan
+     * @param archivedUserAccumulators
+     * @param serializedUserAccumulators
+     * @param executionConfig
+     * @param isStoppable
+     * @param jobCheckpointingConfiguration
+     * @param checkpointStatsSnapshot
+     * @param stateBackendName
+     * @param checkpointStorageName
+     * @param stateChangelogEnabled
+     * @param changelogStorageName
+     */
     public ArchivedExecutionGraph(
             JobID jobID,
             String jobName,
@@ -186,6 +220,10 @@ public class ArchivedExecutionGraph implements AccessExecutionGraph, Serializabl
         return Collections.<JobVertexID, AccessExecutionJobVertex>unmodifiableMap(this.tasks);
     }
 
+    /**
+     * 返回内部的顶点
+     * @return
+     */
     @Override
     public Iterable<ArchivedExecutionJobVertex> getVerticesTopologically() {
         // we return a specific iterator that does not fail with concurrent modifications
@@ -221,6 +259,10 @@ public class ArchivedExecutionGraph implements AccessExecutionGraph, Serializabl
         };
     }
 
+    /**
+     * 遍历所有subtask级别的数据
+     * @return
+     */
     @Override
     public Iterable<ArchivedExecutionVertex> getAllExecutionVertices() {
         return new Iterable<ArchivedExecutionVertex>() {
@@ -303,6 +345,7 @@ public class ArchivedExecutionGraph implements AccessExecutionGraph, Serializabl
      * @param statusOverride optionally overrides the JobStatus of the ExecutionGraph with a
      *     non-globally-terminal state and clears timestamps of globally-terminal states
      * @return ArchivedExecutionGraph created from the given ExecutionGraph
+     * 从执行图中提取出数据 产生本对象
      */
     public static ArchivedExecutionGraph createFrom(
             ExecutionGraph executionGraph, @Nullable JobStatus statusOverride) {
@@ -335,6 +378,7 @@ public class ArchivedExecutionGraph implements AccessExecutionGraph, Serializabl
             }
         }
 
+        // 属性大都是从ExecutionGraph获取的
         return new ArchivedExecutionGraph(
                 executionGraph.getJobID(),
                 executionGraph.getJobName(),

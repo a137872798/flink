@@ -31,6 +31,7 @@ import java.util.concurrent.Future;
  *
  * @see TaskInvokable
  * @see AbstractInvokable
+ * 表示该任务 可以产生检查点
  */
 @Internal
 public interface CheckpointableTask {
@@ -44,10 +45,12 @@ public interface CheckpointableTask {
      * #triggerCheckpointOnBarrier(CheckpointMetaData, CheckpointOptions, CheckpointMetricsBuilder)}
      * method.
      *
-     * @param checkpointMetaData Meta data for about this checkpoint
-     * @param checkpointOptions Options for performing this checkpoint
+     * @param checkpointMetaData Meta data for about this checkpoint      检查点元数据
+     * @param checkpointOptions Options for performing this checkpoint    一些选项信息
      * @return future with value of {@code false} if the checkpoint was not carried out, {@code
      *     true} otherwise
+     *
+     *     异步产生检查点
      */
     CompletableFuture<Boolean> triggerCheckpointAsync(
             CheckpointMetaData checkpointMetaData, CheckpointOptions checkpointOptions);
@@ -60,6 +63,8 @@ public interface CheckpointableTask {
      * @param checkpointOptions Options for performing this checkpoint
      * @param checkpointMetrics Metrics about this checkpoint
      * @throws IOException Exceptions thrown as the result of triggering a checkpoint are forwarded.
+     *
+     * 在所有输入流上设置屏障   直到该检查点完成
      */
     void triggerCheckpointOnBarrier(
             CheckpointMetaData checkpointMetaData,
@@ -73,6 +78,7 @@ public interface CheckpointableTask {
      *
      * @param checkpointId The ID of the checkpoint that is complete.
      * @return future that completes when the notification has been processed by the task.
+     * 通知检查点完成了
      */
     Future<Void> notifyCheckpointCompleteAsync(long checkpointId);
 
@@ -84,6 +90,8 @@ public interface CheckpointableTask {
      * @param checkpointId The ID of the checkpoint that is aborted.
      * @param latestCompletedCheckpointId The ID of the latest completed checkpoint.
      * @return future that completes when the notification has been processed by the task.
+     *
+     * 通知检查点被终止
      */
     Future<Void> notifyCheckpointAbortAsync(long checkpointId, long latestCompletedCheckpointId);
 
@@ -93,6 +101,7 @@ public interface CheckpointableTask {
      *
      * @param checkpointId The ID of the checkpoint that is subsumed.
      * @return future that completes when the notification has been processed by the task.
+     * 通知检查点被暂停
      */
     Future<Void> notifyCheckpointSubsumedAsync(long checkpointId);
 
@@ -105,6 +114,7 @@ public interface CheckpointableTask {
      *
      * @param checkpointId The ID of the checkpoint to be aborted.
      * @param cause The reason why the checkpoint was aborted during alignment
+     *              关闭检查点屏障
      */
     void abortCheckpointOnBarrier(long checkpointId, CheckpointException cause) throws IOException;
 }

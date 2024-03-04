@@ -24,12 +24,15 @@ import org.apache.flink.runtime.taskmanager.TaskManagerLocation;
 
 import java.util.Optional;
 
-/** Common interface for the runtime {@link Execution} and {@link ArchivedExecution}. */
+/** Common interface for the runtime {@link Execution} and {@link ArchivedExecution}.
+ * 提供访问接口
+ * */
 public interface AccessExecution {
     /**
      * Returns the {@link ExecutionAttemptID} for this Execution.
      *
      * @return ExecutionAttemptID for this execution
+     * 其中还包含了重试次数   因为Execution是允许重试的
      */
     ExecutionAttemptID getAttemptId();
 
@@ -37,6 +40,7 @@ public interface AccessExecution {
      * Returns the attempt number for this execution.
      *
      * @return attempt number for this execution.
+     * 获取当前重试次数
      */
     int getAttemptNumber();
 
@@ -44,6 +48,7 @@ public interface AccessExecution {
      * Returns the timestamps for every {@link ExecutionState}.
      *
      * @return timestamps for each state
+     * 记录切换到不同状态的时间戳
      */
     long[] getStateTimestamps();
 
@@ -51,6 +56,7 @@ public interface AccessExecution {
      * Returns the end timestamps for every {@link ExecutionState}.
      *
      * @return timestamps for each state
+     * 就每个状态切换前的时间戳
      */
     long[] getStateEndTimestamps();
 
@@ -58,6 +64,7 @@ public interface AccessExecution {
      * Returns the current {@link ExecutionState} for this execution.
      *
      * @return execution state for this execution
+     * 获取当前状态
      */
     ExecutionState getState();
 
@@ -65,6 +72,7 @@ public interface AccessExecution {
      * Returns the {@link TaskManagerLocation} for this execution.
      *
      * @return taskmanager location for this execution.
+     * 获取TaskManager的位置
      */
     TaskManagerLocation getAssignedResourceLocation();
 
@@ -75,6 +83,7 @@ public interface AccessExecution {
      * @return an {@code Optional} of {@link ErrorInfo} containing the {@code Throwable} and the
      *     time it was registered if an error occurred. If no error occurred an empty {@code
      *     Optional} will be returned.
+     *     获取失败信息
      */
     Optional<ErrorInfo> getFailureInfo();
 
@@ -83,6 +92,7 @@ public interface AccessExecution {
      *
      * @param state state for which the timestamp should be returned
      * @return timestamp for the given state
+     * 获取进入该状态的时间戳
      */
     long getStateTimestamp(ExecutionState state);
 
@@ -91,6 +101,7 @@ public interface AccessExecution {
      *
      * @param state state for which the timestamp should be returned
      * @return timestamp for the given state
+     * 结束该状态的时间戳
      */
     long getStateEndTimestamp(ExecutionState state);
 
@@ -98,6 +109,7 @@ public interface AccessExecution {
      * Returns the user-defined accumulators as strings.
      *
      * @return user-defined accumulators as strings.
+     * 表示一个累加的结果
      */
     StringifiedAccumulatorResult[] getUserAccumulatorsStringified();
 
@@ -105,8 +117,13 @@ public interface AccessExecution {
      * Returns the subtask index of this execution.
      *
      * @return subtask index of this execution.
+     * 该execution 对应的subtaskIndex
      */
     int getParallelSubtaskIndex();
 
+    /**
+     * 先忽略统计数据
+     * @return
+     */
     IOMetrics getIOMetrics();
 }

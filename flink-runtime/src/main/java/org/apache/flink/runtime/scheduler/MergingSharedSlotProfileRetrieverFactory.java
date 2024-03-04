@@ -37,10 +37,19 @@ import java.util.function.Supplier;
 class MergingSharedSlotProfileRetrieverFactory
         implements SharedSlotProfileRetriever.SharedSlotProfileRetrieverFactory {
 
+    /**
+     * 该对象可以为Execution选择合适的TMLocation
+     */
     private final SyncPreferredLocationsRetriever preferredLocationsRetriever;
 
+    /**
+     * 表示优先采用的slot
+     */
     private final Function<ExecutionVertexID, Optional<AllocationID>> priorAllocationIdRetriever;
 
+    /**
+     * 已经分配的slot
+     */
     private final Supplier<Set<AllocationID>> reservedAllocationIdsRetriever;
 
     MergingSharedSlotProfileRetrieverFactory(
@@ -63,7 +72,9 @@ class MergingSharedSlotProfileRetrieverFactory
      * schedule.
      */
     private class MergingSharedSlotProfileRetriever implements SharedSlotProfileRetriever {
-        /** All reserved {@link AllocationID}s of the job. */
+        /** All reserved {@link AllocationID}s of the job.
+         * 表示已分配的slot
+         * */
         private final Set<AllocationID> reservedAllocationIds;
 
         /** All {@link ExecutionVertexID}s of the bulk. */
@@ -96,6 +107,8 @@ class MergingSharedSlotProfileRetrieverFactory
         public SlotProfile getSlotProfile(
                 ExecutionSlotSharingGroup executionSlotSharingGroup,
                 ResourceProfile physicalSlotResourceProfile) {
+
+            // 分别记录优选位置和slot
             Collection<AllocationID> priorAllocations = new HashSet<>();
             Collection<TaskManagerLocation> preferredLocations = new ArrayList<>();
             for (ExecutionVertexID execution : executionSlotSharingGroup.getExecutionVertexIds()) {

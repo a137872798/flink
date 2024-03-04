@@ -39,6 +39,7 @@ import static org.apache.flink.util.Preconditions.checkNotNull;
  * {@link LeaderRetrievalDriver}, we could retrieve the leader information from different storage.
  * The leader address as well as the current leader session ID will be retrieved from {@link
  * LeaderRetrievalDriver}.
+ * 默认的leader检索服务
  */
 public class DefaultLeaderRetrievalService
         implements LeaderRetrievalService, LeaderRetrievalEventHandler {
@@ -46,8 +47,14 @@ public class DefaultLeaderRetrievalService
 
     private final Object lock = new Object();
 
+    /**
+     * 通过该对象可以产生驱动  实际干活的也是驱动对象
+     */
     private final LeaderRetrievalDriverFactory leaderRetrievalDriverFactory;
 
+    /**
+     * 最近一次发现的leader地址
+     */
     @GuardedBy("lock")
     @Nullable
     private String lastLeaderAddress;
@@ -59,7 +66,9 @@ public class DefaultLeaderRetrievalService
     @GuardedBy("lock")
     private volatile boolean running;
 
-    /** Listener which will be notified about leader changes. */
+    /** Listener which will be notified about leader changes.
+     * 当感知到leader地址时 需要通知监听器
+     * */
     private volatile LeaderRetrievalListener leaderListener;
 
     private LeaderRetrievalDriver leaderRetrievalDriver;
@@ -83,6 +92,11 @@ public class DefaultLeaderRetrievalService
         running = false;
     }
 
+    /**
+     * 启动服务
+     * @param listener The leader retrieval listener which will be notified about new leaders.
+     * @throws Exception
+     */
     @Override
     public void start(LeaderRetrievalListener listener) throws Exception {
         checkNotNull(listener, "Listener must not be null.");
@@ -91,6 +105,7 @@ public class DefaultLeaderRetrievalService
                 "DefaultLeaderRetrievalService can " + "only be started once.");
 
         synchronized (lock) {
+            // 设置监听器  创建驱动
             leaderListener = listener;
             leaderRetrievalDriver =
                     leaderRetrievalDriverFactory.createLeaderRetrievalDriver(
@@ -120,6 +135,7 @@ public class DefaultLeaderRetrievalService
      *
      * @param leaderInformation new notified leader information address. The exception will be
      *     handled by leader listener.
+     *                          本对象作为事件处理器注册到驱动上  当发现新信息时触发钩子
      */
     @Override
     @GuardedBy("lock")
@@ -146,6 +162,7 @@ public class DefaultLeaderRetrievalService
                     lastLeaderSessionID = newLeaderSessionID;
 
                     // Notify the listener only when the leader is truly changed.
+                    // 再转发给监听器
                     leaderListener.notifyLeaderAddress(newLeaderAddress, newLeaderSessionID);
                 }
             } else {
@@ -171,6 +188,7 @@ public class DefaultLeaderRetrievalService
                     return;
                 }
 
+                // 转发监听器
                 if (throwable instanceof LeaderRetrievalException) {
                     leaderListener.handleError((LeaderRetrievalException) throwable);
                 } else {

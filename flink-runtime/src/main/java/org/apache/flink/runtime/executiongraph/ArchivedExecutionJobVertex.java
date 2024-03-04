@@ -26,11 +26,21 @@ import java.io.Serializable;
 
 import static org.apache.flink.runtime.executiongraph.ExecutionJobVertex.getAggregateJobVertexState;
 
+/**
+ * job级别的顶点   每个ArchivedExecutionVertex 只是对应了一个subtask
+ */
 public class ArchivedExecutionJobVertex implements AccessExecutionJobVertex, Serializable {
 
     private static final long serialVersionUID = -5768187638639437957L;
+
+    /**
+     * 每个对应一个subtask
+     */
     private final ArchivedExecutionVertex[] taskVertices;
 
+    /**
+     * 该顶点id
+     */
     private final JobVertexID id;
 
     private final String name;
@@ -41,14 +51,21 @@ public class ArchivedExecutionJobVertex implements AccessExecutionJobVertex, Ser
 
     private final ResourceProfile resourceProfile;
 
+    /**
+     * 本次执行后产生的各聚合结果
+     */
     private final StringifiedAccumulatorResult[] archivedUserAccumulators;
 
     public ArchivedExecutionJobVertex(ExecutionJobVertex jobVertex) {
+
+        // 针对多个subtask
         this.taskVertices = new ArchivedExecutionVertex[jobVertex.getTaskVertices().length];
         for (int x = 0; x < taskVertices.length; x++) {
+            // 挨个产生归档对象
             taskVertices[x] = jobVertex.getTaskVertices()[x].archive();
         }
 
+        // 获取聚合结果
         archivedUserAccumulators = jobVertex.getAggregatedUserAccumulatorsStringified();
 
         this.id = jobVertex.getJobVertexId();
@@ -109,8 +126,13 @@ public class ArchivedExecutionJobVertex implements AccessExecutionJobVertex, Ser
         return taskVertices;
     }
 
+    /**
+     * 将所有 subtask的执行状态聚合起来
+     * @return
+     */
     @Override
     public ExecutionState getAggregateState() {
+        // num 存储了每种状态出现的次数
         int[] num = new int[ExecutionState.values().length];
         for (ArchivedExecutionVertex vertex : this.taskVertices) {
             num[vertex.getExecutionState().ordinal()]++;

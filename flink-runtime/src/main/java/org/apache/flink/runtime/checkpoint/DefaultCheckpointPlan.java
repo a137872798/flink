@@ -40,12 +40,24 @@ import static org.apache.flink.util.Preconditions.checkState;
 /** The default implementation of he {@link CheckpointPlan}. */
 public class DefaultCheckpointPlan implements CheckpointPlan {
 
+    /**
+     * 表示一组需要执行的任务
+     */
     private final List<Execution> tasksToTrigger;
 
+    /**
+     * 一组等待的任务
+     */
     private final List<Execution> tasksToWaitFor;
 
+    /**
+     * 一组需要提交的任务
+     */
     private final List<ExecutionVertex> tasksToCommitTo;
 
+    /**
+     * 一组已经完成的任务
+     */
     private final List<Execution> finishedTasks;
 
     private final boolean mayHaveFinishedTasks;
@@ -54,6 +66,15 @@ public class DefaultCheckpointPlan implements CheckpointPlan {
 
     private final IdentityHashMap<ExecutionJobVertex, Integer> vertexOperatorsFinishedTasksCount;
 
+    /**
+     * 检查点计划 维护着各种execution
+     * @param tasksToTrigger
+     * @param tasksToWaitFor
+     * @param tasksToCommitTo
+     * @param finishedTasks
+     * @param fullyFinishedJobVertex
+     * @param mayHaveFinishedTasks
+     */
     DefaultCheckpointPlan(
             List<Execution> tasksToTrigger,
             List<Execution> tasksToWaitFor,
@@ -69,6 +90,8 @@ public class DefaultCheckpointPlan implements CheckpointPlan {
         this.mayHaveFinishedTasks = mayHaveFinishedTasks;
 
         this.fullyFinishedOrFinishedOnRestoreVertices = new HashMap<>();
+
+        // 把这组对象填充到 fullyFinishedOrFinishedOnRestoreVertices 内
         fullyFinishedJobVertex.forEach(
                 jobVertex ->
                         fullyFinishedOrFinishedOnRestoreVertices.put(
@@ -107,36 +130,53 @@ public class DefaultCheckpointPlan implements CheckpointPlan {
         return mayHaveFinishedTasks;
     }
 
+    /**
+     * 当某个task报告已经完成恢复 就加入对应的容器
+     * @param task
+     */
     @Override
     public void reportTaskFinishedOnRestore(ExecutionVertex task) {
         fullyFinishedOrFinishedOnRestoreVertices.putIfAbsent(
                 task.getJobvertexId(), task.getJobVertex());
     }
 
+    /**
+     * 增加次数
+     * @param task
+     */
     @Override
     public void reportTaskHasFinishedOperators(ExecutionVertex task) {
         vertexOperatorsFinishedTasksCount.compute(
                 task.getJobVertex(), (k, v) -> v == null ? 1 : v + 1);
     }
 
+    /**
+     *
+     * @param operatorStates  相当于用本对象内部的finished数据来填充 operatorStates
+     */
     @Override
     public void fulfillFinishedTaskStatus(Map<OperatorID, OperatorState> operatorStates) {
+        // 此时还没有完成的任务  直接返回
         if (!mayHaveFinishedTasks) {
             return;
         }
 
         Map<JobVertexID, ExecutionJobVertex> partlyFinishedVertex = new HashMap<>();
+        // 遍历所有已经完成的task
         for (Execution task : finishedTasks) {
             JobVertexID jobVertexId = task.getVertex().getJobvertexId();
+            // 不在完全结束的容器中  就加入到部分结束的容器
             if (!fullyFinishedOrFinishedOnRestoreVertices.containsKey(jobVertexId)) {
                 partlyFinishedVertex.put(jobVertexId, task.getVertex().getJobVertex());
             }
         }
 
+        // 这2个方法都是检测是否有union
         checkNoPartlyFinishedVertexUsedUnionListState(partlyFinishedVertex, operatorStates);
         checkNoPartlyOperatorsFinishedVertexUsedUnionListState(
                 partlyFinishedVertex, operatorStates);
 
+        // 根据fullyFinishedOrFinishedOnRestoreVertices的信息 将operatorStates中匹配的状态更新成fully
         fulfillFullyFinishedOrFinishedOnRestoreOperatorStates(operatorStates);
         fulfillSubtaskStateForPartiallyFinishedOperators(operatorStates);
     }
@@ -150,6 +190,7 @@ public class DefaultCheckpointPlan implements CheckpointPlan {
             Map<JobVertexID, ExecutionJobVertex> partlyFinishedVertex,
             Map<OperatorID, OperatorState> operatorStates) {
         for (ExecutionJobVertex vertex : partlyFinishedVertex.values()) {
+            // 如果job与入参有交集 并且mode为union 抛出异常
             if (hasUsedUnionListState(vertex, operatorStates)) {
                 throw new PartialFinishingNotSupportedByStateException(
                         String.format(
@@ -176,12 +217,13 @@ public class DefaultCheckpointPlan implements CheckpointPlan {
 
             // If the vertex is partly finished, then it must not used UnionListState
             // due to it passed the previous check.
+            // 表示在checkNoPartlyFinishedVertexUsedUnionListState已经完成检查了 跳过
             if (partlyFinishedVertex.containsKey(vertex.getJobVertexId())) {
                 continue;
             }
 
-            if (entry.getValue() != vertex.getParallelism()
-                    && hasUsedUnionListState(vertex, operatorStates)) {
+            if (entry.getValue() != vertex.getParallelism()  // 表示并不是所有子任务都已经完成  也就是部分完成
+                    && hasUsedUnionListState(vertex, operatorStates)) {  // 部分完成才需要检测
                 throw new PartialFinishingNotSupportedByStateException(
                         String.format(
                                 "The vertex %s (id = %s) has used"
@@ -193,13 +235,17 @@ public class DefaultCheckpointPlan implements CheckpointPlan {
 
     private boolean hasUsedUnionListState(
             ExecutionJobVertex vertex, Map<OperatorID, OperatorState> operatorStates) {
+
+        // 遍历涉及到的所有operator
         for (OperatorIDPair operatorIDPair : vertex.getOperatorIDs()) {
             OperatorState operatorState =
                     operatorStates.get(operatorIDPair.getGeneratedOperatorID());
+            // 该算子与入参无关   跳过
             if (operatorState == null) {
                 continue;
             }
 
+            // 获取关联的所有子状态
             for (OperatorSubtaskState operatorSubtaskState : operatorState.getStates()) {
                 boolean hasUnionListState =
                         Stream.concat(
@@ -210,6 +256,7 @@ public class DefaultCheckpointPlan implements CheckpointPlan {
                                         operatorStateHandle ->
                                                 operatorStateHandle.getStateNameToPartitionOffsets()
                                                         .values().stream())
+                                // 找到任一模式为union的
                                 .anyMatch(
                                         stateMetaInfo ->
                                                 stateMetaInfo.getDistributionMode()
@@ -229,12 +276,15 @@ public class DefaultCheckpointPlan implements CheckpointPlan {
         // Completes the operator state for the fully finished operators
         for (ExecutionJobVertex jobVertex : fullyFinishedOrFinishedOnRestoreVertices.values()) {
             for (OperatorIDPair operatorID : jobVertex.getOperatorIDs()) {
+
+                // 获取相关的状态
                 OperatorState operatorState =
                         operatorStates.get(operatorID.getGeneratedOperatorID());
                 checkState(
                         operatorState == null || !operatorState.hasSubtaskStates(),
                         "There should be no states or only coordinator state reported for fully finished operators");
 
+                // 将operatorStates内的状态更新成fullyFinished
                 operatorState =
                         new FullyFinishedOperatorState(
                                 operatorID.getGeneratedOperatorID(),
@@ -250,9 +300,11 @@ public class DefaultCheckpointPlan implements CheckpointPlan {
         for (Execution finishedTask : finishedTasks) {
             ExecutionJobVertex jobVertex = finishedTask.getVertex().getJobVertex();
             for (OperatorIDPair operatorIDPair : jobVertex.getOperatorIDs()) {
+                // 从operatorStates中找到对应的状态
                 OperatorState operatorState =
                         operatorStates.get(operatorIDPair.getGeneratedOperatorID());
 
+                // 该状态已经完成 就不需要处理了
                 if (operatorState != null && operatorState.isFullyFinished()) {
                     continue;
                 }
@@ -263,9 +315,11 @@ public class DefaultCheckpointPlan implements CheckpointPlan {
                                     operatorIDPair.getGeneratedOperatorID(),
                                     jobVertex.getParallelism(),
                                     jobVertex.getMaxParallelism());
+                    // 初始化状态 并加入容器
                     operatorStates.put(operatorIDPair.getGeneratedOperatorID(), operatorState);
                 }
 
+                // 因为本task已经处于finished状态了 所以加入operatorState的是一个FinishedOperatorSubtaskState
                 operatorState.putState(
                         finishedTask.getParallelSubtaskIndex(),
                         FinishedOperatorSubtaskState.INSTANCE);

@@ -36,6 +36,8 @@ import java.io.IOException;
  * @param <K> The type of the key.
  * @param <N> The type of the namespace.
  * @param <V> The type of the value.
+ *
+ *           表示reduce类型的state
  */
 class HeapReducingState<K, N, V> extends AbstractHeapMergingState<K, N, V, V, V>
         implements InternalReducingState<K, N, V> {
@@ -97,6 +99,7 @@ class HeapReducingState<K, N, V> extends AbstractHeapMergingState<K, N, V, V, V>
         }
 
         try {
+            // 触发reduce函数
             stateTable.transform(currentNamespace, value, reduceTransformation);
         } catch (Exception e) {
             throw new IOException("Exception while applying ReduceFunction in reducing state", e);
@@ -117,6 +120,10 @@ class HeapReducingState<K, N, V> extends AbstractHeapMergingState<K, N, V, V, V>
         return this;
     }
 
+    /**
+     * StateTransformationFunction 可以作用到新旧2个state上
+     * @param <V>
+     */
     static final class ReduceTransformation<V> implements StateTransformationFunction<V, V> {
 
         private final ReduceFunction<V> reduceFunction;

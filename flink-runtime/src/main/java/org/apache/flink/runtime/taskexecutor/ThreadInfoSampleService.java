@@ -38,7 +38,9 @@ import java.util.stream.Collectors;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** Samples thread infos of tasks. */
+/** Samples thread infos of tasks.
+ * 用于线程栈采样
+ * */
 class ThreadInfoSampleService implements Closeable {
 
     private final ScheduledExecutorService scheduledExecutor;
@@ -55,6 +57,7 @@ class ThreadInfoSampleService implements Closeable {
      * @param threads the map key is thread id, the map value is the ExecutionAttemptID.
      * @param requestParams Parameters of the sampling request.
      * @return A future containing the stack trace samples.
+     * 进行线程栈采样
      */
     public CompletableFuture<Map<ExecutionAttemptID, Collection<ThreadInfoSample>>>
             requestThreadInfoSamples(

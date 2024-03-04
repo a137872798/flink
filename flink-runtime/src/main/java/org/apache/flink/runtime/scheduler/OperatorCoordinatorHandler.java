@@ -31,20 +31,27 @@ import org.apache.flink.util.FlinkException;
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
 
-/** Handler for the {@link OperatorCoordinator OperatorCoordinators}. */
+/** Handler for the {@link OperatorCoordinator OperatorCoordinators}.
+ * 操控协调者
+ * */
 public interface OperatorCoordinatorHandler {
 
     /**
      * Initialize operator coordinators.
      *
      * @param mainThreadExecutor Executor for submitting work to the main thread.
+     *                           初始化协调者
      */
     void initializeOperatorCoordinators(ComponentMainThreadExecutor mainThreadExecutor);
 
-    /** Start all operator coordinators. */
+    /** Start all operator coordinators.
+     * 开启所有协调者
+     * */
     void startAllOperatorCoordinators();
 
-    /** Dispose all operator coordinators. */
+    /** Dispose all operator coordinators.
+     * 丢弃所有协调者
+     * */
     void disposeAllOperatorCoordinators();
 
     /**
@@ -54,6 +61,7 @@ public interface OperatorCoordinatorHandler {
      * @param operatorId OperatorId of the target OperatorCoordinator.
      * @param event Event to deliver to the OperatorCoordinator.
      * @throws FlinkException If no coordinator is registered for operator.
+     * 将事件推送给协调者
      */
     void deliverOperatorEventToCoordinator(
             ExecutionAttemptID taskExecutionId, OperatorID operatorId, OperatorEvent event)
@@ -66,6 +74,7 @@ public interface OperatorCoordinatorHandler {
      * @param request request for the operator.
      * @return Future with the response.
      * @throws FlinkException If the coordinator doesn't exist or if it can not handle the request.
+     * 将请求转交给协调者
      */
     CompletableFuture<CoordinationResponse> deliverCoordinationRequestToCoordinator(
             OperatorID operator, CoordinationRequest request) throws FlinkException;
@@ -75,6 +84,7 @@ public interface OperatorCoordinatorHandler {
      *
      * @param coordinators the operator coordinator to be registered.
      * @param mainThreadExecutor Executor for submitting work to the main thread.
+     *                           添加一个协调者
      */
     void registerAndStartNewCoordinators(
             Collection<OperatorCoordinatorHolder> coordinators,

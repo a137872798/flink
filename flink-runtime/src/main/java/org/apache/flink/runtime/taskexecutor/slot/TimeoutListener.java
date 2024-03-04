@@ -24,6 +24,7 @@ import java.util.UUID;
  * Listener for timeout events by the {@link TimerService}.
  *
  * @param <K> Type of the timeout key
+ *           通过该对象可以发现某些key超时了
  */
 public interface TimeoutListener<K> {
 

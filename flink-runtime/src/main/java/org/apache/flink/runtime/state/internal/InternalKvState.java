@@ -60,8 +60,12 @@ import java.util.Collection;
  * @param <K> The type of key the state is associated to
  * @param <N> The type of the namespace
  * @param <V> The type of values kept internally in state
+ *
+ *           表示  kvState
  */
 public interface InternalKvState<K, N, V> extends State {
+
+    // 分别对应3个核心属性的序列化对象
 
     /** Returns the {@link TypeSerializer} for the type of key this state is associated to. */
     TypeSerializer<K> getKeySerializer();
@@ -76,6 +80,7 @@ public interface InternalKvState<K, N, V> extends State {
      * Sets the current namespace, which will be used when using the state access methods.
      *
      * @param namespace The namespace.
+     *                  更新状态的命名空间
      */
     void setCurrentNamespace(N namespace);
 
@@ -98,6 +103,7 @@ public interface InternalKvState<K, N, V> extends State {
      * @return Serialized value or <code>null</code> if no value is associated with the key and
      *     namespace.
      * @throws Exception Exceptions during serialization are forwarded
+     * 传入序列化后的数据 配合序列化对象查询value
      */
     byte[] getSerializedValue(
             final byte[] serializedKeyAndNamespace,
@@ -113,6 +119,8 @@ public interface InternalKvState<K, N, V> extends State {
      *     returned records per {@code nextEntries} call, it can still be exceeded by some smaller
      *     constant.
      * @return global iterator over state entries
+     *
+     * 该访问者 会查看多个entry
      */
     StateIncrementalVisitor<K, N, V> getStateIncrementalVisitor(
             int recommendedMaxNumberOfReturnedRecords);
@@ -128,6 +136,7 @@ public interface InternalKvState<K, N, V> extends State {
         /**
          * Whether the visitor potentially has some next entries to return from {@code
          * nextEntries()}.
+         * 查看有无下个条目
          */
         boolean hasNext();
 
@@ -142,6 +151,8 @@ public interface InternalKvState<K, N, V> extends State {
          * <p>The returned collection and state values must not be changed internally (there might
          * be no defensive copies in {@code nextEntries()} for performance). It has to be deeply
          * copied if it is to modify, e.g. with the {@code update()} method.
+         *
+         * 一次性获取一批条目
          */
         Collection<StateEntry<K, N, V>> nextEntries();
 

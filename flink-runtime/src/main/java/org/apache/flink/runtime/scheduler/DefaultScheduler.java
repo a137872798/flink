@@ -79,34 +79,62 @@ import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** The future default scheduler. */
+/** The future default scheduler.
+ * 默认调度器
+ * */
 public class DefaultScheduler extends SchedulerBase implements SchedulerOperations {
 
     protected final Logger log;
 
     private final ClassLoader userCodeLoader;
 
+    /**
+     * 该对象可以为Execution分配slot
+     */
     protected final ExecutionSlotAllocator executionSlotAllocator;
 
+    /**
+     * 用于处理失败的情况
+     */
     private final ExecutionFailureHandler executionFailureHandler;
 
     private final ScheduledExecutor delayExecutor;
 
+    /**
+     * 该对象包含了调度 和重启某个Execution的逻辑
+     */
     private final SchedulingStrategy schedulingStrategy;
 
+    /**
+     * 该对象可以部署和取消Execution
+     * 就是直接调用 Execution的相关方法
+     */
     private final ExecutionOperations executionOperations;
 
+    /**
+     * 等待重启的一组子任务
+     */
     private final Set<ExecutionVertexID> verticesWaitingForRestart;
 
+    /**
+     * TODO
+     */
     private final ShuffleMaster<?> shuffleMaster;
 
+    /**
+     * 记录每个slot的引用次数  针对共享slot
+     */
     private final Map<AllocationID, Long> reservedAllocationRefCounters;
 
     // once an execution vertex is assigned an allocation/slot, it will reserve the allocation
     // until it is assigned a new allocation, or it finishes and does not need the allocation
     // anymore. The reserved allocation information is needed for local recovery.
+    // 记录每个Execution分到的 slot
     private final Map<ExecutionVertexID, AllocationID> reservedAllocationByExecutionVertex;
 
+    /**
+     * 该对象用于为execution分配slot  以及触发deploy
+     */
     protected final ExecutionDeployer executionDeployer;
 
     protected DefaultScheduler(
@@ -162,6 +190,7 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
         this.reservedAllocationRefCounters = new HashMap<>();
         this.reservedAllocationByExecutionVertex = new HashMap<>();
 
+        // 得到故障转移策略
         final FailoverStrategy failoverStrategy =
                 failoverStrategyFactory.create(
                         getSchedulingTopology(), getResultPartitionAvailabilityChecker());
@@ -171,6 +200,7 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
                 jobGraph.getName(),
                 jobGraph.getJobID());
 
+        // 这个是异常相关的
         final Context taskFailureCtx =
                 DefaultFailureEnricherContext.forTaskFailure(
                         jobGraph.getJobID(),
@@ -197,16 +227,20 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
                         taskFailureCtx,
                         globalFailureCtx);
 
+        // 产生调度策略
         this.schedulingStrategy =
                 schedulingStrategyFactory.createInstance(this, getSchedulingTopology());
 
+        // 该对象用于分配slot
         this.executionSlotAllocator =
                 checkNotNull(executionSlotAllocatorFactory)
                         .createInstance(new DefaultExecutionSlotAllocationContext());
 
         this.verticesWaitingForRestart = new HashSet<>();
+        // 启动钩子函数
         startUpAction.accept(mainThreadExecutor);
 
+        // 该对象包含分配和部署的逻辑
         this.executionDeployer =
                 executionDeployerFactory.createInstance(
                         log,
@@ -234,15 +268,24 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
                 .forEach(ev -> cancelAllPendingSlotRequestsForVertex(ev.getId()));
     }
 
+    /**
+     * 开始调度
+     */
     @Override
     protected void startSchedulingInternal() {
         log.info(
                 "Starting scheduling with scheduling strategy [{}]",
                 schedulingStrategy.getClass().getName());
+        // 触发graph的transitionToRunning
         transitionToRunning();
         schedulingStrategy.startScheduling();
     }
 
+    /**
+     * 当任务状态更新时会进行通知   当任务完成时触发该方法
+     * @param execution
+     * @param ioMetrics
+     */
     @Override
     protected void onTaskFinished(final Execution execution, final IOMetrics ioMetrics) {
         checkState(execution.getState() == ExecutionState.FINISHED);
@@ -254,11 +297,17 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
         // along with the release slot process. However, that process is hidden in the depth
         // of the ExecutionGraph, so we currently do it in DefaultScheduler after that process
         // is done.
+        // 完成后就可以释放slot了
         stopReserveAllocation(executionVertexId);
 
+        // 通知调度策略 状态变化了
         schedulingStrategy.onExecutionStateChange(executionVertexId, ExecutionState.FINISHED);
     }
 
+    /**
+     * 表示任务失败
+     * @param execution
+     */
     @Override
     protected void onTaskFailed(final Execution execution) {
         checkState(execution.getState() == ExecutionState.FAILED);
@@ -271,20 +320,38 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
                 maybeTranslateToClusterDatasetException(error, execution.getVertex().getID()));
     }
 
+    /**
+     * 处理失败
+     * @param failedExecution
+     * @param error
+     */
     protected void handleTaskFailure(
             final Execution failedExecution, @Nullable final Throwable error) {
         maybeRestartTasks(recordTaskFailure(failedExecution, error));
     }
 
+    /**
+     * 记录错误信息
+     * @param failedExecution
+     * @param error
+     * @return
+     */
     protected FailureHandlingResult recordTaskFailure(
             final Execution failedExecution, @Nullable final Throwable error) {
         final long timestamp = System.currentTimeMillis();
         setGlobalFailureCause(error, timestamp);
+        // 通知协调者失败
         notifyCoordinatorsAboutTaskFailure(failedExecution, error);
 
         return executionFailureHandler.getFailureHandlingResult(failedExecution, error, timestamp);
     }
 
+    /**
+     * 转换异常
+     * @param cause
+     * @param failedVertex
+     * @return
+     */
     private Throwable maybeTranslateToClusterDatasetException(
             @Nullable Throwable cause, ExecutionVertexID failedVertex) {
         if (!(cause instanceof PartitionException)) {
@@ -307,6 +374,11 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
                 cause, Collections.singletonList(failedPartitionId.getIntermediateDataSetID()));
     }
 
+    /**
+     * 通知协调者 任务失败了
+     * @param execution
+     * @param error
+     */
     private void notifyCoordinatorsAboutTaskFailure(
             final Execution execution, @Nullable final Throwable error) {
         final ExecutionJobVertex jobVertex = execution.getVertex().getJobVertex();
@@ -329,6 +401,10 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
         maybeRestartTasks(failureHandlingResult);
     }
 
+    /**
+     * 根据处理结果判断能否重试任务
+     * @param failureHandlingResult
+     */
     private void maybeRestartTasks(final FailureHandlingResult failureHandlingResult) {
         if (failureHandlingResult.canRestart()) {
             restartTasksWithDelay(failureHandlingResult);
@@ -340,10 +416,15 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
         }
     }
 
+    /**
+     * 在一定延时后重启任务
+     * @param failureHandlingResult
+     */
     private void restartTasksWithDelay(final FailureHandlingResult failureHandlingResult) {
         final Set<ExecutionVertexID> verticesToRestart =
                 failureHandlingResult.getVerticesToRestart();
 
+        // 更新版本号
         final Set<ExecutionVertexVersion> executionVertexVersions =
                 new HashSet<>(
                         executionVertexVersioner
@@ -363,10 +444,13 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
                     failureHandlingResult.getFailedExecution().get().getAttemptId());
         }
 
+        // 添加到需要重启的容器中
         addVerticesToRestartPending(verticesToRestart);
 
+        // 取消本次任务
         final CompletableFuture<?> cancelFuture = cancelTasksAsync(verticesToRestart);
 
+        // 产生一个失败快照
         final FailureHandlingResultSnapshot failureHandlingResultSnapshot =
                 createFailureHandlingResultSnapshot(failureHandlingResult);
         delayExecutor.schedule(
@@ -374,8 +458,10 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
                         FutureUtils.assertNoException(
                                 cancelFuture.thenRunAsync(
                                         () -> {
+                                            // 在取消完之前的任务后   记录异常信息
                                             archiveFromFailureHandlingResult(
                                                     failureHandlingResultSnapshot);
+                                            // 重启任务
                                             restartTasks(executionVertexVersions, globalRecovery);
                                         },
                                         getMainThreadExecutor())),
@@ -389,21 +475,36 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
                 failureHandlingResult, id -> getExecutionVertex(id).getCurrentExecutions());
     }
 
+    /**
+     * 添加需要重启的任务
+     * @param verticesToRestart
+     */
     private void addVerticesToRestartPending(final Set<ExecutionVertexID> verticesToRestart) {
         verticesWaitingForRestart.addAll(verticesToRestart);
         transitionExecutionGraphState(JobStatus.RUNNING, JobStatus.RESTARTING);
     }
 
+    /**
+     * 已经准备重启了  就从verticesWaitingForRestart 移除
+     * @param verticesToRestart
+     */
     private void removeVerticesFromRestartPending(final Set<ExecutionVertexID> verticesToRestart) {
         verticesWaitingForRestart.removeAll(verticesToRestart);
+        // 所有待重启的都处理完  进入running状态
         if (verticesWaitingForRestart.isEmpty()) {
             transitionExecutionGraphState(JobStatus.RESTARTING, JobStatus.RUNNING);
         }
     }
 
+    /**
+     * 重启任务
+     * @param executionVertexVersions
+     * @param isGlobalRecovery
+     */
     private void restartTasks(
             final Set<ExecutionVertexVersion> executionVertexVersions,
             final boolean isGlobalRecovery) {
+        // 找到版本一致的对象  通过版本号解决冲突问题
         final Set<ExecutionVertexID> verticesToRestart =
                 executionVertexVersioner.getUnmodifiedExecutionVertices(executionVertexVersions);
 
@@ -411,25 +512,36 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
             return;
         }
 
+        // 切换到running状态
         removeVerticesFromRestartPending(verticesToRestart);
 
+        // 执行 execution.resetForNewExecution
         resetForNewExecutions(verticesToRestart);
 
         try {
+            // 恢复到最近检查点数据
             restoreState(verticesToRestart, isGlobalRecovery);
         } catch (Throwable t) {
             handleGlobalFailure(t);
             return;
         }
 
+        // 因为重启了任务  触发策略
         schedulingStrategy.restartTasks(verticesToRestart);
     }
 
+    /**
+     * 取消当前任务
+     * @param verticesToRestart
+     * @return
+     */
     private CompletableFuture<?> cancelTasksAsync(final Set<ExecutionVertexID> verticesToRestart) {
         // clean up all the related pending requests to avoid that immediately returned slot
         // is used to fulfill the pending requests of these tasks
+        // 取消分配
         cancelAllPendingSlotRequestsForVertices(verticesToRestart);
 
+        // 取消任务
         final List<CompletableFuture<?>> cancelFutures =
                 verticesToRestart.stream()
                         .map(this::cancelExecutionVertex)
@@ -438,6 +550,11 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
         return FutureUtils.combineAll(cancelFutures);
     }
 
+    /**
+     * 取消 execution
+     * @param executionVertexId
+     * @return
+     */
     private CompletableFuture<?> cancelExecutionVertex(final ExecutionVertexID executionVertexId) {
         return FutureUtils.combineAll(
                 getExecutionVertex(executionVertexId).getCurrentExecutions().stream()
@@ -445,8 +562,14 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
                         .collect(Collectors.toList()));
     }
 
+    /**
+     * 取消execution
+     * @param execution
+     * @return
+     */
     protected CompletableFuture<?> cancelExecution(final Execution execution) {
         notifyCoordinatorOfCancellation(execution);
+        // 触发execution.cancel
         return executionOperations.cancel(execution);
     }
 
@@ -455,6 +578,10 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
         executionVertices.forEach(this::cancelAllPendingSlotRequestsForVertex);
     }
 
+    /**
+     * 取消分配
+     * @param executionVertexId
+     */
     protected void cancelAllPendingSlotRequestsForVertex(
             final ExecutionVertexID executionVertexId) {
         getExecutionVertex(executionVertexId)
@@ -470,6 +597,10 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
     // SchedulerOperations
     // ------------------------------------------------------------------------
 
+    /**
+     * 为这组execution分配slot以及部署
+     * @param verticesToDeploy The execution vertices to deploy
+     */
     @Override
     public void allocateSlotsAndDeploy(final List<ExecutionVertexID> verticesToDeploy) {
         final Map<ExecutionVertexID, ExecutionVertexVersion> requiredVersionByVertex =
@@ -483,6 +614,11 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
         executionDeployer.allocateSlotsAndDeploy(executionsToDeploy, requiredVersionByVertex);
     }
 
+    /**
+     * 为execution 绑定 slot时 触发该方法
+     * @param executionVertexId
+     * @param newAllocation
+     */
     private void startReserveAllocation(
             ExecutionVertexID executionVertexId, AllocationID newAllocation) {
 
@@ -494,15 +630,25 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
                 newAllocation, (ignored, oldCount) -> oldCount == null ? 1 : oldCount + 1);
     }
 
+
+    /**
+     * 释放某个execution相关的slot
+     * @param executionVertexId
+     */
     private void stopReserveAllocation(ExecutionVertexID executionVertexId) {
         final AllocationID priorAllocation =
                 reservedAllocationByExecutionVertex.remove(executionVertexId);
         if (priorAllocation != null) {
+            // 修改引用计数
             reservedAllocationRefCounters.compute(
                     priorAllocation, (ignored, oldCount) -> oldCount > 1 ? oldCount - 1 : null);
         }
     }
 
+    /**
+     * 通知所有协调者 任务被取消 当失败并准备重启时也会取消
+     * @param execution
+     */
     private void notifyCoordinatorOfCancellation(Execution execution) {
         // this method makes a best effort to filter out duplicate notifications, meaning cases
         // where the coordinator was already notified for that specific task
@@ -517,6 +663,9 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
         notifyCoordinatorsAboutTaskFailure(execution, null);
     }
 
+    /**
+     * 这个是上下文对象 在分配slot时使用
+     */
     private class DefaultExecutionSlotAllocationContext implements ExecutionSlotAllocationContext {
 
         @Override
@@ -524,6 +673,11 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
             return getExecutionVertex(executionVertexId).getResourceProfile();
         }
 
+        /**
+         * 优先选择最近一次分配的slot
+         * @param executionVertexId id of the execution vertex
+         * @return
+         */
         @Override
         public Optional<AllocationID> findPriorAllocationId(
                 final ExecutionVertexID executionVertexId) {

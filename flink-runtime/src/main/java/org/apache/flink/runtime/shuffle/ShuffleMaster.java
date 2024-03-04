@@ -30,6 +30,7 @@ import java.util.concurrent.CompletableFuture;
  *
  * @param <T> partition shuffle descriptor used for producer/consumer deployment and their data
  *     exchange.
+ *           通过该对象对中间结果集进行分区
  */
 public interface ShuffleMaster<T extends ShuffleDescriptor> extends AutoCloseable {
 
@@ -53,6 +54,7 @@ public interface ShuffleMaster<T extends ShuffleDescriptor> extends AutoCloseabl
      * partitions, so that JobMaster can identify and reproduce unavailable partitions earlier.
      *
      * @param context the corresponding shuffle context of the target job.
+     *                注册job信息
      */
     default void registerJob(JobShuffleContext context) {}
 
@@ -62,6 +64,7 @@ public interface ShuffleMaster<T extends ShuffleDescriptor> extends AutoCloseabl
      * partitions can be cleared.
      *
      * @param jobID ID of the target job to be unregistered.
+     *              注销job
      */
     default void unregisterJob(JobID jobID) {}
 
@@ -78,6 +81,7 @@ public interface ShuffleMaster<T extends ShuffleDescriptor> extends AutoCloseabl
      *     info)
      * @return future with the partition shuffle descriptor used for producer/consumer deployment
      *     and their data exchange.
+     *     将某个分区数据 和产生它的生产者 注册到洗牌服务
      */
     CompletableFuture<T> registerPartitionWithProducer(
             JobID jobID,
@@ -94,6 +98,7 @@ public interface ShuffleMaster<T extends ShuffleDescriptor> extends AutoCloseabl
      * ShuffleEnvironment#releasePartitionsLocally(Collection)}.
      *
      * @param shuffleDescriptor shuffle descriptor of the result partition to release externally.
+     *                          释放给定分区占用的所有外部资源
      */
     void releasePartitionExternally(ShuffleDescriptor shuffleDescriptor);
 

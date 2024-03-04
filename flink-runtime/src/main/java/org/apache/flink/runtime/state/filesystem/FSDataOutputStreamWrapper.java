@@ -28,6 +28,7 @@ import java.io.IOException;
 /**
  * Implementation of {@link MetadataOutputStreamWrapper} encapsulates the {@link FSDataOutputStream}
  * for {@link FsCheckpointMetadataOutputStream}.
+ * 这是一个普通的包装对象
  */
 @Internal
 public class FSDataOutputStreamWrapper extends MetadataOutputStreamWrapper {

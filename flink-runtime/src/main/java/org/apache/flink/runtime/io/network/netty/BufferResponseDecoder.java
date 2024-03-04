@@ -27,10 +27,14 @@ import static org.apache.flink.runtime.io.network.netty.NettyMessage.BufferRespo
 import static org.apache.flink.runtime.io.network.netty.NettyMessage.BufferResponse.MESSAGE_HEADER_LENGTH;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** The decoder for {@link BufferResponse}. */
+/** The decoder for {@link BufferResponse}.
+ * 该对象只用于解析 BufferResponse
+ * */
 class BufferResponseDecoder extends NettyMessageDecoder {
 
-    /** The Buffer allocator. */
+    /** The Buffer allocator.
+     * 内存分配器
+     * */
     private final NetworkBufferAllocator allocator;
 
     /** The accumulation buffer of message header. */
@@ -39,10 +43,13 @@ class BufferResponseDecoder extends NettyMessageDecoder {
     /**
      * The BufferResponse message that has its message header decoded, but still not received all
      * the bytes of the buffer part.
+     * 最近解析出的数据
      */
     @Nullable private BufferResponse bufferResponse;
 
-    /** How many bytes have been received or discarded for the data buffer part. */
+    /** How many bytes have been received or discarded for the data buffer part.
+     * 代表此时buffer中已经被使用的部分
+     * */
     private int decodedDataBufferSize;
 
     BufferResponseDecoder(NetworkBufferAllocator allocator) {
@@ -54,13 +61,22 @@ class BufferResponseDecoder extends NettyMessageDecoder {
         messageHeaderBuffer = ctx.alloc().directBuffer(MESSAGE_HEADER_LENGTH);
     }
 
+    /**
+     * 接收到数据
+     * @param data The data received.
+     * @return
+     * @throws Exception
+     */
     @Override
     public DecodingResult onChannelRead(ByteBuf data) throws Exception {
+
+        // 初始化 bufferResponse
         if (bufferResponse == null) {
             decodeMessageHeader(data);
         }
 
         if (bufferResponse != null) {
+            // 表示还需要读取的长度
             int remainingBufferSize = bufferResponse.bufferSize - decodedDataBufferSize;
             int actualBytesToDecode = Math.min(data.readableBytes(), remainingBufferSize);
 
@@ -68,6 +84,7 @@ class BufferResponseDecoder extends NettyMessageDecoder {
             if (actualBytesToDecode > 0) {
                 // For the case of released input channel, the respective data buffer part would be
                 // discarded from the received buffer.
+                // 这个表示丢弃数据
                 if (bufferResponse.getBuffer() == null) {
                     data.readerIndex(data.readerIndex() + actualBytesToDecode);
                 } else {
@@ -77,8 +94,10 @@ class BufferResponseDecoder extends NettyMessageDecoder {
                 decodedDataBufferSize += actualBytesToDecode;
             }
 
+            // 此时可以还原出一条记录
             if (decodedDataBufferSize == bufferResponse.bufferSize) {
                 BufferResponse result = bufferResponse;
+                // 重置状态
                 clearState();
                 return DecodingResult.fullMessage(result);
             }
@@ -88,6 +107,8 @@ class BufferResponseDecoder extends NettyMessageDecoder {
     }
 
     private void decodeMessageHeader(ByteBuf data) {
+
+        // 这里还有一个头部
         ByteBuf fullFrameHeaderBuf =
                 ByteBufUtils.accumulate(
                         messageHeaderBuffer,
@@ -95,6 +116,7 @@ class BufferResponseDecoder extends NettyMessageDecoder {
                         MESSAGE_HEADER_LENGTH,
                         messageHeaderBuffer.readableBytes());
         if (fullFrameHeaderBuf != null) {
+            // 根据头部的长度信息 解出response
             bufferResponse = BufferResponse.readFrom(fullFrameHeaderBuf, allocator);
         }
     }

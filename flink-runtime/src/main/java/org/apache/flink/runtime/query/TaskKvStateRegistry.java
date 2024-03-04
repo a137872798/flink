@@ -28,19 +28,29 @@ import org.apache.flink.util.Preconditions;
 import java.util.ArrayList;
 import java.util.List;
 
-/** A helper for KvState registrations of a single task. */
+/** A helper for KvState registrations of a single task.
+ * 该对象是以task为单位进行管理的   而这些TaskKvStateRegistry背后是同一个 KvStateRegistry    使用它进行统一维护
+ * */
 public class TaskKvStateRegistry {
 
-    /** KvStateRegistry for KvState instance registrations. */
+    /** KvStateRegistry for KvState instance registrations.
+     * 简单理解就是维护状态的
+     * */
     private final KvStateRegistry registry;
 
-    /** JobID of the task. */
+    /** JobID of the task.
+     * 当前task所属的job
+     * */
     private final JobID jobId;
 
-    /** JobVertexID of the task. */
+    /** JobVertexID of the task.
+     * 标注该task相关的job的顶级id
+     * */
     private final JobVertexID jobVertexId;
 
-    /** List of all registered KvState instances of this task. */
+    /** List of all registered KvState instances of this task.
+     * 维护本task相关的所有state
+     * */
     private final List<KvStateInfo> registeredKvStates = new ArrayList<>();
 
     TaskKvStateRegistry(KvStateRegistry registry, JobID jobId, JobVertexID jobVertexId) {
@@ -56,12 +66,15 @@ public class TaskKvStateRegistry {
      * @param registrationName The registration name (not necessarily the same as the KvState name
      *     defined in the state descriptor used to create the KvState instance)
      * @param kvState The
+     *                其实相当于对外暴露了这个state 
      */
     public void registerKvState(
             KeyGroupRange keyGroupRange,
             String registrationName,
             InternalKvState<?, ?, ?> kvState,
             ClassLoader userClassLoader) {
+
+        // 由大registry注册  返回id 并包装成KvStateInfo
         KvStateID kvStateId =
                 registry.registerKvState(
                         jobId,
@@ -76,6 +89,7 @@ public class TaskKvStateRegistry {
     /** Unregisters all registered KvState instances from the KvStateRegistry. */
     public void unregisterAll() {
         for (KvStateInfo kvState : registeredKvStates) {
+            // 将该task相关的所有task都注销
             registry.unregisterKvState(
                     jobId,
                     jobVertexId,
@@ -85,13 +99,18 @@ public class TaskKvStateRegistry {
         }
     }
 
-    /** 3-tuple holding registered KvState meta data. */
+    /** 3-tuple holding registered KvState meta data.
+     * 由该task产生的状态对象  只包含基础信息
+     * */
     private static class KvStateInfo {
 
         private final KeyGroupRange keyGroupRange;
 
         private final String registrationName;
 
+        /**
+         * 唯一id
+         */
         private final KvStateID kvStateId;
 
         KvStateInfo(KeyGroupRange keyGroupRange, String registrationName, KvStateID kvStateId) {

@@ -26,7 +26,9 @@ import org.apache.flink.runtime.io.network.partition.hybrid.tiered.tier.TierProd
 
 import java.util.concurrent.CompletableFuture;
 
-/** {@link TieredStorageNettyService} is used to create writers and readers to netty. */
+/** {@link TieredStorageNettyService} is used to create writers and readers to netty.
+ * 使用该对象来管理writer和reader
+ * */
 public interface TieredStorageNettyService {
 
     /**

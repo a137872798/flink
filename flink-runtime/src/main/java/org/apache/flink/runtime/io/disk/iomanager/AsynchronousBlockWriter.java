@@ -24,9 +24,15 @@ import java.io.IOException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * 处理写入请求
+ */
 public class AsynchronousBlockWriter extends AsynchronousBlockWriterWithCallback
         implements BlockChannelWriter<MemorySegment> {
 
+    /**
+     * 通过该对象写入时  可以获取写入使用的数据
+     */
     private final LinkedBlockingQueue<MemorySegment> returnSegments;
 
     /**

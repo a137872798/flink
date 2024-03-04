@@ -36,6 +36,8 @@ import java.util.Iterator;
  * {@link StateChangelogStorage} implementations may have different <b>iterator</b> implementations.
  * Using a different {@link ChangelogStateHandle} (and reader) is problematic as it needs to be
  * serialized.
+ *
+ * 该对象提供api 可以得到某个state所有的变化
  */
 @Internal
 public class StateChangelogHandleStreamHandleReader
@@ -43,7 +45,9 @@ public class StateChangelogHandleStreamHandleReader
     private static final Logger LOG =
             LoggerFactory.getLogger(StateChangelogHandleStreamHandleReader.class);
 
-    /** Reads a stream of state changes starting from a specified offset. */
+    /** Reads a stream of state changes starting from a specified offset.
+     * 通过偏移量读取数据
+     * */
     public interface StateChangeIterator {
         CloseableIterator<StateChange> read(StreamStateHandle handle, long offset)
                 throws IOException;
@@ -59,6 +63,7 @@ public class StateChangelogHandleStreamHandleReader
     public CloseableIterator<StateChange> getChanges(ChangelogStateHandleStreamImpl handle)
             throws IOException {
         return new CloseableIterator<StateChange>() {
+            // 表示内部每个state 与 此时读取到的偏移量的关系
             private final Iterator<Tuple2<StreamStateHandle, Long>> handleIterator =
                     handle.getHandlesAndOffsets().iterator();
 
@@ -82,6 +87,7 @@ public class StateChangelogHandleStreamHandleReader
                         current.close();
                         Tuple2<StreamStateHandle, Long> tuple2 = handleIterator.next();
                         LOG.debug("read at {} from {}", tuple2.f1, tuple2.f0);
+                        // 根据偏移量加载数据
                         current = changeIterator.read(tuple2.f0, tuple2.f1);
                     } catch (Exception e) {
                         ExceptionUtils.rethrow(e);

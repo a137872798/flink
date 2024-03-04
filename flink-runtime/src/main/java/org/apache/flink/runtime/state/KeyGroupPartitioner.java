@@ -38,6 +38,10 @@ import java.util.Iterator;
  * currently prefer the trade-off in favor of better algorithmic complexity.
  *
  * @param <T> type of the partitioned elements.
+ *
+ *           可以将数据按照keyGroup进行划分
+ *           产生的PartitioningResult 对象 可以根据传入的keyGroupId 返回部分数据的迭代器
+ *           优先队列会使用到该对象  因为到二叉堆的顺序跟keyGroup无关  所以要提取出keyGroup并重新排序
  */
 public class KeyGroupPartitioner<T> {
 
@@ -62,12 +66,14 @@ public class KeyGroupPartitioner<T> {
     /**
      * This bookkeeping array is used to count the elements in each key-group. In a second step, it
      * is transformed into a histogram by accumulation.
+     * 每个元素是当前keyGroup与之前所有keyGroup出现的元素总数
      */
     @Nonnull private final int[] counterHistogram;
 
     /**
      * This is a helper array that caches the key-group for each element, so we do not have to
      * compute them twice.
+     * 记录数组中每个元素对应的 keyGroup下标
      */
     @Nonnull private final int[] elementKeyGroups;
 
@@ -80,7 +86,9 @@ public class KeyGroupPartitioner<T> {
     /** Function to write an element to a {@link DataOutputView}. */
     @Nonnull private final ElementWriterFunction<T> elementWriterFunction;
 
-    /** Cached result. */
+    /** Cached result.
+     * 缓存分区结果
+     * */
     @Nullable private PartitioningResult<T> computedResult;
 
     /**
@@ -98,13 +106,13 @@ public class KeyGroupPartitioner<T> {
      * @param keyExtractorFunction this function extracts the partition key from an element.
      */
     public KeyGroupPartitioner(
-            @Nonnull T[] partitioningSource,
+            @Nonnull T[] partitioningSource,  // 包含原始数据的数组
             @Nonnegative int numberOfElements,
-            @Nonnull T[] partitioningDestination,
+            @Nonnull T[] partitioningDestination,  // 用于存储结果的数组
             @Nonnull KeyGroupRange keyGroupRange,
             @Nonnegative int totalKeyGroups,
-            @Nonnull KeyExtractorFunction<T> keyExtractorFunction,
-            @Nonnull ElementWriterFunction<T> elementWriterFunction) {
+            @Nonnull KeyExtractorFunction<T> keyExtractorFunction,  // 该函数用于提取key
+            @Nonnull ElementWriterFunction<T> elementWriterFunction) {  // 该对象用于将单个元素写入输出流 其实就是序列化
 
         Preconditions.checkState(partitioningSource != partitioningDestination);
         Preconditions.checkState(partitioningSource.length >= numberOfElements);
@@ -124,10 +132,12 @@ public class KeyGroupPartitioner<T> {
 
     /**
      * Partitions the data into key-groups and returns the result as a {@link PartitioningResult}.
+     * 生成基于keyGroup分区的对象
      */
     public PartitioningResult<T> partitionByKeyGroup() {
         if (computedResult == null) {
             reportAllElementKeyGroups();
+            // 得到总数
             int outputNumberOfElements = buildHistogramByAccumulatingCounts();
             executePartitioning(outputNumberOfElements);
         }
@@ -139,7 +149,9 @@ public class KeyGroupPartitioner<T> {
 
         Preconditions.checkState(partitioningSource.length >= numberOfElements);
 
+        // 遍历所有元素
         for (int i = 0; i < numberOfElements; ++i) {
+            // 计算key.hashCode 并转换成 下标
             int keyGroup =
                     KeyGroupRangeAssignment.assignToKeyGroup(
                             keyExtractorFunction.extractKeyFromElement(partitioningSource[i]),
@@ -171,12 +183,18 @@ public class KeyGroupPartitioner<T> {
         return sum;
     }
 
+    /**
+     * 进行分区
+     * @param outputNumberOfElements   表示总计多少元素
+     */
     private void executePartitioning(int outputNumberOfElements) {
 
         // We repartition the entries by their pre-computed key-groups, using the histogram values
         // as write indexes
         for (int inIdx = 0; inIdx < outputNumberOfElements; ++inIdx) {
+            // 兑换成该元素的keyGroup
             int effectiveKgIdx = elementKeyGroups[inIdx];
+            // 这样操作后  相当于源数组的元素按照keyGroup的顺序重新排序
             int outIdx = counterHistogram[effectiveKgIdx]++;
             partitioningDestination[outIdx] = partitioningSource[inIdx];
         }
@@ -185,11 +203,13 @@ public class KeyGroupPartitioner<T> {
                 new PartitioningResultImpl<>(
                         elementWriterFunction,
                         firstKeyGroup,
-                        counterHistogram,
+                        counterHistogram,  // 此时每个元素存储的都是之前累加的结果
                         partitioningDestination);
     }
 
-    /** This represents the result of key-group partitioning. */
+    /** This represents the result of key-group partitioning.
+     * 可以指定keyGroup后 获取相关元素的迭代器
+     * */
     public interface PartitioningResult<T> extends StateSnapshot.StateKeyGroupWriter {
         Iterator<T> iterator(int keyGroupId);
     }
@@ -197,22 +217,28 @@ public class KeyGroupPartitioner<T> {
     /** The data in {@link * #partitionedElements} is partitioned w.r.t. key group range. */
     private static class PartitioningResultImpl<T> implements PartitioningResult<T> {
 
-        /** Function to write one element to a {@link DataOutputView}. */
+        /** Function to write one element to a {@link DataOutputView}.
+         * 该函数用于实现 StateKeyGroupWriter
+         * */
         @Nonnull private final ElementWriterFunction<T> elementWriterFunction;
 
         /**
          * The exclusive-end-offsets for all key-groups of the covered range for the partitioning.
          * Exclusive-end-offset for key-group n is under keyGroupOffsets[n - firstKeyGroup].
+         * 里面记录的是表示同一个keyGroup的元素终止的下标
          */
         @Nonnull private final int[] keyGroupOffsets;
 
         /**
          * Array with elements that are partitioned w.r.t. the covered key-group range. The start
          * offset for each key-group is in {@link #keyGroupOffsets}.
+         * 存储已经被分好区的元素
          */
         @Nonnull private final T[] partitionedElements;
 
-        /** The first key-group of the range covered in the partitioning. */
+        /** The first key-group of the range covered in the partitioning.
+         * 表示第一个keyGroup值
+         * */
         @Nonnegative private final int firstKeyGroup;
 
         PartitioningResultImpl(
@@ -241,18 +267,24 @@ public class KeyGroupPartitioner<T> {
         public void writeStateInKeyGroup(@Nonnull DataOutputView dov, int keyGroupId)
                 throws IOException {
 
+            // 得到该keyGroup的范围
             int startOffset = getKeyGroupStartOffsetInclusive(keyGroupId);
             int endOffset = getKeyGroupEndOffsetExclusive(keyGroupId);
 
             // write number of mappings in key-group
             dov.writeInt(endOffset - startOffset);
 
-            // write mappings
+            // write mappings  挨个写入
             for (int i = startOffset; i < endOffset; ++i) {
                 elementWriterFunction.writeElement(partitionedElements[i], dov);
             }
         }
 
+        /**
+         * 通过下标锁定范围  并生成迭代器
+         * @param keyGroupId
+         * @return
+         */
         @Override
         public Iterator<T> iterator(int keyGroupId) {
             int startOffset = getKeyGroupStartOffsetInclusive(keyGroupId);
@@ -262,6 +294,13 @@ public class KeyGroupPartitioner<T> {
         }
     }
 
+    /**
+     * 加载快照数据时需要
+     * @param readerFunction
+     * @param elementConsumer
+     * @param <T>
+     * @return
+     */
     public static <T> StateSnapshotKeyGroupReader createKeyGroupPartitionReader(
             @Nonnull ElementReaderFunction<T> readerFunction,
             @Nonnull KeyGroupElementsConsumer<T> elementConsumer) {
@@ -273,6 +312,7 @@ public class KeyGroupPartitioner<T> {
      * PartitioningResultImpl}.
      *
      * @param <T> type of the elements to read.
+     *           上面的是writer对象  与之对应的是reader对象
      */
     private static class PartitioningResultKeyGroupReader<T>
             implements StateSnapshotKeyGroupReader {

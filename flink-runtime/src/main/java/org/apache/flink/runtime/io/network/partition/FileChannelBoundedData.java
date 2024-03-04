@@ -40,9 +40,13 @@ import static org.apache.flink.util.Preconditions.checkState;
 /**
  * An implementation of {@link BoundedData} that writes directly into a File Channel. The readers
  * are simple file channel readers using a simple dedicated buffer pool.
+ * 将数据直接写入到fileChannel
  */
 final class FileChannelBoundedData implements BoundedData {
 
+    /**
+     * 目标文件路径
+     */
     private final Path filePath;
 
     private final FileChannel fileChannel;
@@ -58,11 +62,14 @@ final class FileChannelBoundedData implements BoundedData {
         this.filePath = checkNotNull(filePath);
         this.fileChannel = checkNotNull(fileChannel);
         this.memorySegmentSize = memorySegmentSize;
+        // 初始化时 只有一个存储header数据的buffer
         this.headerAndBufferArray = BufferReaderWriterUtil.allocatedWriteBufferArray();
     }
 
     @Override
     public void writeBuffer(Buffer buffer) throws IOException {
+
+        // 写入数据的同时  将buffer作为 headerAndBufferArray[1]
         size +=
                 BufferReaderWriterUtil.writeToByteChannel(
                         fileChannel, buffer, headerAndBufferArray);
@@ -73,6 +80,12 @@ final class FileChannelBoundedData implements BoundedData {
         fileChannel.close();
     }
 
+    /**
+     * 创建reader对象读取数据
+     * @param subpartitionView
+     * @return
+     * @throws IOException
+     */
     @Override
     public Reader createReader(ResultSubpartitionView subpartitionView) throws IOException {
         checkState(!fileChannel.isOpen());
@@ -109,6 +122,9 @@ final class FileChannelBoundedData implements BoundedData {
 
     // ------------------------------------------------------------------------
 
+    /**
+     * 该对象用于读取写入的数据
+     */
     static final class FileBufferReader implements BoundedData.Reader, BufferRecycler {
 
         private static final int NUM_BUFFERS = 2;
@@ -130,6 +146,7 @@ final class FileChannelBoundedData implements BoundedData {
             this.headerBuffer = BufferReaderWriterUtil.allocatedHeaderBuffer();
             this.buffers = new ArrayDeque<>(NUM_BUFFERS);
 
+            // 创建2个buffer对象
             for (int i = 0; i < NUM_BUFFERS; i++) {
                 buffers.addLast(
                         MemorySegmentFactory.allocateUnpooledOffHeapMemory(bufferSize, null));
@@ -138,6 +155,11 @@ final class FileChannelBoundedData implements BoundedData {
             this.subpartitionView = checkNotNull(subpartitionView);
         }
 
+        /**
+         * 获取下个buffer
+         * @return
+         * @throws IOException
+         */
         @Nullable
         @Override
         public Buffer nextBuffer() throws IOException {

@@ -37,6 +37,7 @@ import java.io.IOException;
  * is already partitioned, this can be a NOP. The returned {@link StateKeyGroupWriter} can be used
  * by the caller to write the state by key-group. As a last step, when the state is completely
  * written, the user calls {@link #release()}.
+ * 状态快照  最上层接口
  */
 @Internal
 public interface StateSnapshot {
@@ -44,11 +45,14 @@ public interface StateSnapshot {
     /**
      * This method returns {@link StateKeyGroupWriter} and should be called in the asynchronous part
      * of the snapshot.
+     * 产生一个写入数据的对象
      */
     @Nonnull
     StateKeyGroupWriter getKeyGroupWriter();
 
-    /** Returns a snapshot of the state's meta data. */
+    /** Returns a snapshot of the state's meta data.
+     * 状态的元数据快照
+     * */
     @Nonnull
     StateMetaInfoSnapshot getMetaInfoSnapshot();
 
@@ -56,10 +60,13 @@ public interface StateSnapshot {
      * Release the snapshot. All snapshots should be released when they are no longer used because
      * some implementation can only release resources after a release. Produced {@link
      * StateKeyGroupWriter} should no longer be used after calling this method.
+     * 释放快照
      */
     void release();
 
-    /** Interface for writing a snapshot that is partitioned into key-groups. */
+    /** Interface for writing a snapshot that is partitioned into key-groups.
+     * 可以按照keyGroup 写入状态
+     * */
     interface StateKeyGroupWriter {
         /**
          * Writes the data for the specified key-group to the output. You must call {@link

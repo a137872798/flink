@@ -30,8 +30,14 @@ import org.apache.flink.util.Preconditions;
 
 import static org.apache.flink.runtime.checkpoint.TaskStateSnapshot.serializeTaskStateSnapshot;
 
+/**
+ * 接收检查点结果
+ */
 public class RpcCheckpointResponder implements CheckpointResponder {
 
+    /**
+     * 也是通过rpc 访问JM
+     */
     private final CheckpointCoordinatorGateway checkpointCoordinatorGateway;
 
     public RpcCheckpointResponder(CheckpointCoordinatorGateway checkpointCoordinatorGateway) {

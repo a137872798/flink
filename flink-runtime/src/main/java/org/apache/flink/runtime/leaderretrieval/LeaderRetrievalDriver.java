@@ -26,5 +26,6 @@ import org.apache.flink.runtime.leaderelection.LeaderElectionDriver;
  *
  * <p><strong>Important</strong>: The {@link LeaderRetrievalDriver} could not guarantee that there
  * is no {@link LeaderRetrievalEventHandler} callbacks happen after {@link #close()}.
+ * leader检索驱动  用于发现leader节点的
  */
 public interface LeaderRetrievalDriver extends AutoCloseable {}

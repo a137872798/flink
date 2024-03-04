@@ -23,12 +23,16 @@ import org.apache.flink.util.Preconditions;
 import java.util.Collections;
 import java.util.List;
 
-/** Handle to state handles for the operators in an operator chain. */
+/** Handle to state handles for the operators in an operator chain.
+ * 表示一连串的operator
+ * */
 public class ChainedStateHandle<T extends StateObject> implements StateObject {
 
     private static final long serialVersionUID = 1L;
 
-    /** The state handles for all operators in the chain */
+    /** The state handles for all operators in the chain
+     * 表示一连串的操作
+     * */
     private final List<? extends T> operatorStateHandles;
 
     /**
@@ -46,6 +50,7 @@ public class ChainedStateHandle<T extends StateObject> implements StateObject {
      * #getLength()} is greater than zero, because state handles can be null.
      *
      * @return true if there are no state handles for any operator.
+     * 一旦找到某个operator 就返回false
      */
     public boolean isEmpty() {
         for (T state : operatorStateHandles) {
